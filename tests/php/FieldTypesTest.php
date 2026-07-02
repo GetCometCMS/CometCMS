@@ -78,6 +78,19 @@ test('select field validation lists valid stored values for mapped options', fun
     assert_same('Choose a valid option. Valid values: draft, published.', $invalid['message'] ?? null);
 });
 
+test('select field renders mapped option values with labels', function (): void {
+    $field = new SelectFieldType();
+    $html  = $field->renderInput('status', 'published', [
+        'options' => [
+            'draft' => 'Draft',
+            'published' => 'Published',
+        ],
+    ]);
+
+    assert_true(str_contains($html, '<option value="draft">Draft</option>'));
+    assert_true(str_contains($html, '<option value="published" selected>Published</option>'));
+});
+
 test('multi-select fields normalize unique non-empty values', function (): void {
     $field = new SelectFieldType();
 

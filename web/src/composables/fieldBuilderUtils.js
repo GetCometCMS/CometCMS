@@ -61,6 +61,20 @@ export function serializeSelectOptions(parsed) {
   return Object.fromEntries(parsed.map(({ key, label }) => [key, label]))
 }
 
+export function selectOptions(options) {
+  if (options && typeof options === 'object' && !Array.isArray(options)) {
+    return Object.entries(options).map(([key, label]) => ({
+      value: String(key),
+      label: String(label),
+    }))
+  }
+
+  return (options ?? []).map((option) => ({
+    value: String(option),
+    label: String(option),
+  }))
+}
+
 export function numberOr(value, fallback) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }

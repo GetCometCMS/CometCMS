@@ -6,6 +6,7 @@ import {
   optionsToText,
   parseSelectOptions,
   rangeDefaults,
+  selectOptions,
   serializeSelectOptions,
   uniqueKey,
 } from './fieldBuilderUtils'
@@ -51,6 +52,17 @@ describe('fieldBuilderUtils', () => {
   it('converts stored options back to textarea text', () => {
     expect(optionsToText(['Draft', 'Published'])).toBe('Draft\nPublished')
     expect(optionsToText({ draft: 'Draft', published: 'Published', archived: 'archived' })).toBe('draft:Draft\npublished:Published\narchived')
+  })
+
+  it('normalizes select options for editor controls', () => {
+    expect(selectOptions(['Draft', 'Published'])).toEqual([
+      { value: 'Draft', label: 'Draft' },
+      { value: 'Published', label: 'Published' },
+    ])
+    expect(selectOptions({ draft: 'Draft', published: 'Published' })).toEqual([
+      { value: 'draft', label: 'Draft' },
+      { value: 'published', label: 'Published' },
+    ])
   })
 
   it('clamps range defaults and repairs invalid range settings', () => {

@@ -58,10 +58,13 @@ final class SelectFieldType extends AbstractFieldType
     public function renderInput(string $name, mixed $value, array $config, array $context = []): string
     {
         $html = '<select name="' . Security::e($name) . '"><option value=""></option>';
+        $rawOptions = (array) ($config['options'] ?? []);
+        $isMap      = !array_is_list($rawOptions);
 
-        foreach ((array) ($config['options'] ?? []) as $option) {
-            $option = (string) $option;
-            $html .= '<option value="' . Security::e($option) . '"' . ((string) $value === $option ? ' selected' : '') . '>' . Security::e($option) . '</option>';
+        foreach ($rawOptions as $key => $label) {
+            $optionValue = $isMap ? (string) $key : (string) $label;
+            $optionLabel = (string) $label;
+            $html .= '<option value="' . Security::e($optionValue) . '"' . ((string) $value === $optionValue ? ' selected' : '') . '>' . Security::e($optionLabel) . '</option>';
         }
 
         return $html . '</select>';

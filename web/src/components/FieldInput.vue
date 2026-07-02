@@ -368,7 +368,7 @@
   <!-- select -->
   <SearchableSelect
     v-else-if="config.type === 'select' && config.multiple"
-    :options="(config.options ?? []).map((o) => ({ value: o, label: o }))"
+    :options="selectInputOptions"
     :model-value="normalizeChoiceValues(modelValue)"
     :multiple="true"
     placeholder="Select options…"
@@ -383,8 +383,8 @@
     @change="$emit('update:modelValue', $event.target.value)"
   >
     <option value="">— select —</option>
-    <option v-for="opt in config.options ?? []" :key="opt" :value="opt">
-      {{ opt }}
+    <option v-for="opt in selectInputOptions" :key="opt.value" :value="opt.value">
+      {{ opt.label }}
     </option>
   </select>
 
@@ -811,6 +811,7 @@ import {
   normalizeMediaModel as normalizeMediaModelValue,
   uploadedMediaFilename,
 } from "../composables/mediaUtils.js";
+import { selectOptions } from "../composables/fieldBuilderUtils.js";
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -1170,6 +1171,7 @@ const mediaPreviewEmptyTiles = computed(() =>
 );
 const mediaPreviewUrl = computed(() => mediaUrl(mediaPreviewFile.value));
 const mediaPreviewIsImage = computed(() => isImage(mediaPreviewFile.value));
+const selectInputOptions = computed(() => selectOptions(props.config.options));
 const relationValue = computed(() => {
   if (props.config.multiple) {
     return normalizeChoiceValues(props.modelValue);
