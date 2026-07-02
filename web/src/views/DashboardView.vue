@@ -59,20 +59,15 @@
 <script setup>
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import ActivityFeed from "../components/ActivityFeed.vue";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "../api/index.js";
-import { workspacedApiBase } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
-import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 
 const loading = ref(true);
 const stats = ref({ collections: 0, entries: 0, content_types: 0 });
 const appVersion = ref("");
 const { t } = useI18n();
-const apiEndpointStore = useApiEndpointStore();
-const apiEndpointOwner = "dashboard";
-const workspaceChangedEvent = "cometcms:workspace-changed";
 
 const statusItems = computed(() => [
   {
@@ -101,21 +96,7 @@ const statusItems = computed(() => [
   },
 ]);
 
-function publishApiEndpoint() {
-  apiEndpointStore.setEndpoint(
-    {
-      label: "Base API URL",
-      method: "GET",
-      url: workspacedApiBase(),
-    },
-    apiEndpointOwner,
-  );
-}
-
 onMounted(async () => {
-  publishApiEndpoint();
-  window.addEventListener(workspaceChangedEvent, publishApiEndpoint);
-
   try {
     const [dashboard, app] = await Promise.allSettled([
       api.dashboard(),
@@ -126,10 +107,5 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener(workspaceChangedEvent, publishApiEndpoint);
-  apiEndpointStore.clearEndpoint(apiEndpointOwner);
 });
 </script>

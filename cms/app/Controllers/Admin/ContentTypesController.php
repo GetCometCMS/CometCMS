@@ -58,9 +58,27 @@ final class ContentTypesController extends BaseController
     public function store(): never
     {
         $body = $this->requestJson();
-        $name = Security::slug((string) ($body['name'] ?? ''));
+        $name = $this->schemaName($body['name'] ?? '');
         $user = $this->requirePermission('schema.create', ['type' => 'schema', 'name' => $name]);
         $this->verifyCsrf();
+
+        if ($name === '') {
+            $this->json(['error' => [
+                'code' => 'validation_failed',
+                'message' => 'Choose an API name for this content type.',
+                'fields' => ['name' => ['Choose an API name for this content type.']],
+            ]], 422);
+        }
+
+        if ($this->types->exists($name)) {
+            $this->json(['error' => [
+                'code' => 'validation_failed',
+                'message' => 'A content type with this API name already exists.',
+                'fields' => ['name' => ['A content type with this API name already exists.']],
+            ]], 422);
+        }
+
+        $body['name'] = $name;
 
         if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
             $this->json(['error' => [
@@ -73,6 +91,14 @@ final class ContentTypesController extends BaseController
         $this->cache->clear();
         $this->logger->info('content_type.created', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->json(['data' => $this->types->find($name)], 201);
+    }
+
+    private function schemaName(mixed $value): string
+    {
+        $name = strtolower(trim((string) $value));
+        $name = preg_replace('/[^a-z0-9_-]+/', '-', $name) ?? '';
+
+        return trim($name, '-_');
     }
 
     public function reorder(): never

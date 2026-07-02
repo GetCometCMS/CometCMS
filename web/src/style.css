@@ -242,6 +242,24 @@
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
 
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-danger:disabled {
+    @apply cursor-not-allowed opacity-60 shadow-none;
+  }
+
+  .btn-primary:disabled {
+    @apply bg-slate-300 text-slate-500 hover:bg-slate-300 focus:ring-slate-300;
+  }
+
+  .btn-secondary:disabled {
+    @apply bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-100 focus:ring-slate-300;
+  }
+
+  .btn-danger:disabled {
+    @apply bg-red-300 text-red-50 hover:bg-red-300 focus:ring-red-300;
+  }
+
   .card {
     @apply bg-white rounded-xl border border-slate-200 shadow-sm;
   }

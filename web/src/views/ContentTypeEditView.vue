@@ -300,6 +300,7 @@ watch(
   },
 );
 const isDirty = ref(false);
+const cleanState = ref("");
 let _formLoaded = false;
 
 // We store only the "custom" fields (not title/slug) in the builder.
@@ -317,7 +318,7 @@ const fieldBuilder = ref(null);
 watch(
   [form, customFields],
   () => {
-    if (_formLoaded) isDirty.value = true;
+    if (_formLoaded) updateDirtyState();
   },
   { deep: true },
 );
@@ -377,12 +378,20 @@ onMounted(async () => {
   }
 
   await nextTick();
+  markClean();
   _formLoaded = true;
 });
 
 async function handleSave() {
+  if (saving.value) return;
+
   saveError.value = "";
   customFieldErrors.value = {};
+
+  if (hasNameConflict()) {
+    saveError.value = t("contentTypeEdit.nameConflict");
+    return;
+  }
 
   const validation = validateCustomFields(customFields.value);
   if (!validation.ok) {
@@ -430,7 +439,7 @@ async function handleSave() {
       };
     }
 
-    isDirty.value = false;
+    markClean();
     typesStore.invalidate();
     auth.refresh().catch(() => {});
   } catch (err) {
@@ -484,6 +493,34 @@ function validateCustomFields(fields) {
     fieldErrors,
     message: t("contentTypeEdit.fixFieldErrors"),
   };
+}
+
+function hasNameConflict() {
+  if (!isNew.value) return false;
+
+  const name = toSlug(form.value.name);
+  return (
+    name !== "" && contentTypes.value.some((type) => type.name === name)
+  );
+}
+
+function markClean() {
+  cleanState.value = currentState();
+  isDirty.value = false;
+}
+
+function updateDirtyState() {
+  isDirty.value = currentState() !== cleanState.value;
+}
+
+function currentState() {
+  const formState = { ...form.value };
+  delete formState.fields;
+
+  return JSON.stringify({
+    form: formState,
+    customFields: customFields.value,
+  });
 }
 
 function fixSlugOnBlur() {

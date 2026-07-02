@@ -94,9 +94,19 @@ final class ApiController
 
     public function contentTypeStore(): never
     {
-        $user = $this->requireToken('schema.create', ['type' => 'schema', 'name' => $name]);
         $body = $this->http->requestJson();
-        $name = Security::slug((string) ($body['name'] ?? ''));
+        $name = $this->schemaName($body['name'] ?? '');
+        $user = $this->requireToken('schema.create', ['type' => 'schema', 'name' => $name]);
+
+        if ($name === '') {
+            $this->response->error('validation_failed', 'Choose an API name for this content type.', 422, ['name' => ['Choose an API name for this content type.']]);
+        }
+
+        if ($this->types->exists($name)) {
+            $this->response->error('validation_failed', 'A content type with this API name already exists.', 422, ['name' => ['A content type with this API name already exists.']]);
+        }
+
+        $body['name'] = $name;
 
         if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
             $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
@@ -106,6 +116,14 @@ final class ApiController
         $this->cache->clear();
         (new Logger())->info('content_type.created', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->response->data($this->types->find($name), 201);
+    }
+
+    private function schemaName(mixed $value): string
+    {
+        $name = strtolower(trim((string) $value));
+        $name = preg_replace('/[^a-z0-9_-]+/', '-', $name) ?? '';
+
+        return trim($name, '-_');
     }
 
     public function contentTypeUpdate(string $name): never

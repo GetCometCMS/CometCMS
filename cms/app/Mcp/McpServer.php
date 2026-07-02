@@ -266,6 +266,10 @@ final class McpServer
         $name = $this->segment($args['name'] ?? '', 'name');
         $this->requirePermission('create_content_type', ['name' => $name]);
 
+        if ($this->types->exists($name)) {
+            throw new McpError('A content type with this API name already exists.', 422, ['code' => 'validation_failed', 'fields' => ['name' => ['A content type with this API name already exists.']]]);
+        }
+
         $body = ['name' => $name];
         foreach (['label', 'icon', 'fields', 'locales', 'default_locale', 'singleton'] as $key) {
             if (array_key_exists($key, $args)) {

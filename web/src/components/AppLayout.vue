@@ -243,6 +243,15 @@
             <Icon icon="mdi:key-chain" class="w-4 h-4 opacity-60" />
             {{ t("app.nav.apiTokens") }}
           </router-link>
+
+          <router-link
+            to="/api-explorer"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:api" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.apiExplorer") }}
+          </router-link>
         </nav>
 
         <!-- User footer -->

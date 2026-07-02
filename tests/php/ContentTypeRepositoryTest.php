@@ -36,3 +36,46 @@ test('content type repository reorders saved schemas', function (): void {
 
     assert_same(['posts', 'pages'], array_column($repository->all(), 'name'));
 });
+
+test('admin content type create rejects normalized name conflicts', function (): void {
+    $routerPath = COMET_STORAGE . '/content-type-conflict-router.php';
+    file_put_contents(
+        $routerPath,
+        "<?php\n" .
+        "require " . var_export(__DIR__ . '/bootstrap.php', true) . ";\n" .
+        "session_start();\n" .
+        "\$_SESSION['user_id'] = 'admin';\n" .
+        "\$_SESSION['cometcms_csrf'] = 'test-token';\n" .
+        "\$users = new \\CometCMS\\Auth\\UserRepository();\n" .
+        "if (!\$users->hasUsers()) \$users->create('admin', 'secret-password', 'admin');\n" .
+        "(new \\CometCMS\\Content\\ContentTypeRepository())->save(['name' => 'startpage']);\n" .
+        "\$_SERVER['REQUEST_URI'] = '/admin/api/content-types';\n" .
+        "(new \\CometCMS\\Controllers\\Admin\\ContentTypesController(new \\CometCMS\\Core\\Http()))->store();\n"
+    );
+
+    $port = 18080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $routerPath);
+
+    try {
+        usleep(300000);
+
+        $response = (string) file_get_contents(
+            'http://127.0.0.1:' . $port,
+            false,
+            stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'ignore_errors' => true,
+                    'header' => "Content-Type: application/json\r\nX-CSRF-Token: test-token\r\n",
+                    'content' => '{"name":"Startpage"}',
+                ],
+            ])
+        );
+
+        assert_true(str_contains($http_response_header[0] ?? '', '422'));
+        assert_true(str_contains($response, '"code":"validation_failed"'));
+        assert_true(str_contains($response, 'already exists'));
+    } finally {
+        comet_test_stop_process($server);
+    }
+});

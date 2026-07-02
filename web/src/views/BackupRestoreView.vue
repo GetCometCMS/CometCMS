@@ -535,48 +535,46 @@ const noteDraft = ref("");
 
 const partOptions = [
   {
-    value: "content_types",
-    labelKey: "backup.contentTypes",
-    descriptionKey: "backup.partContentTypesDescription",
-  },
-  {
-    value: "content",
-    labelKey: "backup.typeEntries",
-    descriptionKey: "backup.partContentDescription",
+    value: "content_bundle",
+    parts: ["content_types", "content"],
+    labelKey: "backup.contentBundle",
+    descriptionKey: "backup.partContentBundleDescription",
   },
   {
     value: "media",
+    parts: ["media"],
     labelKey: "backup.media",
     descriptionKey: "backup.partMediaDescription",
   },
   {
     value: "webhooks",
+    parts: ["webhooks"],
     labelKey: "backup.webhooks",
     descriptionKey: "backup.partWebhooksDescription",
   },
   {
     value: "users",
+    parts: ["users"],
     labelKey: "backup.users",
     descriptionKey: "backup.partUsersDescription",
   },
   {
     value: "api_tokens",
+    parts: ["api_tokens"],
     labelKey: "backup.apiTokens",
     descriptionKey: "backup.partApiTokensDescription",
   },
 ];
 
 const backupParts = reactive({
-  content_types: true,
-  content: true,
+  content_bundle: true,
   media: false,
   webhooks: true,
   users: false,
   api_tokens: false,
 });
 const restoreParts = reactive({
-  content_types: false,
-  content: false,
+  content_bundle: false,
   media: false,
   webhooks: false,
   users: false,
@@ -633,9 +631,13 @@ function onFileDrop(e) {
 }
 
 function selectedParts(source) {
-  return partOptions
-    .filter((part) => source[part.value])
-    .map((part) => part.value);
+  return [
+    ...new Set(
+      partOptions
+        .filter((part) => source[part.value])
+        .flatMap((part) => part.parts),
+    ),
+  ];
 }
 
 function partLabel(part) {
@@ -735,8 +737,8 @@ async function inspectBackup(backup) {
 function setInspection(nextInspection) {
   inspection.value = nextInspection;
   for (const part of partOptions) {
-    restoreParts[part.value] = (nextInspection.default_parts ?? []).includes(
-      part.value,
+    restoreParts[part.value] = part.parts.some((value) =>
+      (nextInspection.default_parts ?? []).includes(value),
     );
   }
 }
@@ -824,11 +826,22 @@ async function confirmDeleteBackup() {
 }
 
 function isAvailable(part) {
+  if (part === "content_bundle") {
+    return (inspection.value?.available_parts ?? []).includes("content_types");
+  }
+
   return (inspection.value?.available_parts ?? []).includes(part);
 }
 
 function partCount(part) {
   const counts = inspection.value?.counts ?? {};
+  if (part === "content_bundle") {
+    return (
+      (counts.content_types ?? 0) +
+      (counts.content ?? 0) +
+      (counts.revisions ?? 0)
+    );
+  }
   if (part === "content_types") return counts.content_types ?? 0;
   if (part === "content")
     return (counts.content ?? 0) + (counts.revisions ?? 0);
