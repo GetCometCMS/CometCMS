@@ -79,12 +79,7 @@ const appVersion = ref("");
 const { t } = useI18n();
 
 const statusItems = computed(() => [
-  {
-    label: t("dashboard.stats.collections"),
-    value: stats.value.collections,
-    caption: t("dashboard.stats.totalCollections"),
-    icon: "mdi:folder-outline",
-  },
+
   {
     label: t("dashboard.stats.entries"),
     value: stats.value.entries,
