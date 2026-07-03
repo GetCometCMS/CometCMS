@@ -756,8 +756,18 @@
             <input
               :value="origin + detailFile.url"
               readonly
-              class="form-input flex-1 rounded-lg border-slate-300 text-sm bg-slate-50 text-slate-600"
+              class="form-input min-w-0 flex-1 rounded-lg border-slate-300 text-sm bg-slate-50 text-slate-600"
             />
+            <a
+              :href="origin + detailFile.url"
+              target="_blank"
+              rel="noopener"
+              class="btn-secondary shrink-0"
+              :title="t('media.openInNewTab')"
+            >
+              <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+              {{ t("media.open") }}
+            </a>
             <button
               type="button"
               class="btn-secondary shrink-0"
