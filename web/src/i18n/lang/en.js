@@ -574,6 +574,8 @@ const messages = {
     'media.titlePlaceholder': 'Optional tooltip / title',
     'media.saving': 'Saving...',
     'media.url': 'URL',
+    'media.open': 'Open',
+    'media.openInNewTab': 'Open in new tab',
     'media.copy': 'Copy',
     'media.usedIn': 'Used in',
     'media.notUsed': 'Not used in any content entry.',
