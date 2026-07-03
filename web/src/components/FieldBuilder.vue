@@ -9,7 +9,7 @@
         :class="[
           field._collapsed
             ? 'card cursor-grab p-3'
-            : 'overflow-hidden rounded-lg border border-theme-400 bg-white shadow-sm ring-1 ring-theme-300',
+            : 'rounded-lg border border-theme-400 bg-white shadow-sm ring-1 ring-theme-300',
           { 'ring-2 ring-theme-400': dragIndex === index },
         ]"
         draggable="true"
