@@ -91,7 +91,7 @@ The `initialize` response advertises the server identity:
   "serverInfo": {
     "name": "cometcms",
     "title": "CometCMS",
-    "version": "0.9.8",
+    "version": "1.0.0",
     "description": "Headless CMS content, schema, and media tools."
   }
 }
@@ -357,7 +357,7 @@ Delete a media file.
 ```json
 --> {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}
 
-<-- {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"cometcms","title":"CometCMS","version":"0.9.8","description":"Headless CMS content, schema, and media tools."}}}
+<-- {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"cometcms","title":"CometCMS","version":"1.0.0","description":"Headless CMS content, schema, and media tools."}}}
 ```
 
 ### List tools

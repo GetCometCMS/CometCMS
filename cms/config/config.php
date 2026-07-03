@@ -3,7 +3,7 @@
 return [
     'app' => [
         'name' => 'CometCMS',
-        'version' => '0.9.8',
+        'version' => '1.0.0',
         'debug' => false,
         'timezone' => 'UTC',
     ],

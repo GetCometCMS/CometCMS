@@ -28,10 +28,19 @@
             </router-link>
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
-            <div
+            <component
+              :is="item.href ? 'a' : 'div'"
               v-for="item in statusItems"
               :key="item.label"
-              class="rounded-lg border border-slate-200 bg-slate-50/70 p-4"
+              :href="item.href"
+              :target="item.href ? '_blank' : undefined"
+              :rel="item.href ? 'noopener noreferrer' : undefined"
+              :class="[
+                'rounded-lg border border-slate-200 bg-slate-50/70 p-4',
+                item.href
+                  ? 'block transition hover:border-theme-300 hover:bg-theme-50/50'
+                  : '',
+              ]"
             >
               <div class="mb-3 flex items-center gap-2">
                 <Icon
@@ -48,7 +57,7 @@
                 {{ item.value }}
               </p>
               <p class="mt-1 text-sm text-slate-500">{{ item.caption }}</p>
-            </div>
+            </component>
           </div>
         </section>
       </div>
@@ -93,6 +102,13 @@ const statusItems = computed(() => [
     value: `v${appVersion.value || "..."}`,
     caption: t("dashboard.stats.currentVersion"),
     icon: "mdi:rocket-launch-outline",
+  },
+  {
+    label: t("dashboard.stats.documentation"),
+    value: t("dashboard.stats.openDocs"),
+    caption: t("dashboard.stats.docsCaption"),
+    icon: "mdi:book-open-page-variant-outline",
+    href: "https://andreasjhagen.github.io/CometCMS/",
   },
 ]);
 
