@@ -149,7 +149,7 @@
                 v-for="file in filteredFiles"
                 :key="file.name"
                 type="button"
-                class="group cursor-grab rounded-lg border bg-white p-2 text-left transition-all hover:border-theme-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-theme-500"
+                class="group cursor-grab rounded-lg border border-slate-200 bg-white p-2 text-left transition-all hover:border-theme-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-theme-500"
                 :class="[
                   isSelected(file.name)
                     ? 'border-theme-500 bg-theme-50'

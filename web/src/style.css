@@ -330,6 +330,7 @@
 :root[data-theme="dark"] .bg-slate-50\/40,
 :root[data-theme="dark"] .bg-slate-50\/50,
 :root[data-theme="dark"] .bg-slate-50\/60,
+:root[data-theme="dark"] .bg-slate-50\/70,
 :root[data-theme="dark"] .bg-slate-50\/80,
 :root[data-theme="dark"] .hover\:bg-slate-50:hover {
   background-color: rgb(15 23 42 / 0.82);

@@ -278,7 +278,7 @@
             <article
               v-for="(file, fileIndex) in files"
               :key="file.name"
-              class="group relative cursor-grab rounded-lg border bg-white p-2 transition-all hover:border-theme-300 hover:shadow-sm"
+              class="group relative cursor-grab rounded-lg border border-slate-200 bg-white p-2 transition-all hover:border-theme-300 hover:shadow-sm"
               :class="{
                 'opacity-50': draggedFile?.name === file.name,
                 'ring-2 ring-theme-500': isSelected(file),
