@@ -1,0 +1,52 @@
+.cometcms-migrator .cometcms-panel {
+  max-width: 1040px;
+  margin: 20px 0;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #dcdcde;
+}
+
+.cometcms-map-table input[type="text"] {
+  width: 100%;
+  max-width: 320px;
+}
+
+.cometcms-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cometcms-progress {
+  max-width: 640px;
+  margin: 16px 0;
+}
+
+.cometcms-progress-bar {
+  height: 12px;
+  overflow: hidden;
+  background: #f0f0f1;
+  border: 1px solid #c3c4c7;
+}
+
+.cometcms-progress-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #2271b1;
+  transition: width 150ms ease;
+}
+
+.cometcms-progress-text {
+  margin: 6px 0 0;
+}
+
+.cometcms-log {
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px;
+  color: #f0f0f1;
+  background: #1d2327;
+  white-space: pre-wrap;
+}
