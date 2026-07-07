@@ -1,91 +1,91 @@
-# Content Types
+# Tipos de Contenido
 
-A **content type** defines the structure (schema) for content. Most content types are collections of entries, such as `posts`. A content type can also be marked as a **single page** for one-off content like `start-page`, `contact-page`, or `imprint`.
+Un **tipo de contenido** define la estructura (esquema) para el contenido. La mayoría de los tipos de contenido son colecciones de entradas, como `posts`. Un tipo de contenido también puede ser marcado como **página única** (single page) para contenido único como `start-page` (página de inicio), `contact-page` (página de contacto) o `imprint` (aviso legal).
 
-![Content types overview in the CometCMS admin](../screenshots/view-content-types.png)
+![Resumen de los tipos de contenido en la administración de CometCMS](../screenshots/view-content-types.png)
 
-## Creating a content type
+## Crear un tipo de contenido
 
-1. In the sidebar, click **Content types**.
-2. Click **New content type**.
-3. Enter a **name** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
-4. Choose the **Content model**:
-   - **Collection** for repeatable content with many entries.
-   - **Single page** for one fixed entry.
-5. Add fields (see [Field Types](./field-types)).
-6. Optional: add locales and choose a default locale.
-7. Click **Save**.
+1. En la barra lateral, haz clic en **Tipos de contenido (Content types)**.
+2. Haz clic en **Nuevo tipo de contenido (New content type)**.
+3. Introduce un **nombre** (ej. `posts`). El nombre se usa como el identificador de la colección en la API — utiliza solo letras minúsculas, números y guiones.
+4. Elige el **Modelo de contenido (Content model)**:
+   - **Colección (Collection)** para contenido repetible con muchas entradas.
+   - **Página única (Single page)** para una sola entrada fija.
+5. Añade campos (ver [Tipos de Campos](./field-types)).
+6. Opcional: añade configuraciones de idiomas (locales) y elige un idioma predeterminado.
+7. Haz clic en **Guardar (Save)**.
 
-Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and the default API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
+Los tipos de contenido de página única aparecen bajo **Single (Individual)** en la barra lateral y se abren directamente en el editor. El slug de su entrada está fijo y coincide con el nombre del tipo de contenido, y la URL de lectura predeterminada de la API es `/api/v1/workspaces/{workspace}/content/start-page`.
 
-## Editing a content type
+## Editar un tipo de contenido
 
-Open an existing content type to add, reorder, remove fields, or set supported field defaults. Changes to the schema do not affect existing entries — old entries simply won't have the new field value until they are edited and saved.
+Abre un tipo de contenido existente para añadir, reordenar, eliminar campos, o configurar valores predeterminados de los campos compatibles. Los cambios en el esquema no afectan a las entradas existentes — las entradas antiguas simplemente no tendrán el nuevo valor del campo hasta que sean editadas y guardadas.
 
-![Editing a content type schema in CometCMS](../screenshots/edit-content-type.png)
+![Editando el esquema de un tipo de contenido en CometCMS](../screenshots/edit-content-type.png)
 
-Field defaults pre-fill new entries in the admin editor and are applied to API-created entries when the field is omitted.
+Los valores predeterminados de los campos se rellenan automáticamente en las entradas nuevas en el editor de administración y se aplican a las entradas creadas mediante la API cuando se omite el campo.
 
-You can change a collection to a single page only when it has at most one active entry. This avoids ambiguity about which existing entry should become the fixed page content.
+Puedes cambiar una colección a una página única solo cuando tiene como máximo una entrada activa. Esto evita ambigüedades sobre qué entrada existente debería convertirse en el contenido de la página fija.
 
-## Localization
+## Localización (Idiomas)
 
-Content types can define `locales` and a `default_locale`. Leave locales empty to disable multi-language editing for that type.
+Los tipos de contenido pueden definir múltiples `locales` y un `default_locale`. Deja la configuración de locales vacía para desactivar la edición multilingüe para ese tipo.
 
-Localized entries store translated `title` and custom field values per locale. Slug, status, author, publish date, timestamps, and entry ID are shared by all locales.
+Las entradas localizadas guardan el campo `title` (título) y los valores de los campos personalizados traducidos por idioma. El slug, estado, autor, fecha de publicación, las marcas de tiempo (timestamps) y el ID de la entrada son compartidos por todos los idiomas.
 
-Changing locale settings is non-destructive:
+Cambiar las configuraciones de los idiomas es una acción no destructiva:
 
-- Adding a locale makes it available for future translations. Existing entries show it as missing until an editor saves that locale.
-- Enabling localization for an existing non-localized content type copies each entry's root content into the new default locale.
-- Removing a locale hides it from the editor and from `?locale=` resolution, but saved translation data is kept in storage.
-- Changing the default locale updates existing entries to use that locale as their fallback root value when a translation exists.
-- Disabling localization keeps existing translation data in storage, but the admin and API use the shared root values until localization is enabled again.
+- Añadir un idioma lo hace disponible para futuras traducciones. Las entradas existentes lo mostrarán como faltante hasta que un editor guarde contenido en ese idioma.
+- Habilitar la localización para un tipo de contenido no localizado previamente copia el contenido raíz de cada entrada hacia el nuevo idioma predeterminado.
+- Eliminar un idioma lo oculta del editor y de la resolución con `?locale=`, pero los datos de la traducción guardados se conservan en el almacenamiento.
+- Cambiar el idioma predeterminado actualiza las entradas existentes para usar dicho idioma como el valor raíz de respaldo (fallback) cuando existe una traducción.
+- Desactivar la localización mantiene los datos de traducción en el almacenamiento, pero tanto la administración como la API utilizarán los valores raíz compartidos hasta que la localización vuelva a habilitarse.
 
-## Workspace-scoped API access
+## Acceso API restringido por espacio de trabajo (Workspaces)
 
-Content type schemas are workspace-scoped. The same content type name can exist with different field definitions in different workspaces.
+Los esquemas de tipos de contenido están restringidos a su espacio de trabajo. El mismo nombre de tipo de contenido puede existir con diferentes definiciones de campos en diferentes espacios de trabajo.
 
-For the Public API, use the workspace prefix:
+Para la API Pública, utiliza el prefijo del espacio de trabajo:
 
 ```http
 GET /api/v1/workspaces/site-b/content-types
 GET /api/v1/workspaces/site-b/content-types/posts
 ```
 
-Unscoped Public API routes under `/api/v1/...` are rejected with `workspace_required`.
+Las rutas de la API Pública sin el prefijo del espacio de trabajo bajo `/api/v1/...` son rechazadas con el error `workspace_required`.
 
-For Admin API requests, the active workspace is selected with the `X-Comet-Workspace` header (or the configured default workspace when the header is omitted):
+Para solicitudes a la API de Administración, el espacio de trabajo activo se selecciona con el encabezado `X-Comet-Workspace` (o el espacio de trabajo predeterminado configurado si el encabezado es omitido):
 
 ```http
 X-Comet-Workspace: site-b
 ```
 
-## Deleting a content type
+## Eliminar un tipo de contenido
 
-Deleting a content type also removes all entries in that collection. This action is irreversible.
+Eliminar un tipo de contenido también borra todas las entradas en esa colección. Esta acción es irreversible.
 
-## Content type schema (JSON)
+## Esquema de tipo de contenido (JSON)
 
-Content types are stored in `cms/storage/content-types/{name}.json`. A typical schema looks like:
+Los tipos de contenido se almacenan en `cms/storage/content-types/{nombre}.json`. Un esquema típico se ve así:
 
 ```json
 {
   "name": "posts",
   "label": "Posts",
   "singleton": false,
-  "locales": ["en", "de"],
+  "locales": ["en", "es"],
   "default_locale": "en",
   "fields": {
     "title": { "type": "text", "required": true },
     "slug": { "type": "slug", "required": true, "unique": true },
     "body": {
       "type": "markdown",
-      "label": "Body",
-      "default": "Start writing..."
+      "label": "Cuerpo",
+      "default": "Empieza a escribir..."
     },
-    "published": { "type": "boolean", "label": "Published", "default": false },
-    "published_at": { "type": "datetime", "label": "Publish date" }
+    "published": { "type": "boolean", "label": "Publicado", "default": false },
+    "published_at": { "type": "datetime", "label": "Fecha de publicación" }
   }
 }
 ```

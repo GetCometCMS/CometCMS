@@ -1,34 +1,34 @@
-# Public API
+# API Pública
 
-The CometCMS public API is the stable HTTP API for external frontends, static site generators, mobile apps, and integration scripts.
+La API pública de CometCMS es la API HTTP estable para frontends externos, generadores de sitios estáticos, aplicaciones móviles y scripts de integración.
 
-Public reads work without authentication and return only public content. Send an API token when you need drafts, protected content, or write access:
+Las lecturas públicas funcionan sin autenticación y devuelven solo contenido público. Envía un token de API cuando necesites borradores, contenido protegido o acceso de escritura:
 
 ```http
-Authorization: Bearer YOUR_TOKEN_HERE
+Authorization: Bearer TU_TOKEN_AQUI
 ```
 
-See [API Tokens](../guide/api-tokens) for how to create tokens and assign permission grants.
+Consulta [Tokens de API](../guide/api-tokens) para saber cómo crear tokens y asignar permisos.
 
-## Base URL
+## URL Base
 
 ```text
-https://yourdomain.com/api/v1
+https://tudominio.com/api/v1
 ```
 
-All Public API endpoints require a workspace segment in the URL:
+Todos los endpoints de la API Pública requieren un segmento de espacio de trabajo (workspace) en la URL:
 
 ```text
-https://yourdomain.com/api/v1/workspaces/{workspace}
+https://tudominio.com/api/v1/workspaces/{workspace}
 ```
 
-Requests to unscoped `/api/v1/...` content, content-type, and media routes are rejected with `workspace_required`.
+Las peticiones a rutas de contenido, tipos de contenido y medios bajo `/api/v1/...` que no tengan este alcance (unscoped) serán rechazadas con el error `workspace_required`.
 
-For example, `GET /api/v1/workspaces/site-a/content/posts` reads posts from the `site-a` workspace. Direct media URLs for scoped responses use `/media/{workspace}/{filename}` and `/media-thumbs/{workspace}/{filename}`.
+Por ejemplo, `GET /api/v1/workspaces/site-a/content/posts` lee los posts del espacio de trabajo `site-a`. Las URLs directas de los medios para las respuestas limitadas por espacio de trabajo usan `/media/{workspace}/{filename}` y `/media-thumbs/{workspace}/{filename}`.
 
-## Response shape
+## Forma de la respuesta
 
-Successful JSON responses are always wrapped in `data`. List responses and secondary response metadata use `meta`.
+Las respuestas JSON exitosas siempre están envueltas en `data`. Las respuestas de listas y los metadatos de respuesta secundaria utilizan `meta`.
 
 ```json
 {
@@ -38,303 +38,233 @@ Successful JSON responses are always wrapped in `data`. List responses and secon
     "limit": 20,
     "offset": 0,
     "sort": "created_at",
-    "order": "desc"
+    "locale": "en"
   }
 }
 ```
 
-Errors use a single `error` object:
+## Manejo de errores
+
+Los errores (códigos de estado 4xx y 5xx) envuelven los detalles en un objeto `error` estructurado:
 
 ```json
 {
   "error": {
     "code": "not_found",
-    "message": "Content entry not found."
+    "message": "The requested resource was not found."
   }
 }
 ```
 
-Unknown content types, collections, and entries return `404` with the same error shape.
+Algunos errores comunes incluyen `invalid_credentials`, `permission_denied`, `validation_failed`, y `invalid_request`.
 
-## OpenAPI
+---
 
-The machine-readable public API contract is available as [`openapi.yaml`](/api/openapi.yaml).
+## Filtros, Ordenación y Paginación
 
-## Health
+### Paginación
 
-### `GET /api/v1/workspaces/{workspace}/health`
+Para los endpoints de lista de colecciones y lista de medios:
 
-Returns a health check response.
-
-The response includes runtime extension capabilities that affect key features:
-
-- `data.extensions.gd`: thumbnail-generation support (GD image functions available)
-- `data.extensions.zip`: backup archive support (`ZipArchive`/zip extension available)
-
-## Content types
-
-### `GET /api/v1/workspaces/{workspace}/content-types`
-
-Returns all content type schemas.
-
-### `GET /api/v1/workspaces/{workspace}/content-types/{collection}`
-
-Returns one content type schema.
-
-### `POST /api/v1/workspaces/{workspace}/content-types`
-
-Creates a new content type schema.
-
-**Required permission:** `schema.create` on `schema:{name}`
-
-Request body fields: `name` (required), `label`, `icon`, `singleton`, `fields`, `locales`, `default_locale`.
-
-### `PUT /api/v1/workspaces/{workspace}/content-types/{collection}`
-
-Updates an existing content type schema.
-
-**Required permission:** `schema.update` on `schema:{collection}`
-
-Existing entries are not modified — new fields will be absent until entries are re-saved.
-
-Setting `singleton: true` makes the content type a single page. Single pages allow at most one active entry and use the content type name as their fixed slug.
-
-### `DELETE /api/v1/workspaces/{workspace}/content-types/{collection}`
-
-Permanently deletes a content type and all its entries. This action is irreversible.
-
-**Required permission:** `schema.delete` on `schema:{collection}`
-
-## Content entries
-
-### `GET /api/v1/workspaces/{workspace}/content/{collection}`
-
-Returns entries in a collection. For single page content types, this route returns the fixed entry object instead of a list.
-
-Without a token, only `published` entries and `scheduled` entries whose `published_at` is in the past are returned. With a token that has `content.read` on the collection, drafts and protected entries are included.
-
-**Query parameters:**
-
-| Parameter                 | Description                                                                 |
-| ------------------------- | --------------------------------------------------------------------------- |
-| `limit`                   | Maximum number of entries to return; omit it to return all matching entries |
-| `offset`                  | Offset for pagination                                                       |
-| `sort`                    | Sort field; prefix with `-` for descending, e.g. `?sort=-published_at`      |
-| `q`                       | Full-text search across text fields                                         |
-| `include`                 | Comma-separated relation fields to expand one level                         |
-| `locale`                  | Locale code for localized content types, e.g. `?locale=de`                  |
-| `filter[field]`           | Exact match, e.g. `?filter[is_promo_material]=true`                         |
-| `filter[field][in]`       | One of several values                                                       |
-| `filter[field][ne]`       | Not equal                                                                   |
-| `filter[field][gt]`       | Greater than                                                                |
-| `filter[field][gte]`      | Greater than or equal                                                       |
-| `filter[field][lt]`       | Less than                                                                   |
-| `filter[field][lte]`      | Less than or equal                                                          |
-| `filter[field][contains]` | Case-insensitive substring match                                            |
-
-Boolean fields accept `true`/`false` (also `1`/`0`). Select fields, including multi-select fields, match against the stored option value. When a stored field value is an array, filters match if any item in the array matches the requested value. Media fields are always returned as arrays of absolute media URLs, including single-file media fields. Multi-select and multi-relation fields are returned as arrays; single select and relation fields are returned as one value or `null`. The stable entry identifier is filterable as `id`; the URL slug is filterable as `slug`.
-
-For localized content types, `locale` resolves translated `title` and field values before search, filters, sorting, and relation expansion. Without `locale`, entries use the content type's default-locale fallback copy. Unsupported locale codes are ignored.
-
-Sorting is type-aware for numeric values and ISO-style dates, then falls back to case-insensitive string sorting.
+- `limit` (número) — el número de resultados a devolver. Por defecto es `20`.
+- `offset` (número) — los resultados a saltar antes de devolver. Por defecto es `0`.
 
 ```http
-GET /api/v1/workspaces/site-a/content/blogpost?filter[is_promo_material]=true
-GET /api/v1/workspaces/site-a/content/blogpost?filter[category]=launch
-GET /api/v1/workspaces/site-a/content/blogpost?filter[id]=7K4p9xQ2mR
-GET /api/v1/workspaces/site-a/content/pages?locale=de
+GET /api/v1/workspaces/{workspace}/content/posts?limit=10&offset=20
 ```
 
-### `GET /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
+### Ordenación
 
-Returns one entry. `{identifier}` may be either the entry slug or the stable opaque `id` returned in the payload. Add `?locale={code}` to resolve localized field values.
+Usa `sort={campo}` para ordenar los resultados de forma ascendente, o prefija con un `-` para orden descendente.
 
-Public reads return only public entries. Reading drafts, protected entries, or entries hidden by status requires `content.read` on `content:{collection}:{identifier}`.
-
-### Entry payload
-
-```json
-{
-  "id": "7K4p9xQ2mR",
-  "slug": "how-to-cook-pasta",
-  "type": "blogpost",
-  "status": "published",
-  "title": "How to cook pasta",
-  "published_at": "2026-05-03T12:00:00Z",
-  "created_at": "2026-05-01T09:30:00Z",
-  "updated_at": "2026-05-03T12:00:00Z",
-  "author_id": "admin",
-  "updated_by": "admin",
-  "data": {
-    "is_promo_material": true,
-    "category": "launch",
-    "hero_image": ["https://yourdomain.com/media/hero.png"]
-  }
-}
+```http
+GET /api/v1/workspaces/{workspace}/content/posts?sort=-published_at
 ```
 
-`id` is stable and opaque. `slug` is the human-readable URL key and may change.
+### Búsqueda (Texto completo)
 
-### `POST /api/v1/workspaces/{workspace}/content/{collection}`
+Usa `q={consulta}` para realizar una búsqueda insensible a mayúsculas y minúsculas en todos los campos de texto, HTML y Markdown del tipo de contenido (o nombres de archivos y metadatos en las respuestas de los medios).
 
-Creates a new entry.
-
-**Required permission:** `content.create` on `content:{collection}:*`
-
-**Body:** JSON object with field values.
-
-Creating an entry with `status: "published"` also requires `content.publish` on the entry.
-
-For localized content types, include `locale` in the body to create that locale variant. The default locale is used when `locale` is omitted.
-
-When a content type field defines a supported `default`, omitted values are created with that default before validation and normalization.
-
-For single page content types, creation is allowed only while no active entry exists. The entry slug is forced to the content type name.
-
-### `PUT /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
-
-Updates an existing entry by slug or stable ID.
-
-**Required permission:** `content.update` on `content:{collection}:{identifier}`
-
-Updating an entry to `status: "published"` also requires `content.publish` on the entry.
-
-For localized content types, include `locale` in the body to update that locale variant. Slug, status, author, and publish date remain shared by the entry.
-
-### `DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
-
-Soft-deletes an entry by slug or stable ID.
-
-**Required permission:** `content.delete` on `content:{collection}:{identifier}`
-
-```json
-{
-  "data": {
-    "ok": true
-  }
-}
+```http
+GET /api/v1/workspaces/{workspace}/content/posts?q=lanzamiento
 ```
 
-## Media
+### Filtros por campo
 
-### `GET /api/v1/workspaces/{workspace}/media`
+Restringe los resultados por valores específicos de los campos usando la sintaxis `filter[...]`.
 
-Returns uploaded media files. Without authentication, only **public** files are returned. With a token that has `media.read`, all files (including private ones) are returned.
+#### Coincidencia exacta
 
-**Query parameters:**
-
-| Parameter  | Description                                                             |
-| ---------- | ----------------------------------------------------------------------- |
-| `q`        | Search by filename                                                      |
-| `category` | Filter by media category                                                |
-| `limit`    | Maximum number of files to return; omit it to return all matching files |
-| `offset`   | Offset for pagination                                                   |
-
-Available categories are returned in `meta.categories`. Nested categories are represented as paths such as `Brand / Logos`; filtering by a parent category also includes files assigned to its subcategories.
-
-Each file object includes the following fields:
-
-| Field         | Description                                          |
-| ------------- | ---------------------------------------------------- |
-| `filename`    | File name                                            |
-| `url`         | Absolute URL to the file                             |
-| `thumb_url`   | Absolute URL to the generated thumbnail, or `url`    |
-| `size`        | File size in bytes                                   |
-| `mime`        | MIME type                                            |
-| `category`    | Assigned category path, or empty string              |
-| `width`       | Image width in pixels, or `null`                     |
-| `height`      | Image height in pixels, or `null`                    |
-| `alt`         | Alt text for the file (empty string if unset)        |
-| `title`       | Title / tooltip for the file (empty string if unset) |
-| `visibility`  | `"public"` or `"private"`                            |
-| `uploaded_at` | ISO 8601 upload timestamp, or `null`                 |
-| `uploaded_by` | User ID of the uploader, or `null`                   |
-
-### `POST /api/v1/workspaces/{workspace}/media`
-
-Uploads one or more media files as multipart `media[]` parts.
-
-**Required permission:** `media.upload` on `media:*`, or `media:category:{category}` when assigning a category
-
-Optional form field: `category`. Use a nested path such as `Brand / Logos` to assign a subcategory.
-
-### `PUT /api/v1/workspaces/{workspace}/media/{filename}/meta`
-
-Updates the `alt` text and `title` of a media file. Send empty strings to clear them.
-
-**Required permission:** `media.update` on `media:*`
-
-**Body:** `{ "alt": "A red apple on a white background", "title": "Product photo" }`
-
-### `PUT /api/v1/workspaces/{workspace}/media/{filename}/visibility`
-
-Sets the visibility of a media file to `"public"` (default) or `"private"`.
-
-Private files are excluded from unauthenticated `GET /api/v1/workspaces/{workspace}/media` responses and return `401` when fetched directly via `GET /media/{workspace}/{filename}` without a valid token with `media.read` permission.
-
-**Required permission:** `media.update` on `media:*`
-
-**Body:** `{ "visibility": "private" }`
-
-### `PUT /api/v1/workspaces/{workspace}/media/bulk-visibility`
-
-Sets the visibility of multiple media files in one request.
-
-**Required permission:** `media.update` on `media:*`
-
-**Body:** `{ "files": ["photo.jpg", "doc.pdf"], "visibility": "private" }`
-
-### `POST /api/v1/workspaces/{workspace}/media/categories`
-
-Creates a media category. Send a path in `name` or provide `parent` to create a subcategory.
-
-**Required permission:** `media.update` on `media:*`
-
-**Body:** `{ "name": "Logos", "parent": "Brand" }`
-
-```json
-{
-  "data": {
-    "name": "Brand / Logos"
-  },
-  "meta": {
-    "categories": ["Brand", "Brand / Logos"]
-  }
-}
+```http
+GET /api/v1/workspaces/{workspace}/content/posts?filter[status]=published
+GET /api/v1/workspaces/{workspace}/content/posts?filter[is_featured]=true
 ```
 
-### `PUT /api/v1/workspaces/{workspace}/media/categories/{category}`
+#### Operadores
 
-Renames a media category and updates all files assigned to it or its subcategories.
+Añade un operador en corchetes anidados para condiciones avanzadas:
 
-**Required permission:** `media.update` on `media:category:{category}`
+- `[in]` — El valor debe ser uno de los de una lista separada por comas.
+- `[ne]` — No igual.
+- `[gt]` — Mayor que.
+- `[gte]` — Mayor o igual que.
+- `[lt]` — Menor que.
+- `[lte]` — Menor o igual que.
+- `[contains]` — Búsqueda de subcadena insensible a mayúsculas/minúsculas.
 
-**Body:** `{ "name": "New category name" }`
+```http
+GET /api/v1/workspaces/{workspace}/content/posts?filter[category][in]=tech,news
+GET /api/v1/workspaces/{workspace}/content/posts?filter[status][ne]=draft
+GET /api/v1/workspaces/{workspace}/content/products?filter[price][lte]=100
+GET /api/v1/workspaces/{workspace}/content/posts?filter[published_at][gte]=2024-01-01
+GET /api/v1/workspaces/{workspace}/content/posts?filter[title][contains]=anuncio
+```
 
-### `DELETE /api/v1/workspaces/{workspace}/media/categories/{category}`
+Los filtros booleanos aceptan `true`/`false` o `1`/`0`. La comparación es sensible al tipo, de modo que `price[gt]=10` compara el número diez, y la comparación de fechas ISO 8601 se maneja correctamente.
 
-Deletes a media category and its subcategories. Files are not deleted; they are moved to no category.
+Si un campo de tipo `select` permite la selección múltiple (un arreglo de valores en el JSON de la entrada), un filtro `filter[field]=val` o `filter[field][in]=val,val2` coincidirá si _al menos uno_ de los valores seleccionados en la entrada coincide.
 
-**Required permission:** `media.update` on `media:category:{category}`
+## Localización e Inclusión de Relaciones
 
-### `PUT /api/v1/workspaces/{workspace}/media/{filename}/category`
+### Idiomas (Locales)
 
-Assigns a media file to a category. Send an empty category to clear it.
+Añade `?locale={código}` para resolver el título y los campos localizados antes de aplicar filtros, búsqueda y ordenación. Si se omite, se utiliza el idioma por defecto del tipo de contenido. Si un campo no está traducido en el idioma solicitado, el sistema retrocede (fallbacks) al valor del idioma predeterminado de esa entrada.
 
-**Required permission:** `media.update` on `media:{filename}`
+```http
+GET /api/v1/workspaces/{workspace}/content/posts?locale=es
+```
 
-**Body:** `{ "category": "Brand / Logos" }`
+### Inclusiones de relaciones (Includes)
 
-### `DELETE /api/v1/workspaces/{workspace}/media/{filename}`
+Los campos definidos como `relation` o `media` devuelven el ID del recurso (o un arreglo de IDs) por defecto. Usa `?include=campo1,campo2` para incrustar el recurso completo relacionado directamente en la respuesta.
 
-Deletes a media file.
+```http
+GET /api/v1/workspaces/{workspace}/content/posts/mi-post?include=author,cover_image
+```
 
-**Required permission:** `media.delete` on `media:{filename}`
+Para las consultas de listas, las relaciones se extraen de forma eficiente en bloque y se integran en cada elemento de la respuesta en memoria.
 
-### `GET /media/{workspace}/{filename}`
+---
 
-Serves a media file directly. Returns `401` if the file's visibility is `"private"` and no valid bearer token with `media.read` on `media:{filename}` is provided.
+## Tipos de contenido
 
-## Admin-Only Operations
+### Listar esquemas de tipos de contenido
 
-Trash, backup/restore, settings, users, tokens, and webhook configuration are intentionally not part of the public token API. Use the session-authenticated `/admin/api` endpoints from the admin UI for operational tasks.
+```http
+GET /api/v1/workspaces/{workspace}/content-types
+```
+
+Devuelve una lista de las definiciones del esquema de los tipos de contenido en el espacio de trabajo.
+
+### Leer un esquema de tipo de contenido
+
+```http
+GET /api/v1/workspaces/{workspace}/content-types/{nombre}
+```
+
+Devuelve el esquema de un tipo de contenido específico.
+
+---
+
+## Contenido
+
+### Listar contenido (Colección)
+
+```http
+GET /api/v1/workspaces/{workspace}/content/{colección}
+```
+
+Devuelve una lista paginada de entradas para un tipo de contenido específico.
+
+- Si no se proporciona un token de API, solo se devuelven las entradas con estado `published`.
+- Si se proporciona un token, se devuelven todas las entradas, permitiéndote filtrar por `status` como lo requieras (sujeto a las restricciones de recursos del token).
+- Se admiten los parámetros de consulta `limit`, `offset`, `sort`, `q`, `locale`, `filter[...]` e `include`.
+
+### Leer una entrada (Colección o Página Única)
+
+```http
+GET /api/v1/workspaces/{workspace}/content/{colección}/{identificador}
+```
+
+Devuelve una única entrada. `{identificador}` puede ser el `id` o el `slug` de la entrada.
+
+Si la entrada no está `published`, solo será devuelta si se usa un token de API válido.
+
+Para los tipos de contenido de página única (Single pages), se recomienda omitir el `{identificador}` si se busca por la ruta base de la colección:
+
+```http
+GET /api/v1/workspaces/{workspace}/content/start-page
+```
+
+Cuando se pide la ruta base de una página única (sin `{identificador}`), CometCMS usa automáticamente el slug que coincide con el nombre de la colección.
+
+### Crear una entrada
+
+```http
+POST /api/v1/workspaces/{workspace}/content/{colección}
+```
+
+Crea una nueva entrada. El cuerpo de la solicitud (request body) debe ser JSON conteniendo los valores de los campos. Los parámetros de URL `?locale={código}` determinan en qué idioma se guardarán los valores (si el tipo de contenido es localizable). Se requiere autenticación.
+
+### Actualizar una entrada
+
+```http
+PUT /api/v1/workspaces/{workspace}/content/{colección}/{identificador}
+```
+
+Actualiza una entrada existente de forma parcial. El cuerpo (body) solo necesita incluir los campos que quieres cambiar. Usa `?locale={código}` para apuntar a un idioma específico. Se requiere autenticación.
+
+### Eliminar una entrada
+
+```http
+DELETE /api/v1/workspaces/{workspace}/content/{colección}/{identificador}
+```
+
+Elimina temporalmente (mueve a la papelera) una entrada. Se requiere autenticación.
+
+---
+
+## Medios (Multimedia)
+
+### Listar medios
+
+```http
+GET /api/v1/workspaces/{workspace}/media
+```
+
+Devuelve una lista paginada de archivos subidos en el espacio de trabajo actual. Soporta `limit`, `offset`, `q`, `sort` y filtrado exacto en `category`.
+
+Solo se devuelven los archivos con una `visibility` de `public` a menos que se use un token de API válido.
+
+### Cargar medios
+
+```http
+POST /api/v1/workspaces/{workspace}/media
+Content-Type: multipart/form-data
+```
+
+Sube uno o más archivos. Envía un formulario `multipart/form-data` con una matriz de archivos bajo la clave `files[]`. Opcionalmente incluye `category` en la solicitud. Se requiere autenticación.
+
+### Actualizar detalles de medios
+
+```http
+PUT /api/v1/workspaces/{workspace}/media/{nombre_del_archivo}
+```
+
+Actualiza los metadatos de un archivo (ej. `alt`, `title`, `category`, `visibility`). Se requiere autenticación.
+
+### Eliminar medios
+
+```http
+DELETE /api/v1/workspaces/{workspace}/media/{nombre_del_archivo}
+```
+
+Elimina un archivo y sus metadatos de forma permanente. Se requiere autenticación.
+
+---
+
+## Caché y Webhooks
+
+Las peticiones GET de la API pública a rutas de contenido se almacenan en caché automáticamente por la API. La respuesta en caché se limpia siempre que se crea, actualiza, elimina o publica contenido. El TTL del caché está configurado a través de `cache.ttl` en `config.php`.
+
+Las aplicaciones externas (como proveedores de alojamiento estático) no deberían usar el TTL del caché como estrategia de invalidación, sino suscribirse a [Webhooks](../guide/webhooks) para desencadenar el re-despliegue en el momento que ocurra un evento de publicación o contenido.

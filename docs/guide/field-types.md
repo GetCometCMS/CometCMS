@@ -1,169 +1,169 @@
-# Field Types
+# Tipos de Campos
 
-Each field in a content type has a `type` that controls how it is edited in the admin panel and how its value is stored.
+Cada campo en un tipo de contenido tiene un `type` (tipo) que controla cómo se edita en el panel de administración y cómo se guarda su valor.
 
-Supported fields can include a `default` option. Defaults pre-fill new entries in the admin editor and are also applied when entries are created through the API with that field omitted. Defaults are supported for `text`, `textarea`, `markdown`, `html`, `number`, `range`, `boolean`, `select`, `date`, `datetime`, `json`, and `color` fields.
+Los campos compatibles pueden incluir la opción `default` (predeterminado). Los valores predeterminados rellenan automáticamente las nuevas entradas en el editor de administración y también se aplican cuando las entradas se crean a través de la API omitiendo dicho campo. Los valores predeterminados están soportados en los campos `text`, `textarea`, `markdown`, `html`, `number`, `range`, `boolean`, `select`, `date`, `datetime`, `json` y `color`.
 
-## Text fields
+## Campos de texto
 
 ### `text`
 
-A single-line text input.
+Una entrada de texto de una sola línea.
 
-| Option     | Description                                        |
-| ---------- | -------------------------------------------------- |
-| `required` | Whether the field must have a value before saving. |
-| `default`  | Initial value used for new entries when omitted.    |
+| Opción | Descripción |
+| --- | --- |
+| `required` | Determina si el campo debe tener un valor antes de guardarse. |
+| `default` | Valor inicial utilizado para nuevas entradas cuando se omite el campo. |
 
 ---
 
 ### `textarea`
 
-A multi-line plain text area.
+Un área de texto sin formato de varias líneas.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
 ### `markdown`
 
-A rich Markdown editor with a live preview pane. The value is stored as a Markdown string.
+Un editor enriquecido de Markdown con panel de vista previa en tiempo real. El valor se guarda como una cadena de texto en Markdown.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
 ### `html`
 
-A rich HTML editor with visual and raw HTML modes. The value is stored as a sanitized HTML string. Unsupported tags and unsafe attributes such as scripts, inline event handlers, inline styles, and `javascript:` URLs are removed when content is saved.
+Un editor enriquecido de HTML con modos visual y código HTML. El valor se guarda como una cadena HTML saneada. Las etiquetas no compatibles y los atributos inseguros como scripts, manejadores de eventos en línea (inline events), estilos en línea y URLs `javascript:` se eliminan cuando se guarda el contenido.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
 ### `slug`
 
-A URL-safe identifier (lowercase, hyphens). Can optionally be auto-generated from another field.
+Un identificador seguro para URLs (minúsculas, guiones). Opcionalmente puede ser autogenerado a partir de otro campo.
 
-| Option   | Description                                                            |
-| -------- | ---------------------------------------------------------------------- |
-| `source` | The `key` of another field to generate the slug from (e.g. `"title"`). |
+| Opción | Descripción |
+| --- | --- |
+| `source` | La clave (`key`) de otro campo desde donde generar el slug (ej. `"title"`). |
 
 ---
 
-## Numeric fields
+## Campos numéricos
 
 ### `number`
 
-A numeric input. Stores the value as a number.
+Una entrada numérica. Guarda el valor como un número.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
 ### `range`
 
-A slider input with configurable min/max/step and display precision.
+Una entrada de control deslizante (slider) con mínimo/máximo/incremento configurable y precisión visual de decimales.
 
-| Option             | Description                                                   |
-| ------------------ | ------------------------------------------------------------- |
-| `min`              | Minimum value (default `0`).                                  |
-| `max`              | Maximum value (default `100`).                                |
-| `step`             | Step increment for slider selection (default `1`).            |
-| `default`          | Initial slider value for new entries.                         |
-| `display_decimals` | Output precision: `0`, `1`, `2`, `3`, or `full` (default `0`). |
+| Opción | Descripción |
+| --- | --- |
+| `min` | Valor mínimo (por defecto `0`). |
+| `max` | Valor máximo (por defecto `100`). |
+| `step` | Incremento de paso para el deslizador (por defecto `1`). |
+| `default` | Valor inicial del deslizador para nuevas entradas. |
+| `display_decimals` | Precisión mostrada: `0`, `1`, `2`, `3` o `full` (por defecto `0`). |
 
 ---
 
-## Boolean
+## Booleanos
 
 ### `boolean`
 
-A toggle (true/false). Stored as a JSON boolean.
+Un interruptor (verdadero/falso). Guardado como un booleano en JSON.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
-## Date & time
+## Fecha y hora
 
 ### `date`
 
-A date picker. Stores an ISO 8601 date string (`YYYY-MM-DD`).
+Un selector de fecha. Guarda una cadena de fecha en formato ISO 8601 (`YYYY-MM-DD`).
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
 ### `datetime`
 
-A date + time picker. Stores a full ISO 8601 datetime string.
+Un selector de fecha + hora. Guarda una cadena completa de fecha y hora en formato ISO 8601.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
-## Selection
+## Selección
 
 ### `select`
 
-A dropdown with predefined options.
+Un menú desplegable con opciones predefinidas.
 
-| Option     | Description                                               |
-| ---------- | --------------------------------------------------------- |
-| `options`  | Array of `{ value, label }` objects or plain strings.     |
-| `multiple` | Allow selecting more than one value. Multi-select values are stored as arrays. |
-| `default`  | Initial option value, or array of option values for multi-select. |
+| Opción | Descripción |
+| --- | --- |
+| `options` | Arreglo de objetos `{ value, label }` o cadenas de texto simples. |
+| `multiple` | Permite seleccionar más de un valor. Los valores multiselección se guardan como arreglos (arrays). |
+| `default` | Valor de opción inicial, o un arreglo de valores para la multiselección. |
 
-Example field definition:
+Ejemplo de definición de campo:
 
 ```json
 {
   "key": "status",
   "type": "select",
-  "label": "Status",
-  "options": ["draft", "published", "archived"]
+  "label": "Estado",
+  "options": ["borrador", "publicado", "archivado"]
 }
 ```
 
 ---
 
-## Media
+## Medios (Multimedia)
 
 ### `media`
 
-A media picker that selects one or more files from the [Media Library](./media).
+Un selector de medios que escoge uno o más archivos de la [Biblioteca de Medios](./media).
 
-| Option     | Description                                         |
-| ---------- | --------------------------------------------------- |
-| `multiple` | Allow selecting more than one file in the admin UI. |
+| Opción | Descripción |
+| --- | --- |
+| `multiple` | Permite seleccionar más de un archivo en el panel de administración. |
 
-Media values are stored as an array of filenames. For single-select media fields, the admin UI limits selection to one item. Public API responses return media fields as arrays of absolute media URLs.
+Los valores de los medios se guardan como un arreglo de nombres de archivo. Para campos de medios de selección única, la UI de administración limita la selección a un elemento. Las respuestas de la API Pública devuelven los campos de medios como arreglos de URLs absolutas de medios.
 
 ---
 
-## Relational
+## Relacionales
 
 ### `relation`
 
-Links an entry to one or more entries in another (or the same) collection.
+Enlaza una entrada a una o más entradas en otra (o en la misma) colección.
 
-| Option       | Description                                             |
-| ------------ | ------------------------------------------------------- |
-| `target`     | The name of the target content type (e.g. `"authors"`). |
-| `multiple`   | Allow selecting multiple related entries.               |
+| Opción | Descripción |
+| --- | --- |
+| `target` | El nombre del tipo de contenido de destino (ej. `"autores"`). |
+| `multiple` | Permite seleccionar múltiples entradas relacionadas. |
 
-Stores the `id` of the referenced entry. Multi-relation fields store an array of ids.
+Guarda el `id` de la entrada referenciada. Los campos multi-relacionales guardan un arreglo de ids.
 
 ---
 
-## Structured
+## Estructurados
 
 ### `json`
 
-A raw JSON editor. Useful for storing arbitrary structured data. The value is stored as-is in the entry JSON.
+Un editor de JSON crudo. Útil para guardar datos estructurados arbitrarios. El valor se guarda tal cual en el JSON de la entrada.
 
-Supports `default`.
+Soporta `default`.
 
 ---
 
@@ -171,6 +171,6 @@ Supports `default`.
 
 ### `color`
 
-A color picker. Stores a hex color string such as `#ff0000`.
+Un selector de color. Guarda una cadena de color en formato hex, como `#ff0000`.
 
-Supports `default`.
+Soporta `default`.

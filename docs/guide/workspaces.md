@@ -1,42 +1,42 @@
-# Workspaces
+# Espacios de Trabajo (Workspaces)
 
-Workspaces let you partition content, media, and content types within a single CometCMS installation. Each workspace is completely isolated — its entries, schemas, and uploaded files are stored separately.
+Los espacios de trabajo (workspaces) te permiten particionar el contenido, los medios y los tipos de contenido dentro de una misma instalación de CometCMS. Cada espacio de trabajo está completamente aislado — sus entradas, esquemas y archivos subidos se almacenan por separado.
 
-Common use cases:
+Casos de uso comunes:
 
-- Manage multiple websites or apps from one admin panel.
-- Separate staging and production content without running two CMS instances.
-- Give different teams their own isolated content area with scoped permission grants.
+- Gestionar múltiples sitios web o aplicaciones desde un solo panel de administración.
+- Separar contenido de pruebas (staging) y producción sin necesidad de ejecutar dos instancias del CMS.
+- Dar a diferentes equipos su propia área de contenido aislada con permisos específicos (scoped).
 
-## What workspaces isolate vs share
+## Qué se aísla y qué se comparte
 
-Workspace-scoped data:
+Datos aislados por espacio de trabajo:
 
-- Content entries
-- Content type schemas
-- Media files and media metadata
-- Revisions
-- Trash
-- Public API cache
+- Entradas de contenido
+- Esquemas de tipos de contenido
+- Archivos multimedia y metadatos de los medios
+- Historial de revisiones
+- Papelera (Trash)
+- Caché de la API pública
 
-Shared installation-wide data:
+Datos compartidos en toda la instalación:
 
-- Users
+- Usuarios
 - Roles
-- API tokens
-- Webhook settings
-- Backup files
-- Update settings and runtime app settings
+- Tokens de API
+- Configuraciones de Webhooks
+- Archivos de copias de seguridad (Backups)
+- Configuraciones de actualizaciones y opciones de tiempo de ejecución de la aplicación
 
-This means you can keep one team directory and auth model while still separating website data by workspace.
+Esto significa que puedes mantener un único directorio de equipo y modelo de autenticación mientras separas los datos de los sitios web por espacio de trabajo.
 
-## How workspaces map to API routes
+## Cómo se mapean los espacios de trabajo en las rutas de la API
 
-Every workspace has a **slug** (a short URL-safe identifier). The slug determines which API path prefix is used to access that workspace's content.
+Cada espacio de trabajo tiene un **slug** (un identificador corto seguro para URLs). El slug determina qué prefijo de ruta de la API se utiliza para acceder al contenido de ese espacio de trabajo.
 
-### Public API routes
+### Rutas de la API Pública
 
-Public API routes are always workspace-scoped through the URL prefix:
+Las rutas de la API pública siempre están restringidas al espacio de trabajo a través del prefijo de la URL:
 
 ```http
 GET /api/v1/workspaces/site-a/content/posts
@@ -44,106 +44,106 @@ GET /api/v1/workspaces/site-a/content-types/posts
 GET /api/v1/workspaces/site-a/media
 ```
 
-Unscoped routes under `/api/v1/...` return `workspace_required`.
+Las rutas sin este alcance bajo `/api/v1/...` devolverán un error `workspace_required`.
 
-### Admin API workspace selection
+### Selección de espacio de trabajo en la API de Administración
 
-Admin API routes select a workspace through the `X-Comet-Workspace` header. If omitted, CometCMS uses the configured default workspace.
-
-```http
-X-Comet-Workspace: site-b
-```
-
-| Route pattern                                        | Description                                     |
-| ---------------------------------------------------- | ----------------------------------------------- |
-| `GET /api/v1/workspaces/{slug}/content/{type}`       | List entries from a specific workspace          |
-| `GET /api/v1/workspaces/{slug}/content-types/{type}` | Content type schema for a specific workspace    |
-| `GET /api/v1/workspaces/{slug}/media`                | Media list for a specific workspace             |
-| `GET /media/{slug}/{filename}`                       | Serve media file from a specific workspace      |
-| `GET /media-thumbs/{slug}/{filename}`                | Serve a generated thumbnail from that workspace |
-
-### Workspace header
-
-For admin endpoints (`/admin/api/...`), clients can select a workspace per request with `X-Comet-Workspace`:
+Las rutas de la API de administración seleccionan un espacio de trabajo a través del encabezado `X-Comet-Workspace`. Si se omite, CometCMS utiliza el espacio de trabajo predeterminado configurado.
 
 ```http
 X-Comet-Workspace: site-b
 ```
 
-For public endpoints, use `/api/v1/workspaces/{slug}/...`.
+| Patrón de ruta | Descripción |
+| --- | --- |
+| `GET /api/v1/workspaces/{slug}/content/{type}` | Listar entradas de un espacio de trabajo específico |
+| `GET /api/v1/workspaces/{slug}/content-types/{type}` | Esquema del tipo de contenido de un espacio de trabajo específico |
+| `GET /api/v1/workspaces/{slug}/media` | Lista de medios para un espacio de trabajo específico |
+| `GET /media/{slug}/{filename}` | Servir archivo de medios desde un espacio de trabajo específico |
+| `GET /media-thumbs/{slug}/{filename}` | Servir una miniatura generada de ese espacio de trabajo |
 
-## Default workspace
+### Encabezado del espacio de trabajo (Workspace header)
 
-The built-in workspace is always named `default` and cannot be deleted. You can rename it and upload a custom icon.
+Para los endpoints de administración (`/admin/api/...`), los clientes pueden seleccionar un espacio de trabajo por solicitud con `X-Comet-Workspace`:
 
-To change which workspace is served at the root API path:
+```http
+X-Comet-Workspace: site-b
+```
 
-1. Open **Settings → Workspaces**.
-2. Click **Set as default** next to the workspace you want to promote.
+Para endpoints públicos, usa `/api/v1/workspaces/{slug}/...`.
 
-The previously default workspace is not automatically reassigned — it remains accessible via its `/workspaces/{slug}` prefix.
+## Espacio de trabajo predeterminado
 
-> **Note:** The built-in `default` workspace and the _configured_ default workspace are two separate things. The configured default can be any workspace; it just means that workspace's content is served at the root API path.
+El espacio de trabajo integrado (por defecto) siempre se nombra `default` y no puede ser eliminado. Puedes cambiarle el nombre y subir un icono personalizado.
 
-## Creating a workspace
+Para cambiar qué espacio de trabajo se sirve en la ruta principal de la API:
 
-1. Go to **Settings → Workspaces**.
-2. Click **New workspace**.
-3. Enter a label and (optionally) a custom slug. The slug is derived from the label automatically.
-4. Click **Create**.
+1. Ve a **Configuración → Workspaces**.
+2. Haz clic en **Establecer como predeterminado (Set as default)** junto al espacio de trabajo que quieras promover.
 
-Slugs are immutable after creation. Choose them carefully.
+El espacio de trabajo que era predeterminado anteriormente no se reasigna automáticamente — sigue accesible a través de su prefijo `/workspaces/{slug}`.
 
-## Archiving a workspace
+> **Nota:** El espacio de trabajo integrado `default` y el espacio de trabajo predeterminado _configurado_ son dos cosas distintas. El valor configurado por defecto puede ser cualquier espacio de trabajo; solo significa que su contenido se servirá en la ruta principal de la API.
 
-Archived workspaces are hidden from the workspace switcher and from the API. Their data is preserved on disk.
+## Creando un espacio de trabajo
 
-- The **built-in default** workspace (`default` slug) cannot be archived.
-- The **configured default** workspace cannot be archived until you assign a new default.
+1. Ve a **Configuración → Workspaces**.
+2. Haz clic en **Nuevo espacio de trabajo (New workspace)**.
+3. Introduce una etiqueta y (opcionalmente) un slug personalizado. El slug se deriva automáticamente de la etiqueta.
+4. Haz clic en **Crear**.
 
-To archive: click **Archive** next to the workspace.
+Los slugs son inmutables después de la creación. Elígelos cuidadosamente.
 
-## Deleting a workspace
+## Archivar un espacio de trabajo
 
-Deleting a workspace permanently removes its record. The underlying content files remain in `cms/storage/` but are no longer accessible through the API.
+Los espacios de trabajo archivados se ocultan del selector de espacios de trabajo y de la API. Sus datos se conservan en el disco.
 
-- The built-in `default` workspace cannot be deleted.
-- The configured default workspace cannot be deleted until you set a different default.
+- El espacio de trabajo **integrado por defecto** (slug `default`) no puede ser archivado.
+- El espacio de trabajo predeterminado **configurado** no puede archivarse hasta que asignes uno nuevo por defecto.
 
-To delete: click **Delete** next to the workspace, then type the workspace slug to confirm.
+Para archivar: haz clic en **Archivar** junto al espacio de trabajo.
 
-## Workspace icons
+## Eliminar un espacio de trabajo
 
-Upload an icon (JPEG, PNG, WebP, or GIF — max 10 MB) to help visually distinguish workspaces in the switcher and admin list.
+Eliminar un espacio de trabajo borra su registro permanentemente. Los archivos de contenido subyacentes permanecen en `cms/storage/` pero ya no son accesibles a través de la API.
 
-Click the workspace avatar to upload a new icon. To remove an existing icon, click **Remove icon** in the action row.
+- El espacio de trabajo integrado `default` no puede ser eliminado.
+- El espacio de trabajo predeterminado configurado no puede ser eliminado hasta que establezcas uno diferente por defecto.
 
-## Permissions and workspace scoping
+Para eliminar: haz clic en **Eliminar** junto al espacio de trabajo, luego escribe el slug del espacio de trabajo para confirmar.
 
-Permission grants can be scoped to a specific workspace. For example:
+## Iconos de los espacios de trabajo
 
-| Grant                                 | Effect                                                 |
-| ------------------------------------- | ------------------------------------------------------ |
-| `workspace:*:content:*`               | Read/write content in all workspaces                   |
-| `workspace:site-b:content:*`          | Read/write content only in the `site-b` workspace      |
-| `workspace:site-b:content:posts:read` | Read-only access to the `posts` collection in `site-b` |
+Sube un icono (JPEG, PNG, WebP, o GIF — máx 10 MB) para ayudar a distinguir visualmente los espacios de trabajo en el selector y en la lista de administración.
 
-When creating or editing an API token or user role, choose a workspace from the **Scope** dropdown in the permission grants editor to restrict a grant to a single workspace.
+Haz clic en el avatar del espacio de trabajo para subir un nuevo icono. Para eliminar uno existente, haz clic en **Eliminar icono** en la fila de acciones.
 
-## Storage layout
+## Permisos y alcance de los espacios de trabajo
 
-Each workspace stores its data in workspace-scoped sub-directories:
+Los permisos pueden restringirse a un espacio de trabajo específico. Por ejemplo:
+
+| Permiso (Grant) | Efecto |
+| --- | --- |
+| `workspace:*:content:*` | Lectura/escritura de contenido en todos los espacios de trabajo |
+| `workspace:site-b:content:*` | Lectura/escritura de contenido solo en el espacio de trabajo `site-b` |
+| `workspace:site-b:content:posts:read` | Acceso solo lectura a la colección `posts` en `site-b` |
+
+Cuando crees o edites un token de API o rol de usuario, elige un espacio de trabajo del menú desplegable **Alcance (Scope)** en el editor de permisos para restringir un permiso a un solo espacio de trabajo.
+
+## Diseño de almacenamiento
+
+Cada espacio de trabajo almacena sus datos en subdirectorios restringidos a su alcance:
 
 ```
 cms/storage/
-  content/{workspace}/          # Content entries
-  content-types/{workspace}/    # Content type schemas
-  media/{workspace}/            # Uploaded media files
-  media-meta/{workspace}/       # Media metadata
-  media-thumbs/{workspace}/     # Generated thumbnails
-  revisions/{workspace}/        # Revision history
-  trash/{workspace}/            # Soft-deleted entries
-  workspaces/icons/             # Workspace icons
+  content/{workspace}/          # Entradas de contenido
+  content-types/{workspace}/    # Esquemas de tipos de contenido
+  media/{workspace}/            # Archivos multimedia subidos
+  media-meta/{workspace}/       # Metadatos de medios
+  media-thumbs/{workspace}/     # Miniaturas generadas
+  revisions/{workspace}/        # Historial de revisiones
+  trash/{workspace}/            # Entradas eliminadas (papelera)
+  workspaces/icons/             # Iconos de los espacios de trabajo
 ```
 
-The default workspace uses `default` as its directory name regardless of the configured default slug.
+El espacio de trabajo predeterminado utiliza `default` como el nombre de su directorio sin importar cuál sea el slug configurado por defecto.

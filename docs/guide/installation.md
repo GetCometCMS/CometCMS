@@ -1,49 +1,49 @@
-# Installation
+# Instalación
 
-## Requirements
+## Requisitos
 
-**Server (production):**
-- PHP 8.1 or later (with `json`, `mbstring`, `fileinfo` extensions)
-- A web server (Apache, Nginx, Caddy)
+**Servidor (producción):**
+- PHP 8.1 o posterior (con extensiones `json`, `mbstring`, `fileinfo`)
+- Un servidor web (Apache, Nginx, Caddy)
 
-**Development machine:**
-- Node.js 18+ (only needed to build the admin frontend — not required on the server)
+**Máquina de desarrollo:**
+- Node.js 18+ (solo necesario para compilar el frontend de administración — no requerido en el servidor)
 
-## Deployment
+## Despliegue
 
-### 1. Clone the repository
+### 1. Clonar el repositorio
 
 ```bash
 git clone https://github.com/your-org/cometcms.git
 cd cometcms
 ```
 
-### 2. Build a deployment package
+### 2. Construir el paquete de despliegue
 
 ```bash
 make build
 ```
 
-This compiles the Vue admin frontend and assembles everything into a `dist/` folder. The output is a self-contained PHP application — no Node.js is needed on the server.
+Esto compila el frontend de administración en Vue y ensambla todo en una carpeta `dist/`. El resultado es una aplicación PHP independiente — no se necesita Node.js en el servidor.
 
-### 3. Upload to your server
+### 3. Subir al servidor
 
-Upload the **contents** of `dist/` to your server's web root (or a subdirectory). The structure will look like:
+Sube el **contenido** de `dist/` a la raíz web de tu servidor (o a un subdirectorio). La estructura se verá así:
 
 ```
 index.php
 router.php
 app/
 config/
-admin/        ← compiled Vue frontend
-storage/      ← empty, writable directory for content/users/etc.
+admin/        ← frontend compilado de Vue
+storage/      ← directorio vacío con permisos de escritura para contenido/usuarios/etc.
 ```
 
-### 4. Configure your web server
+### 4. Configurar el servidor web
 
-All requests must be routed through `index.php`.
+Todas las peticiones deben ser enrutadas a través de `index.php`.
 
-**Apache** (`.htaccess` is included in the build):
+**Apache** (`.htaccess` se incluye en la construcción):
 ```apache
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
@@ -57,48 +57,43 @@ location / {
 }
 ```
 
-### 5. Ensure `storage/` is writable
+### 5. Asegurar permisos de escritura en `storage/`
 
 ```bash
 chmod -R 755 storage/
 ```
 
-### 6. Open the admin
+### 6. Abrir la administración
 
-Navigate to `https://yourdomain.com/admin`. The first-run setup screen will appear.
-
----
-
-## Configuration (optional)
-
-`config/config.php` lets you adjust:
-- `app.timezone` — default `UTC`
-- `content.max_revisions` — revision snapshots kept per entry, default `50`
-- `cache.ttl` — API cache TTL in seconds
-- `security.login_throttle` — brute-force protection limits
-- `updates.repository_url` — GitHub repository used by the admin update page
-- `updates.require_checksum` — require a `.sha256` release asset before installing
-- `updates.preserved_paths` — paths skipped when installing release ZIPs
-- `webhooks` — outbound webhook URLs
-
-The URL is **auto-detected** from the HTTP request — no `base_url` setting is needed.
-
-The admin update page is opened by clicking the CometCMS version in the sidebar.
-Update checks use GitHub releases. Updates are downloaded and verified first,
-then installed from the staged package. Installing an update replaces
-release-owned application files while preserving the configured paths, including
-`storage/` for content, content types, media, users, revisions and other local
-data.
-
-CometCMS supports public GitHub releases for update checks and downloads.
+Navega a `https://tudominio.com/admin`. Aparecerá la pantalla de configuración de primer inicio.
 
 ---
 
-## Local development
+## Configuración (opcional)
+
+`config/config.php` te permite ajustar:
+- `app.timezone` — por defecto `UTC`
+- `content.max_revisions` — instantáneas de revisión mantenidas por entrada, por defecto `50`
+- `cache.ttl` — TTL (tiempo de vida) del caché de la API en segundos
+- `security.login_throttle` — límites de protección contra fuerza bruta
+- `updates.repository_url` — repositorio de GitHub usado por la página de actualización
+- `updates.require_checksum` — requiere un archivo `.sha256` del release antes de instalar
+- `updates.preserved_paths` — rutas omitidas al instalar ZIPs de actualización
+- `webhooks` — URLs de webhooks salientes
+
+La URL se **autodetecta** de la petición HTTP — no se necesita configurar un `base_url`.
+
+La página de actualización de la administración se abre al hacer clic en la versión de CometCMS en la barra lateral. Las comprobaciones de actualización usan los releases de GitHub. Las actualizaciones se descargan y verifican primero, y luego se instalan desde el paquete preparado. Al instalar una actualización, se reemplazan los archivos de la aplicación mientras se preservan las rutas configuradas, incluyendo `storage/` (contenido, tipos de contenido, medios, usuarios, revisiones y otros datos locales).
+
+CometCMS soporta releases públicos de GitHub para verificar y descargar actualizaciones.
+
+---
+
+## Desarrollo local
 
 ```bash
 npm install
 make dev
 ```
 
-This starts the PHP built-in server and the Vite dev server simultaneously. The admin is available at `http://localhost:8000/admin`.
+Esto inicia simultáneamente el servidor integrado de PHP y el servidor de desarrollo de Vite. El panel de administración estará disponible en `http://localhost:8000/admin`.

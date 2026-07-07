@@ -1,39 +1,39 @@
-# First Login
+# Primer Inicio de Sesión
 
-## Setup screen
+## Pantalla de configuración
 
-When you visit `/admin` for the first time (or after a [user reset](./recovery)), CometCMS shows the **setup screen** instead of the login page.
+Cuando visitas `/admin` por primera vez (o después de un [restablecimiento de usuario](./recovery)), CometCMS muestra la **pantalla de configuración** en lugar de la página de inicio de sesión.
 
-Enter a username and password (minimum 8 characters), then choose the first workspace name (optional custom slug).
+Introduce un nombre de usuario y una contraseña (mínimo 8 caracteres), luego elige el nombre del primer espacio de trabajo o "workspace" (slug personalizado opcional).
 
-Submitting setup creates:
+Al enviar la configuración se crea:
 
-- The initial admin account.
-- The initial workspace.
-- The default workspace assignment (used as the admin workspace fallback when `X-Comet-Workspace` is not set).
+- La cuenta de administrador inicial.
+- El espacio de trabajo inicial.
+- La asignación de espacio de trabajo por defecto (utilizada como respaldo del espacio de trabajo en la administración cuando `X-Comet-Workspace` no está definido).
 
-This admin account is the only account that can access the panel until more users are added.
+Esta cuenta de administrador es la única que puede acceder al panel hasta que se añadan más usuarios.
 
-![CometCMS setup screen for creating the first admin account](../screenshots/first-login.png)
+![Pantalla de configuración de CometCMS para crear la primera cuenta de administrador](../screenshots/first-login.png)
 
-## Admin URL
+## URL de Administración
 
-The admin panel is always available at:
+El panel de administración siempre está disponible en:
 
 ```
-https://yourdomain.com/admin
+https://tudominio.com/admin
 ```
 
-## Logging in
+## Iniciar sesión
 
-Enter your username and password. Sessions are server-side (PHP sessions stored in `cms/storage/sessions/`).
+Introduce tu nombre de usuario y contraseña. Las sesiones se manejan del lado del servidor (sesiones de PHP almacenadas en `cms/storage/sessions/`).
 
-After login, you can add more workspaces in **Settings -> Workspaces**. See [Workspaces](./workspaces) for routing, isolation, and permission scoping details.
+Después de iniciar sesión, puedes añadir más espacios de trabajo en **Configuración -> Workspaces**. Consulta la sección [Espacios de trabajo](./workspaces) para detalles sobre enrutamiento, aislamiento y alcance de permisos.
 
-## Your profile
+## Tu perfil
 
-Click your **name or avatar in the bottom-left corner of the sidebar** to open your profile page where you can:
+Haz clic en tu **nombre o avatar en la esquina inferior izquierda de la barra lateral** para abrir la página de tu perfil, donde podrás:
 
-- Upload or remove your profile picture
-- Change your display name and email address
-- Set a new password (requires entering your current password first)
+- Subir o eliminar tu foto de perfil
+- Cambiar tu nombre a mostrar y dirección de correo electrónico
+- Establecer una nueva contraseña (requiere ingresar tu contraseña actual primero)

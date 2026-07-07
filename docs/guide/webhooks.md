@@ -1,35 +1,35 @@
 # Webhooks
 
-Webhooks let CometCMS notify an external URL whenever content changes. The primary use case is triggering SSG (static site generator) rebuild jobs — but any HTTP endpoint can receive these events.
+Los webhooks permiten que CometCMS notifique a una URL externa siempre que el contenido cambie. El caso de uso principal es disparar trabajos de reconstrucción en generadores de sitios estáticos (SSG) — pero cualquier endpoint HTTP puede recibir estos eventos.
 
-![Webhooks screen in the CometCMS admin](../screenshots/view-webhooks.png)
+![Pantalla de webhooks en la administración de CometCMS](../screenshots/view-webhooks.png)
 
-## Configuration
+## Configuración
 
-Webhooks are configured in the **Webhooks** page of the admin (under **System → Webhooks**). Each webhook has:
+Los webhooks se configuran en la página de **Webhooks** de la administración (en **Sistema (System) → Webhooks**). Cada webhook tiene:
 
-| Field          | Description                                                  |
-| -------------- | ------------------------------------------------------------ |
-| **URL**        | The HTTPS endpoint that will receive POST requests.          |
-| **Secret**     | A shared secret used to sign the payload. Keep this private. |
-| **Trigger on** | The subset of events that should fire this webhook.          |
+| Campo | Descripción |
+| --- | --- |
+| **URL** | El endpoint HTTPS que recibirá las peticiones POST. |
+| **Secret (Secreto)** | Una clave secreta compartida utilizada para firmar el contenido (payload). Mantenla en privado. |
+| **Trigger on (Disparar en)** | El subconjunto de eventos que deben disparar este webhook. |
 
-You can configure multiple webhooks, each listening to a different set of events.
+Puedes configurar múltiples webhooks, cada uno escuchando un conjunto diferente de eventos.
 
-## Events
+## Eventos
 
-| Event                 | Fired when …                                            |
-| --------------------- | ------------------------------------------------------- |
-| `content.created`     | A new entry is saved for the first time.                |
-| `content.updated`     | An existing entry is saved.                             |
-| `content.published`   | An entry transitions to `published` status.             |
-| `content.unpublished` | A previously published entry leaves `published` status. |
-| `content.deleted`     | An entry is soft-deleted (moved to trash).              |
-| `content.restored`    | An entry is restored from the trash.                    |
+| Evento | Se dispara cuando… |
+| --- | --- |
+| `content.created` | Una nueva entrada se guarda por primera vez. |
+| `content.updated` | Una entrada existente se guarda (actualiza). |
+| `content.published` | Una entrada cambia al estado de `published` (publicado). |
+| `content.unpublished` | Una entrada previamente publicada deja de estar en estado `published`. |
+| `content.deleted` | Una entrada se elimina (es movida a la papelera). |
+| `content.restored` | Una entrada se restaura de la papelera. |
 
-## Payload format
+## Formato del payload (Carga útil)
 
-Every webhook request is an HTTP **POST** with `Content-Type: application/json`:
+Cada petición de webhook es un **POST** HTTP con `Content-Type: application/json`:
 
 ```json
 {
@@ -38,30 +38,30 @@ Every webhook request is an HTTP **POST** with `Content-Type: application/json`:
   "data": {
     "type": "posts",
     "id": "7K4p9xQ2mR",
-    "slug": "my-first-post"
+    "slug": "mi-primer-post"
   }
 }
 ```
 
-- `event` — the event name from the table above.
-- `occurred_at` — ISO 8601 timestamp in UTC.
-- `data.type` — the collection name (e.g. `posts`, `pages`).
-- `data.id` — the stable opaque ID of the affected entry.
-- `data.slug` — the URL-safe slug of the affected entry. Use either `id` or `slug` to fetch the entry from the Public API.
+- `event` — el nombre del evento de la tabla anterior.
+- `occurred_at` — marca de tiempo (timestamp) ISO 8601 en UTC.
+- `data.type` — el nombre de la colección (ej. `posts`, `pages`).
+- `data.id` — el ID opaco y estable de la entrada afectada.
+- `data.slug` — el slug seguro para URLs de la entrada afectada. Usa el `id` o el `slug` para obtener la entrada desde la API Pública.
 
-::: tip Lightweight by design
-The payload intentionally contains only the event and a reference to the entry. Use the Public API to fetch the full entry if your handler needs the content.
+::: tip Ligero por diseño
+El payload contiene intencionalmente solo el evento y una referencia a la entrada. Usa la API Pública para recuperar la entrada completa si tu controlador (handler) necesita el contenido.
 :::
 
-## Signature verification
+## Verificación de firma
 
-Every request includes an `X-CometCMS-Signature` header. Its value is:
+Cada petición incluye un encabezado `X-CometCMS-Signature`. Su valor es:
 
 ```
 sha256=<HMAC-SHA256 hex digest>
 ```
 
-The signature is computed over the **raw request body** using your webhook secret as the key. Always verify this signature before processing the event.
+La firma se calcula sobre **el cuerpo de la petición en crudo (raw request body)** utilizando el secreto de tu webhook como clave. Siempre verifica esta firma antes de procesar el evento.
 
 ### Node.js
 
@@ -97,11 +97,11 @@ def verify_signature(raw_body: bytes, secret: str, signature: str) -> bool:
     return hmac.compare_digest(expected, signature)
 ```
 
-## Example: triggering a Netlify build
+## Ejemplo: disparar un build en Netlify
 
-1. In Netlify, go to **Site settings → Build hooks** and create a new hook. Copy the hook URL.
-2. In CometCMS, open **Webhooks** and add a webhook with:
-   - **URL** — your Netlify hook URL
-   - **Secret** — any random string (Netlify doesn't verify signatures, but CometCMS sends one regardless)
-   - **Trigger on** — `content.published`, `content.unpublished`
-3. Publish or unpublish a post — Netlify will start a new build automatically.
+1. En Netlify, ve a **Site settings → Build hooks** (Configuración del sitio → Hooks de construcción) y crea un nuevo hook. Copia la URL del hook.
+2. En CometCMS, abre **Webhooks** y añade un webhook con:
+   - **URL** — la URL de tu hook de Netlify
+   - **Secret** — cualquier cadena aleatoria (Netlify no verifica las firmas, pero CometCMS enviará una de todas formas)
+   - **Trigger on (Disparar en)** — `content.published`, `content.unpublished`
+3. Publica o despublica un post — Netlify iniciará una nueva construcción automáticamente.

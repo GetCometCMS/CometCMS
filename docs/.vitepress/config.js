@@ -2,70 +2,73 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'CometCMS',
-  description: 'Documentation for CometCMS — a lightweight file-based CMS.',
+  description: 'Documentación para CometCMS — un CMS ligero basado en archivos.',
   base: '/CometCMS/',
   themeConfig: {
     logo: { light: '/cms-logo-black.png', dark: '/cms-logo-white.png' },
     siteTitle: false,
     nav: [
-      { text: 'Guide', link: '/guide/introduction' },
-      { text: 'API Reference', link: '/api/public-api' },
+      { text: 'Guía', link: '/guide/introduction' },
+      { text: 'Referencia API', link: '/api/public-api' },
     ],
     sidebar: [
       {
-        text: 'Getting Started',
+        text: 'Primeros Pasos',
         items: [
-          { text: 'Introduction', link: '/guide/introduction' },
-          { text: 'Installation', link: '/guide/installation' },
-          { text: 'First Login', link: '/guide/first-login' },
+          { text: 'Introducción y Usabilidad', link: '/guide/introduction' },
+          { text: 'Instalación', link: '/guide/installation' },
+          { text: 'Primer Inicio de Sesión', link: '/guide/first-login' },
+          { text: 'Documentación Local', link: '/guide/documentacion-local' },
         ],
       },
       {
-        text: 'Workspaces',
+        text: 'Espacios de Trabajo',
         items: [
           { text: 'Workspaces', link: '/guide/workspaces' },
         ],
       },
       {
-        text: 'Content',
+        text: 'Contenido',
         items: [
-          { text: 'Content Types', link: '/guide/content-types' },
-          { text: 'Field Types', link: '/guide/field-types' },
-          { text: 'Content Entries', link: '/guide/content-entries' },
-          { text: 'Media Library', link: '/guide/media' },
+          { text: 'Tipos de Contenido', link: '/guide/content-types' },
+          { text: 'Tipos de Campos', link: '/guide/field-types' },
+          { text: 'Entradas de Contenido', link: '/guide/content-entries' },
+          { text: 'Biblioteca de Medios', link: '/guide/media' },
         ],
       },
       {
-        text: 'Users & Access',
+        text: 'Usuarios y Acceso',
         items: [
-          { text: 'Managing Users', link: '/guide/users' },
-          { text: 'API Tokens', link: '/guide/api-tokens' },
+          { text: 'Gestión de Usuarios', link: '/guide/users' },
+          { text: 'Tokens de API', link: '/guide/api-tokens' },
         ],
       },
       {
-        text: 'Import & Export',
+        text: 'Importar y Exportar',
         items: [
-          { text: 'Backup & Migration', link: '/guide/backups' },
+          { text: 'Copias de Seguridad (Backups)', link: '/guide/backups' },
         ],
       },
       {
-        text: 'Integrations',
+        text: 'Integraciones Avanzadas',
         items: [
           { text: 'Webhooks', link: '/guide/webhooks' },
+          { text: 'Manejo con Inteligencia Artificial', link: '/guide/ai-integration' },
         ],
       },
       {
-        text: 'Recovery',
+        text: 'Recuperación y Accesibilidad',
         items: [
-          { text: 'Admin Lockout', link: '/guide/recovery' },
+          { text: 'Accesibilidad', link: '/guide/accessibility' },
+          { text: 'Recuperar Acceso de Admin', link: '/guide/recovery' },
         ],
       },
       {
-        text: 'API Reference',
+        text: 'Referencia API',
         items: [
-          { text: 'Public API', link: '/api/public-api' },
-          { text: 'Admin API', link: '/api/admin-api' },
-          { text: 'MCP API', link: '/api/mcp' },
+          { text: 'API Pública', link: '/api/public-api' },
+          { text: 'API de Administración', link: '/api/admin-api' },
+          { text: 'API MCP', link: '/api/mcp' },
           { text: 'OpenAPI', link: '/api/openapi' },
         ],
       },
@@ -73,9 +76,30 @@ export default defineConfig({
     socialLinks: [],
     search: {
       provider: 'local',
+      options: {
+        locales: {
+          root: {
+            translations: {
+              button: {
+                buttonText: 'Buscar',
+                buttonAriaLabel: 'Buscar'
+              },
+              modal: {
+                noResultsText: 'No se encontraron resultados para',
+                resetButtonTitle: 'Borrar búsqueda',
+                footer: {
+                  selectText: 'para seleccionar',
+                  navigateText: 'para navegar',
+                  closeText: 'para cerrar'
+                }
+              }
+            }
+          }
+        }
+      }
     },
     footer: {
-      message: 'CometCMS Documentation',
+      message: 'Documentación de CometCMS',
     },
   },
 })

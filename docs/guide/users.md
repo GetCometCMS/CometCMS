@@ -1,41 +1,41 @@
-# Managing Users
+# Gestión de Usuarios
 
-## User roles
+## Roles de usuario
 
-Roles define the permission grants users receive. A user has exactly one role, and changing the role changes the user's effective permissions.
+Los roles definen los permisos (grants) que reciben los usuarios. Un usuario tiene exactamente un rol, y cambiar el rol cambia los permisos efectivos del usuario.
 
-| Built-in role | Default grants                                                                 |
-| ------------- | ------------------------------------------------------------------------------ |
-| `admin`       | All system, content type, content, media, user, token, role, backup, webhook, and update permissions. |
-| `editor`      | Dashboard, activity, updates, profile, schema reads, content, and media writes. |
-| `viewer`      | Dashboard, activity, updates, profile, schema reads, content reads, media reads. |
+| Rol integrado | Permisos por defecto |
+| --- | --- |
+| `admin` | Todos los permisos de sistema, tipos de contenido, contenido, medios, usuarios, tokens, roles, copias de seguridad, webhooks y actualizaciones. |
+| `editor` | Panel de control, actividad, actualizaciones, perfil, lectura de esquemas, y escritura de contenido y medios. |
+| `viewer` | Panel de control, actividad, actualizaciones, perfil, lectura de esquemas, lectura de contenido y lectura de medios. |
 
-Use **Edit user roles** from **Users** to create roles or change their grants. The `admin` role cannot be deleted.
+Usa **Editar roles de usuario (Edit user roles)** desde **Usuarios (Users)** para crear roles o cambiar sus permisos. El rol `admin` no puede ser eliminado.
 
-![Role permissions editor in the CometCMS admin](../screenshots/view-user-role-permissions.png)
+![Editor de permisos de roles en la administración de CometCMS](../screenshots/view-user-role-permissions.png)
 
-## Viewing users
+## Ver usuarios
 
-Navigate to **Users** in the sidebar. Users are grouped by role: Admins → Editors → Viewers.
+Navega a **Usuarios (Users)** en la barra lateral. Los usuarios están agrupados por rol: Administradores → Editores → Espectadores.
 
-## Creating a user
+## Crear un usuario
 
-1. Click **New user**.
-2. Enter a username, password (min 8 characters), and role.
-3. Click **Create**.
+1. Haz clic en **Nuevo usuario (New user)**.
+2. Introduce un nombre de usuario, contraseña (mínimo 8 caracteres) y rol.
+3. Haz clic en **Crear (Create)**.
 
-## Editing a user (admin only)
+## Editar un usuario (solo para administradores)
 
-Admins can click the **Edit** button on any other user's card to update their display name, email, role, or set a new password. You cannot edit your own account from this page — use your [profile page](#your-profile) instead.
+Los administradores pueden hacer clic en el botón de **Editar (Edit)** en la tarjeta de cualquier otro usuario para actualizar su nombre visible, correo electrónico, rol o establecer una nueva contraseña. No puedes editar tu propia cuenta desde esta página — usa tu [página de perfil](#tu-perfil) en su lugar.
 
-## Deleting a user
+## Eliminar un usuario
 
-Click **Delete** on a user's card. This removes the user account only — any content they created (`author_id`) is **not** affected and remains intact.
+Haz clic en **Eliminar (Delete)** en la tarjeta de un usuario. Esto solo elimina la cuenta del usuario — cualquier contenido que haya creado (`author_id`) **no** se ve afectado y permanece intacto.
 
-## Your profile
+## Tu perfil
 
-Click your **name or avatar in the bottom-left corner of the sidebar** to open your profile page. From there you can:
+Haz clic en tu **nombre o avatar en la esquina inferior izquierda de la barra lateral** para abrir tu página de perfil. Desde ahí puedes:
 
-- Upload or remove your profile picture.
-- Update your display name and email.
-- Change your password (current password required).
+- Subir o eliminar tu foto de perfil.
+- Actualizar tu nombre a mostrar y correo electrónico.
+- Cambiar tu contraseña (se requiere la contraseña actual).

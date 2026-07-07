@@ -1,54 +1,54 @@
-# Backup & Restore
+# Copia de Seguridad y Restauración (Backup & Restore)
 
-CometCMS includes a built-in backup and restore system for saving CMS data to ZIP files and restoring selected parts later.
+CometCMS incluye un sistema integrado de copia de seguridad y restauración para guardar los datos del CMS en archivos ZIP y restaurar partes seleccionadas posteriormente.
 
-## Backup storage
+## Almacenamiento de copias de seguridad
 
-Backups are stored in:
+Las copias de seguridad (backups) se almacenan en:
 
 ```bash
 cms/storage/backups/
 ```
 
-The admin panel can list, inspect, download, delete, upload, and restore backups from this folder.
+El panel de administración puede listar, inspeccionar, descargar, eliminar, subir y restaurar copias de seguridad desde esta carpeta.
 
-![Backup and restore screen in the CometCMS admin](../screenshots/view-backups.png)
+![Pantalla de copia de seguridad y restauración en la administración de CometCMS](../screenshots/view-backups.png)
 
-## What can be backed up
+## Qué se puede respaldar
 
-When creating a backup, you can choose which parts to include:
+Al crear una copia de seguridad, puedes elegir qué partes incluir:
 
-| Part          | Default | Details                                    |
-| ------------- | ------- | ------------------------------------------ |
-| Content types | On      | Collection schemas and fields              |
-| Type entries  | On      | Entries and revision history               |
-| Media         | On      | Uploaded files, categories, and metadata   |
-| Webhooks      | On      | Outbound webhook URLs, secrets, and events |
-| Users         | Off     | User accounts, roles, and application API tokens |
+| Parte | Por defecto | Detalles |
+| --- | --- | --- |
+| Tipos de contenido | Sí | Esquemas de colecciones y campos |
+| Entradas | Sí | Entradas y el historial de revisiones |
+| Medios (Media) | Sí | Archivos subidos, categorías y metadatos |
+| Webhooks | Sí | URLs de webhooks salientes, secretos y eventos |
+| Usuarios | No | Cuentas de usuario, roles y tokens de API de la aplicación |
 
-> **Passwords & API tokens:** By default, password hashes and API token hashes are stripped from backups. To include them for full account and token restore, set `'include_password_hashes' => true` under `'backups'` in `cms/config/config.php`.
+> **Contraseñas y tokens de API:** Por defecto, los hashes (cifrados) de las contraseñas y de los tokens de API se eliminan de las copias de seguridad. Para incluirlos y permitir una restauración completa de cuentas y tokens, establece `'include_password_hashes' => true` bajo `'backups'` en el archivo `cms/config/config.php`.
 
-## Restoring
+## Restaurar
 
-Before restoring, CometCMS inspects the ZIP and shows the number of content types, entries, revisions, media files, users, roles, and webhooks it contains. You then choose which available parts to restore.
+Antes de restaurar, CometCMS inspecciona el ZIP y muestra el número de tipos de contenido, entradas, revisiones, archivos multimedia, usuarios, roles y webhooks que contiene. Luego, tú eliges cuáles de las partes disponibles quieres restaurar.
 
-Users are intentionally off by default to prevent accidentally overwriting accounts on the destination server. User restore requires a backup created with password hashes included; otherwise users are skipped because they would not be able to log in.
+La restauración de usuarios está desactivada por defecto de forma intencional para evitar sobrescribir accidentalmente cuentas en el servidor de destino. La restauración de usuarios requiere una copia de seguridad creada con los hashes de las contraseñas incluidos; de lo contrario, los usuarios serán omitidos porque no podrían iniciar sesión.
 
-## Admin workflow
+## Flujo de trabajo en la administración
 
-1. Go to **Backup / Restore** in the admin panel.
-2. Create a new backup or upload an existing backup ZIP.
-3. Inspect the backup preview.
-4. Select the parts to restore.
-5. Choose whether to overwrite existing files and records.
-6. Click **Restore selected parts**.
+1. Ve a **Copia de seguridad / Restaurar (Backup / Restore)** en el panel de administración.
+2. Crea una nueva copia de seguridad o sube un archivo ZIP de copia de seguridad existente.
+3. Inspecciona la vista previa de la copia de seguridad.
+4. Selecciona las partes a restaurar.
+5. Elige si deseas sobrescribir los archivos y registros existentes.
+6. Haz clic en **Restaurar partes seleccionadas (Restore selected parts)**.
 
-## Full filesystem backup
+## Copia de seguridad completa del sistema de archivos
 
-For a complete server-side backup, copy the entire `storage/` directory via FTP or SSH:
+Para una copia de seguridad completa del lado del servidor, copia todo el directorio `storage/` vía FTP o SSH:
 
 ```bash
-cp -r cms/storage/ /path/to/backup/storage-$(date +%Y%m%d)/
+cp -r cms/storage/ /ruta/hacia/tu/backup/storage-$(date +%Y%m%d)/
 ```
 
-To restore, copy the backup back to `cms/storage/`.
+Para restaurar, vuelve a copiar la carpeta respaldada en `cms/storage/`.

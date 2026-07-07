@@ -1,55 +1,55 @@
-# Content Entries
+# Entradas de Contenido
 
-## Browsing entries
+## Navegar por las entradas
 
-Select a collection from the **sidebar** to see a list of all entries in that collection. The list shows the title/slug, status, author, and last-updated date.
+Selecciona una colección desde la **barra lateral** para ver una lista de todas las entradas en esa colección. La lista muestra el título/slug, estado, autor y la fecha de la última actualización.
 
-Single page content types appear under **Single** in the sidebar. They open directly in the editor instead of showing a list.
+Los tipos de contenido de página única (Single page) aparecen en la sección **Single (Individual)** de la barra lateral. Estos se abren directamente en el editor en lugar de mostrar una lista.
 
-## Creating an entry
+## Crear una entrada
 
-1. Open a collection from the sidebar.
-2. Click **New entry**.
-3. Fill in the fields.
-4. Click **Save**.
+1. Abre una colección desde la barra lateral.
+2. Haz clic en **Nueva entrada (New entry)**.
+3. Rellena los campos.
+4. Haz clic en **Guardar (Save)**.
 
-Entries are created with a `draft` status by default. Toggle the **Published** switch (or a `boolean` / `datetime` field of your choice) to publish them.
+Las entradas se crean con el estado de `draft` (borrador) por defecto. Alterna el interruptor **Publicado (Published)** (o un campo `boolean` / `datetime` de tu elección) para publicarlas.
 
-If the content type has locales, new entries start in the default locale unless you choose another locale. The entry slug, status, author, and publish date are shared across locales.
+Si el tipo de contenido tiene idiomas configurados, las nuevas entradas inician en el idioma predeterminado a menos que elijas otro. El slug de la entrada, el estado, el autor y la fecha de publicación se comparten entre todos los idiomas.
 
-## Editing an entry
+## Editar una entrada
 
-Click any row in the list to open the entry editor. Changes are saved when you click **Save entry**.
+Haz clic en cualquier fila de la lista para abrir el editor de la entrada. Los cambios se guardan cuando haces clic en **Guardar entrada (Save entry)**.
 
-Localized entries show locale pills above the form. Solid pills have saved translations, dashed pills create a missing locale variant, and the default locale is labeled. Deleting a locale variant only removes that translation; the entry and other locales remain.
+Las entradas con múltiples idiomas muestran "píldoras" de idiomas sobre el formulario. Las píldoras sólidas tienen traducciones guardadas, las píldoras punteadas crean una variante de idioma que falta, y el idioma predeterminado está etiquetado. Eliminar una variante de idioma solo elimina esa traducción; la entrada y los demás idiomas permanecen intactos.
 
-## Entry history
+## Historial de la entrada
 
-Every time you save an entry, a revision snapshot is stored. CometCMS keeps up to `content.max_revisions` snapshots per entry, which defaults to `50` in `config/config.php`. Set it to `0` to disable revision history, or a negative value to keep revisions indefinitely.
+Cada vez que guardas una entrada, se almacena una instantánea (snapshot) de revisión. CometCMS mantiene hasta el límite de `content.max_revisions` instantáneas por entrada, que por defecto es `50` en `config/config.php`. Puedes configurarlo a `0` para deshabilitar el historial de revisiones, o a un valor negativo para guardar revisiones indefinidamente.
 
-Open the **Entry history** side panel to:
+Abre el panel lateral de **Historial de entrada (Entry history)** para:
 
-- Browse all previous versions, including which user saved each one.
-- See a **diff** of what changed between each revision.
-- **Restore** any revision by clicking the restore icon — this loads the old values into the editor without saving. Review the changes and click **Save entry** to apply.
+- Navegar por todas las versiones anteriores, incluyendo qué usuario guardó cada una.
+- Ver un **diff (diferencias)** de lo que cambió entre cada revisión.
+- **Restaurar** cualquier revisión haciendo clic en el icono de restaurar — esto carga los valores antiguos en el editor sin guardar. Revisa los cambios y haz clic en **Guardar entrada (Save entry)** para aplicarlos de forma definitiva.
 
-The top of the history list always shows the **current** state with a blue _(Current)_ badge.
+La parte superior de la lista del historial siempre muestra el estado **actual (current)** con una etiqueta azul.
 
-## Deleting an entry
+## Eliminar una entrada
 
-Click **Delete** on an entry to move it to the **Trash**. Trashed entries can be restored or permanently deleted from the Trash section.
+Haz clic en **Eliminar (Delete)** en una entrada para moverla a la **Papelera (Trash)**. Las entradas en la papelera pueden ser restauradas o eliminadas permanentemente desde la sección de Papelera.
 
-Deleting a single page also moves its one entry to Trash. While it is trashed, the direct editor/API route returns not found for public reads. Restoring the trashed page brings it back at the same fixed slug, unless another active entry already exists for that single page content type.
+Eliminar una página única (Single page) también mueve su única entrada a la papelera. Mientras esté en la papelera, la ruta directa del editor/API devuelve un error de "no encontrado" (not found) para las lecturas públicas. Restaurar la página eliminada la trae de vuelta en el mismo slug fijo, a menos que ya exista otra entrada activa para ese tipo de contenido de página única.
 
-## Entry metadata
+## Metadatos de la entrada
 
-Every entry automatically gets these system fields (not editable):
+Cada entrada obtiene automáticamente estos campos del sistema (no son editables):
 
-| Field        | Description                                          |
-| ------------ | ---------------------------------------------------- |
-| `id`         | Unique identifier (auto-generated).                  |
-| `collection` | The collection this entry belongs to.                |
-| `created_at` | ISO 8601 timestamp when the entry was first created. |
-| `updated_at` | ISO 8601 timestamp of the last save.                 |
-| `author_id`  | ID of the user who created the entry.                |
-| `updated_by` | ID of the user who last updated the entry.           |
+| Campo | Descripción |
+| --- | --- |
+| `id` | Identificador único (autogenerado). |
+| `collection` | La colección a la que pertenece esta entrada. |
+| `created_at` | Marca de tiempo (timestamp) ISO 8601 de cuando la entrada fue creada por primera vez. |
+| `updated_at` | Marca de tiempo ISO 8601 del último guardado. |
+| `author_id` | ID del usuario que creó la entrada. |
+| `updated_by` | ID del usuario que actualizó la entrada por última vez. |

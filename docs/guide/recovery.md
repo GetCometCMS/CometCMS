@@ -1,53 +1,53 @@
-# Admin Lockout Recovery
+# Recuperación de Acceso de Administración
 
-If you lose access to the admin panel (forgotten password, deleted account, etc.) and still have **FTP or SSH access** to the server, there are two recovery paths.
+Si pierdes el acceso al panel de administración (contraseña olvidada, cuenta eliminada, etc.) y aún tienes **acceso FTP o SSH** al servidor, hay dos caminos de recuperación.
 
-## Option 1 — Delete all users and re-run setup (recommended)
+## Opción 1 — Eliminar todos los usuarios y volver a ejecutar la configuración (recomendado)
 
-1. Connect to your server via FTP or SSH.
-2. Delete all files inside `cms/storage/users/`:
+1. Conéctate a tu servidor vía FTP o SSH.
+2. Elimina todos los archivos dentro de `cms/storage/users/`:
 
    ```bash
    rm cms/storage/users/*.json
    ```
 
-   **Your content is safe.** Only user accounts live in `cms/storage/users/`. Content entries, media, and content types are stored in separate directories and are not affected.
+   **Tu contenido está a salvo.** Solo las cuentas de usuario viven en `cms/storage/users/`. Las entradas de contenido, los medios y los tipos de contenido se almacenan en directorios separados y no se ven afectados.
 
-3. Visit `https://yourdomain.com/admin` in your browser. CometCMS will detect that no users exist and show the first-run **setup screen**.
+3. Visita `https://tudominio.com/admin` en tu navegador. CometCMS detectará que no existen usuarios y mostrará la **pantalla de configuración** de primer inicio.
 
-4. Create a new admin account.
+4. Crea una nueva cuenta de administrador.
 
-## Option 2 — Replace the password hash directly
+## Opción 2 — Reemplazar el hash de la contraseña directamente
 
-If you want to preserve the existing user account, you can reset the password by editing the user's JSON file directly. API tokens are stored separately in `cms/storage/api-tokens/`.
+Si quieres preservar la cuenta de usuario existente, puedes restablecer la contraseña editando directamente el archivo JSON del usuario. Los tokens de API se almacenan de forma separada en `cms/storage/api-tokens/`.
 
-1. Find your user file in `cms/storage/users/`. Files are named `{userId}.json`. Open each one to find the right username.
+1. Encuentra tu archivo de usuario en `cms/storage/users/`. Los archivos se nombran con el formato `{userId}.json`. Abre cada uno para encontrar el nombre de usuario correcto.
 
-2. Generate a bcrypt hash for your new password. Any cost factor works — PHP's `password_verify()` reads the cost factor from the hash automatically.
+2. Genera un hash (cifrado) bcrypt para tu nueva contraseña. Cualquier factor de coste funciona — la función `password_verify()` de PHP lee el factor de coste directamente desde el hash.
 
-   **Via PHP CLI:**
+   **Vía consola (CLI) de PHP:**
 
    ```bash
-   php -r "echo password_hash('yourNewPassword', PASSWORD_BCRYPT) . PHP_EOL;"
+   php -r "echo password_hash('tuNuevaContrasena', PASSWORD_BCRYPT) . PHP_EOL;"
    ```
 
-   **Via an online generator** (e.g. [bcrypt-generator.com](https://bcrypt-generator.com)) — the cost factor shown by the tool doesn't matter; any valid bcrypt hash will work.
+   **Vía un generador en línea** (ej. [bcrypt-generator.com](https://bcrypt-generator.com)) — el factor de coste mostrado por la herramienta no importa; cualquier hash bcrypt válido funcionará.
 
-3. Open the user JSON file and replace the `password` field value with the new hash:
+3. Abre el archivo JSON del usuario y reemplaza el valor del campo `password` con el nuevo hash:
 
    ```json
    {
      "id": "...",
      "username": "admin",
-     "password": "$2y$12$yourNewHashHere",
+     "password": "$2y$12$tuNuevoHashAqui",
      "role": "admin",
      ...
    }
    ```
 
-4. Save the file. Log in with your new password.
+4. Guarda el archivo. Inicia sesión con tu nueva contraseña.
 
-## Important notes
+## Notas importantes
 
-- Never expose the `cms/storage/` directory to the public web. Your web server should only serve files through `index.php`.
-- If you generated a bcrypt hash on an untrusted machine or online service, change the password again from within the admin panel once you regain access.
+- Nunca expongas el directorio `cms/storage/` a la web pública. Tu servidor web solo debe servir archivos a través de `index.php`.
+- Si generaste un hash bcrypt en una máquina no confiable o en un servicio en línea, vuelve a cambiar la contraseña desde el panel de administración una vez que hayas recuperado el acceso.

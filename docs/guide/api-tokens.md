@@ -1,18 +1,18 @@
-# API Tokens
+# Tokens de API
 
-API tokens let external applications (static site generators, deployment scripts, mobile apps, etc.) access the [Public API](../api/public-api) without a user session.
+Los tokens de API permiten que aplicaciones externas (generadores de sitios estáticos, scripts de despliegue, aplicaciones móviles, etc.) accedan a la [API Pública](../api/public-api) sin necesidad de una sesión de usuario.
 
-## Creating a token
+## Crear un token
 
-1. Go to **API-Tokens**.
-2. Click **New token**.
-3. Give the token a name (e.g. `Deploy script`), optional description, and permission grants.
-4. Click **Create token**.
-5. **Copy the token immediately** — it is only shown once.
+1. Ve a **Tokens de API (API-Tokens)**.
+2. Haz clic en **Nuevo token (New token)**.
+3. Dale un nombre al token (ej. `Script de despliegue`), una descripción opcional y asigna los permisos (grants).
+4. Haz clic en **Crear token (Create token)**.
+5. **Copia el token inmediatamente** — solo se muestra una vez.
 
-## Permissions
+## Permisos (Grants)
 
-Tokens use the same permission grant format as roles. A token starts with no implicit role access; it can only do what its grants allow.
+Los tokens utilizan el mismo formato de permisos que los roles. Un token se inicia sin permisos implícitos de rol; solo puede hacer lo que sus permisos explícitos permiten.
 
 ```json
 [
@@ -25,38 +25,38 @@ Tokens use the same permission grant format as roles. A token starts with no imp
 ]
 ```
 
-Each grant has:
+Cada permiso tiene:
 
-| Property     | Description                                                                     |
-| ------------ | ------------------------------------------------------------------------------- |
-| `effect`     | `allow` or `deny`. A matching `deny` overrides matching allows.                 |
-| `actions`    | One or more action names. Use `*` only for full administrative access.          |
-| `resources`  | One or more resource patterns. `*` wildcards are supported.                     |
-| `fields`     | Optional content field allow-list for create/update operations.                 |
-| `conditions` | Optional restrictions. Supported conditions are `own`, `status`, and `locales`. |
+| Propiedad | Descripción |
+| --- | --- |
+| `effect` | `allow` (permitir) o `deny` (denegar). Un `deny` coincidente anula los `allow` coincidentes. |
+| `actions` | Uno o más nombres de acciones. Usa `*` solo para acceso administrativo total. |
+| `resources` | Uno o más patrones de recursos. Se admiten comodines `*`. |
+| `fields` | Lista de campos de contenido permitidos opcionales para operaciones de creación/actualización. |
+| `conditions` | Restricciones opcionales. Las condiciones soportadas son `own` (propio), `status` (estado) y `locales` (idiomas). |
 
-Common content actions are `content.read`, `content.create`, `content.update`, `content.publish`, `content.delete`, `content.restore`, `content.revisions.read`, and `content.revisions.restore`.
+Las acciones de contenido comunes son `content.read`, `content.create`, `content.update`, `content.publish`, `content.delete`, `content.restore`, `content.revisions.read` y `content.revisions.restore`.
 
-Schema actions are `schema.read`, `schema.create`, `schema.update`, and `schema.delete`.
+Las acciones de esquema son `schema.read`, `schema.create`, `schema.update` y `schema.delete`.
 
-Media actions are `media.read`, `media.upload`, `media.update`, and `media.delete`.
+Las acciones de medios son `media.read`, `media.upload`, `media.update` y `media.delete`.
 
-Admin UI actions include `dashboard.read`, `activity.read`, `profile.read`, `profile.update`, `users.read`, `users.create`, `users.update`, `users.delete`, `tokens.read`, `tokens.create`, `tokens.revoke`, `roles.read`, `roles.create`, `roles.update`, `roles.delete`, `backups.read`, `backups.create`, `backups.restore`, `backups.delete`, `webhooks.manage`, `updates.read`, `updates.check`, `updates.download`, and `updates.install`.
+Las acciones de la interfaz de administración incluyen `dashboard.read`, `activity.read`, `profile.read`, `profile.update`, `users.read`, `users.create`, `users.update`, `users.delete`, `tokens.read`, `tokens.create`, `tokens.revoke`, `roles.read`, `roles.create`, `roles.update`, `roles.delete`, `backups.read`, `backups.create`, `backups.restore`, `backups.delete`, `webhooks.manage`, `updates.read`, `updates.check`, `updates.download` y `updates.install`.
 
-Common resources include `content:*`, `content:posts:*`, `content:pages:homepage`, `schema:*`, `schema:posts`, `media:*`, and `media:category:brand-assets`. Workspace-specific grants prefix those same resources with `workspace:{workspace}:`, for example `workspace:site-a:content:posts:*`.
+Los recursos comunes incluyen `content:*`, `content:posts:*`, `content:pages:homepage`, `schema:*`, `schema:posts`, `media:*` y `media:category:brand-assets`. Los permisos específicos por espacio de trabajo prefijan esos mismos recursos con `workspace:{workspace}:`, por ejemplo `workspace:site-a:content:posts:*`.
 
-Resource formats:
+Formatos de recursos:
 
-| Area      | Format                                 | Examples                                                       |
-| --------- | -------------------------------------- | -------------------------------------------------------------- |
-| Content   | `content:{collection}:{entry}`         | `content:posts:*`, `content:pages:homepage`                    |
-| Schema    | `schema:{content-type}`                | `schema:*`, `schema:posts`                                     |
-| Media     | `media:*`, `media:{file}`, or category | `media:*`, `media:hero.jpg`, `media:category:Brand / Logos`    |
-| Workspace | `workspace:{workspace}:{resource}`     | `workspace:site-a:content:posts:*`, `workspace:site-a:media:*` |
-| Users     | `users:{id}`, `tokens:{id}`, or roles  | `users:*`, `tokens:*`, `roles:*`                               |
-| System    | Named system resource                  | `dashboard:*`, `activity:*`, `backups:*`                       |
+| Área | Formato | Ejemplos |
+| --- | --- | --- |
+| Contenido | `content:{colección}:{entrada}` | `content:posts:*`, `content:pages:homepage` |
+| Esquema | `schema:{tipo-de-contenido}` | `schema:*`, `schema:posts` |
+| Medios | `media:*`, `media:{archivo}` o categoría | `media:*`, `media:hero.jpg`, `media:category:Marca / Logos` |
+| Espacios de trabajo (Workspaces) | `workspace:{espacio}:{recurso}` | `workspace:site-a:content:posts:*`, `workspace:site-a:media:*` |
+| Usuarios | `users:{id}`, `tokens:{id}` o roles | `users:*`, `tokens:*`, `roles:*` |
+| Sistema | Recurso de sistema nombrado | `dashboard:*`, `activity:*`, `backups:*` |
 
-Condition examples:
+Ejemplos de condiciones:
 
 ```json
 [
@@ -68,23 +68,23 @@ Condition examples:
     "conditions": {
       "own": true,
       "status": ["draft", "protected"],
-      "locales": ["en", "de"]
+      "locales": ["en", "es"]
     }
   }
 ]
 ```
 
-Trash, backup/restore, settings, users, and token management are not exposed through the public token API.
+La papelera, copia de seguridad/restauración, configuraciones, usuarios y la gestión de tokens no están expuestos a través de la API de tokens públicos.
 
-## Using a token
+## Usar un token
 
-Pass the token as a **Bearer token** in the `Authorization` header:
+Pasa el token como un **Token Bearer** en el encabezado `Authorization`:
 
 ```http
 GET /api/v1/workspaces/site-a/content/posts
-Authorization: Bearer YOUR_TOKEN_HERE
+Authorization: Bearer TU_TOKEN_AQUI
 ```
 
-## Revoking a token
+## Revocar un token
 
-Click **Revoke** next to the token in the API-Tokens page. Revoked tokens cannot be used and cannot be un-revoked.
+Haz clic en **Revocar (Revoke)** junto al token en la página de API-Tokens. Los tokens revocados no pueden ser usados y la acción no se puede deshacer (no se pueden des-revocar).

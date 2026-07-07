@@ -3,52 +3,52 @@ layout: home
 
 hero:
   name: CometCMS
-  text: The CMS that fits on any PHP host
-  tagline: File-based, headless, zero-dependency. Upload a ZIP, open /admin — you're done.
+  text: El CMS que funciona en cualquier alojamiento PHP
+  tagline: Basado en archivos, headless y sin dependencias. Sube un ZIP, abre /admin — y listo.
   image:
     light: /cms-logo-black.png
     dark: /cms-logo-white.png
     alt: CometCMS
   actions:
     - theme: brand
-      text: Get Started
+      text: Empezar
       link: /guide/introduction
     - theme: alt
-      text: Documentation
+      text: Documentación
       link: /guide/installation
     - theme: alt
-      text: Download
+      text: Descargar
       link: https://github.com/andreasjhagen/cometcms/releases/latest
 
 features:
   - icon: 📁
-    title: File-based storage
-    details: Content is stored as plain JSON files. No database to set up, migrate, or maintain.
+    title: Almacenamiento basado en archivos
+    details: El contenido se almacena como archivos JSON simples. No hay base de datos que configurar, migrar o mantener.
     link: /guide/content-types
-    linkText: Content types
+    linkText: Tipos de contenido
   - icon: 🔌
-    title: Headless & API-first
-    details: A clean public REST API lets you consume content from any frontend — Next.js, Astro, SvelteKit, or plain fetch.
+    title: Headless y API-first
+    details: Una API REST pública y limpia que permite consumir contenido desde cualquier frontend — Next.js, Astro, SvelteKit o un simple fetch.
     link: /api/public-api
-    linkText: API reference
+    linkText: Referencia de API
   - icon: 🧩
-    title: Flexible field types
-    details: Build schemas with text, rich text, media, relations, selects, dates, and more.
+    title: Tipos de campos flexibles
+    details: Construye esquemas con texto, texto enriquecido, medios, relaciones, selectores, fechas y más.
     link: /guide/field-types
-    linkText: Field types
+    linkText: Tipos de campos
   - icon: 🚀
-    title: Zero server dependencies
-    details: PHP 8.1+ is the only production requirement. No Composer, no database, no CLI, no SSH, no Node.js on the server.
+    title: Cero dependencias en el servidor
+    details: PHP 8.1+ es el único requisito para producción. Sin Composer, sin base de datos, sin CLI, sin SSH y sin Node.js en el servidor.
     link: /guide/installation
-    linkText: Installation
+    linkText: Instalación
   - icon: 🔑
-    title: Scoped API tokens
-    details: Fine-grained permissions per action, content type, media category, and field. No overly broad keys.
+    title: Tokens de API con permisos granulares
+    details: Permisos detallados por acción, tipo de contenido, categoría de medios y campo. Sin claves excesivamente amplias.
     link: /guide/api-tokens
-    linkText: API tokens
+    linkText: Tokens de API
   - icon: 💾
-    title: Built-in backups
-    details: Create and restore full backups of all content, media, and settings directly from the admin UI.
+    title: Copias de seguridad integradas
+    details: Crea y restaura copias de seguridad completas de todo el contenido, medios y configuraciones directamente desde el panel de administración.
     link: /guide/backups
-    linkText: Backup & restore
+    linkText: Copia de seguridad y restauración
 ---
