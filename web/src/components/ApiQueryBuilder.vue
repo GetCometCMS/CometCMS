@@ -249,8 +249,10 @@
 
           <div v-if="selectedResource === 'content'" class="space-y-4">
             <div>
-              <label class="form-label">Fetch mode</label>
+              <div id="api-fetch-mode-label" class="form-label">Fetch mode</div>
               <div
+                role="group"
+                aria-labelledby="api-fetch-mode-label"
                 class="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1"
               >
                 <button
@@ -284,8 +286,9 @@
             </div>
 
             <div v-if="isActiveSingleton">
-              <label class="form-label">Fixed slug</label>
+              <label for="api-fixed-slug" class="form-label">Fixed slug</label>
               <input
+                id="api-fixed-slug"
                 :value="collectionName"
                 type="text"
                 disabled
@@ -302,6 +305,7 @@
                 :allow-free-input="true"
                 :clearable="false"
                 placeholder="my-entry-slug"
+                aria-label="Slug or stable ID"
                 @open="loadEntriesIfNeeded"
                 @search="onEntrySearch"
               />
@@ -313,8 +317,9 @@
             <template v-if="contentMode === 'list'">
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label class="form-label">Limit</label>
+                  <label for="api-content-limit" class="form-label">Limit</label>
                   <input
+                    id="api-content-limit"
                     v-model.trim="limit"
                     type="number"
                     min="1"
@@ -323,8 +328,9 @@
                   />
                 </div>
                 <div>
-                  <label class="form-label">Offset</label>
+                  <label for="api-content-offset" class="form-label">Offset</label>
                   <input
+                    id="api-content-offset"
                     v-model.trim="offset"
                     type="number"
                     min="0"
@@ -336,8 +342,9 @@
 
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label class="form-label">Search</label>
+                  <label for="api-content-search" class="form-label">Search</label>
                   <input
+                    id="api-content-search"
                     v-model.trim="search"
                     type="text"
                     placeholder="home page"
@@ -345,8 +352,9 @@
                   />
                 </div>
                 <div>
-                  <label class="form-label">Sort</label>
+                  <label for="api-content-sort" class="form-label">Sort</label>
                   <select
+                    id="api-content-sort"
                     v-model="sort"
                     class="form-select w-full rounded-lg border-slate-300 text-sm"
                   >
@@ -361,8 +369,9 @@
 
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label class="form-label">Filter field</label>
+                  <label for="api-filter-field" class="form-label">Filter field</label>
                   <select
+                    id="api-filter-field"
                     v-model="filterField"
                     class="form-select w-full rounded-lg border-slate-300 text-sm"
                   >
@@ -391,8 +400,9 @@
                   </select>
                 </div>
                 <div>
-                  <label class="form-label">Operator</label>
+                  <label for="api-filter-operator" class="form-label">Operator</label>
                   <select
+                    id="api-filter-operator"
                     v-model="filterOperator"
                     class="form-select w-full rounded-lg border-slate-300 text-sm"
                     :disabled="!filterField"
@@ -415,9 +425,11 @@
                     :multiple="filterUsesMultiple"
                     input-class="w-full"
                     :placeholder="filterPlaceholder"
+                    aria-label="Filter value"
                   />
                   <input
                     v-else
+                    aria-label="Filter value"
                     type="text"
                     disabled
                     placeholder="Choose a field first"
@@ -432,8 +444,9 @@
               class="grid gap-3 sm:grid-cols-2"
             >
               <div>
-                <label class="form-label">Include relations</label>
+                <label for="api-include" class="form-label">Include relations</label>
                 <select
+                  id="api-include"
                   v-model="include"
                   class="form-select w-full rounded-lg border-slate-300 text-sm"
                 >
@@ -449,8 +462,9 @@
                 </select>
               </div>
               <div>
-                <label class="form-label">Custom include</label>
+                <label for="api-custom-include" class="form-label">Custom include</label>
                 <input
+                  id="api-custom-include"
                   v-model.trim="customInclude"
                   type="text"
                   placeholder="author,categories"
@@ -461,8 +475,9 @@
             </div>
 
             <div v-if="collectionLocales.length > 0">
-              <label class="form-label">Locale</label>
+              <label for="api-locale" class="form-label">Locale</label>
               <select
+                id="api-locale"
                 v-model="locale"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
@@ -483,8 +498,9 @@
             class="space-y-4"
           >
             <div>
-              <label class="form-label">Schema</label>
+              <label for="api-schema-mode" class="form-label">Schema</label>
               <select
+                id="api-schema-mode"
                 v-model="typeMode"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
@@ -494,8 +510,9 @@
             </div>
 
             <div v-if="typeMode === 'single'">
-              <label class="form-label">Content type</label>
+              <label for="api-content-type" class="form-label">Content type</label>
               <select
+                id="api-content-type"
                 v-model="selectedCollection"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
                 :disabled="collections.length === 0"
@@ -518,8 +535,9 @@
           <div v-else-if="selectedResource === 'media'" class="space-y-4">
             <div class="grid gap-3 sm:grid-cols-2">
               <div>
-                <label class="form-label">Limit</label>
+                <label for="api-media-limit" class="form-label">Limit</label>
                 <input
+                  id="api-media-limit"
                   v-model.trim="limit"
                   type="number"
                   min="1"
@@ -528,8 +546,9 @@
                 />
               </div>
               <div>
-                <label class="form-label">Offset</label>
+                <label for="api-media-offset" class="form-label">Offset</label>
                 <input
+                  id="api-media-offset"
                   v-model.trim="offset"
                   type="number"
                   min="0"
@@ -541,8 +560,9 @@
 
             <div class="grid gap-3 sm:grid-cols-2">
               <div>
-                <label class="form-label">Search filename</label>
+                <label for="api-media-search" class="form-label">Search filename</label>
                 <input
+                  id="api-media-search"
                   v-model.trim="search"
                   type="text"
                   placeholder="hero"
@@ -550,8 +570,9 @@
                 />
               </div>
               <div>
-                <label class="form-label">Category</label>
+                <label for="api-media-category" class="form-label">Category</label>
                 <select
+                  id="api-media-category"
                   v-model="mediaCategory"
                   class="form-select w-full rounded-lg border-slate-300 text-sm"
                   :disabled="mediaCategoriesLoading"
@@ -601,8 +622,9 @@
 
           <div class="grid gap-4 lg:grid-cols-3">
             <div>
-              <label class="form-label">Header</label>
+              <label for="api-auth-mode" class="form-label">Header</label>
               <select
+                id="api-auth-mode"
                 v-model="authMode"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
@@ -612,9 +634,10 @@
             </div>
 
             <div v-if="authMode === 'bearer'">
-              <label class="form-label">Token</label>
+              <label for="api-bearer-token" class="form-label">Token</label>
               <div class="relative">
                 <input
+                  id="api-bearer-token"
                   v-model.trim="token"
                   :type="showToken ? 'text' : 'password'"
                   placeholder="ctcms_..."
@@ -622,6 +645,7 @@
                 />
                 <button
                   type="button"
+                  :aria-label="showToken ? 'Hide token' : 'Show token'"
                   class="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 hover:text-slate-700"
                   @click="showToken = !showToken"
                 >

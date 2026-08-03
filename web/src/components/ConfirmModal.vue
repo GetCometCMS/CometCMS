@@ -4,10 +4,16 @@
       <div
         v-if="modelValue"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
-        @mousedown.self="$emit('update:modelValue', false)"
+        @mousedown.self="close"
       >
         <div
+          ref="dialogRef"
           class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4"
+          role="alertdialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          :aria-describedby="message ? messageId : undefined"
+          tabindex="-1"
         >
           <div class="flex items-start gap-3">
             <div
@@ -17,10 +23,10 @@
               <Icon icon="mdi:alert" class="w-5 h-5" :class="iconColor" />
             </div>
             <div class="flex-1 min-w-0">
-              <h3 class="text-base font-semibold text-slate-900">
+              <h3 :id="titleId" class="text-base font-semibold text-slate-900">
                 {{ displayTitle }}
               </h3>
-              <p v-if="message" class="mt-1 text-sm text-slate-600">
+              <p v-if="message" :id="messageId" class="mt-1 text-sm text-slate-600">
                 {{ message }}
               </p>
               <slot />
@@ -30,8 +36,9 @@
           <div class="flex justify-end gap-2">
             <button
               type="button"
+              data-dialog-initial-focus
               class="btn-secondary"
-              @click="$emit('update:modelValue', false)"
+              @click="close"
             >
               {{ displayCancelLabel }}
             </button>
@@ -51,9 +58,10 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, toRef, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import { useI18n } from "../i18n/index.js";
+import { useDialogFocus } from "../composables/useDialogFocus.js";
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -66,9 +74,24 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 });
 
-defineEmits(["update:modelValue", "confirm"]);
+const emit = defineEmits(["update:modelValue", "confirm"]);
 
 const { t } = useI18n();
+const dialogRef = ref(null);
+const componentId = useId();
+const titleId = `${componentId}-title`;
+const messageId = `${componentId}-message`;
+
+function close() {
+  if (!props.loading) emit("update:modelValue", false);
+}
+
+useDialogFocus({
+  open: toRef(props, "modelValue"),
+  container: dialogRef,
+  close,
+  closeBlocked: () => props.loading,
+});
 
 const displayTitle = computed(() => props.title || t("common.areYouSure"));
 const displayConfirmLabel = computed(

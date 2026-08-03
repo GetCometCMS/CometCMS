@@ -95,7 +95,7 @@ export function booleanPillClass(value) {
   ];
 }
 
-export function formatNumberField(value, config = null) {
+export function formatNumberField(value, config = null, locale = "en") {
   if (value === null || value === undefined || value === "") return "—";
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value);
@@ -108,11 +108,11 @@ export function formatNumberField(value, config = null) {
       ? 0
       : Number(decimals);
   return Number.isInteger(fixedDigits) && fixedDigits >= 0 && fixedDigits <= 3
-    ? new Intl.NumberFormat(undefined, {
+    ? new Intl.NumberFormat(locale, {
         minimumFractionDigits: fixedDigits,
         maximumFractionDigits: fixedDigits,
       }).format(number)
-    : new Intl.NumberFormat().format(number);
+    : new Intl.NumberFormat(locale).format(number);
 }
 
 export function selectOptionMap(config = {}) {

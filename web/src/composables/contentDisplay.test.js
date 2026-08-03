@@ -38,6 +38,7 @@ describe("contentDisplay", () => {
   it("formats booleans, numbers, select labels, and text", () => {
     expect(boolValue("yes")).toBe(true);
     expect(formatNumberField("12.345", { display_decimals: 2 })).toBe("12.35");
+    expect(formatNumberField("12.345", { display_decimals: 2 }, "de")).toBe("12,35");
     expect(formatSelectField(["draft", "published"], { options: { draft: "Draft", published: "Published" } }, false)).toBe("Draft, Published");
     expect(fieldTextValue(["a", "b"], (value) => (value ? "True" : "False"), false)).toBe("a, b");
     expect(trimText("x".repeat(82))).toHaveLength(80);

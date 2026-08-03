@@ -8,6 +8,11 @@
         :value="modelValue ?? ''"
         :placeholder="placeholder"
         :disabled="disabled"
+        role="combobox"
+        :aria-label="ariaLabel || placeholder"
+        :aria-expanded="isOpen"
+        :aria-controls="listboxId"
+        aria-autocomplete="list"
         class="form-input w-full rounded-lg border-slate-300 text-sm"
         :class="disabled ? 'opacity-50 cursor-not-allowed' : ''"
         @input="onFreeInput"
@@ -20,7 +25,13 @@
     <!-- Single mode trigger (select-style button) -->
     <button
       v-else-if="!multiple"
+      ref="triggerRef"
       type="button"
+      role="combobox"
+      :aria-label="ariaLabel || placeholder"
+      :aria-expanded="isOpen"
+      :aria-controls="listboxId"
+      aria-haspopup="listbox"
       class="form-input w-full text-left flex items-center justify-between gap-2 rounded-lg border-slate-300 text-sm"
       :class="disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
       :disabled="disabled"
@@ -47,9 +58,20 @@
     <!-- Multiple mode trigger (tag list) -->
     <div
       v-else
+      ref="triggerRef"
+      role="combobox"
+      tabindex="0"
+      :aria-label="ariaLabel || placeholder"
+      :aria-expanded="isOpen"
+      :aria-controls="listboxId"
+      aria-haspopup="listbox"
       class="form-input w-full rounded-lg border-slate-300 text-sm min-h-[2.25rem] flex flex-wrap gap-1.5 items-center cursor-text"
       :class="disabled ? 'opacity-50 cursor-not-allowed' : ''"
       @click="!disabled && openDropdown()"
+      @keydown.enter.prevent="!disabled && openDropdown()"
+      @keydown.space.prevent="!disabled && openDropdown()"
+      @keydown.down.prevent="!disabled && openDropdown()"
+      @keydown.escape="closeDropdown"
     >
       <span
         v-for="val in selectedValues"
@@ -64,6 +86,7 @@
         {{ labelFor(val) }}
         <button
           type="button"
+          :aria-label="`Remove ${labelFor(val)}`"
           class="ml-0.5 text-theme-500 hover:text-theme-800 leading-none"
           @click.stop="removeValue(val)"
         >
@@ -78,6 +101,9 @@
     <!-- Dropdown panel -->
     <div
       v-if="isOpen"
+      :id="listboxId"
+      role="listbox"
+      :aria-multiselectable="multiple || undefined"
       class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden"
     >
       <!-- Search input inside dropdown (hidden in free-input mode since trigger IS the search) -->
@@ -90,6 +116,7 @@
           v-model="searchQuery"
           type="text"
           placeholder="Search…"
+          aria-label="Search options"
           class="form-input w-full rounded-lg border-slate-300 text-sm"
           @keydown.escape="closeDropdown"
           @keydown.enter.prevent="selectFirst"
@@ -111,6 +138,8 @@
           v-for="option in filteredOptions"
           :key="option.value"
           type="button"
+          role="option"
+          :aria-selected="isSelected(option.value)"
           class="w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2"
           :class="
             option.disabled
@@ -151,6 +180,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  useId,
   watch,
 } from "vue";
 import { Icon } from "@iconify/vue";
@@ -165,6 +195,7 @@ const props = defineProps({
   allowFreeInput: { type: Boolean, default: false }, // combobox / autocomplete mode
   clearable: { type: Boolean, default: true },
   searchable: { type: Boolean, default: true },
+  ariaLabel: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue", "search", "open"]);
@@ -172,8 +203,10 @@ const emit = defineEmits(["update:modelValue", "search", "open"]);
 const containerRef = ref(null);
 const searchInputRef = ref(null);
 const freeInputRef = ref(null);
+const triggerRef = ref(null);
 const isOpen = ref(false);
 const searchQuery = ref("");
+const listboxId = `${useId()}-listbox`;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -247,9 +280,10 @@ async function openDropdown() {
   }
 }
 
-function closeDropdown() {
+function closeDropdown(restoreFocus = true) {
   isOpen.value = false;
   searchQuery.value = "";
+  if (restoreFocus && !props.allowFreeInput) triggerRef.value?.focus();
 }
 
 // ── selection ─────────────────────────────────────────────────────────────────
@@ -310,7 +344,7 @@ watch(searchQuery, (q) => emit("search", q));
 
 function handleClickOutside(event) {
   if (containerRef.value && !containerRef.value.contains(event.target)) {
-    closeDropdown();
+    closeDropdown(false);
   }
 }
 

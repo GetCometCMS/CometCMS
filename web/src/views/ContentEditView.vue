@@ -227,8 +227,9 @@
         <div class="grid grid-cols-2 gap-4">
 
           <div class="col-span-1">
-            <label class="form-label">{{ t("contentEdit.title") }}</label>
+            <label for="content-title" class="form-label">{{ t("contentEdit.title") }}</label>
             <input
+              id="content-title"
               v-model="form.title"
               type="text"
               required
@@ -238,13 +239,14 @@
           </div>
 
           <div v-if="!isSingleton">
-            <label class="form-label">
+            <label for="content-slug" class="form-label">
               Slug
               <span class="text-slate-400 font-normal text-xs ml-1">{{
                 t("contentEdit.slugShared")
               }}</span>
             </label>
             <input
+              id="content-slug"
               v-model="form.slug"
               type="text"
               :readonly="isReadOnly"
@@ -254,8 +256,9 @@
 
 
           <div>
-            <label class="form-label">{{ t("contentEdit.status") }}</label>
+            <label for="content-status" class="form-label">{{ t("contentEdit.status") }}</label>
             <select
+              id="content-status"
               v-model="form.status"
               :disabled="isReadOnly"
               class="form-select w-full rounded-lg border-slate-300 text-sm"
@@ -265,8 +268,9 @@
           </div>
 
           <div v-if="isNew && contentTypeLocales.length > 0">
-            <label class="form-label">{{ t("contentEdit.locale") }}</label>
+            <label for="content-locale" class="form-label">{{ t("contentEdit.locale") }}</label>
             <select
+              id="content-locale"
               v-model="form.locale"
               :disabled="isReadOnly"
               class="form-select w-full rounded-lg border-slate-300 text-sm"
@@ -281,8 +285,9 @@
             </select>
           </div>
           <div v-else>
-            <label class="form-label">{{ t("contentEdit.author") }}</label>
+            <label for="content-author" class="form-label">{{ t("contentEdit.author") }}</label>
             <select
+              id="content-author"
               v-model="form.author_id"
               :disabled="isReadOnly"
               class="form-select w-full rounded-lg border-slate-300 text-sm"
@@ -298,7 +303,7 @@
 
 
           <div>
-            <label class="form-label">
+            <label for="content-published-at" class="form-label">
               <template v-if="form.status === 'published' && isScheduled"
                 >{{ t("contentEdit.scheduledFor") }}
                 <span class="text-slate-400 font-normal ml-1">{{
@@ -308,6 +313,7 @@
               <template v-else>{{ t("contentEdit.publishedAt") }}</template>
             </label>
             <input
+              id="content-published-at"
               v-model="form.published_at"
               type="datetime-local"
               :readonly="isReadOnly"

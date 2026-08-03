@@ -3,8 +3,8 @@
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
         <img
-          src="/img/cms-logo-black.png"
-          alt="CometCMS Logo"
+          :src="logoSrc"
+          alt="CometCMS"
           class="mx-auto mb-4 h-16"
         />
         <p class="text-slate-500 mt-1 text-sm">{{ t("login.subtitle") }}</p>
@@ -25,22 +25,26 @@
           </div>
 
           <div>
-            <label class="form-label">{{ t("login.username") }}</label>
+            <label for="login-username" class="form-label">{{ t("login.username") }}</label>
             <input
+              id="login-username"
               v-model="username"
               type="text"
               required
+              autocomplete="username"
               autofocus
               class="form-input w-full rounded-lg border-slate-300"
             />
           </div>
 
           <div>
-            <label class="form-label">{{ t("login.password") }}</label>
+            <label for="login-password" class="form-label">{{ t("login.password") }}</label>
             <input
+              id="login-password"
               v-model="password"
               type="password"
               required
+              autocomplete="current-password"
               class="form-input w-full rounded-lg border-slate-300"
             />
           </div>
@@ -73,6 +77,7 @@ const password = ref("");
 const loading = ref(false);
 const errorMsg = ref("");
 const rateLimited = ref(false);
+const logoSrc = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}img/cms-logo-black.png`;
 
 async function handleLogin() {
   errorMsg.value = "";

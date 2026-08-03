@@ -29,9 +29,6 @@ export default defineConfig({
         process.on('SIGINT', () => { cleanup(); process.exit() })
         process.on('SIGTERM', () => { cleanup(); process.exit() })
       },
-      buildStart() {
-        if (existsSync(hotFile)) unlinkSync(hotFile)
-      },
     },
   ],
   root: __dirname,

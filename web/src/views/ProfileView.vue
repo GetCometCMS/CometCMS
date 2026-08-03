@@ -35,13 +35,14 @@
         </h2>
         <form @submit.prevent="handleSaveProfile" class="space-y-4">
           <div>
-            <label class="form-label"
+            <label for="profile-username" class="form-label"
               >{{ t("profile.username") }}
               <span class="text-slate-400 font-normal">{{
                 t("profile.usernameLocked")
               }}</span></label
             >
             <input
+              id="profile-username"
               :value="auth.user?.username"
               type="text"
               disabled
@@ -49,8 +50,9 @@
             />
           </div>
           <div>
-            <label class="form-label">{{ t("profile.displayName") }}</label>
+            <label for="profile-display-name" class="form-label">{{ t("profile.displayName") }}</label>
             <input
+              id="profile-display-name"
               v-model="profileForm.display_name"
               type="text"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
@@ -58,8 +60,9 @@
             />
           </div>
           <div>
-            <label class="form-label">{{ t("profile.email") }}</label>
+            <label for="profile-email" class="form-label">{{ t("profile.email") }}</label>
             <input
+              id="profile-email"
               v-model="profileForm.email"
               type="email"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
@@ -67,8 +70,8 @@
             />
           </div>
           <div>
-            <label class="form-label">{{ t("profile.theme") }}</label>
-            <div class="flex items-center gap-3">
+            <div id="profile-theme-label" class="form-label">{{ t("profile.theme") }}</div>
+            <div role="group" aria-labelledby="profile-theme-label" class="flex items-center gap-3">
               <div class="flex gap-2">
                 <button
                   v-for="theme in THEMES"
@@ -92,8 +95,9 @@
             </div>
           </div>
           <div>
-            <label class="form-label">{{ t("profile.language") }}</label>
+            <label for="profile-language" class="form-label">{{ t("profile.language") }}</label>
             <select
+              id="profile-language"
               v-model="profileForm.language"
               class="form-select w-full rounded-lg border-slate-300 text-sm"
             >
@@ -140,10 +144,11 @@
         </h2>
         <form @submit.prevent="handleChangePassword" class="space-y-4">
           <div>
-            <label class="form-label">{{
+            <label for="profile-current-password" class="form-label">{{
               t("profile.password.current")
             }}</label>
             <input
+              id="profile-current-password"
               v-model="pwForm.old_password"
               type="password"
               required
@@ -152,8 +157,9 @@
             />
           </div>
           <div>
-            <label class="form-label">{{ t("profile.password.new") }}</label>
+            <label for="profile-new-password" class="form-label">{{ t("profile.password.new") }}</label>
             <input
+              id="profile-new-password"
               v-model="pwForm.password"
               type="password"
               required
@@ -163,10 +169,11 @@
             />
           </div>
           <div>
-            <label class="form-label">{{
+            <label for="profile-confirm-password" class="form-label">{{
               t("profile.password.confirm")
             }}</label>
             <input
+              id="profile-confirm-password"
               v-model="pwForm.confirm"
               type="password"
               required

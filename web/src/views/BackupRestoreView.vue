@@ -1,9 +1,9 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
       <h1 class="text-2xl font-bold text-slate-900">{{ t("backup.title") }}</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
         <button
           type="button"
           class="btn-secondary"
@@ -188,9 +188,9 @@
     </div>
 
     <!-- File explorer: Backup list + Restore Preview -->
-    <div class="card overflow-hidden flex" style="min-height: 520px">
+    <div class="card overflow-hidden flex flex-col lg:flex-row lg:min-h-[520px]">
       <!-- Left: backup list -->
-      <div class="w-72 flex-none flex flex-col border-r border-slate-200">
+      <div class="w-full flex-none flex flex-col border-b border-slate-200 lg:w-72 lg:border-b-0 lg:border-r">
         <div
           class="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between"
         >
@@ -203,7 +203,7 @@
             >{{ backups.length }}</span
           >
         </div>
-        <div class="flex-1 overflow-y-auto">
+        <div class="max-h-80 overflow-y-auto lg:max-h-none lg:flex-1">
           <div
             v-if="loadingBackups"
             class="flex items-center justify-center gap-2 py-10 text-sm text-slate-400"
@@ -295,7 +295,7 @@
       </div>
 
       <!-- Right: restore preview -->
-      <div class="flex-1 min-w-0 flex flex-col overflow-y-auto">
+      <div class="min-h-72 flex-1 min-w-0 flex flex-col overflow-y-auto">
         <!-- Empty state -->
         <div
           v-if="!inspection"

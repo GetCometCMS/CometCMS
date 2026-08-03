@@ -13,6 +13,7 @@
           v-model="workspaceFilter"
           class="rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-700 shadow-sm focus:border-theme-400 focus:outline-none focus:ring-1 focus:ring-theme-300"
           @change="reset"
+          :aria-label="t('activity.allWorkspaces')"
         >
           <option value="">{{ t("activity.allWorkspaces") }}</option>
           <option v-for="ws in workspaces" :key="ws.slug" :value="ws.slug">
@@ -25,6 +26,7 @@
           v-model="typeFilter"
           class="rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-700 shadow-sm focus:border-theme-400 focus:outline-none focus:ring-1 focus:ring-theme-300"
           @change="reset"
+          :aria-label="t('activity.allTypes')"
         >
           <option value="">{{ t("activity.allTypes") }}</option>
           <option value="content">{{ t("activity.content") }}</option>
@@ -40,6 +42,7 @@
           v-model="levelFilter"
           class="rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-700 shadow-sm focus:border-theme-400 focus:outline-none focus:ring-1 focus:ring-theme-300"
           @change="reset"
+          :aria-label="t('activity.allLevels')"
         >
           <option value="">{{ t("activity.allLevels") }}</option>
           <option value="info">{{ t("activity.info") }}</option>
@@ -71,6 +74,18 @@
       class="py-6 text-center text-sm text-slate-400"
     >
       {{ t("activity.loading") }}
+    </div>
+    <div
+      v-else-if="errorMessage"
+      class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+      role="alert"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span>{{ errorMessage }}</span>
+        <button type="button" class="font-medium underline" @click="load">
+          {{ t("activity.retry") }}
+        </button>
+      </div>
     </div>
     <div
       v-else-if="!loading && items.length === 0"
@@ -121,6 +136,7 @@
           class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           :disabled="meta.offset === 0 || loading"
           @click="prev"
+          :aria-label="t('activity.previousPage')"
         >
           <Icon icon="mdi:chevron-left" class="h-3.5 w-3.5" />
         </button>
@@ -129,6 +145,7 @@
           class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           :disabled="meta.offset + meta.limit >= meta.total || loading"
           @click="next"
+          :aria-label="t('activity.nextPage')"
         >
           <Icon icon="mdi:chevron-right" class="h-3.5 w-3.5" />
         </button>
@@ -154,11 +171,13 @@ const typeFilter = ref("");
 const levelFilter = ref("");
 const workspaceFilter = ref("");
 const workspaces = ref([]);
+const errorMessage = ref("");
 const meta = ref({ total: 0, limit: props.limit, offset: 0 });
 const { t } = useI18n();
 
 async function load() {
   loading.value = true;
+  errorMessage.value = "";
   try {
     const params = { limit: meta.value.limit, offset: meta.value.offset };
     if (typeFilter.value) params.type = typeFilter.value;
@@ -167,8 +186,8 @@ async function load() {
     const res = await api.activity(params);
     items.value = res.data ?? [];
     meta.value = { ...meta.value, ...res.meta };
-  } catch {
-    // silently ignore
+  } catch (err) {
+    errorMessage.value = err?.message || t("activity.loadFailed");
   } finally {
     loading.value = false;
   }

@@ -44,13 +44,14 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="form-label"
+            <label for="content-type-name" class="form-label"
               >{{ t("contentTypeEdit.apiName") }}
               <span class="text-slate-400 font-normal">{{
                 t("contentTypeEdit.slugNoSpaces")
               }}</span></label
             >
             <input
+              id="content-type-name"
               v-model="form.name"
               type="text"
               required
@@ -62,10 +63,11 @@
           </div>
 
           <div>
-            <label class="form-label">{{
+            <label for="content-type-label" class="form-label">{{
               t("contentTypeEdit.displayLabel")
             }}</label>
             <input
+              id="content-type-label"
               v-model="form.label"
               type="text"
               placeholder="Blog posts"

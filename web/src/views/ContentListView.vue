@@ -26,7 +26,7 @@
     <div class="card p-4 mb-4">
       <div class="flex items-end gap-3 flex-wrap">
         <div class="min-w-[240px] flex-1">
-          <label class="form-label text-xs">{{
+          <label for="content-search" class="form-label text-xs">{{
             t("contentList.search")
           }}</label>
           <div class="relative">
@@ -35,6 +35,7 @@
               class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             />
             <input
+              id="content-search"
               v-model="filters.q"
               type="text"
               :placeholder="t('contentList.searchPlaceholder')"
@@ -244,6 +245,7 @@
         </span>
         <div class="flex gap-2">
           <button
+            type="button"
             :disabled="!canPageBackward"
             @click="changePage(-1)"
             class="btn-secondary py-1 px-3 disabled:opacity-40"
@@ -251,6 +253,7 @@
             {{ t("contentList.prev") }}
           </button>
           <button
+            type="button"
             :disabled="!canPageForward"
             @click="changePage(1)"
             class="btn-secondary py-1 px-3 disabled:opacity-40"
@@ -268,6 +271,7 @@
                 <th class="w-10 px-3 py-3">
                   <input
                     type="checkbox"
+                    :aria-label="t('contentList.selectPage')"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity"
                     :class="
                       selectedIds.size > 0
@@ -314,7 +318,7 @@
               <tr v-if="col.entries.length === 0">
                 <td
                   :colspan="displayedColumns.length + 1"
-                  class="px-4 py-8 text-center text-slate-500 text-sm"
+                  class="px-4 py-8 text-left text-slate-500 text-sm sm:text-center"
                 >
                   {{ t("contentList.noEntries") }}
                   <router-link
@@ -338,6 +342,7 @@
                 <td class="w-10 px-3 py-3" @click.stop>
                   <input
                     type="checkbox"
+                    :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity"
                     :class="
                       selectedIds.size > 0
@@ -501,6 +506,7 @@
                             formatNumberField(
                               fieldValue(entry, column.fieldKey),
                               column.config,
+                              locale,
                             )
                           "
                         >
@@ -508,6 +514,7 @@
                             formatNumberField(
                               fieldValue(entry, column.fieldKey),
                               column.config,
+                              locale,
                             )
                           }}
                         </span>
@@ -582,6 +589,7 @@
         </span>
         <div class="flex gap-2">
           <button
+            type="button"
             :disabled="!canPageBackward"
             @click="changePage(-1)"
             class="btn-secondary py-1 px-3 disabled:opacity-40"
@@ -589,6 +597,7 @@
             {{ t("contentList.prev") }}
           </button>
           <button
+            type="button"
             :disabled="!canPageForward"
             @click="changePage(1)"
             class="btn-secondary py-1 px-3 disabled:opacity-40"
@@ -645,7 +654,7 @@ import {
 
 const toast = useToastStore();
 const apiEndpointStore = useApiEndpointStore();
-const { t } = useI18n();
+const { locale, t } = useI18n();
 const apiEndpointOwner = "content-list";
 const users = ref([]);
 const userMap = computed(() =>

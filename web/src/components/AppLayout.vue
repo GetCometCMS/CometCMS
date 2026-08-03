@@ -5,6 +5,7 @@
       <div
         v-if="sidebarOpen"
         class="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        aria-hidden="true"
         @click="sidebarOpen = false"
       />
     </Transition>
@@ -12,6 +13,7 @@
     <!-- Sidebar -->
     <Transition name="sidebar">
       <aside
+        id="primary-navigation"
         class="fixed inset-y-0 left-0 z-40 w-56 flex-shrink-0 bg-sidebar flex flex-col lg:static lg:translate-x-0 lg:z-auto"
         :class="
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -20,6 +22,8 @@
         <div class="px-5 pt-6 pb-4 flex items-center justify-between">
           <img :src="logoSrc" alt="CometCMS" class="brand-logo h-8 w-auto" />
           <button
+            type="button"
+            :aria-label="t('app.actions.closeNavigation')"
             class="sidebar-action lg:hidden transition-colors p-1"
             @click="sidebarOpen = false"
           >
@@ -32,6 +36,9 @@
           ref="switcherRef"
         >
           <button
+            type="button"
+            :aria-expanded="workspaceSwitcherOpen"
+            aria-haspopup="menu"
             @click="workspaceSwitcherOpen = !workspaceSwitcherOpen"
             class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-colors hover:bg-white/10 group"
           >
@@ -64,12 +71,16 @@
           <Transition name="ws-dropdown">
             <div
               v-if="workspaceSwitcherOpen"
+              role="menu"
               class="absolute left-1 right-1 top-full z-50 mt-0.5 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden"
             >
               <div class="py-1">
                 <button
                   v-for="workspace in workspaces"
                   :key="workspace.slug"
+                  type="button"
+                  role="menuitemradio"
+                  :aria-checked="workspace.slug === selectedWorkspace"
                   @click="switchWorkspace(workspace.slug)"
                   class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors"
                   :class="
@@ -121,7 +132,7 @@
           </Transition>
         </div>
 
-        <nav class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
+        <nav :aria-label="t('app.actions.primaryNavigation')" class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
           <router-link
             to="/dashboard"
             class="nav-link"
@@ -308,6 +319,10 @@
         class="lg:hidden flex items-center gap-3 px-4 py-3 bg-sidebar border-b border-sidebar-border shrink-0"
       >
         <button
+          type="button"
+          :aria-label="t('app.actions.openNavigation')"
+          aria-controls="primary-navigation"
+          :aria-expanded="sidebarOpen"
           class="sidebar-action transition-colors p-1 -ml-1"
           @click="sidebarOpen = true"
         >
@@ -322,6 +337,8 @@
           <div
             v-for="toast in toastStore.toasts"
             :key="toast.id"
+            :role="toast.type === 'error' ? 'alert' : 'status'"
+            :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
             class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
             :class="
               toast.type === 'error'
@@ -409,7 +426,9 @@ function handleSwitcherOutsideClick(e) {
 function handleWorkspaceSync() {
   fetchWorkspaces();
 }
-const assetBase = import.meta.env.BASE_URL;
+// Resolve against this module so dev assets stay on Vite's origin even though
+// PHP serves the document from a different port.
+const assetBase = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}`;
 const logoSrc = computed(() => logoForTheme(auth.user?.theme, assetBase));
 const allSidebarTypes = computed(() =>
   typesStore.list.length > 0

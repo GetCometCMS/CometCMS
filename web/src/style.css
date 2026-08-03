@@ -2,7 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 @layer base {
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--color-theme-500));
+    outline-offset: 2px;
+  }
   :root,
   :root[data-theme="blue"] {
     --color-theme-50: 239 246 255;
@@ -265,7 +280,7 @@
   }
 
   .editor-sticky-header {
-    @apply sticky top-0 z-30 -mx-8 -mt-8 mb-6 px-8 py-4 border-b border-slate-200 backdrop-blur;
+    @apply sticky top-0 z-30 -mx-4 -mt-6 mb-6 px-4 py-4 border-b border-slate-200 backdrop-blur sm:-mx-8 sm:-mt-8 sm:px-8;
     background-color: rgb(var(--color-app-bg) / 0.95);
   }
 

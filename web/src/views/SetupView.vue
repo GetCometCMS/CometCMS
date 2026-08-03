@@ -5,7 +5,7 @@
         <!-- Logo / wordmark -->
         <img
           v-if="!logoFailed"
-          src="/img/cms-logo-black.png"
+          :src="logoSrc"
           alt="CometCMS"
           class="h-14 mx-auto object-contain"
           @error="logoFailed = true"
@@ -96,8 +96,9 @@
           </div>
 
           <div>
-            <label class="form-label">{{ t("setup.workspace") }}</label>
+            <label for="setup-workspace" class="form-label">{{ t("setup.workspace") }}</label>
             <input
+              id="setup-workspace"
               v-model="workspaceName"
               type="text"
               required
@@ -107,8 +108,9 @@
           </div>
 
           <div>
-            <label class="form-label">{{ t("setup.workspaceSlug") }}</label>
+            <label for="setup-workspace-slug" class="form-label">{{ t("setup.workspaceSlug") }}</label>
             <input
+              id="setup-workspace-slug"
               v-model="workspaceSlug"
               type="text"
               required
@@ -157,28 +159,32 @@
           </div>
 
           <div>
-            <label class="form-label">{{ t("login.username") }}</label>
+            <label for="setup-username" class="form-label">{{ t("login.username") }}</label>
             <input
+              id="setup-username"
               v-model="username"
               type="text"
               required
+              autocomplete="username"
               autofocus
               class="form-input w-full rounded-lg border-slate-300"
             />
           </div>
 
           <div>
-            <label class="form-label"
+            <label for="setup-password" class="form-label"
               >{{ t("login.password") }}
               <span class="text-slate-400 font-normal">{{
                 t("setup.passwordMin")
               }}</span>
             </label>
             <input
+              id="setup-password"
               v-model="password"
               type="password"
               required
               minlength="8"
+              autocomplete="new-password"
               class="form-input w-full rounded-lg border-slate-300"
             />
           </div>
@@ -229,6 +235,7 @@ const workspaceName = ref("");
 const loading = ref(false);
 const errorMsg = ref("");
 const logoFailed = ref(false);
+const logoSrc = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}img/cms-logo-black.png`;
 
 const {
   slug: workspaceSlug,

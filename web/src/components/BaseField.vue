@@ -1,6 +1,6 @@
 <template>
   <div class="group/field">
-    <div class="form-label flex items-center gap-2" :title="name">
+    <div :id="labelId" class="form-label flex items-center gap-2" :title="name">
       <span
         class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-theme-100 shrink-0"
       >
@@ -25,6 +25,7 @@
     </p>
     <fieldset
       :disabled="readonly"
+      :aria-labelledby="labelId"
       :class="readonly ? 'pointer-events-none opacity-60' : ''"
     >
       <slot />
@@ -34,6 +35,7 @@
 </template>
 
 <script setup>
+import { useId } from "vue";
 import { Icon } from "@iconify/vue";
 import { useFieldTypeMeta } from "../composables/useFieldTypeMeta.js";
 
@@ -45,4 +47,5 @@ defineProps({
 });
 
 const { fieldTypeIcon } = useFieldTypeMeta();
+const labelId = `${useId()}-label`;
 </script>

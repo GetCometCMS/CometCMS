@@ -2,6 +2,7 @@
   <select
     v-if="field.kind === 'status'"
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     class="form-select rounded-lg border-slate-300 text-sm"
     :class="inputClass"
     @change="emitValue($event.target.value)"
@@ -16,6 +17,7 @@
   <select
     v-else-if="field.kind === 'author'"
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     class="form-select rounded-lg border-slate-300 text-sm"
     :class="inputClass"
     @change="emitValue($event.target.value)"
@@ -29,6 +31,7 @@
   <input
     v-else-if="field.kind === 'date'"
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     type="date"
     class="form-input rounded-lg border-slate-300 text-sm"
     :class="inputClass"
@@ -38,6 +41,7 @@
   <input
     v-else-if="field.kind === 'datetime'"
     :value="datetimeValue"
+    :aria-label="ariaLabel || undefined"
     type="datetime-local"
     class="form-input rounded-lg border-slate-300 text-sm"
     :class="inputClass"
@@ -47,6 +51,7 @@
   <select
     v-else-if="field.kind === 'boolean'"
     :value="booleanValue"
+    :aria-label="ariaLabel || undefined"
     class="form-select rounded-lg border-slate-300 text-sm"
     :class="inputClass"
     @change="emitBoolean($event.target.value)"
@@ -59,6 +64,7 @@
   <input
     v-else-if="field.kind === 'number' || field.kind === 'range'"
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     type="number"
     :min="field.config?.min"
     :max="field.config?.max"
@@ -75,6 +81,7 @@
       Array.isArray(modelValue) ? modelValue : modelValue ? [modelValue] : []
     "
     :multiple="true"
+    :aria-label="ariaLabel"
     placeholder="Select options..."
     :class="inputClass"
     @update:model-value="emitValue($event)"
@@ -83,6 +90,7 @@
   <select
     v-else-if="field.kind === 'select'"
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     class="form-select rounded-lg border-slate-300 text-sm"
     :class="inputClass"
     @change="emitValue($event.target.value)"
@@ -100,6 +108,7 @@
   <input
     v-else
     :value="modelValue ?? ''"
+    :aria-label="ariaLabel || undefined"
     type="text"
     class="form-input rounded-lg border-slate-300 text-sm"
     :class="inputClass"
@@ -119,6 +128,7 @@ const props = defineProps({
   inputClass: { type: String, default: "" },
   multiple: { type: Boolean, default: false },
   placeholder: { type: String, default: "" },
+  ariaLabel: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue"]);

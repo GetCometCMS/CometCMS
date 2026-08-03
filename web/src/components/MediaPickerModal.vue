@@ -1,10 +1,15 @@
 <template>
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4"
-    @click.self="$emit('close')"
+    @click.self="close"
   >
     <div
+      ref="dialogRef"
       class="relative flex max-h-[88vh] w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      tabindex="-1"
       @dragenter.prevent="onDragEnter"
       @dragleave="onDragLeave"
       @dragover.prevent
@@ -24,7 +29,7 @@
         </div>
       </Transition>
       <div class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-800">Select media</h2>
+        <h2 :id="titleId" class="text-sm font-semibold text-slate-800">Select media</h2>
         <button
           type="button"
           class="ml-auto flex items-center gap-1.5 btn-secondary text-xs px-2.5 py-1.5"
@@ -38,7 +43,8 @@
           type="button"
           class="text-slate-400 hover:text-slate-700"
           title="Close"
-          @click="$emit('close')"
+          aria-label="Close media picker"
+          @click="close"
         >
           <Icon icon="mdi:close" class="h-5 w-5" />
         </button>
@@ -92,6 +98,7 @@
               </label>
               <select
                 v-model="mediaType"
+                aria-label="Filter by media type"
                 class="form-select rounded-lg border-slate-300 text-sm lg:w-44"
               >
                 <option
@@ -156,6 +163,7 @@
                     : 'border-slate-200',
                   draggedFile?.name === file.name ? 'opacity-50' : '',
                 ]"
+                :aria-pressed="isSelected(file.name)"
                 draggable="true"
                 @click="choose(file)"
                 @dragstart="onFileDragStart(file, $event)"
@@ -207,6 +215,7 @@
                     : '',
                   draggedFile?.name === file.name ? 'opacity-50' : '',
                 ]"
+                :aria-pressed="isSelected(file.name)"
                 draggable="true"
                 @click="choose(file)"
                 @dragstart="onFileDragStart(file, $event)"
@@ -256,7 +265,7 @@
           >{{ draftSelected.length }} selected</span
         >
         <div class="flex items-center gap-2">
-          <button type="button" class="btn-secondary" @click="$emit('close')">
+          <button type="button" class="btn-secondary" @click="close">
             Cancel
           </button>
           <button type="button" class="btn-primary" @click="confirmSelection">
@@ -269,10 +278,11 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "../api/index.js";
 import MediaCategorySidebar from "./MediaCategorySidebar.vue";
+import { useDialogFocus } from "../composables/useDialogFocus.js";
 
 const props = defineProps({
   selected: { type: [String, Array], default: "" },
@@ -280,6 +290,16 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "select"]);
+const dialogRef = ref(null);
+const titleId = `${useId()}-title`;
+const dialogOpen = ref(true);
+
+function close() {
+  dialogOpen.value = false;
+  emit("close");
+}
+
+useDialogFocus({ open: dialogOpen, container: dialogRef, close });
 
 const files = ref([]);
 const statsFiles = ref([]);
