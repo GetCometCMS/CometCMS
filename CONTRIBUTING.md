@@ -70,7 +70,7 @@ rm -f cms/storage/settings.json
 
 ## Reporting Issues
 
-Found a bug or have a feature request? Open an issue on the [GitHub repository](https://github.com/andreasjhagen/CometCMS/issues). Please include:
+Found a bug or have a feature request? Open an issue on the [GitHub repository](https://github.com/GetCometCMS/CometCMS/issues). Please include:
 
 - A clear, descriptive title.
 - Steps to reproduce the issue (if applicable).

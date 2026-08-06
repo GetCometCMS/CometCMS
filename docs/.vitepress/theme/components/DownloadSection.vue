@@ -7,7 +7,7 @@ const steps = [
     desc: 'Grab the latest release ZIP from GitHub.',
     action: {
       text: 'Download latest release',
-      href: 'https://github.com/andreasjhagen/CometCMS/releases/latest',
+      href: 'https://github.com/GetCometCMS/CometCMS/releases/latest',
     },
   },
   {

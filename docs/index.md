@@ -18,7 +18,7 @@ hero:
       link: /guide/installation
     - theme: alt
       text: Download
-      link: https://github.com/andreasjhagen/cometcms/releases/latest
+      link: https://github.com/GetCometCMS/CometCMS/releases/latest
 
 features:
   - icon: 📁
