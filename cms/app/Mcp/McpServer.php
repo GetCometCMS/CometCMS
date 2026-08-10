@@ -505,6 +505,7 @@ final class McpServer
             'title' => $schema['title'],
             'description' => $schema['description'],
             'inputSchema' => $schema['inputSchema'],
+            'annotations' => $schema['annotations'],
         ], array_keys($schemas), $schemas));
     }
 
@@ -519,22 +520,35 @@ final class McpServer
         $object = ['type' => 'object', 'additionalProperties' => true];
 
         return [
-            'comet_health' => ['title' => 'CometCMS health', 'description' => 'Check the configured CometCMS public API health endpoint.', 'inputSchema' => $this->schema([])],
-            'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([])],
-            'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection'])],
-            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean']], ['name'])],
-            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean']], ['collection'])],
-            'delete_content_type' => ['title' => 'Delete content type', 'description' => 'Permanently delete a content type and all its entries.', 'inputSchema' => $this->schema(['collection' => $string], ['collection'])],
-            'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection'])],
-            'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier'])],
-            'create_entry' => ['title' => 'Create content entry', 'description' => 'Create a content entry.', 'inputSchema' => $this->schema(['collection' => $string, 'entry' => $object], ['collection', 'entry'])],
-            'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry'])],
-            'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier'])],
-            'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination)],
-            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string], ['filename'])],
-            'create_media_category' => ['title' => 'Create media category', 'description' => 'Create a media category or subcategory.', 'inputSchema' => $this->schema(['name' => $string, 'parent' => $optionalString], ['name'])],
-            'set_media_category' => ['title' => 'Set media category', 'description' => 'Assign or clear a media file category.', 'inputSchema' => $this->schema(['filename' => $string, 'category' => $optionalString], ['filename'])],
-            'delete_media' => ['title' => 'Delete media', 'description' => 'Delete a media file.', 'inputSchema' => $this->schema(['filename' => $string], ['filename'])],
+            'comet_health' => ['title' => 'CometCMS health', 'description' => 'Check the configured CometCMS public API health endpoint.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
+            'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
+            'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(true)],
+            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean']], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
+            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean']], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'delete_content_type' => ['title' => 'Delete content type', 'description' => 'Permanently delete a content type and all its entries.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection']), 'annotations' => $this->toolAnnotations(true)],
+            'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(true)],
+            'create_entry' => ['title' => 'Create content entry', 'description' => 'Create a content entry.', 'inputSchema' => $this->schema(['collection' => $string, 'entry' => $object], ['collection', 'entry']), 'annotations' => $this->toolAnnotations(false, false, false)],
+            'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination), 'annotations' => $this->toolAnnotations(true)],
+            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(true)],
+            'create_media_category' => ['title' => 'Create media category', 'description' => 'Create a media category or subcategory.', 'inputSchema' => $this->schema(['name' => $string, 'parent' => $optionalString], ['name']), 'annotations' => $this->toolAnnotations(false, false, true)],
+            'set_media_category' => ['title' => 'Set media category', 'description' => 'Assign or clear a media file category.', 'inputSchema' => $this->schema(['filename' => $string, 'category' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'delete_media' => ['title' => 'Delete media', 'description' => 'Delete a media file.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
+        ];
+    }
+
+    private function toolAnnotations(
+        bool $readOnly,
+        bool $destructive = false,
+        bool $idempotent = true,
+    ): array {
+        return [
+            'readOnlyHint' => $readOnly,
+            'destructiveHint' => $destructive,
+            'idempotentHint' => $idempotent,
+            'openWorldHint' => false,
         ];
     }
 

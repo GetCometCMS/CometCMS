@@ -89,6 +89,40 @@ test('mcp tools list includes embedded tools and omits upload_media', function (
     assert_true(str_contains((string) $json, '"properties":{}'));
 });
 
+test('mcp tools advertise behavioral annotations', function (): void {
+    $token = comet_test_mcp_token([
+        ['actions' => ['schema.read'], 'resources' => ['workspace:default:schema:*']],
+    ]);
+
+    [$response, $status] = comet_test_mcp_request($token, 'tools/list');
+
+    assert_same(200, $status);
+    $tools = [];
+    foreach ($response['result']['tools'] ?? [] as $tool) {
+        $tools[(string) ($tool['name'] ?? '')] = $tool;
+        assert_same(false, $tool['annotations']['openWorldHint'] ?? null);
+    }
+
+    assert_same([
+        'readOnlyHint' => true,
+        'destructiveHint' => false,
+        'idempotentHint' => true,
+        'openWorldHint' => false,
+    ], $tools['get_entry']['annotations'] ?? null);
+    assert_same([
+        'readOnlyHint' => false,
+        'destructiveHint' => false,
+        'idempotentHint' => false,
+        'openWorldHint' => false,
+    ], $tools['create_entry']['annotations'] ?? null);
+    assert_same([
+        'readOnlyHint' => false,
+        'destructiveHint' => true,
+        'idempotentHint' => true,
+        'openWorldHint' => false,
+    ], $tools['delete_media']['annotations'] ?? null);
+});
+
 test('mcp list media is compact and get media item returns details', function (): void {
     WorkspaceContext::setActive('default');
     file_put_contents(comet_test_workspace_path() . '/media/hero.jpg', 'image');

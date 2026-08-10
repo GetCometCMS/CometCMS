@@ -382,6 +382,15 @@ Delete a media file.
 
 AI assistants discover available tools automatically by calling `tools/list` during initialization. The server returns the full schema for each tool, including parameter names, types, descriptions, and required fields — no out-of-band configuration needed on the client side.
 
+Each tool also declares MCP behavioral annotations:
+
+- `readOnlyHint` identifies tools that do not modify workspace state.
+- `destructiveHint` distinguishes overwriting or deleting operations from additive creates.
+- `idempotentHint` identifies calls that have no additional effect when repeated with the same arguments.
+- `openWorldHint` is `false` because the tools operate only on the configured CometCMS workspace and do not reach unrelated external systems.
+
+These annotations are behavioral hints for MCP clients. Permission checks still apply to every tool call.
+
 ---
 
 ## Permission Reference
