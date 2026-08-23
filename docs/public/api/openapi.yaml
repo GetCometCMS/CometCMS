@@ -103,6 +103,7 @@ components:
           label,
           icon,
           singleton,
+          visibility,
           slug_field,
           slug_source,
           locales,
@@ -119,6 +120,11 @@ components:
         singleton:
           type: boolean
           description: When true, the content type represents one fixed entry whose slug matches the content type name.
+        visibility:
+          type: string
+          enum: [public, private]
+          default: public
+          description: Private types require a bearer token with permission to read the collection.
         slug_field:
           type: string
         slug_source:
@@ -147,6 +153,10 @@ components:
           type: string
         singleton:
           type: boolean
+        visibility:
+          type: string
+          enum: [public, private]
+          default: public
         fields:
           type: object
           additionalProperties:
@@ -170,6 +180,9 @@ components:
           type: string
         singleton:
           type: boolean
+        visibility:
+          type: string
+          enum: [public, private]
         fields:
           type: object
           additionalProperties:
@@ -301,6 +314,10 @@ paths:
     get:
       tags: [Content Types]
       summary: List content type schemas
+      description: Private content types are omitted unless the bearer token has `schema.read` permission for them.
+      security:
+        - bearerAuth: []
+        - {}
       responses:
         "200":
           description: Content type schemas.
@@ -363,6 +380,10 @@ paths:
     get:
       tags: [Content Types]
       summary: Get one content type schema
+      description: A private content type requires `schema.read` permission on `schema:{collection}`.
+      security:
+        - bearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/Collection"
       responses:
@@ -480,7 +501,7 @@ paths:
     get:
       tags: [Content]
       summary: List content entries
-      description: Without a token, only public entries are returned. With `content.read` on `content:{collection}:*`, drafts and protected entries are included. For singleton content types, this path returns the fixed entry object.
+      description: Without a token, only public entries from public content types are returned. Private content types require `content.read` on `content:{collection}:*`. With that permission, drafts and protected entries are also included. For singleton content types, this path returns the fixed entry object.
       x-required-permission:
         effect: allow
         actions: [content.read]

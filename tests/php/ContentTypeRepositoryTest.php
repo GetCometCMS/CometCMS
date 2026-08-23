@@ -24,7 +24,19 @@ test('content type repository saves normalized schemas', function (): void {
     assert_same('mdi:post', $schema['icon']);
     assert_same(['en-us', 'de-de'], $schema['locales']);
     assert_same('de-de', $schema['default_locale']);
+    assert_same('public', $schema['visibility']);
     assert_same(['body', 'title', 'slug'], array_keys($schema['fields']));
+});
+
+test('content type repository normalizes API visibility and keeps public as the default', function (): void {
+    $repository = new ContentTypeRepository();
+    $repository->save(['name' => 'public-pages']);
+    $repository->save(['name' => 'members', 'visibility' => 'private']);
+    $repository->save(['name' => 'invalid', 'visibility' => 'secret']);
+
+    assert_same('public', $repository->find('public-pages')['visibility']);
+    assert_same('private', $repository->find('members')['visibility']);
+    assert_same('public', $repository->find('invalid')['visibility']);
 });
 
 test('content type repository reorders saved schemas', function (): void {

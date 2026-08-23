@@ -64,6 +64,8 @@ Content types can be repeatable collections or single pages. Single pages use on
 
 Public reads return only `published` entries, or `scheduled` entries whose `published_at` is in the past. `draft`, `protected`, `archived`, and soft-deleted entries are hidden unless an authenticated token is used.
 
+Content types are public by default and can be marked private in their settings. Private types require an API token with `content.read` permission for that collection.
+
 ### Media
 
 ```

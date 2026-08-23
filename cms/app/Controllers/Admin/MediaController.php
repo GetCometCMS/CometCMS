@@ -62,7 +62,7 @@ final class MediaController extends BaseController
             $this->json(['error' => ['code' => 'upload_failed', 'message' => $message]], 422);
         }
 
-        $max = (int) comet_config('media.max_upload_bytes', 8388608);
+        $max = (int) comet_config('media.max_upload_bytes', 1073741824);
         $allowed = comet_config('media.allowed_mime_types', []);
         $items = [];
 
@@ -78,7 +78,7 @@ final class MediaController extends BaseController
             $size = (int) ($file['size'] ?? 0);
 
             if ($size <= 0 || $size > $max) {
-                $this->json(['error' => ['code' => 'file_too_large', 'message' => 'File is too large.']], 422);
+                $this->json(['error' => ['code' => 'file_too_large', 'message' => 'File is too large. The CMS limit is ' . (string) ceil($max / 1048576) . ' MiB.']], 422);
             }
 
             $mime = MimeDetector::detect((string) $file['tmp_name'], (string) ($file['name'] ?? ''));

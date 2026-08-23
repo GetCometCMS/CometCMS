@@ -22,6 +22,7 @@ return [
     ],
     'security' => [
         'session_name' => 'cometcms_admin',
+        'persistent_session_seconds' => 30 * 24 * 60 * 60,
         'csrf_key' => 'cometcms_csrf',
         'login_throttle' => [
             'max_attempts' => 5,
@@ -45,7 +46,7 @@ return [
         'include_password_hashes' => false,
     ],
     'media' => [
-        'max_upload_bytes' => 256 * 1024 * 1024,
+        'max_upload_bytes' => 1024 * 1024 * 1024,
         'thumbnails' => [
             'enabled' => true,
             'size' => 512,

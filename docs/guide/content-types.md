@@ -2,6 +2,8 @@
 
 A **content type** defines the structure (schema) for content. Most content types are collections of entries, such as `posts`. A content type can also be marked as a **single page** for one-off content like `start-page`, `contact-page`, or `imprint`.
 
+Content types are public through the REST API by default. Set **API access** to **Private** when reads should require an API token with `content.read` permission for that type. Existing content types remain public unless you change this setting.
+
 ![Content types overview in the CometCMS admin](../screenshots/view-content-types.png)
 
 ## Creating a content type

@@ -55,8 +55,8 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value
   }
 
-  async function login(username, password) {
-    const res  = await api.login(username, password)
+  async function login(username, password, remember = false) {
+    const res  = await api.login(username, password, remember)
     user.value = res.data
     applyTheme(user.value?.theme)
     setLocale(user.value?.language)

@@ -175,11 +175,13 @@ async function requestOnce(method, path, body = null) {
   return json
 }
 
-function requestWithProgress(method, path, formData, onProgress) {
+function requestWithProgress(method, path, formData, onProgress, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open(method, `/admin/api${path}`)
-    xhr.timeout = REQUEST_TIMEOUT_MS * 4
+    // Uploads can legitimately take many minutes. A zero timeout lets the web
+    // server enforce its configured request limits instead of aborting in the UI.
+    xhr.timeout = timeoutMs
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
     xhr.setRequestHeader('X-Comet-Workspace', getActiveWorkspace())
     if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken)
@@ -252,7 +254,7 @@ function downloadViaNavigation(path) {
 export const api = {
   // Auth
   me:     ()                  => request('GET',    '/me'),
-  login:  (username, password)=> request('POST',   '/login',  { username, password }),
+  login:  (username, password, remember = false)=> request('POST', '/login', { username, password, remember }),
   logout: ()                  => request('POST',   '/logout'),
   setup:  (username, password, workspace, workspaceSlug)=> request('POST',   '/setup',  { username, password, workspace, workspace_slug: workspaceSlug }),
   appInfo: ()                  => request('GET',    '/app'),
@@ -316,7 +318,7 @@ export const api = {
   // Media
   media: {
     list:   (params = {}) => request('GET', withQuery('/media', params)),
-    upload: (formData) => request('POST', '/media', formData),
+    upload: (formData, onProgress) => requestWithProgress('POST', '/media', formData, onProgress),
     createCategory: (name, parent = '') => request('POST', '/media/categories', parent ? { name, parent } : { name }),
     renameCategory: (oldName, name) => request('PUT', `/media/categories/${encodeURIComponent(oldName)}`, { name }),
     deleteCategory: (name) => request('DELETE', `/media/categories/${encodeURIComponent(name)}`),

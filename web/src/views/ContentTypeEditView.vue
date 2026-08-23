@@ -108,6 +108,21 @@
               {{ t("contentTypeEdit.singleHint") }}
             </p>
           </div>
+
+          <div class="col-span-1">
+            <label class="form-label">{{ t("contentTypeEdit.apiAccess") }}</label>
+            <div class="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+              <button type="button" :class="modelButtonClass(form.visibility === 'public')" @click="form.visibility = 'public'">
+                {{ t("contentTypeEdit.public") }}
+              </button>
+              <button type="button" :class="modelButtonClass(form.visibility === 'private')" @click="form.visibility = 'private'">
+                {{ t("contentTypeEdit.private") }}
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ t(form.visibility === "private" ? "contentTypeEdit.privateHint" : "contentTypeEdit.publicHint") }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -271,6 +286,7 @@ const form = ref({
   label: "",
   icon: defaultIcon,
   singleton: false,
+  visibility: "public",
   locales: [],
   default_locale: "",
   fields: {},

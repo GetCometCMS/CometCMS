@@ -40,6 +40,7 @@ final class AuthController extends BaseController
         $body = $this->requestJson();
         $username = (string) ($body['username'] ?? '');
         $password = (string) ($body['password'] ?? '');
+        $remember = filter_var($body['remember'] ?? false, FILTER_VALIDATE_BOOL);
         $ip = $this->clientIp();
         $throttle = $this->loginThrottle->status($username, $ip);
 
@@ -51,7 +52,7 @@ final class AuthController extends BaseController
             ]], 429);
         }
 
-        if (!$this->auth->attempt($username, $password)) {
+        if (!$this->auth->attempt($username, $password, $remember)) {
             $throttle = $this->loginThrottle->recordFailure($username, $ip);
 
             if ($throttle['limited']) {

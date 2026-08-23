@@ -1,8 +1,10 @@
 Options -Indexes
 
 <IfModule mod_php.c>
-    php_value upload_max_filesize 128M
-    php_value post_max_size 128M
+    php_value upload_max_filesize 1G
+    php_value post_max_size 1100M
+    php_value max_input_time 0
+    php_value max_execution_time 0
 </IfModule>
 
 <IfModule mod_setenvif.c>

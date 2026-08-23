@@ -25,6 +25,22 @@ test('auth attempt succeeds with valid credentials and check/user reflect sessio
     assert_same((string) $created['id'], $auth->user()['id'] ?? null);
 });
 
+test('auth persistent login records an expiry and expired sessions are rejected', function (): void {
+    comet_auth_test_start_session();
+
+    $users = new UserRepository();
+    $users->create('admin', 'secret-password', 'admin');
+    $auth = new Auth($users);
+
+    assert_true($auth->attempt('admin', 'secret-password', true));
+    assert_true(is_int($_SESSION['persistent_until'] ?? null));
+    assert_true(($_SESSION['persistent_until'] ?? 0) > time());
+
+    $_SESSION['persistent_until'] = time() - 1;
+    assert_null($auth->user());
+    assert_same([], $_SESSION);
+});
+
 test('auth attempt fails with invalid credentials', function (): void {
     comet_auth_test_start_session();
 

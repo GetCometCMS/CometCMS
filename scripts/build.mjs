@@ -49,7 +49,7 @@ function buildFullDistribution() {
   remove(distDir);
   mkdirSync(distDir, { recursive: true });
 
-  for (const file of ["index.php", "router.php", ".htaccess"]) {
+  for (const file of ["index.php", "router.php", ".htaccess", ".user.ini"]) {
     cpSync(join(projectRoot, "cms", file), join(distDir, file));
   }
   for (const directory of ["app", "config"]) {

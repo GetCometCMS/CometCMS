@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { api } from '../api/index.js'
+import { api, getActiveWorkspace } from '../api/index.js'
 
 /**
  * Caches the content-type list so the sidebar never re-fetches from scratch
@@ -10,14 +10,40 @@ export const useContentTypesStore = defineStore('contentTypes', () => {
   const list    = ref([])
   let fetched   = false
   let inFlight  = null
+  let workspace = ''
+  let requestGeneration = 0
+
+  function syncWorkspace() {
+    const activeWorkspace = getActiveWorkspace()
+
+    if (workspace === activeWorkspace) return activeWorkspace
+
+    workspace = activeWorkspace
+    list.value = []
+    fetched = false
+    inFlight = null
+    requestGeneration += 1
+
+    return activeWorkspace
+  }
 
   async function _doFetch() {
+    const requestedWorkspace = syncWorkspace()
     if (inFlight) return inFlight
-    inFlight = api.contentTypes.list()
-      .then(res => { list.value = res.data; fetched = true })
+
+    const generation = ++requestGeneration
+    const request = api.contentTypes.list()
+      .then(res => {
+        if (generation !== requestGeneration || requestedWorkspace !== getActiveWorkspace()) return
+        list.value = res.data
+        fetched = true
+      })
       .catch(() => {})
-      .finally(() => { inFlight = null })
-    return inFlight
+      .finally(() => {
+        if (inFlight === request) inFlight = null
+      })
+    inFlight = request
+    return request
   }
 
   /**
@@ -26,6 +52,7 @@ export const useContentTypesStore = defineStore('contentTypes', () => {
    * for the data so the sidebar has types before it renders.
    */
   async function fetch() {
+    syncWorkspace()
     if (fetched) {
       _doFetch()   // background refresh – don't await
       return
@@ -34,11 +61,16 @@ export const useContentTypesStore = defineStore('contentTypes', () => {
   }
 
   /** Call after creating or deleting a content type. */
-  function invalidate() {
+  function invalidate({ clear = false } = {}) {
     fetched = false
+    requestGeneration += 1
+    inFlight = null
+    workspace = getActiveWorkspace()
+    if (clear) list.value = []
   }
 
   function setList(types) {
+    workspace = getActiveWorkspace()
     list.value = Array.isArray(types) ? types : []
     fetched = true
   }

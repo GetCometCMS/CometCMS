@@ -486,7 +486,7 @@ async function switchWorkspace(slug) {
   if (slug === selectedWorkspace.value) return;
   selectedWorkspace.value = slug;
   setActiveWorkspace(slug);
-  typesStore.invalidate();
+  typesStore.invalidate({ clear: true });
   await auth.refresh();
   await typesStore.fetch();
   router.push("/dashboard");

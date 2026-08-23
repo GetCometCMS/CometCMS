@@ -49,6 +49,15 @@
             />
           </div>
 
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+            <input
+              v-model="remember"
+              type="checkbox"
+              class="rounded border-slate-300 text-theme-600 focus:ring-theme-500"
+            />
+            <span>{{ t("login.stayLoggedIn") }}</span>
+          </label>
+
           <button
             type="submit"
             :disabled="loading"
@@ -74,6 +83,7 @@ const router = useRouter();
 const { t } = useI18n();
 const username = ref("");
 const password = ref("");
+const remember = ref(false);
 const loading = ref(false);
 const errorMsg = ref("");
 const rateLimited = ref(false);
@@ -84,7 +94,7 @@ async function handleLogin() {
   rateLimited.value = false;
   loading.value = true;
   try {
-    await auth.login(username.value, password.value);
+    await auth.login(username.value, password.value, remember.value);
     router.push("/dashboard");
   } catch (err) {
     rateLimited.value = err.status === 429;

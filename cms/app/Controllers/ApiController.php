@@ -30,6 +30,7 @@ final class ApiController
     private PermissionService $permissions;
     private WorkspaceContext $workspace;
     private bool $scopedUrls = false;
+    private ?array $readPrincipal = null;
 
     public function __construct(private readonly Http $http)
     {
@@ -80,7 +81,22 @@ final class ApiController
 
     public function contentTypes(): never
     {
-        $this->publicCached(['data' => $this->types->all()]);
+        $principal = $this->tokenPrincipal();
+        $types = array_values(array_filter($this->types->all(), function (array $type) use ($principal): bool {
+            if (($type['visibility'] ?? 'public') !== 'private') {
+                return true;
+            }
+
+            return $principal !== null && $this->permissions->allows($principal, 'schema.read', [
+                'type' => 'schema',
+                'name' => (string) ($type['name'] ?? ''),
+                'principal' => $principal,
+                'workspace' => $this->workspace->slug(),
+            ]);
+        }));
+        $body = ['data' => $types];
+
+        $principal === null ? $this->publicCached($body) : $this->http->json($body);
     }
 
     public function contentTypeShow(string $name): never
@@ -89,7 +105,14 @@ final class ApiController
             $this->response->error('not_found', 'Content type not found.', 404);
         }
 
-        $this->publicCached(['data' => $this->types->find($name)]);
+        $schema = $this->types->find($name);
+
+        if (($schema['visibility'] ?? 'public') === 'private') {
+            $this->requireToken('schema.read', ['type' => 'schema', 'name' => $name]);
+            $this->http->json(['data' => $schema]);
+        }
+
+        $this->publicCached(['data' => $schema]);
     }
 
     public function contentTypeStore(): never
@@ -172,7 +195,10 @@ final class ApiController
             $this->contentShow($collection, $collection);
         }
 
-        $admin = $this->optionalTokenWithPermission('content.read', ['type' => 'content', 'collection' => $collection]) !== null;
+        $this->readPrincipal = ($schema['visibility'] ?? 'public') === 'private'
+            ? $this->requireToken('content.read', ['type' => 'content', 'collection' => $collection])
+            : $this->optionalTokenWithPermission('content.read', ['type' => 'content', 'collection' => $collection]);
+        $admin = $this->readPrincipal !== null;
         $result = $this->content->query($collection, $_GET, $admin);
         $include = $this->includeFields();
         $locale = (string) ($_GET['locale'] ?? '');
@@ -188,8 +214,13 @@ final class ApiController
     public function contentShow(string $collection, string $id): never
     {
         $this->requireCollection($collection);
+        $schema = $this->types->find($collection);
         $user = null;
         $token = $this->bearerToken();
+
+        if ($token === null && ($schema['visibility'] ?? 'public') === 'private') {
+            $this->response->error('unauthorized', 'This content type requires a bearer token.', 401);
+        }
 
         if ($token !== null) {
             $user = $this->tokens->findByToken($token);
@@ -210,8 +241,9 @@ final class ApiController
             $this->response->error('forbidden', 'Forbidden.', 403);
         }
 
+        $this->readPrincipal = $user;
+
         $locale = (string) ($_GET['locale'] ?? '');
-        $schema = $this->types->find($collection);
         $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
 
         if ($locale !== '' && in_array($locale, $locales, true)) {
@@ -303,7 +335,7 @@ final class ApiController
             $this->response->error('upload_failed', $message, 422);
         }
 
-        $max = (int) comet_config('media.max_upload_bytes', 8388608);
+        $max = (int) comet_config('media.max_upload_bytes', 1073741824);
         $allowed = comet_config('media.allowed_mime_types', []);
         $items = [];
 
@@ -319,7 +351,7 @@ final class ApiController
             $size = (int) ($file['size'] ?? 0);
 
             if ($size <= 0 || $size > $max) {
-                $this->response->error('file_too_large', 'File is too large.', 422);
+                $this->response->error('file_too_large', 'File is too large. The CMS limit is ' . (string) ceil($max / 1048576) . ' MiB.', 422);
             }
 
             $mime = MimeDetector::detect((string) $file['tmp_name'], (string) ($file['name'] ?? ''));
@@ -747,6 +779,10 @@ final class ApiController
 
     private function publicRelationValue(mixed $value, string $target, bool $admin): mixed
     {
+        if ($target !== '' && !$this->canExposeCollection($target)) {
+            return null;
+        }
+
         if (is_array($value)) {
             return $this->publicValue($value, $admin);
         }
@@ -775,6 +811,10 @@ final class ApiController
         }
 
         if (isset($value['collection'], $value['id'])) {
+            if (!$this->canExposeCollection((string) $value['collection'])) {
+                return null;
+            }
+
             if (!$admin && !$this->content->isPubliclyVisible($value)) {
                 return null;
             }
@@ -789,6 +829,25 @@ final class ApiController
         }
 
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
+    }
+
+    private function canExposeCollection(string $collection): bool
+    {
+        if (!$this->types->exists($collection)) {
+            return false;
+        }
+
+        $schema = $this->types->find($collection);
+        if (($schema['visibility'] ?? 'public') !== 'private') {
+            return true;
+        }
+
+        return $this->readPrincipal !== null && $this->permissions->allows($this->readPrincipal, 'content.read', [
+            'type' => 'content',
+            'collection' => $collection,
+            'principal' => $this->readPrincipal,
+            'workspace' => $this->workspace->slug(),
+        ]);
     }
 
     private function optionalTokenWithPermission(string $action, array $context = []): ?array
@@ -813,6 +872,23 @@ final class ApiController
         }
 
         return $user;
+    }
+
+    private function tokenPrincipal(): ?array
+    {
+        $token = $this->bearerToken();
+
+        if ($token === null) {
+            return null;
+        }
+
+        $principal = $this->tokens->findByToken($token);
+        if ($principal === null) {
+            (new Logger())->warning('invalid api token');
+            $this->response->error('unauthorized', 'Invalid bearer token.', 401);
+        }
+
+        return $principal;
     }
 
     private function requireToken(string $action, array $context = []): array

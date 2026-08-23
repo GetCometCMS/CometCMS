@@ -189,6 +189,7 @@ final class ContentTypeRepository
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
             'singleton' => (bool) ($schema['singleton'] ?? false),
+            'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),
             'locales' => $locales,

@@ -147,6 +147,12 @@ $needsSession = !str_starts_with($requestPath, '/api/')
 
 session_name((string) comet_config('security.session_name', 'cometcms_admin'));
 
+// Persistent logins need their server-side session file to live at least as
+// long as the persistent browser cookie. Individual cookies remain session-only
+// unless the user explicitly selects "Stay logged in".
+$persistentSessionSeconds = max(86400, (int) comet_config('security.persistent_session_seconds', 2592000));
+ini_set('session.gc_maxlifetime', (string) max((int) ini_get('session.gc_maxlifetime'), $persistentSessionSeconds));
+
 if (session_status() !== PHP_SESSION_ACTIVE && session_module_name() !== 'files') {
     session_module_name('files');
 }
