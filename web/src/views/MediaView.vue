@@ -165,6 +165,26 @@
           {{ uploadError }}
         </div>
 
+        <div v-if="uploading" class="mb-4 rounded-lg border border-theme-200 bg-theme-50 p-3">
+          <div class="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-theme-700">
+            <span>{{ uploadProgress >= 100 ? t("media.processing") : t("media.uploading") }}</span>
+            <span>{{ uploadProgress }}%</span>
+          </div>
+          <div
+            class="h-2 overflow-hidden rounded-full bg-theme-100"
+            role="progressbar"
+            :aria-label="t('media.uploadProgress')"
+            :aria-valuenow="uploadProgress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div
+              class="h-full rounded-full bg-theme-600 transition-[width] duration-150"
+              :style="{ width: `${uploadProgress}%` }"
+            />
+          </div>
+        </div>
+
         <Transition v-bind="ht">
           <div
             v-if="selectedCount > 0"
@@ -855,6 +875,7 @@ const apiEndpointOwner = "media";
 const files = ref([]);
 const loading = ref(true);
 const uploading = ref(false);
+const uploadProgress = ref(0);
 const regeneratingThumbs = ref(false);
 const uploadError = ref("");
 const fileInput = ref(null);
@@ -1109,6 +1130,7 @@ async function uploadFiles(fileList) {
 
   uploadError.value = "";
   uploading.value = true;
+  uploadProgress.value = 0;
   const fd = new FormData();
   for (const file of fileList) {
     fd.append("media[]", file);
@@ -1118,7 +1140,9 @@ async function uploadFiles(fileList) {
   }
 
   try {
-    const res = await api.media.upload(fd);
+    const res = await api.media.upload(fd, (progress) => {
+      uploadProgress.value = Math.min(100, Math.round(progress * 100));
+    });
     categories.value =
       res.meta?.categories ?? res.categories ?? categories.value;
     const uploadedCount = Array.isArray(res.data) ? res.data.length : 0;
@@ -1134,6 +1158,7 @@ async function uploadFiles(fileList) {
     uploadError.value = err.message;
   } finally {
     uploading.value = false;
+    uploadProgress.value = 0;
   }
 }
 

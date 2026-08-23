@@ -553,6 +553,8 @@ const messages = {
     'media.clickUpload': 'Click to upload',
     'media.dragDrop': 'or drag and drop',
     'media.uploading': 'Uploading...',
+    'media.processing': 'Processing...',
+    'media.uploadProgress': 'Media upload progress',
     'media.hiddenByFilters': 'Current search or type filters may hide newly uploaded files.',
     'media.dropUpload': 'Drop to upload',
     'media.showing': 'Showing {start}-{end} of {total}',

@@ -555,6 +555,8 @@ const messages = {
   'media.clickUpload': 'Zum Hochladen klicken',
   'media.dragDrop': 'oder per Drag & Drop ablegen',
   'media.uploading': 'Wird hochgeladen...',
+  'media.processing': 'Wird verarbeitet...',
+  'media.uploadProgress': 'Fortschritt des Medien-Uploads',
   'media.hiddenByFilters': 'Aktuelle Such- oder Typfilter können neu hochgeladene Dateien ausblenden.',
   'media.dropUpload': 'Zum Hochladen ablegen',
   'media.showing': 'Zeige {start}-{end} von {total}',

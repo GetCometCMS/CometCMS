@@ -58,6 +58,26 @@
         @change="onFileChange"
       />
 
+      <div v-if="uploading" class="border-b border-theme-100 bg-theme-50 px-5 py-3">
+        <div class="mb-1.5 flex items-center justify-between text-xs font-medium text-theme-700">
+          <span>{{ uploadProgress >= 100 ? "Processing..." : "Uploading..." }}</span>
+          <span>{{ uploadProgress }}%</span>
+        </div>
+        <div
+          class="h-2 overflow-hidden rounded-full bg-theme-100"
+          role="progressbar"
+          aria-label="Media upload progress"
+          :aria-valuenow="uploadProgress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div
+            class="h-full rounded-full bg-theme-600 transition-[width] duration-150"
+            :style="{ width: `${uploadProgress}%` }"
+          />
+        </div>
+      </div>
+
       <div class="min-h-0 flex-1 overflow-y-auto p-5">
         <div class="grid min-h-0 gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
           <MediaCategorySidebar
@@ -311,6 +331,7 @@ const selectedCategory = ref(null);
 const mediaType = ref("all");
 const viewMode = ref("grid");
 const uploading = ref(false);
+const uploadProgress = ref(0);
 const uploadError = ref("");
 const fileInput = ref(null);
 let dragEnterCount = 0;
@@ -445,6 +466,7 @@ async function uploadFiles(fileList) {
   if (!fileList?.length) return;
   uploadError.value = "";
   uploading.value = true;
+  uploadProgress.value = 0;
   const fd = new FormData();
   for (const file of fileList) {
     fd.append("media[]", file);
@@ -453,7 +475,9 @@ async function uploadFiles(fileList) {
     fd.append("category", selectedCategory.value);
   }
   try {
-    const res = await api.media.upload(fd);
+    const res = await api.media.upload(fd, (progress) => {
+      uploadProgress.value = Math.min(100, Math.round(progress * 100));
+    });
     categories.value =
       res.meta?.categories ?? res.categories ?? categories.value;
     await Promise.all([loadStats(), load()]);
@@ -461,6 +485,7 @@ async function uploadFiles(fileList) {
     uploadError.value = err.message;
   } finally {
     uploading.value = false;
+    uploadProgress.value = 0;
   }
 }
 
