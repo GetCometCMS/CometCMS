@@ -50,6 +50,41 @@ final class Http
         exit;
     }
 
+    /**
+     * Send a file without retaining it in PHP's output buffers.
+     *
+     * @param array<string, string> $headers
+     */
+    public function streamFile(string $path, string $contentType, array $headers = []): never
+    {
+        $stream = @fopen($path, 'rb');
+
+        if ($stream === false) {
+            throw new \RuntimeException('Could not open file for streaming.');
+        }
+
+        $stat = fstat($stream);
+
+        // The entry point buffers normal responses so fatal errors can be replaced
+        // cleanly. File responses must bypass those buffers to keep memory usage
+        // constant regardless of the file size.
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        header('Content-Type: ' . $contentType);
+        header('Content-Length: ' . (string) ($stat['size'] ?? filesize($path)));
+        header('X-Content-Type-Options: nosniff');
+
+        foreach ($headers as $name => $value) {
+            header($name . ': ' . $value);
+        }
+
+        fpassthru($stream);
+        fclose($stream);
+        exit;
+    }
+
     public function notFound(): never
     {
         $this->text('Not found', 404);
@@ -77,4 +112,3 @@ final class Http
         return is_string($value) ? $value : null;
     }
 }
-

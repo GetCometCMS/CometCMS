@@ -127,3 +127,21 @@ test('http json outputs payload and response metadata before exit', function ():
     assert_true(str_contains($output, '"ok": true'));
     assert_true(str_contains($output, '__CODE__201'));
 });
+
+test('http streamFile bypasses all output buffers', function (): void {
+    $bootstrapRequire = comet_http_test_bootstrap_require_snippet();
+    $file = COMET_STORAGE . '/stream-file.txt';
+    file_put_contents($file, 'streamed-content');
+
+    $output = comet_http_test_run_inline_php(
+        $bootstrapRequire .
+            'ob_start(static fn(string $body): string => "outer[" . $body . "]");' .
+            'ob_start(static fn(string $body): string => "inner[" . $body . "]");' .
+            'register_shutdown_function(static function (): void {' .
+            'echo "\n__BUFFER_LEVEL__" . ob_get_level();' .
+            '});' .
+            '(new \\CometCMS\\Core\\Http())->streamFile(' . var_export($file, true) . ', "text/plain");'
+    );
+
+    assert_same("streamed-content\n__BUFFER_LEVEL__0", $output);
+});

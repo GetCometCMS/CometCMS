@@ -517,11 +517,7 @@ final class ApiController
         }
 
         $mime = MimeDetector::detect($path);
-        header('Content-Type: ' . $mime);
-        header('Content-Length: ' . (string) filesize($path));
-        header('X-Content-Type-Options: nosniff');
-        readfile($path);
-        exit;
+        $this->http->streamFile($path, $mime);
     }
 
     public function mediaThumbShow(string $file): never
@@ -540,11 +536,7 @@ final class ApiController
         $path = $this->media->thumbnailPath($file) ?? $originalPath;
         $mime = MimeDetector::detect($path);
 
-        header('Content-Type: ' . $mime);
-        header('Content-Length: ' . (string) filesize($path));
-        header('X-Content-Type-Options: nosniff');
-        readfile($path);
-        exit;
+        $this->http->streamFile($path, $mime);
     }
 
     private function publicCached(array $body): never

@@ -113,11 +113,9 @@ final class WorkspacesController extends BaseController
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         $mime = $mimeMap[$ext] ?? 'image/jpeg';
 
-        header('Content-Type: ' . $mime);
-        header('Cache-Control: private, max-age=86400');
-        header('Content-Length: ' . filesize($path));
-        readfile($path);
-        exit;
+        $this->http->streamFile($path, $mime, [
+            'Cache-Control' => 'private, max-age=86400',
+        ]);
     }
 
     public function iconUpload(string $slug): never
