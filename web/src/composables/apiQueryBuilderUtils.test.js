@@ -10,12 +10,13 @@ import {
 } from "./apiQueryBuilderUtils.js";
 
 describe("apiQueryBuilderUtils", () => {
-  it("builds endpoint paths for content, content types, and media", () => {
+  it("builds endpoint paths for content, content types, media, and submissions", () => {
     expect(buildEndpointPath({ selectedResource: "" })).toBe("/{resource}");
     expect(buildEndpointPath({ selectedResource: "media" })).toBe("/media");
     expect(buildEndpointPath({ selectedResource: "content-types", typeMode: "single", collectionName: "case studies" })).toBe("/content-types/case%20studies");
     expect(buildEndpointPath({ selectedResource: "content", collectionName: "posts", contentMode: "single", identifier: "hello world" })).toBe("/content/posts/hello%20world");
     expect(buildEndpointPath({ selectedResource: "content", collectionName: "homepage", isActiveSingleton: true })).toBe("/content/homepage");
+    expect(buildEndpointPath({ selectedResource: "submissions", collectionName: "contact forms" })).toBe("/content/contact%20forms/submissions");
   });
 
   it("builds query items with filters and custom includes", () => {

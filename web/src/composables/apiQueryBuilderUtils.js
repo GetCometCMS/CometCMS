@@ -17,6 +17,12 @@ export const apiQueryResources = [
     description: "List uploaded files",
     icon: "mdi:image-multiple-outline",
   },
+  {
+    value: "submissions",
+    label: "External Submissions",
+    description: "Submit to an enabled collection",
+    icon: "mdi:inbox-arrow-down-outline",
+  },
 ];
 
 export function buildEndpointPath({
@@ -39,6 +45,11 @@ export function buildEndpointPath({
 
   if (selectedResource === "media") {
     return "/media";
+  }
+
+  if (selectedResource === "submissions") {
+    const collection = collectionName || "{collection}";
+    return `/content/${encodeURIComponent(collection)}/submissions`;
   }
 
   const collection = collectionName || "{collection}";
