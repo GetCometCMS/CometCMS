@@ -198,6 +198,24 @@
           </li>
         </ul>
       </div>
+
+      <div class="card p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">
+          {{ t("updates.getHelp") }}
+        </h2>
+        <p class="text-sm text-slate-600">
+          {{ t("updates.getHelpText") }}
+        </p>
+        <a
+          href="https://getcometcms.github.io/CometCMS/"
+          target="_blank"
+          rel="noreferrer"
+          class="btn-secondary mt-4 inline-flex items-center gap-2"
+        >
+          <Icon icon="mdi:book-open-variant" class="h-4 w-4" />
+          {{ t("updates.documentation") }}
+        </a>
+      </div>
     </div>
 
     <ConfirmModal
@@ -215,6 +233,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { api } from "../api/index.js";
 import { useAuthStore } from "../stores/auth.js";
