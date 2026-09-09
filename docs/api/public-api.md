@@ -193,6 +193,12 @@ When a content type field defines a supported `default`, omitted values are crea
 
 For single page content types, creation is allowed only while no active entry exists. The entry slug is forced to the content type name.
 
+### `POST /api/v1/workspaces/{workspace}/content/{collection}/submissions`
+
+Accepts an anonymous external submission when the collection has enabled the gateway. This endpoint does not use an API token. Only fields explicitly selected in the collection configuration are accepted; schema validation still applies and every accepted entry is stored as a draft.
+
+See [External Submissions](../guide/external-submissions) for configuration, browser examples, rate limits, CORS, honeypot behavior, and idempotency.
+
 ### `PUT /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
 
 Updates an existing entry by slug or stable ID.

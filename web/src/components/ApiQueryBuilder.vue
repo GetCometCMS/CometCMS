@@ -40,7 +40,7 @@
         class="flex min-h-12 items-center gap-3 rounded-lg bg-slate-950 px-3 py-2 text-sm text-slate-100"
       >
         <span class="shrink-0 font-mono text-xs font-semibold text-theme-300"
-          >GET</span
+          >{{ requestMethod }}</span
         >
         <code
           class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs leading-6"
@@ -56,7 +56,7 @@
             >Method:
             <span
               class="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-700 ring-1 ring-slate-200"
-              >GET</span
+              >{{ requestMethod }}</span
             ></span
           >
           <span
@@ -96,7 +96,7 @@
             >
             <div>
               <h3 class="text-sm font-semibold text-slate-900">
-                What do you want to fetch?
+                Which API resource do you want to use?
               </h3>
               <p class="text-sm text-slate-500">
                 Choose a public API resource.
@@ -494,6 +494,63 @@
           </div>
 
           <div
+            v-else-if="selectedResource === 'submissions'"
+            class="space-y-4"
+          >
+            <div v-if="submissionCollections.length > 0">
+              <label for="api-submission-collection" class="form-label">Collection</label>
+              <select
+                id="api-submission-collection"
+                v-model="selectedCollection"
+                class="form-select w-full rounded-lg border-slate-300 text-sm"
+              >
+                <option
+                  v-for="collection in submissionCollections"
+                  :key="collection.name"
+                  :value="collection.name"
+                >
+                  {{ collection.label || collection.name }}
+                </option>
+              </select>
+            </div>
+
+            <div
+              v-else
+              class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+            >
+              No collection currently has external submissions enabled. Enable them on a collection's content type definition first.
+            </div>
+
+            <div v-if="activeSubmissionFields.length > 0">
+              <div class="form-label">Accepted fields</div>
+              <div class="flex flex-wrap gap-2">
+                <code
+                  v-for="field in activeSubmissionFields"
+                  :key="field"
+                  class="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                >{{ field }}</code>
+              </div>
+            </div>
+
+            <div v-if="submissionCollections.length > 0">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <label class="form-label mb-0">Example JSON body</label>
+                <button
+                  type="button"
+                  class="text-xs font-medium text-theme-700 hover:text-theme-800"
+                  @click="copy(submissionBody)"
+                >
+                  Copy body
+                </button>
+              </div>
+              <pre class="overflow-x-auto rounded-lg bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-100">{{ submissionBody }}</pre>
+              <p class="mt-2 text-xs text-slate-500">
+                Values must match the collection schema. Accepted submissions are always stored as drafts.
+              </p>
+            </div>
+          </div>
+
+          <div
             v-else-if="selectedResource === 'content-types'"
             class="space-y-4"
           >
@@ -611,16 +668,26 @@
               >3</span
             >
             <div>
-              <h3 class="text-sm font-semibold text-slate-900">
-                Authorization
-              </h3>
+              <h3 class="text-sm font-semibold text-slate-900">Authorization</h3>
               <p class="text-sm text-slate-500">
-                Add a bearer token when private content should be included.
+                {{ selectedResource === "submissions"
+                  ? "External submissions never expose or require an API token."
+                  : "Add a bearer token when private content should be included." }}
               </p>
             </div>
           </div>
 
-          <div class="grid gap-4 lg:grid-cols-3">
+          <div
+            v-if="selectedResource === 'submissions'"
+            class="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
+          >
+            <div class="flex gap-2">
+              <Icon icon="mdi:shield-check-outline" class="mt-0.5 h-4 w-4 shrink-0" />
+              <p>No authorization header is used. Access is controlled by the collection's accepted fields, validation, origin policy, and rate limits.</p>
+            </div>
+          </div>
+
+          <div v-else class="grid gap-4 lg:grid-cols-3">
             <div>
               <label for="api-auth-mode" class="form-label">Header</label>
               <select
@@ -759,6 +826,12 @@ const collectionTypes = computed(() =>
 const singletonTypes = computed(() =>
   props.collections.filter((collection) => collection.singleton),
 );
+const submissionCollections = computed(() =>
+  props.collections.filter(
+    (collection) =>
+      !collection.singleton && collection.external_submissions?.enabled === true,
+  ),
+);
 const isActiveSingleton = computed(() => !!activeCollection.value?.singleton);
 const collectionLocales = computed(() =>
   Array.isArray(activeCollection.value?.locales)
@@ -773,6 +846,14 @@ const selectedCollectionLabel = computed(() => {
     ? `${label} (Single)`
     : label;
 });
+const activeSubmissionFields = computed(() =>
+  Array.isArray(activeCollection.value?.external_submissions?.fields)
+    ? activeCollection.value.external_submissions.fields
+    : [],
+);
+const requestMethod = computed(() =>
+  selectedResource.value === "submissions" ? "POST" : "GET",
+);
 const relationFields = computed(() => {
   const fields = activeCollection.value?.fields ?? {};
   return Object.entries(fields)
@@ -879,6 +960,20 @@ const endpointUrl = computed(
   () =>
     `${props.apiBase}${endpointPath.value}${queryString.value ? `?${queryString.value}` : ""}`,
 );
+const submissionBody = computed(() => {
+  const fields = activeCollection.value?.fields ?? {};
+  const body = {};
+
+  for (const name of activeSubmissionFields.value) {
+    body[name] = submissionExampleValue(name, fields[name] ?? {});
+  }
+
+  if (activeCollection.value?.external_submissions?.honeypot !== false) {
+    body._gotcha = "";
+  }
+
+  return JSON.stringify(body, null, 2);
+});
 const authHeader = computed(
   () => `Authorization: Bearer ${token.value || "YOUR_TOKEN_HERE"}`,
 );
@@ -890,6 +985,10 @@ const authStatus = computed(() => {
   return "Public reads work without authorization and return public content only.";
 });
 const curlCommand = computed(() => {
+  if (selectedResource.value === "submissions") {
+    return `curl -X POST -H "Content-Type: application/json" -H "Idempotency-Key: replace-with-a-unique-key" \\\n+  --data '${submissionBody.value}' \\\n+  "${endpointUrl.value}"`;
+  }
+
   if (authMode.value !== "bearer") {
     return `curl "${endpointUrl.value}"`;
   }
@@ -907,6 +1006,15 @@ watch(
       )
     ) {
       selectedCollection.value = "";
+    }
+
+    if (
+      selectedResource.value === "submissions" &&
+      !submissionCollections.value.some(
+        (collection) => collection.name === selectedCollection.value,
+      )
+    ) {
+      selectedCollection.value = submissionCollections.value[0]?.name ?? "";
     }
   },
   { immediate: true },
@@ -1034,6 +1142,33 @@ function selectResource(resource) {
   if (resource === "media") {
     loadMediaCategories();
   }
+
+  if (resource === "submissions") {
+    authMode.value = "none";
+    if (
+      !submissionCollections.value.some(
+        (collection) => collection.name === selectedCollection.value,
+      )
+    ) {
+      selectedCollection.value = submissionCollections.value[0]?.name ?? "";
+    }
+  }
+}
+
+function submissionExampleValue(name, field) {
+  if (field.type === "boolean") return false;
+  if (["number", "range"].includes(field.type)) return Number(field.min ?? 0);
+  if (field.type === "date") return "2026-09-09";
+  if (field.type === "datetime") return "2026-09-09T12:00:00Z";
+  if (field.type === "color") return "#3b82f6";
+  if (field.type === "select") {
+    const options = Array.isArray(field.options) ? field.options : [];
+    const first = options[0];
+    const value = typeof first === "object" && first !== null ? first.value : first;
+    return field.multiple ? (value === undefined ? [] : [value]) : (value ?? "option");
+  }
+  if (name === "title") return "New submission";
+  return `Example ${field.label || name}`;
 }
 
 function selectCollection(collectionName) {

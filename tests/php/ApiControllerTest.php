@@ -118,3 +118,32 @@ test('media listing advertises responsive variant urls', function (): void {
     assert_true(str_contains($output, 'hero.jpg?w=320&format='));
     assert_false(str_contains($output, 'hero.jpg?w=1280&format='));
 });
+
+test('external submission gateway accepts configured fields without a token', function (): void {
+    $output = comet_test_run_php(['-r',
+        comet_api_controller_test_bootstrap_require_snippet() .
+        'comet_test_reset_storage();' .
+        '(new \\CometCMS\\Content\\ContentTypeRepository())->save(["name" => "messages", "fields" => ["email" => ["type" => "text", "required" => true], "message" => ["type" => "textarea", "required" => true]], "external_submissions" => ["enabled" => true, "fields" => ["email", "message"]]]);' .
+        '$_SERVER["CONTENT_TYPE"] = "application/json";' .
+        '$_SERVER["REMOTE_ADDR"] = "192.0.2.10";' .
+        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default", false, true)->contentSubmit("messages");'
+    ], '{"email":"jane@example.com","message":"Hello from Jane"}');
+
+    assert_true(str_contains($output, '"accepted": true'));
+    assert_true(str_contains($output, '"receipt": "sub_'));
+    assert_false(str_contains($output, 'jane@example.com'));
+});
+
+test('external submission gateway rejects fields not selected by the collection', function (): void {
+    $output = comet_test_run_php(['-r',
+        comet_api_controller_test_bootstrap_require_snippet() .
+        'comet_test_reset_storage();' .
+        '(new \\CometCMS\\Content\\ContentTypeRepository())->save(["name" => "messages", "fields" => ["email" => ["type" => "text"]], "external_submissions" => ["enabled" => true, "fields" => ["email"]]]);' .
+        '$_SERVER["CONTENT_TYPE"] = "application/json";' .
+        '$_SERVER["REMOTE_ADDR"] = "192.0.2.11";' .
+        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default", false, true)->contentSubmit("messages");'
+    ], '{"email":"jane@example.com","status":"published"}');
+
+    assert_true(str_contains($output, '"code": "validation_failed"'));
+    assert_true(str_contains($output, '"status"'));
+});

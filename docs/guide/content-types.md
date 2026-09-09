@@ -30,6 +30,12 @@ Field defaults pre-fill new entries in the admin editor and are applied to API-c
 
 You can change a collection to a single page only when it has at most one active entry. This avoids ambiguity about which existing entry should become the fixed page content.
 
+## External submissions
+
+A collection can opt into anonymous submissions from contact forms, feedback widgets, and similar public clients. Configure this on the collection's edit page under **External submissions**. You choose the exact fields accepted by the gateway, its per-visitor rate limit, browser origins, and whether the `_gotcha` honeypot is enabled.
+
+Accepted requests are validated against the collection schema and always become drafts. Clients cannot set slugs, publication state, ownership, or other system fields. Single-page content types cannot receive external submissions. See [External Submissions](./external-submissions) for setup and client examples.
+
 ## Localization
 
 Content types can define `locales` and a `default_locale`. Leave locales empty to disable multi-language editing for that type.
@@ -78,6 +84,14 @@ Content types are stored in `cms/storage/content-types/{name}.json`. A typical s
   "singleton": false,
   "locales": ["en", "de"],
   "default_locale": "en",
+  "external_submissions": {
+    "enabled": true,
+    "fields": ["title", "email", "body"],
+    "rate_limit_attempts": 5,
+    "rate_limit_window_seconds": 600,
+    "allowed_origins": ["https://www.example.com"],
+    "honeypot": true
+  },
   "fields": {
     "title": { "type": "text", "required": true },
     "slug": { "type": "slug", "required": true, "unique": true },

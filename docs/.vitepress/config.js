@@ -51,6 +51,7 @@ export default defineConfig({
       {
         text: 'Integrations',
         items: [
+          { text: 'External Submissions', link: '/guide/external-submissions' },
           { text: 'Webhooks', link: '/guide/webhooks' },
         ],
       },

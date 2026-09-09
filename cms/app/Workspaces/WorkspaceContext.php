@@ -85,6 +85,8 @@ final class WorkspaceContext
                 $this->path('trash') . '/media',
                 $this->path('cache'),
                 $this->path('cache') . '/api',
+                $this->path('cache') . '/rate-limits',
+                $this->path('cache') . '/submission-idempotency',
             ] as $directory
         ) {
             if (!is_dir($directory)) {

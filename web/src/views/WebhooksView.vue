@@ -184,6 +184,7 @@ const WEBHOOK_EVENTS = [
   "content.unpublished",
   "content.deleted",
   "content.restored",
+  "submission.received",
 ];
 
 function eventLabel(event) {

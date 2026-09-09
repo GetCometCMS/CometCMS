@@ -73,6 +73,10 @@ export function contentTypeEndpoint(name, origin) {
   return buildWorkspacedApiUrl(`/content-types/${encodePathSegment(name)}`, {}, origin);
 }
 
+export function externalSubmissionEndpoint(collection, origin) {
+  return buildWorkspacedApiUrl(`/content/${encodePathSegment(collection)}/submissions`, {}, origin);
+}
+
 export function contentCollectionEndpoint(
   { collection, limit, offset, sortKey, sortDir, q, locale },
   origin,

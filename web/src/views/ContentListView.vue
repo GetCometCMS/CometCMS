@@ -368,6 +368,10 @@
                     <template v-if="column.kind === 'core'">
                       <template v-if="column.key === 'title'">
                         {{ entry.title ?? entry.id }}
+                        <span
+                          v-if="entry.entry_origin === 'external'"
+                          class="ml-2 inline-flex items-center rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 ring-1 ring-cyan-200 ring-inset"
+                        >{{ t("contentList.external") }}</span>
                       </template>
                       <template v-else-if="column.key === 'status'">
                         <span :class="statusPillClass(effectiveStatus(entry))">

@@ -82,6 +82,8 @@ function comet_test_reset_storage(): void
             COMET_STORAGE . '/workspaces/default/trash/media',
             COMET_STORAGE . '/workspaces/default/cache',
             COMET_STORAGE . '/workspaces/default/cache/api',
+            COMET_STORAGE . '/workspaces/default/cache/rate-limits',
+            COMET_STORAGE . '/workspaces/default/cache/submission-idempotency',
         ] as $directory
     ) {
         if (!is_dir($directory)) {

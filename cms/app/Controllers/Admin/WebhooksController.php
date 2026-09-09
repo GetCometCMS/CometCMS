@@ -16,6 +16,7 @@ final class WebhooksController extends BaseController
         'content.unpublished',
         'content.deleted',
         'content.restored',
+        'submission.received',
     ];
 
     public function index(): never

@@ -11,6 +11,10 @@ use CometCMS\Workspaces\WorkspaceContext;
 
 final class ContentTypeRepository
 {
+    private const EXTERNAL_FIELD_TYPES = [
+        'text', 'textarea', 'markdown', 'number', 'range', 'boolean', 'select', 'date', 'datetime', 'color',
+    ];
+
     private JsonStore $store;
     private SettingsStore $settings;
 
@@ -183,6 +187,7 @@ final class ContentTypeRepository
 
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
+        $externalSubmissions = $this->normalizeExternalSubmissions($schema['external_submissions'] ?? [], $fields, (bool) ($schema['singleton'] ?? false));
 
         return [
             'name' => $name,
@@ -194,8 +199,66 @@ final class ContentTypeRepository
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),
             'locales' => $locales,
             'default_locale' => $defaultLocale,
+            'external_submissions' => $externalSubmissions,
             'fields' => $fields,
         ];
+    }
+
+    private function normalizeExternalSubmissions(mixed $value, array $fields, bool $singleton): array
+    {
+        $value = is_array($value) ? $value : [];
+        $acceptedFields = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $field): string => trim((string) $field),
+            (array) ($value['fields'] ?? [])
+        ), static function (string $field) use ($fields): bool {
+            $config = $fields[$field] ?? null;
+
+            return $field !== 'slug'
+                && is_array($config)
+                && in_array((string) ($config['type'] ?? 'text'), self::EXTERNAL_FIELD_TYPES, true);
+        })));
+        $origins = array_values(array_unique(array_filter(array_map(
+            fn(mixed $origin): string => $this->normalizeOrigin((string) $origin),
+            (array) ($value['allowed_origins'] ?? [])
+        ))));
+
+        return [
+            'enabled' => !$singleton && (bool) ($value['enabled'] ?? false),
+            'fields' => $acceptedFields,
+            'rate_limit_attempts' => max(1, min(1000, (int) ($value['rate_limit_attempts'] ?? 5))),
+            'rate_limit_window_seconds' => max(60, min(86400, (int) ($value['rate_limit_window_seconds'] ?? 600))),
+            'allowed_origins' => $origins,
+            'honeypot' => ($value['honeypot'] ?? true) !== false,
+        ];
+    }
+
+    private function normalizeOrigin(string $origin): string
+    {
+        $origin = rtrim(trim($origin), '/');
+
+        if ($origin === '*') {
+            return '*';
+        }
+
+        $parts = parse_url($origin);
+        if (!is_array($parts)
+            || !in_array($parts['scheme'] ?? '', ['http', 'https'], true)
+            || empty($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
+            || !in_array($parts['path'] ?? '', ['', '/'], true)
+        ) {
+            return '';
+        }
+
+        $normalized = strtolower((string) $parts['scheme']) . '://' . strtolower((string) $parts['host']);
+        if (isset($parts['port'])) {
+            $normalized .= ':' . (int) $parts['port'];
+        }
+
+        return $normalized;
     }
 
     private function contentTypeOrder(): array
