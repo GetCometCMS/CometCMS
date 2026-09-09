@@ -45,6 +45,42 @@ Uploaded files are served from:
 /media/{workspace}/{filename}
 ```
 
+### Responsive image variants
+
+Raster images can be resized on demand by adding a configured width to the original media URL:
+
+```text
+/media/{workspace}/{filename}?w=640&format=webp
+```
+
+The original is never changed or enlarged. Generated variants are stored in the workspace's disposable `media-variants` cache, reused on subsequent requests, and omitted from backups. Deleting or renaming the original also clears its variants.
+
+By default, accepted widths are `320`, `640`, `960`, `1280`, and `1920` pixels. The media API returns ready-to-use URLs for the configured widths that are smaller than each original. Supported output formats depend on the installed GD image encoders and the `media.variants.formats` configuration.
+
+Projects that need exact dimensions can enable `media.variants.allow_custom_sizes`. This additionally enables `h` and the `fit` modes `contain` and `cover`:
+
+```text
+/media/{workspace}/{filename}?w=800&h=450&fit=cover&format=webp
+```
+
+`contain` preserves the entire image within the requested bounds. `cover` performs a centered crop when both dimensions are supplied. Neither mode upscales an image. `max_dimension`, `max_pixels`, and `max_variants_per_image` bound resource and cache usage.
+
+Example configuration:
+
+```php
+'variants' => [
+    'enabled' => true,
+    'widths' => [320, 640, 960, 1280, 1920],
+    'allow_custom_sizes' => false,
+    'max_dimension' => 4096,
+    'max_pixels' => 16000000,
+    'max_variants_per_image' => 20,
+    'formats' => ['jpeg', 'png', 'webp'],
+    'default_format' => 'webp',
+    'quality' => 82,
+],
+```
+
 ## Deleting files
 
 Select a file and click **Delete**. This permanently removes the file and its metadata.

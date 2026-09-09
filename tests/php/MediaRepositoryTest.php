@@ -63,3 +63,60 @@ test('media repository preserves metadata when renaming and supports bulk update
     assert_same(['hero.jpg', 'other.jpg'], array_column($repository->assignCategoryToMany(['hero.jpg', 'other.jpg'], 'Shared'), 'name'));
     assert_same(['Images', 'Shared'], $repository->categories());
 });
+
+test('media repository generates cached variants without upscaling originals', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $path = comet_test_workspace_path() . '/media/landscape.jpg';
+    $source = imagecreatetruecolor(1200, 600);
+    imagejpeg($source, $path, 90);
+    imagedestroy($source);
+    $repository = new MediaRepository();
+
+    $variant = $repository->variant('landscape.jpg', ['w' => 320, 'format' => 'jpeg']);
+    assert_same(320, $variant['width']);
+    assert_same(160, $variant['height']);
+    assert_same('image/jpeg', $variant['mime']);
+    assert_file_exists_at($variant['path']);
+    assert_same($variant['path'], $repository->variant('landscape.jpg', ['w' => 320, 'format' => 'jpeg'])['path']);
+
+    $large = $repository->variant('landscape.jpg', ['w' => 1920, 'format' => 'jpeg']);
+    assert_same(1200, $large['width']);
+    assert_same(600, $large['height']);
+    assert_throws(InvalidArgumentException::class, fn(): array => $repository->variant('landscape.jpg', ['w' => 333]));
+
+    global $cometConfig;
+    $cometConfig['media']['variants']['allow_custom_sizes'] = true;
+    try {
+        $cover = $repository->variant('landscape.jpg', ['w' => 400, 'h' => 400, 'fit' => 'cover', 'format' => 'jpeg']);
+        assert_same(400, $cover['width']);
+        assert_same(400, $cover['height']);
+    } finally {
+        $cometConfig['media']['variants']['allow_custom_sizes'] = false;
+    }
+
+    $descriptor = $repository->variantDescriptor('landscape.jpg');
+    assert_same([320, 640, 960], $descriptor['widths']);
+    assert_true(isset($descriptor['formats'][0]));
+});
+
+test('media variant cache is disposable and removed with its original', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $path = comet_test_workspace_path() . '/media/photo.jpg';
+    $source = imagecreatetruecolor(800, 400);
+    imagejpeg($source, $path, 90);
+    imagedestroy($source);
+    $repository = new MediaRepository();
+    $variant = $repository->variant('photo.jpg', ['w' => 320, 'format' => 'jpeg']);
+    $cacheDirectory = dirname($variant['path']);
+
+    $repository->delete('photo.jpg');
+
+    assert_false(is_file($path));
+    assert_false(is_dir($cacheDirectory));
+});

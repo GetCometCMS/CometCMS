@@ -52,6 +52,19 @@ return [
             'size' => 512,
             'quality' => 82,
         ],
+        'variants' => [
+            'enabled' => true,
+            // These widths are exposed by the API and accepted by default.
+            // Enable custom sizes to also accept arbitrary bounded w/h values.
+            'widths' => [320, 640, 960, 1280, 1920],
+            'allow_custom_sizes' => false,
+            'max_dimension' => 4096,
+            'max_pixels' => 16000000,
+            'max_variants_per_image' => 20,
+            'formats' => ['jpeg', 'png', 'webp'],
+            'default_format' => 'webp',
+            'quality' => 82,
+        ],
         'allowed_mime_types' => [
             // Images
             'image/jpeg',

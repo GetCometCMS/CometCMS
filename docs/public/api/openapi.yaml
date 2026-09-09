@@ -230,7 +230,7 @@ components:
     MediaItem:
       type: object
       required:
-        [filename, name, url, thumb_url, size, mime, category, alt, title, visibility]
+        [filename, name, url, thumb_url, size, mime, category, alt, title, visibility, variants]
       properties:
         filename:
           type: string
@@ -242,6 +242,10 @@ components:
         thumb_url:
           type: string
           format: uri
+        variants:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/MediaVariants"
         size:
           type: integer
           minimum: 0
@@ -267,6 +271,33 @@ components:
         uploaded_at:
           type: [string, "null"]
           format: date-time
+    MediaVariants:
+      type: object
+      required: [widths, formats, default_format, custom_sizes, max_dimension, urls]
+      properties:
+        widths:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+        formats:
+          type: array
+          items:
+            type: string
+            enum: [jpeg, png, webp, avif]
+        default_format:
+          type: string
+          enum: [jpeg, png, webp, avif]
+        custom_sizes:
+          type: boolean
+        max_dimension:
+          type: integer
+          minimum: 1
+        urls:
+          type: object
+          additionalProperties:
+            type: string
+            format: uri
     Ok:
       type: object
       required: [ok]

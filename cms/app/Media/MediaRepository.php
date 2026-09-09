@@ -11,6 +11,7 @@ final class MediaRepository
 {
     private string $mediaDir;
     private string $thumbDir;
+    private string $variantDir;
     private string $metadataPath;
     private WorkspaceContext $workspace;
 
@@ -21,10 +22,15 @@ final class MediaRepository
         $this->workspace->ensure();
         $this->mediaDir = $this->workspace->path('media');
         $this->thumbDir = $this->workspace->path('media-thumbs');
+        $this->variantDir = $this->workspace->path('media-variants');
         $this->metadataPath = $this->workspace->path('media-meta') . '/index.json';
 
         if (!is_dir($this->thumbDir)) {
             mkdir($this->thumbDir, 0775, true);
+        }
+
+        if (!is_dir($this->variantDir)) {
+            mkdir($this->variantDir, 0775, true);
         }
 
         if (!is_dir(dirname($this->metadataPath))) {
@@ -333,6 +339,7 @@ final class MediaRepository
         }
 
         $this->deleteThumbnail($file);
+        $this->deleteVariants($file);
 
         $metadata = $this->metadata();
         unset($metadata['files'][$file]);
@@ -352,6 +359,7 @@ final class MediaRepository
 
             unlink($path);
             $this->deleteThumbnail($file);
+            $this->deleteVariants($file);
             $deleted[] = $file;
         }
 
@@ -396,6 +404,7 @@ final class MediaRepository
         }
 
         $this->deleteThumbnail($file);
+        $this->deleteVariants($file);
 
         if (is_array($fileMeta)) {
             $metadata['files'][$newName] = $fileMeta;
@@ -573,6 +582,147 @@ final class MediaRepository
         }
 
         return $this->ensureThumbnail($file);
+    }
+
+    /**
+     * Return the configured, cache-friendly variants advertised by the API.
+     */
+    public function variantDescriptor(string $file): ?array
+    {
+        $file = basename(rawurldecode($file));
+        $path = $this->path($file);
+
+        if (!(bool) comet_config('media.variants.enabled', true) || !is_file($path) || !$this->isThumbnailSource($file) || !$this->hasThumbnailGenerator($file)) {
+            return null;
+        }
+
+        $dimensions = $this->imageDimensions($path);
+        $sourceWidth = (int) ($dimensions['width'] ?? 0);
+        $maxDimension = max(1, (int) comet_config('media.variants.max_dimension', 4096));
+        $widths = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $width): int => (int) $width,
+            (array) comet_config('media.variants.widths', [320, 640, 960, 1280, 1920])
+        ), static fn(int $width): bool => $width > 0 && $width <= $maxDimension && $width < $sourceWidth)));
+        sort($widths);
+
+        return [
+            'widths' => $widths,
+            'formats' => $this->availableVariantFormats(),
+            'default_format' => $this->defaultVariantFormat(),
+            'custom_sizes' => (bool) comet_config('media.variants.allow_custom_sizes', false),
+            'max_dimension' => $maxDimension,
+        ];
+    }
+
+    /**
+     * Create or reuse an image derivative. Originals are never enlarged.
+     *
+     * @return array{path:string,mime:string,width:int,height:int}
+     */
+    public function variant(string $file, array $options): array
+    {
+        $file = basename(rawurldecode($file));
+        $source = $this->path($file);
+
+        if (!(bool) comet_config('media.variants.enabled', true)) {
+            throw new \InvalidArgumentException('Image variants are disabled.');
+        }
+
+        if (!is_file($source) || !$this->isThumbnailSource($file) || !$this->hasThumbnailGenerator($file)) {
+            throw new \InvalidArgumentException('This file cannot be resized.');
+        }
+
+        $width = filter_var($options['w'] ?? null, FILTER_VALIDATE_INT) ?: 0;
+        $height = filter_var($options['h'] ?? null, FILTER_VALIDATE_INT) ?: 0;
+        $maxDimension = max(1, (int) comet_config('media.variants.max_dimension', 4096));
+
+        if (($width <= 0 && $height <= 0) || $width > $maxDimension || $height > $maxDimension) {
+            throw new \InvalidArgumentException('Choose a positive variant width or height within the configured limit.');
+        }
+
+        $allowCustom = (bool) comet_config('media.variants.allow_custom_sizes', false);
+        $allowedWidths = array_map('intval', (array) comet_config('media.variants.widths', [320, 640, 960, 1280, 1920]));
+
+        if (!$allowCustom && ($height > 0 || !in_array($width, $allowedWidths, true))) {
+            throw new \InvalidArgumentException('Choose one of the configured variant widths.');
+        }
+
+        $fitValue = $options['fit'] ?? 'contain';
+        $fit = is_scalar($fitValue) ? strtolower(trim((string) $fitValue)) : '';
+        if (!in_array($fit, ['contain', 'cover'], true)) {
+            throw new \InvalidArgumentException('Variant fit must be contain or cover.');
+        }
+
+        $formatValue = $options['format'] ?? $this->defaultVariantFormat();
+        $format = is_scalar($formatValue) ? strtolower(trim((string) $formatValue)) : '';
+        $format = $format === 'jpg' ? 'jpeg' : $format;
+        if (!in_array($format, $this->availableVariantFormats(), true)) {
+            throw new \InvalidArgumentException('Requested variant format is not available.');
+        }
+
+        $sourceImage = $this->createImageResource($source, $file);
+        if (!$sourceImage instanceof \GdImage) {
+            throw new \RuntimeException('Could not decode the source image.');
+        }
+
+        $sourceImage = $this->applyExifOrientation($sourceImage, $source, $file);
+        $sourceWidth = imagesx($sourceImage);
+        $sourceHeight = imagesy($sourceImage);
+        [$targetWidth, $targetHeight, $sourceX, $sourceY, $cropWidth, $cropHeight] = $this->variantGeometry(
+            $sourceWidth,
+            $sourceHeight,
+            $width,
+            $height,
+            $fit,
+        );
+
+        $maxPixels = max(1, (int) comet_config('media.variants.max_pixels', 16000000));
+        if ($targetWidth * $targetHeight > $maxPixels) {
+            imagedestroy($sourceImage);
+            throw new \InvalidArgumentException('Requested variant exceeds the configured pixel limit.');
+        }
+
+        $extension = $format === 'jpeg' ? 'jpg' : $format;
+        $mime = 'image/' . $format;
+        $sourceFingerprint = sha1($file . '|' . (string) filesize($source) . '|' . (string) filemtime($source));
+        $transform = sha1(json_encode([$targetWidth, $targetHeight, $fit, $format, (int) comet_config('media.variants.quality', 82)]));
+        $directory = $this->variantStorageDirectory($file);
+        $target = $directory . '/' . $sourceFingerprint . '-' . $transform . '.' . $extension;
+
+        if (is_file($target)) {
+            imagedestroy($sourceImage);
+            return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
+        }
+
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            imagedestroy($sourceImage);
+            throw new \RuntimeException('Could not create the image variant cache directory.');
+        }
+
+        $variant = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (!$variant instanceof \GdImage) {
+            imagedestroy($sourceImage);
+            throw new \RuntimeException('Could not allocate the image variant.');
+        }
+
+        $this->prepareVariantCanvas($variant, $format);
+        imagecopyresampled($variant, $sourceImage, 0, 0, $sourceX, $sourceY, $targetWidth, $targetHeight, $cropWidth, $cropHeight);
+        $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        $saved = $this->saveVariantImage($variant, $tmp, $format);
+        imagedestroy($variant);
+        imagedestroy($sourceImage);
+
+        if (!$saved) {
+            if (is_file($tmp)) {
+                unlink($tmp);
+            }
+            throw new \RuntimeException('Could not encode the image variant.');
+        }
+
+        rename($tmp, $target);
+        $this->pruneVariants($directory, $target);
+
+        return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
     }
 
     public function regenerateThumbnails(array $files = []): array
@@ -755,6 +905,133 @@ final class MediaRepository
         rename($tmp, $target);
 
         return true;
+    }
+
+    private function variantGeometry(int $sourceWidth, int $sourceHeight, int $width, int $height, string $fit): array
+    {
+        if ($fit === 'cover' && $width > 0 && $height > 0) {
+            $scale = min(1, max($width / $sourceWidth, $height / $sourceHeight));
+            $targetWidth = max(1, min($width, (int) round($sourceWidth * $scale)));
+            $targetHeight = max(1, min($height, (int) round($sourceHeight * $scale)));
+            $cropWidth = max(1, min($sourceWidth, (int) round($targetWidth / $scale)));
+            $cropHeight = max(1, min($sourceHeight, (int) round($targetHeight / $scale)));
+
+            return [
+                $targetWidth,
+                $targetHeight,
+                max(0, (int) floor(($sourceWidth - $cropWidth) / 2)),
+                max(0, (int) floor(($sourceHeight - $cropHeight) / 2)),
+                $cropWidth,
+                $cropHeight,
+            ];
+        }
+
+        $widthScale = $width > 0 ? $width / $sourceWidth : PHP_FLOAT_MAX;
+        $heightScale = $height > 0 ? $height / $sourceHeight : PHP_FLOAT_MAX;
+        $scale = min(1, $widthScale, $heightScale);
+
+        return [
+            max(1, (int) round($sourceWidth * $scale)),
+            max(1, (int) round($sourceHeight * $scale)),
+            0,
+            0,
+            $sourceWidth,
+            $sourceHeight,
+        ];
+    }
+
+    private function prepareVariantCanvas(\GdImage $image, string $format): void
+    {
+        if (in_array($format, ['png', 'webp', 'avif'], true)) {
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+            $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+            imagefilledrectangle($image, 0, 0, imagesx($image), imagesy($image), $transparent === false ? 0 : $transparent);
+            return;
+        }
+
+        $background = imagecolorallocate($image, 255, 255, 255);
+        imagefilledrectangle($image, 0, 0, imagesx($image), imagesy($image), $background === false ? 0 : $background);
+    }
+
+    private function saveVariantImage(\GdImage $image, string $path, string $format): bool
+    {
+        $quality = max(1, min(100, (int) comet_config('media.variants.quality', 82)));
+
+        return match ($format) {
+            'jpeg' => imagejpeg($image, $path, $quality),
+            'png' => imagepng($image, $path, max(0, min(9, (int) round((100 - $quality) * 9 / 100)))),
+            'webp' => imagewebp($image, $path, $quality),
+            'avif' => imageavif($image, $path, $quality),
+            default => false,
+        };
+    }
+
+    private function availableVariantFormats(): array
+    {
+        $encoders = [
+            'jpeg' => 'imagejpeg',
+            'png' => 'imagepng',
+            'webp' => 'imagewebp',
+            'avif' => 'imageavif',
+        ];
+        $formats = [];
+
+        foreach ((array) comet_config('media.variants.formats', ['jpeg', 'png', 'webp']) as $format) {
+            $format = strtolower((string) $format);
+            $format = $format === 'jpg' ? 'jpeg' : $format;
+            if (isset($encoders[$format]) && function_exists($encoders[$format])) {
+                $formats[] = $format;
+            }
+        }
+
+        return array_values(array_unique($formats));
+    }
+
+    private function defaultVariantFormat(): string
+    {
+        $formats = $this->availableVariantFormats();
+        $default = strtolower((string) comet_config('media.variants.default_format', 'webp'));
+        $default = $default === 'jpg' ? 'jpeg' : $default;
+
+        return in_array($default, $formats, true) ? $default : (string) ($formats[0] ?? 'jpeg');
+    }
+
+    private function variantStorageDirectory(string $file): string
+    {
+        return $this->variantDir . '/' . sha1(basename($file));
+    }
+
+    private function deleteVariants(string $file): void
+    {
+        $directory = $this->variantStorageDirectory($file);
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        foreach (glob($directory . '/*') ?: [] as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+
+        rmdir($directory);
+    }
+
+    private function pruneVariants(string $directory, string $current): void
+    {
+        $maximum = max(1, (int) comet_config('media.variants.max_variants_per_image', 20));
+        $files = array_values(array_filter(glob($directory . '/*') ?: [], 'is_file'));
+        usort($files, static fn(string $a, string $b): int => (filemtime($a) ?: 0) <=> (filemtime($b) ?: 0));
+
+        while (count($files) > $maximum) {
+            $path = array_shift($files);
+            if ($path === $current) {
+                $files[] = $path;
+                continue;
+            }
+            unlink($path);
+        }
     }
 
     private function applyExifOrientation(\GdImage $image, string $sourcePath, string $file): \GdImage

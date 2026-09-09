@@ -512,12 +512,27 @@ final class ApiController
             $this->http->notFound();
         }
 
-        if ($this->media->isPrivate($file)) {
+        $private = $this->media->isPrivate($file);
+        if ($private) {
             $this->requireToken('media.read', ['type' => 'media', 'file' => $file]);
         }
 
-        $mime = MimeDetector::detect($path);
-        $this->http->streamFile($path, $mime);
+        if (array_key_exists('w', $_GET) || array_key_exists('h', $_GET)) {
+            try {
+                $variant = $this->media->variant($file, [
+                    'w' => $_GET['w'] ?? null,
+                    'h' => $_GET['h'] ?? null,
+                    'fit' => $_GET['fit'] ?? null,
+                    'format' => $_GET['format'] ?? null,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                $this->response->error('invalid_image_variant', $e->getMessage(), 422);
+            }
+
+            $this->streamMediaFile($variant['path'], $variant['mime'], $private);
+        }
+
+        $this->streamMediaFile($path, MimeDetector::detect($path), $private);
     }
 
     public function mediaThumbShow(string $file): never
@@ -529,14 +544,15 @@ final class ApiController
             $this->http->notFound();
         }
 
-        if ($this->media->isPrivate($file)) {
+        $private = $this->media->isPrivate($file);
+        if ($private) {
             $this->requireToken('media.read', ['type' => 'media', 'file' => $file]);
         }
 
         $path = $this->media->thumbnailPath($file) ?? $originalPath;
         $mime = MimeDetector::detect($path);
 
-        $this->http->streamFile($path, $mime);
+        $this->streamMediaFile($path, $mime, $private);
     }
 
     private function publicCached(array $body): never
@@ -696,6 +712,23 @@ final class ApiController
 
     private function publicMediaItem(array $file): array
     {
+        $variantDescriptor = $this->media->variantDescriptor((string) $file['name']);
+        $variants = null;
+
+        if ($variantDescriptor !== null && $variantDescriptor['formats'] !== []) {
+            $baseUrl = $this->absoluteUrl($this->mediaRoute('/media', (string) $file['name']));
+            $format = (string) $variantDescriptor['default_format'];
+            $variants = $variantDescriptor + [
+                'urls' => array_combine(
+                    array_map('strval', $variantDescriptor['widths']),
+                    array_map(
+                        static fn(int $width): string => $baseUrl . '?' . http_build_query(['w' => $width, 'format' => $format]),
+                        $variantDescriptor['widths']
+                    )
+                ) ?: [],
+            ];
+        }
+
         return [
             'filename' => $file['name'],
             'name' => $file['name'],
@@ -714,7 +747,35 @@ final class ApiController
             'alt' => $file['alt'] ?? '',
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
+            'variants' => $variants,
         ];
+    }
+
+    private function streamMediaFile(string $path, string $mime, bool $private): never
+    {
+        $modified = filemtime($path) ?: time();
+        $size = filesize($path) ?: 0;
+        $etag = '"' . sha1($path . '|' . (string) $size . '|' . (string) $modified) . '"';
+        $headers = [
+            'Cache-Control' => $private ? 'private, no-store' : 'public, max-age=86400',
+            'ETag' => $etag,
+            'Last-Modified' => gmdate('D, d M Y H:i:s', $modified) . ' GMT',
+        ];
+
+        $ifNoneMatch = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+        $ifModifiedSince = strtotime((string) ($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? ''));
+        if (!$private && ($ifNoneMatch === $etag || ($ifNoneMatch === '' && $ifModifiedSince !== false && $ifModifiedSince >= $modified))) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            http_response_code(304);
+            foreach ($headers as $name => $value) {
+                header($name . ': ' . $value);
+            }
+            exit;
+        }
+
+        $this->http->streamFile($path, $mime, $headers);
     }
 
     private function uploadedFiles(string $field): array

@@ -73,6 +73,7 @@ function comet_test_reset_storage(): void
             COMET_STORAGE . '/workspaces/default/content-types',
             COMET_STORAGE . '/workspaces/default/media',
             COMET_STORAGE . '/workspaces/default/media-thumbs',
+            COMET_STORAGE . '/workspaces/default/media-variants',
             COMET_STORAGE . '/workspaces/default/media-meta',
             COMET_STORAGE . '/workspaces/default/revisions',
             COMET_STORAGE . '/workspaces/default/revisions/content',

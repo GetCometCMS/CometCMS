@@ -23,6 +23,7 @@ test('workspace repository creates default and custom workspace folders', functi
     assert_same('site-a', $site['slug']);
     assert_true(is_dir(comet_test_workspace_path('site-a') . '/content-types'));
     assert_true(is_dir(comet_test_workspace_path('site-a') . '/media'));
+    assert_true(is_dir(comet_test_workspace_path('site-a') . '/media-variants'));
 });
 
 test('workspace repository picks up renamed workspace folders on disk', function (): void {

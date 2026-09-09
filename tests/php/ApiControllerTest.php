@@ -73,3 +73,48 @@ test('unauthenticated content type listing omits private schemas', function (): 
     assert_true(str_contains($output, '"name": "pages"'));
     assert_false(str_contains($output, '"name": "members"'));
 });
+
+test('media endpoint serves configured image variants', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $output = comet_test_run_php(['-r',
+        comet_api_controller_test_bootstrap_require_snippet() .
+        'comet_test_reset_storage();' .
+        '$image = imagecreatetruecolor(1200, 600);' .
+        'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
+        'imagedestroy($image);' .
+        '$_GET = ["w" => "320", "format" => "jpeg"];' .
+        '$_SERVER["REQUEST_METHOD"] = "GET";' .
+        '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?w=320&format=jpeg";' .
+        '$_SERVER["SCRIPT_NAME"] = "/index.php";' .
+        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default")->mediaShow("hero.jpg");'
+    ]);
+
+    $dimensions = getimagesizefromstring($output);
+    assert_same(320, $dimensions[0] ?? null);
+    assert_same(160, $dimensions[1] ?? null);
+});
+
+test('media listing advertises responsive variant urls', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $output = comet_test_run_php(['-r',
+        comet_api_controller_test_bootstrap_require_snippet() .
+        'comet_test_reset_storage();' .
+        '$image = imagecreatetruecolor(1200, 600);' .
+        'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
+        'imagedestroy($image);' .
+        '$_SERVER["REQUEST_METHOD"] = "GET";' .
+        '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/media";' .
+        '$_SERVER["SCRIPT_NAME"] = "/index.php";' .
+        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default", false, true)->mediaIndex();'
+    ]);
+
+    assert_true(str_contains($output, '"variants": {'));
+    assert_true(str_contains($output, 'hero.jpg?w=320&format='));
+    assert_false(str_contains($output, 'hero.jpg?w=1280&format='));
+});
