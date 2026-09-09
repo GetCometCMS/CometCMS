@@ -26,6 +26,7 @@ You can configure multiple webhooks, each listening to a different set of events
 | `content.unpublished` | A previously published entry leaves `published` status. |
 | `content.deleted`     | An entry is soft-deleted (moved to trash).              |
 | `content.restored`    | An entry is restored from the trash.                    |
+| `submission.received` | An external submission is accepted into a collection.  |
 
 ## Payload format
 

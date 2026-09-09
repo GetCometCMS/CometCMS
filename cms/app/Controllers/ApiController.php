@@ -12,10 +12,13 @@ use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\ApiResponder;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
+use CometCMS\Core\RateLimiter;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
 use CometCMS\Logging\Logger;
 use CometCMS\Media\MediaRepository;
+use CometCMS\Storage\JsonStore;
+use CometCMS\Webhooks\WebhookDispatcher;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
@@ -269,6 +272,120 @@ final class ApiController
         }
 
         $this->response->data($this->publicEntry($entry, $collection, true), 201);
+    }
+
+    public function contentSubmissionOptions(string $collection): never
+    {
+        $this->requireCollection($collection);
+        $schema = $this->types->find($collection);
+        $config = $this->externalSubmissionConfig($schema);
+
+        if (!$config['enabled']) {
+            $this->response->error('not_found', 'External submissions are not enabled for this collection.', 404);
+        }
+
+        $this->applySubmissionCors($config, true);
+        http_response_code(204);
+        exit;
+    }
+
+    public function contentSubmit(string $collection): never
+    {
+        $this->requireCollection($collection);
+        $schema = $this->types->find($collection);
+        $config = $this->externalSubmissionConfig($schema);
+
+        if (!$config['enabled']) {
+            $this->response->error('not_found', 'External submissions are not enabled for this collection.', 404);
+        }
+
+        $this->applySubmissionCors($config);
+
+        $contentType = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
+        if ($contentType !== 'application/json') {
+            $this->response->error('unsupported_media_type', 'External submissions require application/json.', 415);
+        }
+
+        $maxBodyBytes = max(1024, (int) comet_config('security.external_submissions.max_body_bytes', 65536));
+        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBodyBytes) {
+            $this->response->error('payload_too_large', 'The submission payload is too large.', 413);
+        }
+
+        $clientIp = $this->submissionClientIp();
+        $idempotencyKey = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''));
+        if ($idempotencyKey !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $idempotencyKey)) {
+            $this->response->error('invalid_idempotency_key', 'Idempotency-Key must contain 8 to 128 safe characters.', 422);
+        }
+
+        $storedReceipt = $this->submissionReceipt($collection, $clientIp, $idempotencyKey);
+        if ($storedReceipt !== null) {
+            $this->http->json(['data' => ['accepted' => true, 'receipt' => $storedReceipt]], 202);
+        }
+
+        $this->consumeSubmissionLimit($collection, $clientIp, $config);
+        $inputStream = PHP_SAPI === 'cli' ? 'php://stdin' : 'php://input';
+        $rawBody = file_get_contents($inputStream, false, null, 0, $maxBodyBytes + 1);
+        if ($rawBody === false || strlen($rawBody) > $maxBodyBytes) {
+            $this->response->error('payload_too_large', 'The submission payload is too large.', 413);
+        }
+        $body = json_decode($rawBody, true);
+        if (!is_array($body) || array_is_list($body)) {
+            $this->response->error('invalid_json', 'The submission body must be a JSON object.', 422);
+        }
+
+        $honeypot = $body['_gotcha'] ?? '';
+        if ($config['honeypot'] && (!is_scalar($honeypot) || trim((string) $honeypot) !== '')) {
+            $this->http->json(['data' => ['accepted' => true, 'receipt' => 'sub_' . strtolower(Security::opaqueId(9))]], 202);
+        }
+
+        $acceptedFields = array_fill_keys($config['fields'], true);
+        $unknownFields = array_values(array_diff(array_keys($body), array_keys($acceptedFields), ['_gotcha']));
+        if ($unknownFields !== []) {
+            $this->response->error('validation_failed', 'The submission contains fields that are not accepted.', 422, array_fill_keys($unknownFields, ['This field is not accepted.']));
+        }
+
+        if ($config['fields'] === []) {
+            $this->response->error('submission_unavailable', 'This collection has no accepted external fields.', 503);
+        }
+
+        $payload = array_intersect_key($body, $acceptedFields);
+        $shapeErrors = $this->externalPayloadShapeErrors($payload, $schema);
+        if ($shapeErrors !== []) {
+            $this->response->error('validation_failed', 'The submission contains invalid field values.', 422, $shapeErrors);
+        }
+        if (!in_array('title', $config['fields'], true)) {
+            $payload['title'] = 'External submission ' . gmdate('Y-m-d H:i:s');
+        }
+        $payload['slug'] = 'submission-' . strtolower(Security::opaqueId(9));
+        $payload['status'] = 'draft';
+        $receivedAt = Security::now();
+        $principal = [
+            'id' => 'external',
+            'username' => 'External submission',
+            '_principal_type' => 'submission',
+        ];
+
+        try {
+            $entry = $this->content->save($collection, $payload, $principal, null, true, null, [
+                'entry_origin' => 'external',
+                'submission' => [
+                    'received_at' => $receivedAt,
+                    'collection' => $collection,
+                ],
+            ]);
+        } catch (ValidationException $e) {
+            $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
+        }
+
+        $receipt = 'sub_' . strtolower($this->content->stableId($entry));
+        $this->storeSubmissionReceipt($collection, $clientIp, $idempotencyKey, $receipt);
+        (new WebhookDispatcher())->dispatch('submission.received', [
+            'type' => $collection,
+            'id' => $this->content->stableId($entry),
+            'slug' => (string) $entry['slug'],
+            'receipt' => $receipt,
+        ]);
+        $this->http->json(['data' => ['accepted' => true, 'receipt' => $receipt]], 202);
     }
 
     public function contentUpdate(string $collection, string $id): never
@@ -985,6 +1102,172 @@ final class ApiController
     private function payloadFields(array $payload): array
     {
         return array_values(array_diff(array_keys($payload), ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale']));
+    }
+
+    private function externalSubmissionConfig(array $schema): array
+    {
+        $config = is_array($schema['external_submissions'] ?? null) ? $schema['external_submissions'] : [];
+
+        return [
+            'enabled' => (bool) ($config['enabled'] ?? false),
+            'fields' => array_values(array_filter(array_map('strval', (array) ($config['fields'] ?? [])))),
+            'rate_limit_attempts' => max(1, (int) ($config['rate_limit_attempts'] ?? 5)),
+            'rate_limit_window_seconds' => max(60, (int) ($config['rate_limit_window_seconds'] ?? 600)),
+            'allowed_origins' => array_values(array_filter(array_map('strval', (array) ($config['allowed_origins'] ?? [])))),
+            'honeypot' => ($config['honeypot'] ?? true) !== false,
+        ];
+    }
+
+    private function externalPayloadShapeErrors(array $payload, array $schema): array
+    {
+        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
+        $errors = [];
+
+        foreach ($payload as $name => $value) {
+            $config = is_array($fields[$name] ?? null) ? $fields[$name] : [];
+            $multipleSelect = ($config['type'] ?? '') === 'select' && (bool) ($config['multiple'] ?? false);
+
+            if ($multipleSelect) {
+                $valid = is_array($value) && array_is_list($value) && count($value) <= 100;
+                if ($valid) {
+                    foreach ($value as $item) {
+                        if (!is_scalar($item) && $item !== null) {
+                            $valid = false;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                $valid = is_scalar($value) || $value === null;
+            }
+
+            if (!$valid) {
+                $errors[(string) $name] = ['This field has an invalid value shape.'];
+            }
+        }
+
+        return $errors;
+    }
+
+    private function applySubmissionCors(array $config, bool $preflight = false): void
+    {
+        $origin = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+        $allowedOrigins = $config['allowed_origins'];
+
+        if ($origin !== '' && $allowedOrigins !== []) {
+            if (!in_array('*', $allowedOrigins, true) && !in_array(strtolower(rtrim($origin, '/')), $allowedOrigins, true)) {
+                $this->response->error('origin_not_allowed', 'This origin may not submit to the collection.', 403);
+            }
+
+            header('Access-Control-Allow-Origin: ' . (in_array('*', $allowedOrigins, true) ? '*' : $origin));
+            header('Vary: Origin');
+        }
+
+        if ($preflight) {
+            header('Access-Control-Allow-Methods: POST, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, Idempotency-Key');
+            header('Access-Control-Max-Age: 600');
+        }
+    }
+
+    private function consumeSubmissionLimit(string $collection, string $clientIp, array $config): void
+    {
+        $limiter = new RateLimiter(
+            $this->workspace->path('cache') . '/rate-limits',
+            max(100, (int) comet_config('security.external_submissions.max_rate_limit_records', 10000)),
+        );
+        $global = $limiter->consume(
+            'external-submissions:global',
+            'global',
+            max(1, (int) comet_config('security.external_submissions.global_rate_limit_attempts', 500)),
+            max(60, (int) comet_config('security.external_submissions.global_rate_limit_window_seconds', 600)),
+        );
+        $individual = $limiter->consume(
+            'external-submissions:' . $collection,
+            $clientIp,
+            $config['rate_limit_attempts'],
+            $config['rate_limit_window_seconds'],
+        );
+        $remaining = min($global['remaining'], $individual['remaining']);
+        header('X-RateLimit-Remaining: ' . (string) $remaining);
+
+        if ($global['limited'] || $individual['limited']) {
+            $retryAfter = max($global['limited'] ? $global['retry_after'] : 0, $individual['limited'] ? $individual['retry_after'] : 0);
+            header('Retry-After: ' . (string) $retryAfter);
+            $this->response->error('rate_limited', 'Too many submissions. Please try again later.', 429);
+        }
+    }
+
+    private function submissionClientIp(): string
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        return is_string($ip) && $ip !== '' ? $ip : 'unknown';
+    }
+
+    private function submissionReceipt(string $collection, string $clientIp, string $idempotencyKey): ?string
+    {
+        if ($idempotencyKey === '') {
+            return null;
+        }
+
+        $store = new JsonStore($this->workspace->path('cache') . '/submission-idempotency');
+        $key = hash('sha256', $collection . '|' . $clientIp . '|' . $idempotencyKey);
+        $record = $store->read($key);
+
+        if ($record === null) {
+            return null;
+        }
+
+        if ((int) ($record['expires_at'] ?? 0) <= time()) {
+            $store->delete($key);
+            return null;
+        }
+
+        $receipt = trim((string) ($record['receipt'] ?? ''));
+
+        return $receipt !== '' ? $receipt : null;
+    }
+
+    private function storeSubmissionReceipt(string $collection, string $clientIp, string $idempotencyKey, string $receipt): void
+    {
+        if ($idempotencyKey === '') {
+            return;
+        }
+
+        $store = new JsonStore($this->workspace->path('cache') . '/submission-idempotency');
+        $key = hash('sha256', $collection . '|' . $clientIp . '|' . $idempotencyKey);
+        $store->write([
+            'id' => $key,
+            'receipt' => $receipt,
+            'expires_at' => time() + max(60, (int) comet_config('security.external_submissions.idempotency_ttl_seconds', 86400)),
+            'updated_at' => Security::now(),
+        ], $key);
+
+        if (random_int(1, 50) === 1) {
+            $this->pruneSubmissionReceipts($store);
+        }
+    }
+
+    private function pruneSubmissionReceipts(JsonStore $store): void
+    {
+        $records = $store->all();
+        $now = time();
+        $maximum = max(100, (int) comet_config('security.external_submissions.max_idempotency_records', 10000));
+
+        foreach ($records as $record) {
+            $id = (string) ($record['id'] ?? '');
+            if ($id !== '' && (int) ($record['expires_at'] ?? 0) <= $now) {
+                $store->delete($id);
+            }
+        }
+
+        foreach (array_slice($records, $maximum) as $record) {
+            $id = (string) ($record['id'] ?? '');
+            if ($id !== '') {
+                $store->delete($id);
+            }
+        }
     }
 
     private function requirePublishToken(array $user, string $collection, ?array $entry, array $payload): void

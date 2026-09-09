@@ -85,6 +85,22 @@ test('content repository resolves automatic slug conflicts and rejects manual co
     ], $user, null, false));
 });
 
+test('external entry metadata is system supplied and survives editorial updates', function (): void {
+    comet_content_test_save_posts_schema();
+    $repository = comet_content_test_repository();
+    $created = $repository->save('posts', ['title' => 'Submitted'], ['id' => 'external'], null, true, null, [
+        'entry_origin' => 'external',
+        'submission' => ['received_at' => '2026-09-09T12:00:00Z', 'collection' => 'posts'],
+    ]);
+
+    assert_same('external', $created['entry_origin']);
+    assert_same('posts', $created['submission']['collection']);
+
+    $updated = $repository->save('posts', ['title' => 'Reviewed'], ['id' => 'admin'], (string) $created['id']);
+    assert_same('external', $updated['entry_origin']);
+    assert_same('2026-09-09T12:00:00Z', $updated['submission']['received_at']);
+});
+
 test('content repository duplicates entries as draft copies', function (): void {
     comet_content_test_save_posts_schema();
     $repository = comet_content_test_repository();

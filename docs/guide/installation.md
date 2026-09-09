@@ -76,6 +76,7 @@ Navigate to `https://yourdomain.com/admin`. The first-run setup screen will appe
 - `content.max_revisions` — revision snapshots kept per entry, default `50`
 - `cache.ttl` — API cache TTL in seconds
 - `security.login_throttle` — brute-force protection limits
+- `security.external_submissions` — payload, global rate-limit, and idempotency-cache bounds for the anonymous submission gateway
 - `updates.repository_url` — GitHub repository used by the admin update page
 - `updates.require_checksum` — require a `.sha256` release asset before installing
 - `updates.preserved_paths` — paths skipped when installing release ZIPs

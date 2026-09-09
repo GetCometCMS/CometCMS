@@ -302,6 +302,8 @@ try {
 
             (bool) preg_match('#^/content/(' . SEG . ')$#', $routePath, $m)                                            && $method === 'GET'                             => $api->contentIndex($m[1]),
             (bool) preg_match('#^/content/(' . SEG . ')$#', $routePath, $m)                                            && $method === 'POST'                            => $api->contentStore($m[1]),
+            (bool) preg_match('#^/content/(' . SEG . ')/submissions$#', $routePath, $m)                                && $method === 'OPTIONS'                         => $api->contentSubmissionOptions($m[1]),
+            (bool) preg_match('#^/content/(' . SEG . ')/submissions$#', $routePath, $m)                                && $method === 'POST'                            => $api->contentSubmit($m[1]),
             (bool) preg_match('#^/content/(' . SEG . ')/(' . SEG . ')$#', $routePath, $m)                              && $method === 'GET'                             => $api->contentShow($m[1], $m[2]),
             (bool) preg_match('#^/content/(' . SEG . ')/(' . SEG . ')$#', $routePath, $m)                              && in_array($method, ['PUT', 'PATCH'], true)     => $api->contentUpdate($m[1], $m[2]),
             (bool) preg_match('#^/content/(' . SEG . ')/(' . SEG . ')$#', $routePath, $m)                              && $method === 'DELETE'                          => $api->contentDelete($m[1], $m[2]),

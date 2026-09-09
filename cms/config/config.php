@@ -29,6 +29,14 @@ return [
             'window_seconds' => 300,
             'lockout_seconds' => 900,
         ],
+        'external_submissions' => [
+            'max_body_bytes' => 65536,
+            'global_rate_limit_attempts' => 500,
+            'global_rate_limit_window_seconds' => 600,
+            'max_rate_limit_records' => 10000,
+            'idempotency_ttl_seconds' => 86400,
+            'max_idempotency_records' => 10000,
+        ],
     ],
     'content' => [
         'default_collection' => '',

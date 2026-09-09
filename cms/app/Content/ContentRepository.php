@@ -121,10 +121,23 @@ final class ContentRepository
         ?string $existingId = null,
         bool $autoResolveSlugConflicts = true,
         ?array $validateOnlyFields = null,
+        array $systemMetadata = [],
     ): array {
         Security::assertSafeName($collection);
         $existing = $existingId !== null ? $this->find($collection, $existingId, true) : null;
         $entry = $this->normalizeAndValidate($collection, $payload, $user, $existing, $autoResolveSlugConflicts, $validateOnlyFields);
+        if (($existing['entry_origin'] ?? null) === 'external') {
+            $entry['entry_origin'] = 'external';
+        }
+        if (is_array($existing['submission'] ?? null)) {
+            $entry['submission'] = $existing['submission'];
+        }
+        if (($systemMetadata['entry_origin'] ?? null) === 'external') {
+            $entry['entry_origin'] = 'external';
+        }
+        if (is_array($systemMetadata['submission'] ?? null)) {
+            $entry['submission'] = $systemMetadata['submission'];
+        }
         $oldStatus = $existing['status'] ?? null;
         $oldId = $existing['id'] ?? null;
 

@@ -39,6 +39,44 @@ test('content type repository normalizes API visibility and keeps public as the 
     assert_same('public', $repository->find('invalid')['visibility']);
 });
 
+test('content types normalize external submission gateways to safe schema fields', function (): void {
+    $repository = new ContentTypeRepository();
+    $repository->save([
+        'name' => 'messages',
+        'fields' => [
+            'email' => ['type' => 'text', 'required' => true],
+            'message' => ['type' => 'textarea', 'required' => true],
+            'attachment' => ['type' => 'media'],
+        ],
+        'external_submissions' => [
+            'enabled' => true,
+            'fields' => ['title', 'email', 'message', 'attachment', 'status', 'missing'],
+            'rate_limit_attempts' => 0,
+            'rate_limit_window_seconds' => 10,
+            'allowed_origins' => ['https://Example.com/', 'javascript:alert(1)', 'https://example.com/path'],
+        ],
+    ]);
+
+    $config = $repository->find('messages')['external_submissions'];
+    assert_true($config['enabled']);
+    assert_same(['title', 'email', 'message'], $config['fields']);
+    assert_same(1, $config['rate_limit_attempts']);
+    assert_same(60, $config['rate_limit_window_seconds']);
+    assert_same(['https://example.com'], $config['allowed_origins']);
+    assert_true($config['honeypot']);
+});
+
+test('single page content types cannot enable external submissions', function (): void {
+    $repository = new ContentTypeRepository();
+    $repository->save([
+        'name' => 'homepage',
+        'singleton' => true,
+        'external_submissions' => ['enabled' => true, 'fields' => ['title']],
+    ]);
+
+    assert_false($repository->find('homepage')['external_submissions']['enabled']);
+});
+
 test('content type repository reorders saved schemas', function (): void {
     $repository = new ContentTypeRepository();
 

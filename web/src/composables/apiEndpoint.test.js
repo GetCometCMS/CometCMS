@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   contentCollectionEndpoint,
   contentEntryEndpoint,
+  externalSubmissionEndpoint,
   contentTypeEndpoint,
   contentTypesEndpoint,
   mediaDetailEndpoint,
@@ -123,6 +124,12 @@ describe("api endpoint helpers", () => {
   it("prefers the public API for content type discovery", () => {
     expect(contentTypesEndpoint(origin)).toBe(
       "https://example.test/api/v1/workspaces/default/content-types",
+    );
+  });
+
+  it("builds the anonymous external submission endpoint", () => {
+    expect(externalSubmissionEndpoint("contact forms", origin)).toBe(
+      "https://example.test/api/v1/workspaces/default/content/contact%20forms/submissions",
     );
   });
 

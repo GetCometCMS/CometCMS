@@ -176,6 +176,95 @@
         </div>
       </div>
 
+      <!-- External submissions -->
+      <div class="card p-6 space-y-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-700">
+              {{ t("contentTypeEdit.externalSubmissions") }}
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              {{ t("contentTypeEdit.externalSubmissionsHint") }}
+            </p>
+          </div>
+          <ToggleSwitch
+            v-model="form.external_submissions.enabled"
+            :disabled="form.singleton"
+          />
+        </div>
+
+        <p v-if="form.singleton" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {{ t("contentTypeEdit.externalSingletonDisabled") }}
+        </p>
+
+        <div v-if="form.external_submissions.enabled && !form.singleton" class="space-y-4">
+          <div>
+            <label class="form-label">{{ t("contentTypeEdit.externalFields") }}</label>
+            <SearchableSelect
+              v-model="form.external_submissions.fields"
+              :options="externalFieldOptions"
+              :multiple="true"
+              :searchable="true"
+              :placeholder="t('contentTypeEdit.externalFieldsPlaceholder')"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              {{ t("contentTypeEdit.externalFieldsHint") }}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="external-rate-attempts" class="form-label">{{ t("contentTypeEdit.externalRateAttempts") }}</label>
+              <input
+                id="external-rate-attempts"
+                v-model.number="form.external_submissions.rate_limit_attempts"
+                type="number"
+                min="1"
+                max="1000"
+                class="form-input w-full rounded-lg border-slate-300 text-sm"
+              />
+            </div>
+            <div>
+              <label for="external-rate-window" class="form-label">{{ t("contentTypeEdit.externalRateWindow") }}</label>
+              <input
+                id="external-rate-window"
+                v-model.number="form.external_submissions.rate_limit_window_seconds"
+                type="number"
+                min="60"
+                max="86400"
+                class="form-input w-full rounded-lg border-slate-300 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="external-origins" class="form-label">{{ t("contentTypeEdit.externalOrigins") }}</label>
+            <textarea
+              id="external-origins"
+              :value="form.external_submissions.allowed_origins.join('\n')"
+              rows="3"
+              placeholder="https://example.com"
+              class="form-input w-full rounded-lg border-slate-300 text-sm font-mono"
+              @input="updateExternalOrigins"
+            ></textarea>
+            <p class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.externalOriginsHint") }}</p>
+          </div>
+
+          <label class="flex items-center justify-between gap-4 rounded-lg border border-slate-200 px-3 py-2.5">
+            <span>
+              <span class="block text-sm font-medium text-slate-700">{{ t("contentTypeEdit.externalHoneypot") }}</span>
+              <span class="block text-xs text-slate-500">{{ t("contentTypeEdit.externalHoneypotHint") }}</span>
+            </span>
+            <ToggleSwitch v-model="form.external_submissions.honeypot" />
+          </label>
+
+          <div v-if="!isNew" class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <span class="font-medium">{{ t("contentTypeEdit.externalEndpoint") }}</span>
+            <code class="ml-1 break-all">{{ submissionEndpoint }}</code>
+          </div>
+        </div>
+      </div>
+
       <!-- Fields -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
@@ -258,6 +347,7 @@ import FieldBuilder from "../components/FieldBuilder.vue";
 import IconPickerGrid from "../components/IconPickerGrid.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import SearchableSelect from "../components/SearchableSelect.vue";
+import ToggleSwitch from "../components/ToggleSwitch.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
 import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
@@ -265,7 +355,7 @@ import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
-import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
+import { contentTypeEndpoint, externalSubmissionEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
@@ -287,16 +377,46 @@ const form = ref({
   icon: defaultIcon,
   singleton: false,
   visibility: "public",
+  external_submissions: {
+    enabled: false,
+    fields: [],
+    rate_limit_attempts: 5,
+    rate_limit_window_seconds: 600,
+    allowed_origins: [],
+    honeypot: true,
+  },
   locales: [],
   default_locale: "",
   fields: {},
 });
 const originalLocalization = ref({ locales: [], default_locale: "" });
 
+// We store only the "custom" fields (not title/slug) in the builder.
+const customFields = ref([]);
+const fieldTypes = ref([]);
+const contentTypes = ref([]);
+const loadError = ref("");
+const saveError = ref("");
+const customFieldErrors = ref({});
+const saving = ref(false);
+const deleting = ref(false);
+const showDeleteModal = ref(false);
+const fieldBuilder = ref(null);
+
 // Derived option list for the default_locale select (only chosen locales)
 const selectedLocaleOptions = computed(() =>
   LOCALE_OPTIONS.filter((o) => form.value.locales.includes(o.value)),
 );
+const externalSafeFieldTypes = new Set([
+  "text", "textarea", "markdown", "number", "range", "boolean", "select", "date", "datetime", "color",
+]);
+const externalFieldOptions = computed(() => [
+  { value: "title", label: t("contentTypeEdit.externalTitleField") },
+  ...customFields.value
+    .filter((field) => field.key && externalSafeFieldTypes.has(field.type ?? "text"))
+    .map((field) => ({ value: field.key, label: `${field.label || field.key} (${field.key})` })),
+]);
+const submissionEndpoint = computed(() => externalSubmissionEndpoint(form.value.name));
 const localizationChanged = computed(() => {
   if (isNew.value) return false;
   return (
@@ -320,18 +440,6 @@ watch(
 const isDirty = ref(false);
 const cleanState = ref("");
 let _formLoaded = false;
-
-// We store only the "custom" fields (not title/slug) in the builder.
-const customFields = ref([]);
-const fieldTypes = ref([]);
-const contentTypes = ref([]);
-const loadError = ref("");
-const saveError = ref("");
-const customFieldErrors = ref({});
-const saving = ref(false);
-const deleting = ref(false);
-const showDeleteModal = ref(false);
-const fieldBuilder = ref(null);
 
 watch(
   [form, customFields],
@@ -379,7 +487,10 @@ onMounted(async () => {
     try {
       const res = await api.contentTypes.get(route.params.name);
       const type = res.data;
-      form.value = { ...type };
+      form.value = {
+        ...type,
+        external_submissions: normalizeExternalSubmissions(type.external_submissions),
+      };
       originalLocalization.value = {
         locales: Array.isArray(type.locales) ? [...type.locales] : [],
         default_locale: type.default_locale ?? "",
@@ -545,6 +656,24 @@ function fixSlugOnBlur() {
   if (!isNew.value || !form.value.name) return;
   const v = toSlug(form.value.name);
   if (v) form.value.name = v;
+}
+
+function normalizeExternalSubmissions(value = {}) {
+  return {
+    enabled: value.enabled === true,
+    fields: Array.isArray(value.fields) ? [...value.fields] : [],
+    rate_limit_attempts: Number(value.rate_limit_attempts) || 5,
+    rate_limit_window_seconds: Number(value.rate_limit_window_seconds) || 600,
+    allowed_origins: Array.isArray(value.allowed_origins) ? [...value.allowed_origins] : [],
+    honeypot: value.honeypot !== false,
+  };
+}
+
+function updateExternalOrigins(event) {
+  form.value.external_submissions.allowed_origins = String(event.target.value ?? "")
+    .split(/\r?\n/)
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 }
 
 function modelButtonClass(active) {
