@@ -216,6 +216,7 @@ const themeColors = {
   green: "bg-green-500",
   purple: "bg-purple-500",
   orange: "bg-orange-500",
+  red: "bg-red-500",
   cyan: "bg-cyan-500",
   dark: "bg-slate-800",
 };

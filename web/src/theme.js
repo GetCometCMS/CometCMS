@@ -5,6 +5,7 @@ export const THEMES = [
   { value: 'green', label: 'Green', logo: 'cms-logo-green.png' },
   { value: 'purple', label: 'Purple', logo: 'cms-logo-purple.png' },
   { value: 'orange', label: 'Orange', logo: 'cms-logo-orange.png' },
+  { value: 'red', label: 'Red', logo: 'cms-logo-red.png' },
   { value: 'cyan', label: 'Cyan', logo: 'cms-logo-cyan.png' },
   { value: 'dark', label: 'Dark', logo: 'cms-logo-white.png' },
 ]

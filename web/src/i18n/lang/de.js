@@ -69,6 +69,7 @@ const messages = {
   'theme.green': 'Grün',
   'theme.purple': 'Violett',
   'theme.orange': 'Orange',
+  'theme.red': 'Rot',
   'theme.cyan': 'Cyan',
   'theme.dark': 'Dunkel',
 

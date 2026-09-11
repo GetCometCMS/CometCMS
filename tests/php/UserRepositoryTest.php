@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 use CometCMS\Auth\UserRepository;
 
+test('users store a red theme preference', function (): void {
+    $users = new UserRepository();
+    $user = $users->create('admin', 'secret-password', 'admin');
+
+    $updated = $users->update((string) $user['id'], ['theme' => 'red']);
+
+    assert_same('red', $updated['theme']);
+    assert_same('red', $users->find((string) $user['id'])['theme'] ?? null);
+});
+
 test('users store an admin language preference', function (): void {
     $users = new UserRepository();
     $user = $users->create('admin', 'secret-password', 'admin');

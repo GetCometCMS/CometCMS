@@ -117,7 +117,7 @@ final class UserRepository
 
         if (isset($data['theme'])) {
             $theme = (string) $data['theme'];
-            if (!in_array($theme, ['blue', 'green', 'purple', 'orange', 'cyan', 'dark'], true)) {
+            if (!in_array($theme, ['blue', 'green', 'purple', 'orange', 'red', 'cyan', 'dark'], true)) {
                 throw new \InvalidArgumentException('Invalid theme.');
             }
             $user['theme'] = $theme;

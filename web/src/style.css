@@ -115,6 +115,22 @@
     --color-sidebar-hover: 21 94 117;
   }
 
+  :root[data-theme="red"] {
+    --color-theme-50: 254 242 242;
+    --color-theme-100: 254 226 226;
+    --color-theme-200: 254 202 202;
+    --color-theme-300: 252 165 165;
+    --color-theme-400: 248 113 113;
+    --color-theme-500: 239 68 68;
+    --color-theme-600: 220 38 38;
+    --color-theme-700: 185 28 28;
+    --color-theme-800: 153 27 27;
+    --color-theme-900: 127 29 29;
+    --color-app-bg: 250 245 245;
+    --color-sidebar: 69 10 10;
+    --color-sidebar-hover: 153 27 27;
+  }
+
   :root[data-theme="dark"] {
     --color-theme-50: 15 23 42;
     --color-theme-100: 30 41 59;
