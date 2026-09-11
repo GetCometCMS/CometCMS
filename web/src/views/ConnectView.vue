@@ -5,25 +5,12 @@
       <p class="mt-1 text-sm text-slate-500">{{ t("connect.description") }}</p>
     </div>
 
-    <nav
-      class="mb-6 flex gap-1 border-b border-slate-200"
+    <TabNavigation
+      class="mb-6"
+      :items="tabs"
+      :model-value="activeTab"
       :aria-label="t('connect.navigation')"
-    >
-      <RouterLink
-        v-for="tab in tabs"
-        :key="tab.value"
-        :to="`/connect/${tab.value}`"
-        class="-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors"
-        :class="
-          activeTab === tab.value
-            ? 'border-theme-600 text-theme-700'
-            : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
-        "
-      >
-        <Icon :icon="tab.icon" class="h-4 w-4" />
-        {{ tab.label }}
-      </RouterLink>
-    </nav>
+    />
 
     <template v-if="activeTab === 'api'">
       <ApiTokensView v-if="auth.can('tokens.read')" embedded />
@@ -102,6 +89,7 @@ import { Icon } from "@iconify/vue";
 import { useRoute } from "vue-router";
 import ApiTokensView from "./ApiTokensView.vue";
 import WebhooksView from "./WebhooksView.vue";
+import TabNavigation from "../components/TabNavigation.vue";
 import { getActiveWorkspace } from "../api/index.js";
 import { workspacedMcpEndpoint } from "../composables/apiEndpoint.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -119,9 +107,19 @@ const activeTab = computed(() =>
   validTabs.has(route.params.tab) ? route.params.tab : "api",
 );
 const tabs = computed(() => [
-  { value: "api", label: t("connect.api"), icon: "mdi:api" },
-  { value: "mcp", label: t("connect.mcp"), icon: "mdi:server-network" },
-  { value: "webhooks", label: t("connect.webhooks"), icon: "mdi:webhook" },
+  { value: "api", label: t("connect.api"), icon: "mdi:api", to: "/connect/api" },
+  {
+    value: "mcp",
+    label: t("connect.mcp"),
+    icon: "mdi:server-network",
+    to: "/connect/mcp",
+  },
+  {
+    value: "webhooks",
+    label: t("connect.webhooks"),
+    icon: "mdi:webhook",
+    to: "/connect/webhooks",
+  },
 ]);
 const mcpCurlCommand = computed(
   () =>

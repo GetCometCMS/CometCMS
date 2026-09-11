@@ -77,55 +77,33 @@
 
     <!-- Locale switcher (only for localized content types) -->
     <div v-if="contentTypeLocales.length > 0 && !isNew" class="mb-4 space-y-2">
-      <div class="flex items-center gap-1.5 flex-wrap">
-        <span class="text-xs font-medium text-slate-500 mr-1">{{
-          t("contentEdit.locales")
-        }}</span>
-        <template v-for="loc in orderedContentTypeLocales" :key="loc">
-          <span
-            v-if="hasTranslation(loc)"
-            data-locale-menu-root
-            :class="[
-              'group/locale relative inline-flex items-center gap-1 rounded-full text-xs font-medium ring-1 ring-inset transition-colors',
-              currentLocale === loc
-                ? 'bg-theme-600 text-white ring-theme-600'
-                : 'bg-white text-slate-600 ring-slate-300',
-            ]"
-          >
-            <button
-              type="button"
-              @click="switchLocale(loc)"
-              class="pl-3 py-1 hover:opacity-80 transition-opacity inline-flex items-center gap-1"
-            >
-              <span>{{ localeLabel(loc) }}</span>
-              <span
-                v-if="loc === defaultLocale"
-                class="text-[10px] uppercase tracking-wide opacity-75"
-                >{{ t("contentEdit.default") }}</span
-              >
-            </button>
+      <TabNavigation
+        :items="localeTabs"
+        :model-value="currentLocale"
+        :aria-label="t('contentEdit.locales')"
+        @select="selectLocaleTab"
+      >
+          <template #actions="{ item: localeTab, active }">
             <button
               type="button"
               :class="[
-                'mr-1 flex h-5 w-5 items-center justify-center rounded-full opacity-0 transition hover:opacity-100 focus:opacity-100 group-hover/locale:opacity-100',
-                currentLocale === loc
-                  ? 'hover:bg-white/15'
-                  : 'hover:bg-slate-100',
+                'mr-2 flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition hover:bg-slate-100 hover:opacity-100 focus:opacity-100 group-hover:opacity-100',
+                active ? 'text-theme-600' : 'text-slate-400',
               ]"
               :title="t('contentEdit.localeActions')"
-              @click.stop="toggleLocaleMenu(loc)"
+              @click.stop="toggleLocaleMenu(localeTab.value)"
             >
               <Icon icon="mdi:dots-horizontal" class="w-4 h-4" />
             </button>
             <div
-              v-if="localeMenu === loc"
-              class="absolute left-0 top-8 z-20 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm text-slate-700 shadow-lg"
+              v-if="localeMenu === localeTab.value"
+              class="absolute left-0 top-full z-20 mt-2 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm text-slate-700 shadow-lg"
             >
               <button
                 type="button"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
-                :disabled="isReadOnly || loc === defaultLocale"
-                @click.stop="syncLocaleFromDefault(loc)"
+                :disabled="isReadOnly || localeTab.value === defaultLocale"
+                @click.stop="syncLocaleFromDefault(localeTab.value)"
               >
                 <Icon icon="mdi:sync" class="h-4 w-4" />
                 {{ t("contentEdit.syncContentDefault") }}
@@ -134,72 +112,19 @@
                 type="button"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 disabled:hover:bg-white"
                 :disabled="
-                  isReadOnly || loc === defaultLocale || deletingTranslation
+                  isReadOnly ||
+                  localeTab.value === defaultLocale ||
+                  deletingTranslation ||
+                  localeTab.muted
                 "
-                @click.stop="handleDeleteTranslation(loc)"
+                @click.stop="handleDeleteTranslation(localeTab.value)"
               >
                 <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
                 {{ t("contentEdit.remove") }}
               </button>
             </div>
-          </span>
-          <span
-            v-else
-            data-locale-menu-root
-            :class="[
-              'group/locale relative inline-flex items-center gap-1 rounded-full text-xs font-medium ring-1 ring-dashed transition-colors',
-              currentLocale === loc
-                ? 'bg-theme-50 text-theme-600 ring-theme-300'
-                : 'bg-slate-50 text-slate-400 ring-slate-300 hover:ring-theme-400 hover:text-theme-500',
-            ]"
-          >
-            <button
-              type="button"
-              :disabled="isReadOnly"
-              @click="createTranslation(loc)"
-              class="pl-3 py-1 inline-flex items-center gap-1 disabled:cursor-default"
-            >
-              <Icon icon="mdi:plus" class="w-3 h-3" />
-              <span>{{ localeLabel(loc) }}</span>
-              <span
-                v-if="loc === defaultLocale"
-                class="text-[10px] uppercase tracking-wide"
-                >{{ t("contentEdit.default") }}</span
-              >
-            </button>
-            <button
-              type="button"
-              class="mr-1 flex h-5 w-5 items-center justify-center rounded-full opacity-0 transition hover:bg-slate-100 hover:opacity-100 focus:opacity-100 group-hover/locale:opacity-100"
-              :title="t('contentEdit.localeActions')"
-              @click.stop="toggleLocaleMenu(loc)"
-            >
-              <Icon icon="mdi:dots-horizontal" class="w-4 h-4" />
-            </button>
-            <div
-              v-if="localeMenu === loc"
-              class="absolute left-0 top-8 z-20 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm text-slate-700 shadow-lg"
-            >
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white"
-                :disabled="isReadOnly || loc === defaultLocale"
-                @click.stop="syncLocaleFromDefault(loc)"
-              >
-                <Icon icon="mdi:sync" class="h-4 w-4" />
-                {{ t("contentEdit.syncContentDefault") }}
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 disabled:hover:bg-white"
-                disabled
-              >
-                <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
-                {{ t("contentEdit.remove") }}
-              </button>
-            </div>
-          </span>
-        </template>
-      </div>
+          </template>
+      </TabNavigation>
       <p
         v-if="unsupportedTranslationLocales.length > 0"
         class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
@@ -603,6 +528,7 @@ import FieldInput from "../components/FieldInput.vue";
 import BaseField from "../components/BaseField.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import SlidePanel from "../components/SlidePanel.vue";
+import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
 import { localeLabel } from "../composables/localeOptions.js";
@@ -786,6 +712,29 @@ function hasTranslation(loc) {
     fullEntry.value?.translations != null && loc in fullEntry.value.translations
   );
 }
+const localeTabs = computed(() =>
+  orderedContentTypeLocales.value.map((loc) => {
+    const available = hasTranslation(loc);
+    return {
+      value: loc,
+      label: localeLabel(loc),
+      meta: loc === defaultLocale.value ? t("contentEdit.default") : "",
+      icon: available ? "" : "mdi:plus",
+      muted: !available,
+      disabled: !available && isReadOnly.value,
+      hasActions: true,
+    };
+  }),
+);
+
+function selectLocaleTab(tab) {
+  localeMenu.value = null;
+  if (hasTranslation(tab.value)) {
+    switchLocale(tab.value);
+  } else {
+    createTranslation(tab.value);
+  }
+}
 
 function populateFormFromLocale(entry, loc) {
   // translations[loc] is always the authoritative source for per-locale content.
@@ -866,7 +815,7 @@ function toggleLocaleMenu(loc) {
 function closeLocaleMenu(event) {
   if (localeMenu.value === null) return;
   const target = event.target;
-  if (target instanceof Element && target.closest("[data-locale-menu-root]"))
+  if (target instanceof Element && target.closest("[data-tab-value]"))
     return;
   localeMenu.value = null;
 }
