@@ -7,7 +7,7 @@
       class="mx-auto grid w-full max-w-7xl grid-cols-[minmax(10rem,auto)_minmax(0,1fr)_auto] items-center gap-3"
     >
       <RouterLink
-        to="/api-explorer"
+        to="/connect/api"
         class="api-endpoint-footer-link flex min-w-0 items-center gap-2 text-xs font-medium transition-colors"
       >
         <Icon icon="mdi:api" class="api-endpoint-footer-icon h-4 w-4" />

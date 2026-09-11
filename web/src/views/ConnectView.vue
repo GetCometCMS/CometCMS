@@ -12,23 +12,18 @@
       :aria-label="t('connect.navigation')"
     />
 
-    <template v-if="activeTab === 'api'">
+    <template v-if="activeTab === 'access-tokens'">
       <ApiTokensView v-if="auth.can('tokens.read')" embedded />
       <div v-else class="card p-6 text-sm text-slate-500">
-        {{ t("connect.apiUnavailable") }}
+        {{ t("connect.tokensUnavailable") }}
       </div>
-
-      <section class="card mt-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="font-semibold text-slate-900">{{ t("connect.exploreApiTitle") }}</h2>
-          <p class="mt-1 text-sm text-slate-500">{{ t("connect.exploreApiDescription") }}</p>
-        </div>
-        <RouterLink to="/api-explorer" class="btn-secondary shrink-0">
-          <Icon icon="mdi:api" class="h-4 w-4" />
-          {{ t("connect.exploreApi") }}
-        </RouterLink>
-      </section>
     </template>
+
+    <ApiQueryBuilder
+      v-else-if="activeTab === 'api'"
+      :api-base="apiBase"
+      :collections="collections"
+    />
 
     <section v-else-if="activeTab === 'mcp'" class="card overflow-hidden">
       <div
@@ -84,14 +79,15 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useRoute } from "vue-router";
+import ApiQueryBuilder from "../components/ApiQueryBuilder.vue";
 import ApiTokensView from "./ApiTokensView.vue";
 import WebhooksView from "./WebhooksView.vue";
 import TabNavigation from "../components/TabNavigation.vue";
-import { getActiveWorkspace } from "../api/index.js";
-import { workspacedMcpEndpoint } from "../composables/apiEndpoint.js";
+import { api, getActiveWorkspace } from "../api/index.js";
+import { workspacedApiBase, workspacedMcpEndpoint } from "../composables/apiEndpoint.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
@@ -101,12 +97,20 @@ const auth = useAuthStore();
 const toast = useToastStore();
 const { t } = useI18n();
 const activeWorkspace = getActiveWorkspace();
+const apiBase = workspacedApiBase(window.location.origin);
 const mcpUrl = workspacedMcpEndpoint(window.location.origin);
-const validTabs = new Set(["api", "mcp", "webhooks"]);
+const collections = ref([]);
+const validTabs = new Set(["access-tokens", "api", "mcp", "webhooks"]);
 const activeTab = computed(() =>
-  validTabs.has(route.params.tab) ? route.params.tab : "api",
+  validTabs.has(route.params.tab) ? route.params.tab : "access-tokens",
 );
 const tabs = computed(() => [
+  {
+    value: "access-tokens",
+    label: t("connect.accessTokens"),
+    icon: "mdi:key-variant",
+    to: "/connect/access-tokens",
+  },
   { value: "api", label: t("connect.api"), icon: "mdi:api", to: "/connect/api" },
   {
     value: "mcp",
@@ -125,6 +129,17 @@ const mcpCurlCommand = computed(
   () =>
     `curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" \\\n+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \\\n+  "${mcpUrl}"`,
 );
+
+watch(activeTab, async (tab) => {
+  if (tab !== "api" || collections.value.length > 0) return;
+
+  try {
+    const res = await api.contentTypes.list();
+    collections.value = res.data ?? [];
+  } catch {
+    // The API explorer remains useful for manually entered endpoints.
+  }
+}, { immediate: true });
 
 async function copy(value) {
   try {

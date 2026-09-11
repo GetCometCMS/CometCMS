@@ -172,7 +172,7 @@ Installation replaces release-owned application files and folders while preservi
 | `/admin/content/{collection}` | Content entries        |
 | `/admin/media`                | Media library          |
 | `/admin/users`                | Users                  |
-| `/admin/api-tokens`           | Access tokens          |
+| `/admin/connect/access-tokens` | Access tokens          |
 | `/admin/backups`              | Backup and restore     |
 | `/admin/webhooks`             | Outbound webhooks      |
 | `/admin/update`               | GitHub release updates |

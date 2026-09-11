@@ -228,7 +228,7 @@
             </router-link>
 
           <router-link
-            to="/connect/api"
+            to="/connect/access-tokens"
             class="nav-link"
             :class="{
               'router-link-active': router.currentRoute.value.path.startsWith('/connect'),

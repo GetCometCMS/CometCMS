@@ -57,7 +57,7 @@ const routes = [
   },
   {
     path: '/api-tokens',
-    redirect: '/connect/api',
+    redirect: '/connect/access-tokens',
   },
   {
     path: '/roles',
@@ -74,7 +74,7 @@ const routes = [
     redirect: '/connect/webhooks',
   },
   {
-    path: '/connect/:tab(api|mcp|webhooks)?',
+    path: '/connect/:tab(access-tokens|api|mcp|webhooks)?',
     component: () => import('../views/ConnectView.vue'),
     meta: { requiresAuth: true },
   },
@@ -90,8 +90,7 @@ const routes = [
   },
   {
     path: '/api-explorer',
-    component: () => import('../views/ApiExplorerView.vue'),
-    meta: { requiresAuth: true },
+    redirect: '/connect/api',
   },
   {
     path: '/workspaces',
