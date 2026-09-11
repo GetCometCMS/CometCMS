@@ -85,6 +85,7 @@
             class="w-full"
             :categories="categories"
             :stats-files="statsFiles"
+            :stats="mediaStats"
             :dragged-file="draggedFile"
             :selected-count="draftSelected.length"
             :selected-names="draftSelected"
@@ -323,6 +324,7 @@ useDialogFocus({ open: dialogOpen, container: dialogRef, close });
 
 const files = ref([]);
 const statsFiles = ref([]);
+const mediaStats = ref(null);
 const loading = ref(true);
 const search = ref("");
 const draftSelected = ref(selectedNames());
@@ -434,6 +436,7 @@ async function load() {
     files.value = res.data ?? [];
     categories.value =
       res.meta?.categories ?? res.categories ?? categories.value;
+    mediaStats.value = res.meta?.stats ?? mediaStats.value;
   } finally {
     if (requestId === loadRequestId) {
       loading.value = false;
@@ -442,14 +445,9 @@ async function load() {
 }
 
 async function loadStats() {
-  try {
-    const res = await api.media.list({ sort: "newest" });
-    statsFiles.value = res.data ?? [];
-    categories.value =
-      res.meta?.categories ?? res.categories ?? categories.value;
-  } catch {
-    statsFiles.value = [];
-  }
+  const res = await api.media.list({ limit: 1 });
+  mediaStats.value = res.meta?.stats ?? mediaStats.value;
+  categories.value = res.meta?.categories ?? categories.value;
 }
 
 function scheduleLoad() {

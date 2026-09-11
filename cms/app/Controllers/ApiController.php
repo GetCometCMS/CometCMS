@@ -199,16 +199,19 @@ final class ApiController
             ? $this->requireToken('content.read', ['type' => 'content', 'collection' => $collection])
             : $this->optionalTokenWithPermission('content.read', ['type' => 'content', 'collection' => $collection]);
         $admin = $this->readPrincipal !== null;
-        $result = $this->content->query($collection, $_GET, $admin);
-        $include = $this->includeFields();
-        $locale = (string) ($_GET['locale'] ?? '');
-        $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
-        $body = [
-            'data' => array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data'])),
-            'meta' => $result['meta'],
-        ];
+        $buildBody = function () use ($collection, $admin): array {
+            $result = $this->content->query($collection, $_GET, $admin);
+            $include = $this->includeFields();
+            $locale = (string) ($_GET['locale'] ?? '');
+            $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
 
-        $admin ? $this->http->json($body) : $this->publicCached($body);
+            return [
+                'data' => array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data'])),
+                'meta' => $result['meta'],
+            ];
+        };
+
+        $admin ? $this->http->json($buildBody()) : $this->publicCached($buildBody);
     }
 
     public function contentShow(string $collection, string $id): never
@@ -555,7 +558,7 @@ final class ApiController
         $this->streamMediaFile($path, $mime, $private);
     }
 
-    private function publicCached(array $body): never
+    private function publicCached(array|callable $body): never
     {
         $key = $this->cache->key($this->http->path(), $_SERVER['QUERY_STRING'] ?? '');
         $cached = $this->cache->get($key);
@@ -563,6 +566,10 @@ final class ApiController
         if ($cached !== null) {
             header('X-CometCMS-Cache: HIT');
             $this->http->json($cached);
+        }
+
+        if (is_callable($body)) {
+            $body = $body();
         }
 
         $this->cache->put($key, $body);

@@ -26,6 +26,7 @@
         v-model="selectedCategory"
         :categories="categories"
         :stats-files="statsFiles"
+        :stats="mediaStats"
         :dragged-file="draggedFile"
         :selected-count="selectedCount"
         :selected-names="selectedNames"
@@ -917,6 +918,7 @@ const isDraggingFile = ref(false);
 const selectedMedia = ref(new Set());
 const lastSelectedIndex = ref(-1);
 const statsFiles = ref([]);
+const mediaStats = ref(null);
 const mediaType = ref("all");
 const sortOrder = ref("newest");
 const sortFilterMenuOpen = ref(false);
@@ -965,11 +967,17 @@ async function loadUsers() {
 }
 
 async function loadUsages() {
+  if (usagesLoaded || usagesRequest) return usagesRequest;
+
+  usagesRequest = api.media.usages();
   try {
-    const res = await api.media.usages();
+    const res = await usagesRequest;
     usages.value = res.data ?? {};
+    usagesLoaded = true;
   } catch {
     usages.value = {};
+  } finally {
+    usagesRequest = null;
   }
 }
 const bulkWorking = ref(false);
@@ -990,6 +998,8 @@ const renamingFile = ref(false);
 const renameFileName = ref("");
 const renamingFileWorking = ref(false);
 const usages = ref({});
+let usagesLoaded = false;
+let usagesRequest = null;
 const usageFilter = ref("all");
 const activeFilterCount = computed(
   () =>
@@ -1078,10 +1088,8 @@ async function load() {
       usageFilter.value === "public" || usageFilter.value === "private";
     const params = { sort: sortOrder.value };
 
-    if (!isUnusedFilter) {
-      params.limit = pageSize.value;
-      params.offset = (currentPage.value - 1) * pageSize.value;
-    }
+    params.limit = pageSize.value;
+    params.offset = (currentPage.value - 1) * pageSize.value;
 
     const query = search.value.trim();
     if (query !== "") params.q = query;
@@ -1089,44 +1097,33 @@ async function load() {
       params.category = selectedCategory.value;
     if (mediaType.value !== "all") params.type = mediaType.value;
     if (isVisibilityFilter) params.visibility = usageFilter.value;
+    if (isUnusedFilter) params.usage = "unused";
 
     const res = await api.media.list(params);
     categories.value = res.meta?.categories ?? res.categories ?? [];
+    mediaStats.value = res.meta?.stats ?? mediaStats.value;
 
-    if (isUnusedFilter) {
-      const filtered = (res.data ?? []).filter(
-        (file) => !usages.value[file.name]?.length,
-      );
-      files.value = filtered;
-      totalFiles.value = filtered.length;
-    } else {
-      const total = res.meta?.total ?? res.data.length;
-      const totalPagesFromResponse = Math.max(
-        1,
-        Math.ceil(total / pageSize.value),
-      );
-      if (total > 0 && currentPage.value > totalPagesFromResponse) {
-        totalFiles.value = total;
-        currentPage.value = totalPagesFromResponse;
-        return;
-      }
-      files.value = res.data;
+    const total = res.meta?.total ?? res.data.length;
+    const totalPagesFromResponse = Math.max(
+      1,
+      Math.ceil(total / pageSize.value),
+    );
+    if (total > 0 && currentPage.value > totalPagesFromResponse) {
       totalFiles.value = total;
+      currentPage.value = totalPagesFromResponse;
+      return;
     }
+    files.value = res.data;
+    totalFiles.value = total;
   } finally {
     loading.value = false;
   }
 }
 
 async function loadStats() {
-  try {
-    const res = await api.media.list({ sort: "newest" });
-    statsFiles.value = res.data ?? [];
-    categories.value =
-      res.meta?.categories ?? res.categories ?? categories.value;
-  } catch {
-    statsFiles.value = [];
-  }
+  const res = await api.media.list({ limit: 1 });
+  mediaStats.value = res.meta?.stats ?? mediaStats.value;
+  categories.value = res.meta?.categories ?? categories.value;
 }
 
 function scheduleLoad(resetPage = false) {
@@ -1262,6 +1259,7 @@ function openDetail(file) {
   detailAlt.value = file.alt ?? "";
   detailTitle.value = file.title ?? "";
   showDetail.value = true;
+  loadUsages();
 }
 
 async function saveMetaIfChanged() {
@@ -1393,13 +1391,10 @@ async function selectAllMatchingMedia() {
     if (usageFilter.value === "public" || usageFilter.value === "private") {
       params.visibility = usageFilter.value;
     }
+    if (usageFilter.value === "unused") params.usage = "unused";
 
     const res = await api.media.list(params);
     const matchingNames = (res.data ?? [])
-      .filter((file) => {
-        if (usageFilter.value !== "unused") return true;
-        return !usages.value[file.name]?.length;
-      })
       .map((file) => file.name)
       .filter(Boolean);
 
@@ -1684,9 +1679,7 @@ function closeSortFilterMenu(event) {
 
 onMounted(() => {
   load();
-  loadStats();
   loadUsers();
-  loadUsages();
   document.addEventListener("pointerdown", closeSortFilterMenu);
 });
 

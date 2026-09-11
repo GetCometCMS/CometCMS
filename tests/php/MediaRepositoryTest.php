@@ -37,6 +37,8 @@ test('media repository filters sorts and paginates files', function (): void {
     assert_same(['guide.pdf'], array_column($repository->files('guide', 'Docs', 'documents', 'name'), 'name'));
     assert_same(['hero.jpg', 'song.mp3'], array_column($repository->limitedFiles('', null, 2, 1, 'all', 'name')['data'], 'name'));
     assert_same(3, $repository->limitedFiles('', null, 2, 0, 'all', 'name')['meta']['total']);
+    assert_same(['song.mp3'], array_column($repository->limitedFiles('', null, 2, 0, 'all', 'name', null, ['guide.pdf' => [], 'hero.jpg' => []])['data'], 'name'));
+    assert_same(['total' => 3, 'uncategorized' => 2, 'categories' => ['Docs' => 1]], $repository->stats());
 });
 
 test('media repository preserves metadata when renaming and supports bulk updates', function (): void {

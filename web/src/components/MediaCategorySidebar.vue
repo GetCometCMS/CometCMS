@@ -275,6 +275,7 @@ import { useToastStore } from "../stores/toast.js";
 const props = defineProps({
   categories: { type: Array, default: () => [] },
   statsFiles: { type: Array, default: () => [] },
+  stats: { type: Object, default: null },
   modelValue: { type: String, default: null },
   draggedFile: { type: Object, default: null },
   selectedCount: { type: Number, default: 0 },
@@ -351,9 +352,10 @@ function categoryIcon(category) {
 }
 
 // ---- Computed ----
-const allCategoryCount = computed(() => props.statsFiles.length);
+const allCategoryCount = computed(() => props.stats?.total ?? props.statsFiles.length);
 const uncategorizedCount = computed(
   () =>
+    props.stats?.uncategorized ??
     props.statsFiles.filter((file) => !file.category || file.category === "")
       .length,
 );
@@ -363,9 +365,11 @@ const categoryTree = computed(() =>
     const parts = categoryParts(category);
     const label = parts[parts.length - 1] ?? category;
     const depth = Math.max(0, parts.length - 1);
-    const count = props.statsFiles.filter((file) =>
-      categoryMatchesPath(file.category ?? "", category),
-    ).length;
+    const count =
+      props.stats?.categories?.[category] ??
+      props.statsFiles.filter((file) =>
+        categoryMatchesPath(file.category ?? "", category),
+      ).length;
     const hasChildren = props.categories.some(
       (c) =>
         c !== category &&

@@ -34,19 +34,23 @@ final class MediaController extends BaseController
         $sort = (string) ($_GET['sort'] ?? 'newest');
         $visibilityParam = (string) ($_GET['visibility'] ?? '');
         $visibility = in_array($visibilityParam, ['public', 'private'], true) ? $visibilityParam : null;
-        $isLimited = array_key_exists('limit', $_GET) || array_key_exists('offset', $_GET);
+        $usedFiles = (string) ($_GET['usage'] ?? '') === 'unused' ? $this->buildUsages() : null;
+        $isLimited = array_key_exists('limit', $_GET) || array_key_exists('offset', $_GET) || $usedFiles !== null;
 
         if (!$isLimited) {
             $data = array_map(fn(array $file): array => $this->withMediaUrl($file), $this->media->files((string) ($_GET['q'] ?? ''), $category, $type, $sort, $visibility));
-            $this->json(['data' => $data, 'meta' => ['categories' => $this->media->categories()]]);
+            $this->json(['data' => $data, 'meta' => ['categories' => $this->media->categories(), 'stats' => $this->media->stats()]]);
         }
 
         $limit = array_key_exists('limit', $_GET) ? (int) $_GET['limit'] : null;
         $offset = (int) ($_GET['offset'] ?? 0);
-        $result = $this->media->limitedFiles((string) ($_GET['q'] ?? ''), $category, $limit, $offset, $type, $sort, $visibility);
+        $result = $this->media->limitedFiles((string) ($_GET['q'] ?? ''), $category, $limit, $offset, $type, $sort, $visibility, $usedFiles);
         $data = array_map(fn(array $file): array => $this->withMediaUrl($file), $result['data']);
 
-        $this->json(['data' => $data, 'meta' => array_replace($result['meta'], ['categories' => $this->media->categories()])]);
+        $this->json(['data' => $data, 'meta' => array_replace($result['meta'], [
+            'categories' => $this->media->categories(),
+            'stats' => $this->media->stats(),
+        ])]);
     }
 
     public function store(): never
@@ -314,6 +318,11 @@ final class MediaController extends BaseController
     {
         $this->requirePermission('media.read', ['type' => 'media']);
 
+        $this->json(['data' => $this->buildUsages()]);
+    }
+
+    private function buildUsages(): array
+    {
         $schemaMap = [];
 
         foreach ($this->types->all() as $schema) {
@@ -430,7 +439,7 @@ final class MediaController extends BaseController
             }));
         }
 
-        $this->json(['data' => $usages]);
+        return $usages;
     }
 
     public function regenerateThumbnails(): never

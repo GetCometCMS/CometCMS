@@ -56,10 +56,14 @@ final class MediaRepository
         return array_map(fn(string $file): array => $this->item($file, $metadata), $files);
     }
 
-    public function limitedFiles(string $query = '', ?string $category = null, ?int $limit = null, int $offset = 0, string $type = 'all', string $sort = 'newest', ?string $visibility = null): array
+    public function limitedFiles(string $query = '', ?string $category = null, ?int $limit = null, int $offset = 0, string $type = 'all', string $sort = 'newest', ?string $visibility = null, ?array $usedFiles = null): array
     {
         $metadata = $this->metadata();
         $files = $this->matchingFiles($query, $category, $type, $sort, $metadata, $visibility);
+
+        if ($usedFiles !== null) {
+            $files = array_values(array_filter($files, static fn(string $file): bool => !isset($usedFiles[$file])));
+        }
         $total = count($files);
         $offset = max(0, $offset);
         $limit = $limit === null ? max(0, $total - $offset) : max(1, $limit);
@@ -72,6 +76,34 @@ final class MediaRepository
                 'limit' => $limit,
                 'offset' => $offset,
             ],
+        ];
+    }
+
+    public function stats(): array
+    {
+        $metadata = $this->metadata();
+        $files = $this->matchingFiles('', null, 'all', 'name', $metadata);
+        $categoryCounts = [];
+        $uncategorized = 0;
+
+        foreach ($files as $file) {
+            $category = $this->categoryFor($file, $metadata);
+
+            if ($category === '') {
+                $uncategorized++;
+            }
+
+            foreach ($metadata['categories'] as $categoryPath) {
+                if ($this->categoryMatches($category, (string) $categoryPath)) {
+                    $categoryCounts[$categoryPath] = ($categoryCounts[$categoryPath] ?? 0) + 1;
+                }
+            }
+        }
+
+        return [
+            'total' => count($files),
+            'uncategorized' => $uncategorized,
+            'categories' => $categoryCounts,
         ];
     }
 
