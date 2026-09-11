@@ -30,6 +30,19 @@
         <Icon v-if="item.icon" :icon="item.icon" class="h-4 w-4 shrink-0" />
         <span>{{ item.label }}</span>
         <span
+          v-if="item.flagCountry"
+          :class="['fi', `fi-${item.flagCountry}`, 'shrink-0 rounded-sm']"
+          aria-hidden="true"
+        />
+        <span v-if="item.suffix">{{ item.suffix }}</span>
+        <Icon
+          v-if="item.metaIcon"
+          :icon="item.metaIcon"
+          class="h-3.5 w-3.5 shrink-0 opacity-70"
+          :aria-label="item.metaLabel || undefined"
+          :title="item.metaLabel || undefined"
+        />
+        <span
           v-if="item.meta"
           class="text-[10px] uppercase tracking-wide opacity-75"
         >{{ item.meta }}</span>

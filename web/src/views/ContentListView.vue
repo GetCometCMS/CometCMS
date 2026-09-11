@@ -382,15 +382,21 @@
                           <span
                             v-for="loc in entryLocaleBadges(entry)"
                             :key="loc"
-                            class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-mono font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset"
+                            class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset"
                           >
-                            {{ loc
-                            }}<span
+                            <span
+                              v-if="localeFlagCountry(loc)"
+                              :class="['fi', `fi-${localeFlagCountry(loc)}`, 'shrink-0 rounded-sm']"
+                              aria-hidden="true"
+                            />
+                            <span>({{ loc }})</span>
+                            <Icon
                               v-if="loc === contentTypeSchema?.default_locale"
-                              class="ml-1 text-[10px] uppercase text-slate-400"
-                            >
-                              <Icon icon="mdi:home" class="w-3 h-3" />
-                            </span>
+                              icon="mdi:home"
+                              class="h-3 w-3 shrink-0 text-slate-400"
+                              :aria-label="t('contentEdit.default')"
+                              :title="t('contentEdit.default')"
+                            />
                           </span>
                         </div>
                         <span v-else class="text-slate-400">—</span>
@@ -628,6 +634,10 @@ import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { contentCollectionEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
+import {
+  localeFlagCountry,
+  localeName,
+} from "../composables/localeOptions.js";
 import {
   apiSortKey,
   booleanPillClass,

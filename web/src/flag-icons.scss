@@ -1,0 +1,12 @@
+@use "flag-icons/sass/flag-icons" with (
+  $flag-icons-path: "../../node_modules/flag-icons/flags",
+  $flag-icons-use-square: false,
+  $flag-icons-included-countries: (
+    "al", "am", "az", "ba", "bg", "br", "by", "cn", "cz", "de", "dk",
+    "ee", "es", "fi", "fr", "gb", "gb-wls", "ge", "gr", "hr", "hu",
+    "id", "ie", "il", "in", "ir", "is", "it", "jp", "kr", "kz", "lt",
+    "lv", "mk", "mt", "my", "nl", "no", "ph", "pk", "pl", "pt", "ro",
+    "rs", "ru", "sa", "se", "si", "sk", "th", "tw", "tz", "ua", "uz",
+    "vn", "za"
+  )
+);

@@ -61,6 +61,30 @@ export const LOCALE_OPTIONS = [
   { value: 'cy',    label: 'Welsh (cy)' },
 ]
 
+const LOCALE_FLAG_COUNTRIES = {
+  af: 'za', sq: 'al', ar: 'sa', hy: 'am', az: 'az', eu: 'es', be: 'by',
+  bs: 'ba', bg: 'bg', ca: 'es', zh: 'cn', 'zh-tw': 'tw', hr: 'hr', cs: 'cz',
+  da: 'dk', nl: 'nl', en: 'gb', et: 'ee', fi: 'fi', fr: 'fr', gl: 'es',
+  ka: 'ge', de: 'de', el: 'gr', he: 'il', hi: 'in', hu: 'hu', is: 'is',
+  id: 'id', ga: 'ie', it: 'it', ja: 'jp', kk: 'kz', ko: 'kr', lv: 'lv',
+  lt: 'lt', mk: 'mk', ms: 'my', mt: 'mt', no: 'no', fa: 'ir', pl: 'pl',
+  pt: 'pt', 'pt-br': 'br', ro: 'ro', ru: 'ru', sr: 'rs', sk: 'sk', sl: 'si',
+  es: 'es', sw: 'tz', sv: 'se', tl: 'ph', th: 'th', tr: 'tr', uk: 'ua',
+  ur: 'pk', uz: 'uz', vi: 'vn', cy: 'gb-wls',
+}
+
 export function localeLabel(locale) {
   return LOCALE_OPTIONS.find((option) => option.value === locale)?.label ?? locale
+}
+
+export function localeName(locale) {
+  const label = localeLabel(locale)
+  const suffix = ` (${locale})`
+  return label.toLowerCase().endsWith(suffix.toLowerCase())
+    ? label.slice(0, -suffix.length)
+    : label
+}
+
+export function localeFlagCountry(locale) {
+  return LOCALE_FLAG_COUNTRIES[String(locale).toLowerCase()] ?? ''
 }
