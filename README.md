@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/img/cms-logo-black.png" alt="CometCMS" height="52" />
+  <img src="docs/public/cms-logo-safe.png" alt="CometCMS" height="52" />
 </p>
 
 <p align="center">
