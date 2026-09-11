@@ -2,24 +2,13 @@
   <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
     <div>
       <label class="text-xs font-medium text-slate-500 block mb-1">Area</label>
-      <div
-        class="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-3 lg:grid-cols-6"
-      >
-        <button
-          v-for="area in areaOptions"
-          :key="area.value"
-          type="button"
-          class="min-h-9 border-slate-200 px-3 py-2 text-xs font-medium transition-colors sm:border-r lg:last:border-r-0"
-          :class="
-            selectedArea === area.value
-              ? 'bg-white text-theme-700 shadow-sm'
-              : 'text-slate-600 hover:bg-white hover:text-slate-900'
-          "
-          @click="selectArea(area.value)"
-        >
-          {{ area.label }}
-        </button>
-      </div>
+      <TabNavigation
+        :items="areaOptions"
+        :model-value="selectedArea"
+        aria-label="Permission area"
+        variant="segmented"
+        @select="selectAreaTab"
+      />
     </div>
 
     <div
@@ -252,6 +241,7 @@ const vIndeterminate = {
 import { api } from "../api/index.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import SearchableSelect from "./SearchableSelect.vue";
+import TabNavigation from "./TabNavigation.vue";
 
 const props = defineProps({
   modelValue: {
@@ -262,7 +252,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"]);
 const contentTypes = useContentTypesStore();
-const selectedArea = ref("system");
+const selectedArea = ref("all");
 const selectedCollection = ref("*");
 const selectedEntry = ref("");
 const selectedMediaCategory = ref("");
@@ -278,12 +268,12 @@ const entryLoadState = ref({});
 let lastEmitted = "";
 
 const areaOptions = [
+  { value: "all", label: "Everything" },
   { value: "system", label: "System" },
   { value: "schema", label: "Content types" },
   { value: "content", label: "Content" },
   { value: "media", label: "Media" },
   { value: "users", label: "Users & tokens" },
-  { value: "all", label: "Everything" },
 ];
 
 const actionGroups = {
@@ -457,6 +447,10 @@ function selectArea(area) {
   if (selectedArea.value === area) return;
   selectedArea.value = area;
   emitChange();
+}
+
+function selectAreaTab(area) {
+  selectArea(area.value);
 }
 
 function actionsFor(area) {
@@ -727,23 +721,7 @@ function apiGrantsFromState(state) {
 }
 
 function selectInitialArea() {
-  const first = Object.values(permissionState.value)[0];
-  if (!first) {
-    selectedArea.value = "system";
-    return;
-  }
-
-  selectedArea.value = first.area;
-  applySelectionFromResource(first.area, first.resource);
-}
-
-function applySelectionFromResource(area, resource) {
-  const parsed = parseResource(area, resource);
-  selectedCollection.value = parsed.collection;
-  selectedEntry.value = parsed.entry;
-  selectedMediaCategory.value = parsed.mediaCategory;
-  selectedSystemResource.value = parsed.systemResource;
-  selectedWorkspace.value = parsed.workspace;
+  selectedArea.value = "all";
 }
 
 function stateKeyForCurrentSelection() {

@@ -5,7 +5,9 @@
     :class="
       variant === 'pills'
         ? 'flex flex-wrap items-center gap-1.5'
-        : 'flex flex-wrap items-end gap-1 overflow-visible border-b border-slate-200'
+        : variant === 'segmented'
+          ? 'grid grid-cols-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-3 lg:flex'
+          : 'flex flex-wrap items-end gap-1 overflow-visible border-b border-slate-200'
     "
   >
     <div
@@ -52,7 +54,7 @@ const props = defineProps({
   variant: {
     type: String,
     default: "underline",
-    validator: (value) => ["underline", "pills"].includes(value),
+    validator: (value) => ["underline", "pills", "segmented"].includes(value),
   },
 });
 
@@ -68,6 +70,9 @@ function selectItem(item, event) {
 }
 
 function itemWrapperClass(item) {
+  if (props.variant === "segmented") {
+    return "min-w-0 border-b border-r border-slate-200 last:border-r-0 lg:flex-1 lg:border-b-0";
+  }
   if (props.variant !== "pills") {
     if (!item.hasActions) return "";
     return [
@@ -90,6 +95,15 @@ function itemWrapperClass(item) {
 
 function itemButtonClass(item) {
   const base = "inline-flex items-center gap-1 font-medium transition-colors";
+  if (props.variant === "segmented") {
+    return [
+      base,
+      "min-h-9 w-full justify-center px-3 py-2 text-xs",
+      item.value === props.modelValue
+        ? "bg-white text-theme-700 shadow-sm"
+        : "text-slate-600 hover:bg-white hover:text-slate-900",
+    ];
+  }
   if (props.variant === "pills") {
     return [
       base,
