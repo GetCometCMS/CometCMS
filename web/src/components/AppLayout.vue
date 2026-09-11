@@ -198,12 +198,11 @@
             </router-link>
           </template>
 
-          <template v-if="auth.can('users.read') || auth.can('backups.read')">
-            <div
-              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
-            >
-              {{ t("app.nav.system") }}
-            </div>
+          <div
+            class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
+          >
+            {{ t("app.nav.system") }}
+          </div>
 
             <router-link
               v-if="auth.can('users.read')"
@@ -227,52 +226,67 @@
               <Icon icon="mdi:backup-restore" class="w-4 h-4 opacity-60" />
               {{ t("app.nav.backupRestore") }}
             </router-link>
-          </template>
-
-          <div
-            class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
-          >
-            {{ t("app.nav.developer") }}
-          </div>
 
           <router-link
-            v-if="auth.can('webhooks.manage')"
-            to="/webhooks"
+            to="/connect/api"
             class="nav-link"
+            :class="{
+              'router-link-active': router.currentRoute.value.path.startsWith('/connect'),
+            }"
             @click="sidebarOpen = false"
           >
-            <Icon icon="mdi:webhook" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.webhooks") }}
-          </router-link>
-
-          <router-link
-            v-if="auth.can('tokens.read')"
-            to="/api-tokens"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:key-chain" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.apiTokens") }}
-          </router-link>
-
-          <router-link
-            to="/api-explorer"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:api" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.apiExplorer") }}
+            <Icon icon="mdi:connection" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.connect") }}
           </router-link>
         </nav>
 
         <!-- User footer -->
-        <div class="px-4 py-3 border-t border-sidebar-border">
-          <div class="flex items-center justify-between gap-2">
-            <router-link
-              to="/profile"
-              class="sidebar-profile-link flex min-w-0 items-center gap-2 text-xs transition-colors"
-              @click="sidebarOpen = false"
+        <div ref="accountMenuRef" class="relative border-t border-sidebar-border px-3 py-3">
+          <Transition name="ws-dropdown">
+            <div
+              v-if="accountMenuOpen"
+              role="menu"
+              class="absolute bottom-full left-3 right-3 z-50 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
             >
+              <RouterLink
+                to="/profile"
+                role="menuitem"
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                @click="closeAccountMenu"
+              >
+                <Icon icon="mdi:account-outline" class="h-4 w-4 text-slate-400" />
+                {{ t("app.account.profile") }}
+              </RouterLink>
+              <button
+                type="button"
+                role="menuitem"
+                class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                @click="handleLogout"
+              >
+                <Icon icon="mdi:logout" class="h-4 w-4 text-slate-400" />
+                {{ t("app.actions.logout") }}
+              </button>
+              <div class="my-1 border-t border-slate-100" />
+              <RouterLink
+                to="/update"
+                role="menuitem"
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                @click="closeAccountMenu"
+              >
+                <Icon icon="mdi:information-outline" class="h-4 w-4 text-slate-400" />
+                <span class="flex-1">{{ t("app.account.version") }}</span>
+                <span v-if="appVersion" class="text-xs text-slate-400">v{{ appVersion }}</span>
+              </RouterLink>
+            </div>
+          </Transition>
+
+          <button
+            type="button"
+            class="sidebar-profile-link flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-xs transition-colors hover:bg-sidebar-hover"
+            aria-haspopup="menu"
+            :aria-expanded="accountMenuOpen"
+            @click="accountMenuOpen = !accountMenuOpen"
+          >
               <div
                 class="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-xs font-semibold select-none"
               >
@@ -289,25 +303,12 @@
               <span class="truncate">{{
                 auth.user?.display_name || auth.user?.username
               }}</span>
-            </router-link>
-            <button
-              type="button"
-              :title="t('app.actions.logout')"
-              :aria-label="t('app.actions.logout')"
-              class="sidebar-action p-1.5 rounded-lg transition-colors shrink-0 hover:bg-sidebar-hover"
-              @click="handleLogout"
-            >
-              <Icon icon="mdi:logout" class="w-4 h-4" />
-            </button>
-          </div>
-          <router-link
-            v-if="appVersion"
-            to="/update"
-            class="sidebar-footer-text mt-3 block text-[11px] leading-none transition-colors"
-            @click="sidebarOpen = false"
-          >
-            {{ t("app.version", { version: appVersion }) }}
-          </router-link>
+              <Icon
+                icon="mdi:chevron-up"
+                class="ml-auto h-4 w-4 shrink-0 opacity-50 transition-transform"
+                :class="{ 'rotate-180': accountMenuOpen }"
+              />
+          </button>
         </div>
       </aside>
     </Transition>
@@ -392,6 +393,8 @@ const workspaces = ref([]);
 const selectedWorkspace = ref(getActiveWorkspace());
 const workspaceSwitcherOpen = ref(false);
 const switcherRef = ref(null);
+const accountMenuOpen = ref(false);
+const accountMenuRef = ref(null);
 const iconVersions = ref({});
 const workspaceSyncEvent = "cometcms:workspaces-updated";
 const activeWorkspace = computed(
@@ -421,6 +424,14 @@ function handleSwitcherOutsideClick(e) {
   if (switcherRef.value && !switcherRef.value.contains(e.target)) {
     workspaceSwitcherOpen.value = false;
   }
+  if (accountMenuRef.value && !accountMenuRef.value.contains(e.target)) {
+    accountMenuOpen.value = false;
+  }
+}
+
+function closeAccountMenu() {
+  accountMenuOpen.value = false;
+  sidebarOpen.value = false;
 }
 
 function handleWorkspaceSync() {
@@ -502,6 +513,7 @@ async function fetchAppInfo() {
 }
 
 async function handleLogout() {
+  accountMenuOpen.value = false;
   await auth.logout();
   router.push("/login");
 }

@@ -15,14 +15,7 @@
       </button>
     </div>
 
-    <button
-      type="button"
-      class="mb-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-theme-400 bg-theme-50/40 px-3 text-sm font-semibold text-theme-700 transition hover:bg-theme-50"
-      @click="() => startCategory()"
-    >
-      <Icon icon="mdi:creation-outline" class="h-4 w-4" />
-      {{ t("media.addCategory") }}
-    </button>
+
 
     <label class="relative mb-2 block">
       <span class="sr-only">{{ t("media.searchCategories") }}</span>

@@ -1,7 +1,14 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">{{ t("tokens.title") }}</h1>
+    <div
+      class="flex items-center justify-between"
+      :class="embedded ? 'mb-4' : 'mb-6'"
+    >
+      <component
+        :is="embedded ? 'h2' : 'h1'"
+        class="font-bold text-slate-900"
+        :class="embedded ? 'text-lg' : 'text-2xl'"
+      >{{ t("tokens.title") }}</component>
       <button @click="openTokenForm" class="btn-primary">
         {{ t("tokens.newToken") }}
       </button>
@@ -91,6 +98,7 @@ import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
 
 const toast = useToastStore();
+defineProps({ embedded: { type: Boolean, default: false } });
 const { t } = useI18n();
 const loading = ref(true);
 const tokens = ref([]);

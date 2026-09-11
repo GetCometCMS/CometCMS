@@ -85,10 +85,8 @@
             </div>
           </div>
 
-          <div
-            class="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_10rem_10rem_10rem]"
-          >
-            <label class="relative block">
+          <div class="flex flex-col gap-3 sm:flex-row">
+            <label class="relative block flex-1">
               <span class="sr-only">{{ t("media.search") }}</span>
               <Icon
                 icon="mdi:magnify"
@@ -99,54 +97,86 @@
                 v-model="search"
                 type="search"
                 :placeholder="t('media.searchPlaceholder')"
-                class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm"
+                class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm sm:min-w-72"
               />
             </label>
-            <label class="block">
-              <span class="sr-only">{{ t("media.filterType") }}</span>
-              <select
-                v-model="mediaType"
-                class="form-select w-full rounded-lg border-slate-300 text-sm"
+            <div ref="sortFilterMenuRef" class="relative sm:ml-auto">
+              <button
+                type="button"
+                class="btn-secondary w-full justify-center sm:w-auto"
+                aria-haspopup="menu"
+                :aria-expanded="sortFilterMenuOpen"
+                @click="sortFilterMenuOpen = !sortFilterMenuOpen"
               >
-                <option
+                <Icon icon="mdi:filter-variant" class="h-4 w-4" />
+                {{ t("media.filterAndSort") }}
+                <span
+                  v-if="activeFilterCount > 0"
+                  class="flex h-5 min-w-5 items-center justify-center rounded-full bg-theme-100 px-1.5 text-[11px] font-semibold text-theme-700"
+                >{{ activeFilterCount }}</span>
+                <Icon icon="mdi:chevron-down" class="h-4 w-4" />
+              </button>
+
+              <div
+                v-if="sortFilterMenuOpen"
+                role="menu"
+                class="absolute right-0 z-30 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
+              >
+                <div class="px-2 pb-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  {{ t("media.filter") }}
+                </div>
+                <p class="px-2 py-1 text-xs font-semibold text-slate-600">{{ t("media.type") }}</p>
+                <button
                   v-for="option in mediaTypeOptions"
-                  :key="option.value"
-                  :value="option.value"
+                  :key="`type-${option.value}`"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                  :class="mediaType === option.value ? 'text-theme-700' : 'text-slate-700'"
+                  @click="mediaType = option.value"
                 >
+                  <Icon
+                    :icon="mediaType === option.value ? 'mdi:radiobox-marked' : 'mdi:radiobox-blank'"
+                    class="h-4 w-4 shrink-0"
+                  />
                   {{ option.label }}
-                </option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="sr-only">{{ t("media.sort") }}</span>
-              <select
-                v-model="sortOrder"
-                class="form-select w-full rounded-lg border-slate-300 text-sm"
-              >
-                <option
-                  v-for="option in sortOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="sr-only">{{ t("media.filterUsage") }}</span>
-              <select
-                v-model="usageFilter"
-                class="form-select w-full rounded-lg border-slate-300 text-sm"
-              >
-                <option
+                </button>
+
+                <p class="mt-2 px-2 py-1 text-xs font-semibold text-slate-600">{{ t("media.filterUsage") }}</p>
+                <button
                   v-for="option in usageFilterOptions"
-                  :key="option.value"
-                  :value="option.value"
+                  :key="`usage-${option.value}`"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                  :class="usageFilter === option.value ? 'text-theme-700' : 'text-slate-700'"
+                  @click="usageFilter = option.value"
                 >
+                  <Icon
+                    :icon="usageFilter === option.value ? 'mdi:radiobox-marked' : 'mdi:radiobox-blank'"
+                    class="h-4 w-4 shrink-0"
+                  />
                   {{ option.label }}
-                </option>
-              </select>
-            </label>
+                </button>
+
+                <div class="my-2 border-t border-slate-100" />
+                <div class="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  {{ t("media.sort") }}
+                </div>
+                <button
+                  v-for="option in sortOptions"
+                  :key="`sort-${option.value}`"
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                  :class="sortOrder === option.value ? 'text-theme-700' : 'text-slate-700'"
+                  @click="sortOrder = option.value"
+                >
+                  <Icon
+                    :icon="sortOrder === option.value ? 'mdi:radiobox-marked' : 'mdi:radiobox-blank'"
+                    class="h-4 w-4 shrink-0"
+                  />
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -889,6 +919,8 @@ const lastSelectedIndex = ref(-1);
 const statsFiles = ref([]);
 const mediaType = ref("all");
 const sortOrder = ref("newest");
+const sortFilterMenuOpen = ref(false);
+const sortFilterMenuRef = ref(null);
 const viewMode = ref(
   typeof localStorage !== "undefined" &&
     localStorage.getItem("mediaViewMode") === "list"
@@ -919,7 +951,6 @@ const sortOptions = computed(() => [
   { value: "name", label: t("media.nameAZ") },
   { value: "size", label: t("media.largestFirst") },
 ]);
-
 const users = ref([]);
 const userMap = computed(() =>
   Object.fromEntries(users.value.map((u) => [u.id, u])),
@@ -960,6 +991,10 @@ const renameFileName = ref("");
 const renamingFileWorking = ref(false);
 const usages = ref({});
 const usageFilter = ref("all");
+const activeFilterCount = computed(
+  () =>
+    Number(mediaType.value !== "all") + Number(usageFilter.value !== "all"),
+);
 const detailAlt = ref("");
 const detailTitle = ref("");
 const savingMeta = ref(false);
@@ -1638,15 +1673,26 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
+function closeSortFilterMenu(event) {
+  if (
+    sortFilterMenuRef.value &&
+    !sortFilterMenuRef.value.contains(event.target)
+  ) {
+    sortFilterMenuOpen.value = false;
+  }
+}
+
 onMounted(() => {
   load();
   loadStats();
   loadUsers();
   loadUsages();
+  document.addEventListener("pointerdown", closeSortFilterMenu);
 });
 
 onBeforeUnmount(() => {
   if (loadTimer) clearTimeout(loadTimer);
+  document.removeEventListener("pointerdown", closeSortFilterMenu);
   apiEndpointStore.clearEndpoint(apiEndpointOwner);
 });
 
