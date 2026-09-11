@@ -18,7 +18,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **No Composer.** Nothing to install on the server.
 - **No build step to deploy.** Run `make build` locally once, upload the `dist/` folder, done.
 - **Headless & API-first.** Use any consumer — Next.js, Astro, SvelteKit, a mobile app, plain `fetch`, anything.
-- **Fine-grained API token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
+- **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
 - **Built-in localization.** Content types support multiple locales; the API resolves translations with a single `?locale=` parameter.
 - **Intentionally simple.** Not a framework, not extensible to infinity. Just a clean JSON API with an admin UI.
@@ -64,7 +64,7 @@ Content types can be repeatable collections or single pages. Single pages use on
 
 Public reads return only `published` entries, or `scheduled` entries whose `published_at` is in the past. `draft`, `protected`, `archived`, and soft-deleted entries are hidden unless an authenticated token is used.
 
-Content types are public by default and can be marked private in their settings. Private types require an API token with `content.read` permission for that collection.
+Content types are public by default and can be marked private in their settings. Private types require an access token with `content.read` permission for that collection.
 
 ### Media
 
@@ -75,13 +75,13 @@ GET /media/{workspace}/{filename}
 
 ### Authentication
 
-Pass an API token in the `Authorization` header:
+Pass an access token in the `Authorization` header:
 
 ```
 Authorization: Bearer ctcms_...
 ```
 
-Public reads work without a token and only return public content. Tokens use the same permission grant format as roles, so access can be limited by action, content type, entry, media category, and field. Tokens are created in the **API-Tokens** section of the admin. Trash, backup/restore, settings, users, tokens, and webhook management are admin-only features under `/admin/api`.
+Public reads work without a token and only return public content. Tokens use the same permission grant format as roles, so access can be limited by action, content type, entry, media category, and field. Tokens are created in the **Access Tokens** section of the admin. Trash, backup/restore, settings, users, tokens, and webhook management are admin-only features under `/admin/api`.
 
 ## Embedded MCP
 
@@ -93,7 +93,7 @@ Authorization: Bearer ctcms_...
 Content-Type: application/json
 ```
 
-The embedded MCP uses the same API tokens and permission grants as the REST API. It exposes content type, content entry, and media management tools directly from PHP, so hosted installs do not need Node, Composer, SSH, or the standalone MCP package. Media uploads are intentionally omitted from the embedded MCP; use the admin UI or REST API upload endpoint for files.
+The embedded MCP uses the same access tokens and permission grants as the REST API. It exposes content type, content entry, and media management tools directly from PHP, so hosted installs do not need Node, Composer, SSH, or the standalone MCP package. Media uploads are intentionally omitted from the embedded MCP; use the admin UI or REST API upload endpoint for files.
 
 ### Filtering, Sorting, and Pagination
 
@@ -172,7 +172,7 @@ Installation replaces release-owned application files and folders while preservi
 | `/admin/content/{collection}` | Content entries        |
 | `/admin/media`                | Media library          |
 | `/admin/users`                | Users                  |
-| `/admin/api-tokens`           | API tokens             |
+| `/admin/api-tokens`           | Access tokens          |
 | `/admin/backups`              | Backup and restore     |
 | `/admin/webhooks`             | Outbound webhooks      |
 | `/admin/update`               | GitHub release updates |

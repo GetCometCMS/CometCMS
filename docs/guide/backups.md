@@ -24,9 +24,9 @@ When creating a backup, you can choose which parts to include:
 | Type entries  | On      | Entries and revision history               |
 | Media         | On      | Uploaded files, categories, and metadata   |
 | Webhooks      | On      | Outbound webhook URLs, secrets, and events |
-| Users         | Off     | User accounts, roles, and application API tokens |
+| Users         | Off     | User accounts, roles, and application access tokens |
 
-> **Passwords & API tokens:** By default, password hashes and API token hashes are stripped from backups. To include them for full account and token restore, set `'include_password_hashes' => true` under `'backups'` in `cms/config/config.php`.
+> **Passwords & access tokens:** By default, password hashes and access token hashes are stripped from backups. To include them for full account and token restore, set `'include_password_hashes' => true` under `'backups'` in `cms/config/config.php`.
 
 ## Restoring
 

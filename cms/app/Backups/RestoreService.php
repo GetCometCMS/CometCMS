@@ -385,7 +385,7 @@ final class RestoreService
         $items = json_decode($json, true);
 
         if (!is_array($items)) {
-            $summary['errors'][] = 'API token backup could not be decoded.';
+            $summary['errors'][] = 'Access token backup could not be decoded.';
             return 0;
         }
 
@@ -402,7 +402,7 @@ final class RestoreService
             try {
                 Security::assertSafeName($id);
             } catch (\Throwable) {
-                $summary['errors'][] = 'Unsafe API token id skipped: ' . $id;
+                $summary['errors'][] = 'Unsafe access token id skipped: ' . $id;
                 continue;
             }
 
@@ -412,11 +412,11 @@ final class RestoreService
             }
 
             if (!isset($token['hash']) || (string) $token['hash'] === '') {
-                $summary['errors'][] = 'API token skipped because token hashes are not included: ' . $id;
+                $summary['errors'][] = 'Access token skipped because token hashes are not included: ' . $id;
                 continue;
             }
 
-            $token['name'] = trim((string) ($token['name'] ?? 'API token'));
+            $token['name'] = trim((string) ($token['name'] ?? 'Access token'));
             $token['description'] = trim((string) ($token['description'] ?? ''));
             $repository->save($token);
             $restored++;

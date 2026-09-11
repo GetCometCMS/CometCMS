@@ -2,7 +2,7 @@
 
 The admin API powers the Vue SPA admin interface. It uses **PHP session authentication** (cookie-based). All endpoints require an active admin session unless otherwise noted.
 
-> These endpoints are intended for the admin frontend. For headless content access, use the [Public API](./public-api) with an API token instead.
+> These endpoints are intended for the admin frontend. For headless content access, use the [Public API](./public-api) with an access token instead.
 
 ## Base URL
 
@@ -195,12 +195,12 @@ Role management uses `roles.read`, `roles.create`, `roles.update`, and `roles.de
 | `PUT`    | `/admin/api/roles/{id}` | Update a role label or grants.   |
 | `DELETE` | `/admin/api/roles/{id}` | Delete an unused non-admin role. |
 
-### API Tokens
+### Access Tokens
 
 | Method   | Path                          | Description                      |
 | -------- | ----------------------------- | -------------------------------- |
-| `GET`    | `/admin/api/tokens`           | List application API tokens.     |
-| `POST`   | `/admin/api/tokens`           | Create an application API token. |
+| `GET`    | `/admin/api/tokens`           | List application access tokens.     |
+| `POST`   | `/admin/api/tokens`           | Create an application access token. |
 | `DELETE` | `/admin/api/tokens/{tokenId}` | Revoke a token.                  |
 
 ---

@@ -92,7 +92,7 @@ final class McpServer
 
         if ($token === null || trim($token) === '') {
             throw new McpError('Missing bearer token.', 401, ['code' => 'unauthorized'], [], [
-                'Create an API token in CometCMS and send it as Authorization: Bearer <token>.',
+                'Create an access token in CometCMS and send it as Authorization: Bearer <token>.',
             ]);
         }
 
@@ -105,7 +105,7 @@ final class McpServer
         if ($principal === null) {
             (new Logger())->warning('invalid mcp api token');
             throw new McpError('Invalid bearer token.', 401, ['code' => 'unauthorized'], [], [
-                'Check the API token and make sure it has not been revoked.',
+                'Check the access token and make sure it has not been revoked.',
             ]);
         }
 
@@ -571,7 +571,7 @@ final class McpServer
 
             if (!$this->permissions->allows($this->principal, $action, $context)) {
                 throw new McpError('Forbidden.', 403, ['code' => 'forbidden'], $this->requiredPermissionsForTool($tool, $args), [
-                    'The token is valid but lacks permission. Update the token in API-Tokens or use a token that already has the required grant.',
+                    'The token is valid but lacks permission. Update the token in Access Tokens or use a token that already has the required grant.',
                 ]);
             }
         }
@@ -640,9 +640,9 @@ final class McpServer
         $recovery = $error->recovery();
 
         if ($error->status() === 401) {
-            $recovery[] = 'Check the bearer API token and make sure it has permission grants for the operation.';
+            $recovery[] = 'Check the bearer access token and make sure it has permission grants for the operation.';
         } elseif ($error->status() === 403) {
-            $recovery[] = 'The token is valid but lacks permission. Update the token in API-Tokens or use a token that already has the required grant.';
+            $recovery[] = 'The token is valid but lacks permission. Update the token in Access Tokens or use a token that already has the required grant.';
         } elseif ($error->status() === 404) {
             $recovery[] = 'Verify the collection, identifier, or filename. Use list_content_types, list_entries, or list_media to see available options.';
         } elseif ($error->status() === 422) {

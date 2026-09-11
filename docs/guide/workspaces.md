@@ -23,7 +23,7 @@ Shared installation-wide data:
 
 - Users
 - Roles
-- API tokens
+- Access tokens
 - Webhook settings
 - Backup files
 - Update settings and runtime app settings
@@ -128,7 +128,7 @@ Permission grants can be scoped to a specific workspace. For example:
 | `workspace:site-b:content:*`          | Read/write content only in the `site-b` workspace      |
 | `workspace:site-b:content:posts:read` | Read-only access to the `posts` collection in `site-b` |
 
-When creating or editing an API token or user role, choose a workspace from the **Scope** dropdown in the permission grants editor to restrict a grant to a single workspace.
+When creating or editing an access token or user role, choose a workspace from the **Scope** dropdown in the permission grants editor to restrict a grant to a single workspace.
 
 ## Storage layout
 

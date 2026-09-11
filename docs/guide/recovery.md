@@ -19,7 +19,7 @@ If you lose access to the admin panel (forgotten password, deleted account, etc.
 
 ## Option 2 — Replace the password hash directly
 
-If you want to preserve the existing user account, you can reset the password by editing the user's JSON file directly. API tokens are stored separately in `cms/storage/api-tokens/`.
+If you want to preserve the existing user account, you can reset the password by editing the user's JSON file directly. Access tokens are stored separately in `cms/storage/api-tokens/`.
 
 1. Find your user file in `cms/storage/users/`. Files are named `{userId}.json`. Open each one to find the right username.
 

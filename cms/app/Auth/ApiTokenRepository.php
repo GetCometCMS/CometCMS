@@ -40,7 +40,7 @@ final class ApiTokenRepository
         $plain = 'ctcms_' . $tokenId . '_' . $secret;
         $token = [
             'id' => 'tok_' . $tokenId,
-            'name' => trim($name) !== '' ? trim($name) : 'API token',
+            'name' => trim($name) !== '' ? trim($name) : 'Access token',
             'description' => trim($description),
             'hash' => password_hash($plain, PASSWORD_DEFAULT),
             'permissions' => $this->normalizePermissions($permissions ?? []),

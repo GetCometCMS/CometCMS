@@ -18,7 +18,7 @@ final class TokensController extends BaseController
         $this->verifyCsrf();
         $body = $this->requestJson();
         $permissions = is_array($body['permissions'] ?? null) ? $body['permissions'] : null;
-        $tokenName = (string) ($body['name'] ?? 'API token');
+        $tokenName = (string) ($body['name'] ?? 'Access token');
         $description = (string) ($body['description'] ?? '');
         $token = $this->tokens->create($tokenName, $description, $permissions);
         $this->logger->info('token.created', ['name' => $tokenName, 'actor_id' => $actor['id'] ?? null]);

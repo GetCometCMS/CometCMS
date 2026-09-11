@@ -24,7 +24,7 @@ CometCMS implements the [MCP specification](https://spec.modelcontextprotocol.io
 | ----------------- | ---------------------------------------------------- |
 | Transport         | HTTP POST, `Content-Type: application/json`          |
 | Protocol          | JSON-RPC 2.0 + MCP tool primitives                   |
-| Authentication    | Bearer token (see [API Tokens](../guide/api-tokens)) |
+| Authentication    | Bearer token (see [Access Tokens](../guide/api-tokens)) |
 | Required header   | `Authorization: Bearer YOUR_TOKEN_HERE`              |
 | Non-POST requests | Return `405 Method Not Allowed`                      |
 
@@ -41,7 +41,7 @@ Notifications and requests without an `id` field are treated as fire-and-forget 
 
 ## Authentication
 
-All tools require a valid Bearer token with appropriate permission grants. Tokens are created in **API-Tokens** in the admin:
+All tools require a valid Bearer token with appropriate permission grants. Tokens are created in **Access Tokens** in the admin:
 
 ```http
 Authorization: Bearer cms_ct_abc123...
@@ -69,7 +69,7 @@ Error responses follow the JSON-RPC 2.0 error shape with additional context in `
       "details": { "code": "forbidden" },
       "required_permissions": ["content.read:my-workspace:content:pages:*"],
       "recovery": [
-        "The token is valid but lacks permission. Update the token in API-Tokens or use a token that already has the required grant."
+        "The token is valid but lacks permission. Update the token in Access Tokens or use a token that already has the required grant."
       ]
     }
   }
@@ -416,4 +416,4 @@ Every MCP tool maps to one or more permission grants. Below is a quick reference
 | `set_media_category`    | `media.update`                                    |
 | `delete_media`          | `media.delete`                                    |
 
-See [API Tokens](../guide/api-tokens) for details on creating tokens and assigning permission grants.
+See [Access Tokens](../guide/api-tokens) for details on creating tokens and assigning permission grants.

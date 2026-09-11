@@ -42,10 +42,10 @@ features:
     link: /guide/installation
     linkText: Installation
   - icon: 🔑
-    title: Scoped API tokens
+    title: Scoped access tokens
     details: Fine-grained permissions per action, content type, media category, and field. No overly broad keys.
     link: /guide/api-tokens
-    linkText: API tokens
+    linkText: Access tokens
   - icon: 💾
     title: Built-in backups
     details: Create and restore full backups of all content, media, and settings directly from the admin UI.

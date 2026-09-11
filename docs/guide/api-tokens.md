@@ -1,10 +1,10 @@
-# API Tokens
+# Access Tokens
 
-API tokens let external applications (static site generators, deployment scripts, mobile apps, etc.) access the [Public API](../api/public-api) without a user session.
+Access tokens let external applications and MCP clients access CometCMS without a user session.
 
 ## Creating a token
 
-1. Go to **API-Tokens**.
+1. Go to **Access Tokens**.
 2. Click **New token**.
 3. Give the token a name (e.g. `Deploy script`), optional description, and permission grants.
 4. Click **Create token**.
@@ -87,4 +87,4 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ## Revoking a token
 
-Click **Revoke** next to the token in the API-Tokens page. Revoked tokens cannot be used and cannot be un-revoked.
+Click **Revoke** next to the token on the Access Tokens page. Revoked tokens cannot be used and cannot be un-revoked.

@@ -2,13 +2,13 @@
 
 The CometCMS public API is the stable HTTP API for external frontends, static site generators, mobile apps, and integration scripts.
 
-Public reads work without authentication and return only public content. Send an API token when you need drafts, protected content, or write access:
+Public reads work without authentication and return only public content. Send an access token when you need drafts, protected content, or write access:
 
 ```http
 Authorization: Bearer YOUR_TOKEN_HERE
 ```
 
-See [API Tokens](../guide/api-tokens) for how to create tokens and assign permission grants.
+See [Access Tokens](../guide/api-tokens) for how to create tokens and assign permission grants.
 
 ## Base URL
 

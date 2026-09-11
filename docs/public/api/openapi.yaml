@@ -16,7 +16,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: API token created in the admin UI with permission grants.
+      description: Access token created in the admin UI with permission grants.
   parameters:
     Collection:
       name: collection
