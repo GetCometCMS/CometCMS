@@ -7,11 +7,11 @@
     :class="inputClass"
     @change="emitValue($event.target.value)"
   >
-    <option value="">-- select status --</option>
-    <option value="draft">Draft</option>
-    <option value="published">Published</option>
-    <option value="protected">Protected</option>
-    <option value="archived">Archived</option>
+    <option value="">{{ t("status.select") }}</option>
+    <option value="draft">{{ t("status.draft") }}</option>
+    <option value="published">{{ t("status.published") }}</option>
+    <option value="protected">{{ t("status.protected") }}</option>
+    <option value="archived">{{ t("status.archived") }}</option>
   </select>
 
   <select
@@ -120,6 +120,9 @@
 <script setup>
 import { computed } from "vue";
 import SearchableSelect from "./SearchableSelect.vue";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   field: { type: Object, required: true },

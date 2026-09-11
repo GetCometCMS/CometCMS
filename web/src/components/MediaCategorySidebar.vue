@@ -1,85 +1,79 @@
 <template>
-  <section class="card p-5 col-span-1 self-start">
-    <div
-      class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <h2 class="text-base font-semibold text-slate-900">Categories</h2>
+  <section class="card col-span-1 self-start overflow-visible p-4">
+    <div class="mb-2 flex items-center justify-between gap-3">
+      <h2 class="text-base font-bold text-slate-950">
+        {{ t("media.categories") }}
+      </h2>
       <button
         type="button"
-        class="btn-secondary px-3 py-1.5 text-sm"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-theme-300 hover:text-theme-700"
+        :title="t('media.addCategory')"
+        :aria-label="t('media.addCategory')"
         @click="() => startCategory()"
       >
-        <Icon icon="mdi:plus" class="h-4 w-4" />
-        Add category
+        <Icon icon="mdi:plus" class="h-5 w-5" />
       </button>
     </div>
 
-    <div class="space-y-2">
+    <button
+      type="button"
+      class="mb-2 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-theme-400 bg-theme-50/40 px-3 text-sm font-semibold text-theme-700 transition hover:bg-theme-50"
+      @click="() => startCategory()"
+    >
+      <Icon icon="mdi:creation-outline" class="h-4 w-4" />
+      {{ t("media.addCategory") }}
+    </button>
+
+    <label class="relative mb-2 block">
+      <span class="sr-only">{{ t("media.searchCategories") }}</span>
+      <Icon
+        icon="mdi:magnify"
+        class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+      />
+      <input
+        v-model="categorySearch"
+        type="search"
+        :placeholder="t('media.searchCategoriesPlaceholder')"
+        class="form-input h-9 w-full rounded-lg border-slate-200 bg-white pl-9 text-sm placeholder:text-slate-400 focus:border-theme-400 focus:ring-theme-400"
+      />
+    </label>
+
+    <div class="space-y-0.5">
       <!-- All categories -->
       <button
         type="button"
-        class="group flex min-h-12 w-full items-center gap-3 rounded-lg border px-4 py-2 text-left transition-all"
+        class="group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
         :class="categoryButtonClass(null)"
         @click="selectCategory(null)"
         @dragover.prevent="onCategoryDragOver(null)"
         @dragleave="onCategoryDragLeave(null)"
         @drop.prevent="onCategoryDrop(null)"
       >
-        <span
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
-          :class="
-            modelValue === null
-              ? 'border-theme-200 bg-white text-theme-600'
-              : 'border-slate-200 bg-slate-50 text-theme-600 group-hover:border-theme-200'
-          "
-        >
-          <Icon icon="mdi:image-multiple-outline" class="h-5 w-5" />
+        <Icon icon="mdi:image-multiple-outline" class="h-5 w-5 shrink-0" />
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold">
+          {{ t("media.allCategories") }}
         </span>
-        <span class="min-w-0">
-          <span class="block truncate text-sm font-semibold"
-            >All categories</span
-          >
-          <span
-            class="mt-0.5 block text-xs"
-            :class="modelValue === null ? 'text-theme-600' : 'text-slate-500'"
-          >
-            {{ allCategoryCount }}
-            {{ allCategoryCount === 1 ? "file" : "files" }}
-          </span>
-        </span>
+        <span class="text-xs font-medium text-theme-600">{{ allCategoryCount }}</span>
       </button>
 
       <!-- Uncategorized -->
       <button
         type="button"
-        class="group flex min-h-12 w-full items-center gap-3 rounded-lg border px-4 py-2 text-left transition-all"
+        class="group flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
         :class="categoryButtonClass('')"
         @click="selectCategory('')"
         @dragover.prevent="onCategoryDragOver('')"
         @dragleave="onCategoryDragLeave('')"
         @drop.prevent="onCategoryDrop('')"
       >
-        <span
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
-          :class="
-            modelValue === ''
-              ? 'border-theme-200 bg-white text-theme-600'
-              : 'border-slate-200 bg-slate-50 text-theme-600 group-hover:border-theme-200'
-          "
-        >
-          <Icon icon="mdi:folder-off-outline" class="h-5 w-5" />
+        <Icon icon="mdi:folder-off-outline" class="h-5 w-5 shrink-0" />
+        <span class="min-w-0 flex-1 truncate text-sm font-medium">
+          {{ t("media.noCategory") }}
         </span>
-        <span class="min-w-0">
-          <span class="block truncate text-sm font-semibold">No category</span>
-          <span
-            class="mt-0.5 block text-xs"
-            :class="modelValue === '' ? 'text-theme-600' : 'text-slate-500'"
-          >
-            {{ uncategorizedCount }}
-            {{ uncategorizedCount === 1 ? "file" : "files" }}
-          </span>
-        </span>
+        <span class="text-xs font-medium text-slate-500">{{ uncategorizedCount }}</span>
       </button>
+
+      <div class="my-1 border-t border-slate-100" />
 
       <!-- Category tree items -->
       <div
@@ -91,35 +85,35 @@
         <!-- Rename form (inline edit) -->
         <form
           v-if="editingCategory === category.path"
-          class="flex min-h-12 flex-col gap-2 rounded-lg border border-theme-200 bg-theme-50/60 px-3 py-3"
+          class="flex flex-col gap-2 rounded-lg border border-theme-200 bg-theme-50/60 px-3 py-3"
           @submit.prevent="renameCategory"
         >
           <input
             v-model="editingCategoryName"
             type="text"
             class="form-input w-full min-w-0 rounded-lg border-theme-200 text-sm"
-            placeholder="Category name"
+            :placeholder="t('media.categoryName')"
             @keydown.esc="cancelRenameCategory"
           />
           <div class="grid w-full gap-2">
             <button
               type="submit"
               class="btn-primary w-full justify-center px-3 py-2 text-sm"
-              title="Save category"
+              :title="t('media.saveCategory')"
               :disabled="categoryWorking"
             >
               <Icon icon="mdi:check" class="h-4 w-4" />
-              Save
+              {{ t("media.save") }}
             </button>
             <button
               type="button"
               class="btn-secondary w-full justify-center px-3 py-2 text-sm"
-              title="Cancel"
+              :title="t('media.cancel')"
               :disabled="categoryWorking"
               @click="cancelRenameCategory"
             >
               <Icon icon="mdi:close" class="h-4 w-4" />
-              Cancel
+              {{ t("media.cancel") }}
             </button>
           </div>
         </form>
@@ -128,11 +122,11 @@
         <button
           v-else
           type="button"
-          class="group flex min-h-12 w-full items-center gap-2 rounded-lg border px-3 py-2 pr-10 text-left transition-all"
+          class="group flex h-10 w-full items-center gap-2 rounded-lg px-2 pr-9 text-left transition-colors"
           :class="categoryButtonClass(category.path)"
           :style="
             category.depth > 0
-              ? { paddingLeft: `${category.depth * 1.25 + 0.75}rem` }
+              ? { paddingLeft: `${category.depth * 0.9 + 0.5}rem` }
               : {}
           "
           @click="selectCategory(category.path)"
@@ -140,10 +134,10 @@
           @dragleave="onCategoryDragLeave(category.path)"
           @drop.prevent="onCategoryDrop(category.path)"
         >
-          <!-- Fixed-width slot: chevron for expandable, ↳ for leaf subcategories, spacer for top-level leaves -->
+          <!-- Fixed-width slot keeps folders aligned while allowing tree expansion. -->
           <span
             v-if="category.hasChildren"
-            class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            class="flex h-5 w-3 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             @click.stop="toggleCollapse(category.path)"
           >
             <Icon
@@ -152,41 +146,15 @@
                   ? 'mdi:chevron-right'
                   : 'mdi:chevron-down'
               "
-              class="h-4 w-4"
+              class="h-3.5 w-3.5"
             />
           </span>
-          <Icon
-            v-else-if="category.depth > 0"
-            icon="mdi:subdirectory-arrow-right"
-            class="h-6 w-6 shrink-0 text-slate-300"
-          />
-          <span v-else class="h-6 w-6 shrink-0" />
-          <!-- Folder icon box -->
-          <span
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
-            :class="
-              modelValue === category.path
-                ? 'border-theme-200 bg-white text-theme-600'
-                : 'border-slate-200 bg-slate-50 text-theme-600 group-hover:border-theme-200'
-            "
-          >
-            <Icon :icon="category.icon" class="h-5 w-5" />
-          </span>
-          <span class="min-w-0">
-            <span class="block truncate text-sm font-semibold">{{
-              category.label
-            }}</span>
-            <span
-              class="mt-0.5 block text-xs"
-              :class="
-                modelValue === category.path
-                  ? 'text-theme-600'
-                  : 'text-slate-500'
-              "
-            >
-              {{ category.count }} {{ category.count === 1 ? "file" : "files" }}
-            </span>
-          </span>
+          <span v-else class="h-5 w-3 shrink-0" />
+          <Icon :icon="category.icon" class="h-5 w-5 shrink-0 text-theme-600" />
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+            category.label
+          }}</span>
+          <span class="text-xs font-medium text-slate-500">{{ category.count }}</span>
         </button>
 
         <!-- Dots menu trigger -->
@@ -194,7 +162,7 @@
           v-if="editingCategory !== category.path"
           type="button"
           class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-white hover:text-slate-700 group-hover:opacity-100 focus:opacity-100"
-          title="Category actions"
+          :title="t('media.categoryActions')"
           @click.stop="toggleCategoryMenu(category.path)"
         >
           <Icon icon="mdi:dots-vertical" class="h-5 w-5" />
@@ -211,7 +179,7 @@
             @click.stop="startSubCategory(category.path)"
           >
             <Icon icon="mdi:subdirectory-arrow-right" class="h-4 w-4" />
-            Add subcategory
+            {{ t("media.addSubcategory") }}
           </button>
           <button
             type="button"
@@ -219,7 +187,7 @@
             @click.stop="startRenameCategory(category.path)"
           >
             <Icon icon="mdi:pencil-outline" class="h-4 w-4" />
-            Rename
+            {{ t("media.rename") }}
           </button>
           <button
             type="button"
@@ -227,7 +195,7 @@
             @click.stop="confirmCategoryDelete(category.path)"
           >
             <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
-            Delete
+            {{ t("media.delete") }}
           </button>
         </div>
       </div>
@@ -242,58 +210,55 @@
           v-if="newCategoryParent"
           class="truncate text-xs font-medium text-theme-700"
         >
-          In {{ newCategoryParent }}
+          {{ t("media.inCategory", { category: newCategoryParent }) }}
         </p>
         <input
           v-model="newCategory"
           ref="newCategoryInput"
           type="text"
           class="form-input w-full min-w-0 rounded-lg border-theme-200 text-sm"
-          placeholder="Category name"
+          :placeholder="t('media.categoryName')"
           @keydown.esc="cancelCategory"
         />
         <div class="grid w-full gap-2">
           <button
             type="submit"
             class="btn-primary w-full justify-center px-3 py-2 text-sm"
-            title="Add category"
+            :title="t('media.addCategory')"
             :disabled="categoryWorking"
           >
             <Icon icon="mdi:check" class="h-4 w-4" />
-            Save
+            {{ t("media.save") }}
           </button>
           <button
             type="button"
             class="btn-secondary w-full justify-center px-3 py-2 text-sm"
-            title="Cancel"
+            :title="t('media.cancel')"
             :disabled="categoryWorking"
             @click="cancelCategory"
           >
             <Icon icon="mdi:close" class="h-4 w-4" />
-            Cancel
+            {{ t("media.cancel") }}
           </button>
         </div>
       </form>
 
-      <!-- Add category button -->
-      <button
-        v-else
-        type="button"
-        class="flex w-full min-h-16 items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-theme-400 hover:text-theme-600"
-        @click="() => startCategory()"
-      >
-        <Icon icon="mdi:plus" class="h-4 w-4" />
-        Add category
-      </button>
     </div>
+
+    <p
+      v-if="categorySearch.trim() && visibleCategoryTree.length === 0"
+      class="px-3 py-4 text-center text-sm text-slate-400"
+    >
+      {{ t("media.noCategoriesFound") }}
+    </p>
   </section>
 
   <!-- Delete confirmation modal -->
   <ConfirmModal
     v-model="showCategoryDeleteModal"
-    title="Delete category?"
-    :message="`Files in '${categoryDeleteTarget}' and its subcategories will stay in the media library and move to No category.`"
-    confirm-label="Delete category"
+    :title="t('media.deleteCategoryTitle')"
+    :message="t('media.deleteCategoryMessage', { category: categoryDeleteTarget })"
+    :confirm-label="t('media.deleteCategory')"
     :loading="categoryWorking"
     @confirm="executeCategoryDelete"
   />
@@ -311,6 +276,7 @@ import {
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "./ConfirmModal.vue";
 import { api } from "../api/index.js";
+import { useI18n } from "../i18n/index.js";
 import { useToastStore } from "../stores/toast.js";
 
 const props = defineProps({
@@ -331,9 +297,11 @@ const emit = defineEmits([
 ]);
 
 const toast = useToastStore();
+const { t } = useI18n();
 
 // ---- Internal state ----
 const newCategoryInput = ref(null);
+const categorySearch = ref("");
 const addingCategory = ref(false);
 const newCategory = ref("");
 const newCategoryParent = ref("");
@@ -423,17 +391,34 @@ const categoryTree = computed(() =>
   }),
 );
 
-const visibleCategoryTree = computed(() =>
-  categoryTree.value.filter((category) => {
+const visibleCategoryTree = computed(() => {
+  const query = categorySearch.value.trim().toLocaleLowerCase();
+  let searchMatches = null;
+
+  if (query) {
+    searchMatches = new Set();
+    for (const category of categoryTree.value) {
+      if (!category.path.toLocaleLowerCase().includes(query)) continue;
+      const parts = categoryParts(category.path);
+      for (let i = 1; i <= parts.length; i++) {
+        searchMatches.add(parts.slice(0, i).join(" / "));
+      }
+    }
+  }
+
+  return categoryTree.value.filter((category) => {
+    if (searchMatches && !searchMatches.has(category.path)) return false;
+
     const parts = categoryParts(category.path);
-    // Check if any ancestor is collapsed
+    if (query) return true;
+
     for (let i = 1; i < parts.length; i++) {
       const ancestor = parts.slice(0, i).join(" / ");
       if (collapsedCategories.value.has(ancestor)) return false;
     }
     return true;
-  }),
-);
+  });
+});
 
 function toggleCollapse(categoryPath) {
   if (collapsedCategories.value.has(categoryPath)) {
@@ -468,8 +453,8 @@ function categoryButtonClass(category) {
   }
 
   return props.modelValue === category
-    ? "border-theme-300 bg-theme-50 text-theme-700 shadow-sm"
-    : "border-slate-200 bg-white text-slate-700 hover:border-theme-300 hover:bg-slate-50";
+    ? "bg-theme-100 text-theme-700"
+    : "text-slate-700 hover:bg-slate-50 hover:text-theme-700";
 }
 
 function onCategoryDragOver(category) {
@@ -587,7 +572,7 @@ async function renameCategory() {
       selectCategory(props.modelValue.replace(oldName, renamed));
     }
     cancelRenameCategory();
-    toast.success("Category renamed.");
+    toast.success(t("media.categoryRenamed"));
   } catch (err) {
     toast.error(err.message);
   } finally {
@@ -615,7 +600,7 @@ async function executeCategoryDelete() {
     emit("categoriesUpdated", cats);
     emit("categoryDeleted", category);
     showCategoryDeleteModal.value = false;
-    toast.success("Category deleted.");
+    toast.success(t("media.categoryDeleted"));
   } catch (err) {
     toast.error(err.message);
   } finally {

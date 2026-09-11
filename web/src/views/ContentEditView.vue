@@ -263,7 +263,9 @@
               :disabled="isReadOnly"
               class="form-select w-full rounded-lg border-slate-300 text-sm"
             >
-              <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
+              <option v-for="s in statuses" :key="s.value" :value="s.value">
+                {{ s.label }}
+              </option>
             </select>
           </div>
 
@@ -456,7 +458,7 @@
                   >{{ t("contentEdit.current") }}</span
                 >
               </h3>
-              <p class="text-xs text-slate-500 capitalize">{{ form.status }}</p>
+              <p class="text-xs text-slate-500">{{ formatStatus(form.status) }}</p>
             </div>
           </div>
           <div v-if="revisions.length > 0">
@@ -499,7 +501,7 @@
               </h3>
               <p class="text-xs text-slate-500">
                 {{ formatDateTime(revision.created_at) }} ·
-                {{ revision.status }}
+                {{ formatStatus(revision.status) }}
               </p>
               <!-- Author -->
               <div
@@ -715,7 +717,18 @@ const deleteMessage = computed(() => {
     ? t("contentEdit.pageTrashMessage")
     : t("contentEdit.entryTrashMessage");
 });
-const statuses = ["draft", "published", "protected", "archived"];
+const statuses = computed(() =>
+  ["draft", "published", "protected", "archived"].map((value) => ({
+    value,
+    label: t(`status.${value}`),
+  })),
+);
+function formatStatus(status) {
+  if (!status) return t("contentList.unknownStatus");
+  const key = `status.${status}`;
+  const label = t(key);
+  return label === key ? status : label;
+}
 const isScheduled = computed(() => {
   if (form.value.status !== "published" || !form.value.published_at)
     return false;

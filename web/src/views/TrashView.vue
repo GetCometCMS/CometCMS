@@ -69,7 +69,7 @@
                 {{ formatDate(item.deleted_at) }}
               </td>
               <td class="px-4 py-3 text-sm">
-                <span :class="`badge-${item.status}`">{{ item.status }}</span>
+                <span :class="`badge-${item.status}`">{{ formatStatus(item.status) }}</span>
               </td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-2">
@@ -152,6 +152,13 @@ const purgeTarget = ref(null);
 const purging = ref(false);
 const showEmptyModal = ref(false);
 const emptying = ref(false);
+
+function formatStatus(status) {
+  if (!status) return t("contentList.unknownStatus");
+  const key = `status.${status}`;
+  const label = t(key);
+  return label === key ? status : label;
+}
 
 async function load() {
   loading.value = true;

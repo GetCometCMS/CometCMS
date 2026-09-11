@@ -1116,7 +1116,10 @@ const canPageForward = computed(
 );
 
 function formatStatus(status) {
-  return status ?? t("contentList.unknownStatus");
+  if (!status) return t("contentList.unknownStatus");
+  const key = `status.${status}`;
+  const label = t(key);
+  return label === key ? status : label;
 }
 
 function entryLabel(count) {
