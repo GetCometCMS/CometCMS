@@ -81,7 +81,7 @@ function comet_version(): string
         }
     }
 
-    return (string) comet_config('app.version', '1.0.0');
+    return (string) comet_config('app.version', '1.0.2');
 }
 
 date_default_timezone_set((string) comet_config('app.timezone', 'UTC'));
