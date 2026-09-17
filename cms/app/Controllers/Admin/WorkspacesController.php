@@ -102,18 +102,14 @@ final class WorkspacesController extends BaseController
     public function iconServe(string $slug): never
     {
         $this->requireUser();
-        $path = $this->iconPath($slug);
+        $path = $this->workspaces->iconPath($slug);
 
         if ($path === null) {
             http_response_code(404);
             exit;
         }
 
-        $mimeMap = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif'];
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        $mime = $mimeMap[$ext] ?? 'image/jpeg';
-
-        $this->http->streamFile($path, $mime, [
+        $this->http->streamFile($path, 'image/png', [
             'Cache-Control' => 'private, max-age=86400',
         ]);
     }
@@ -145,30 +141,31 @@ final class WorkspacesController extends BaseController
         }
 
         $mime = MimeDetector::detect((string) $file['tmp_name'], (string) ($file['name'] ?? ''));
-        $extMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-        if (!array_key_exists($mime, $extMap)) {
+        if (!in_array($mime, $allowedMimes, true)) {
             $this->json(['error' => ['code' => 'file_type_not_allowed', 'message' => 'Only JPEG, PNG, WebP, or GIF images are allowed.']], 422);
         }
 
-        $dir = COMET_STORAGE . '/workspaces/icons/';
-
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
         $slug = Security::slug($slug);
+        $contents = file_get_contents((string) $file['tmp_name']);
+        $image = is_string($contents) && function_exists('imagecreatefromstring')
+            ? @imagecreatefromstring($contents)
+            : false;
 
-        foreach (array_values($extMap) as $oldExt) {
-            $old = $dir . $slug . '.' . $oldExt;
-            if (is_file($old)) {
-                unlink($old);
-            }
+        if (!$image instanceof \GdImage) {
+            $this->json(['error' => ['code' => 'invalid_image', 'message' => 'Could not decode the uploaded image.']], 422);
         }
 
-        $target = $dir . $slug . '.' . $extMap[$mime];
+        $target = COMET_STORAGE . '/workspaces/' . $slug . '/icon.png';
+        $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        $saved = imagepng($image, $tmp);
+        imagedestroy($image);
 
-        if (!move_uploaded_file((string) $file['tmp_name'], $target)) {
+        if (!$saved || !rename($tmp, $target)) {
+            if (is_file($tmp)) {
+                unlink($tmp);
+            }
             $this->json(['error' => ['code' => 'upload_failed', 'message' => 'Could not store the uploaded file.']], 500);
         }
 
@@ -180,31 +177,13 @@ final class WorkspacesController extends BaseController
         $this->requirePermission('workspaces.manage', ['type' => 'workspace', 'slug' => $slug]);
         $this->verifyCsrf();
 
-        $dir = COMET_STORAGE . '/workspaces/icons/';
         $slug = Security::slug($slug);
-
-        foreach (['jpg', 'png', 'webp', 'gif'] as $ext) {
-            $path = $dir . $slug . '.' . $ext;
-            if (is_file($path)) {
-                unlink($path);
-            }
+        $path = $this->workspaces->iconPath($slug);
+        if ($path !== null) {
+            unlink($path);
         }
 
         $this->json(['data' => ['ok' => true]]);
     }
 
-    private function iconPath(string $slug): ?string
-    {
-        $slug = Security::slug($slug);
-        $dir = COMET_STORAGE . '/workspaces/icons/';
-
-        foreach (['jpg', 'png', 'webp', 'gif'] as $ext) {
-            $path = $dir . $slug . '.' . $ext;
-            if (is_file($path)) {
-                return $path;
-            }
-        }
-
-        return null;
-    }
 }

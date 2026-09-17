@@ -460,7 +460,7 @@ final class MediaController extends BaseController
         $workspace = WorkspaceContext::active()->slug();
         $file['url'] = $this->http->url('/media/' . rawurlencode($workspace) . '/' . rawurlencode((string) $file['name']));
         $file['thumb_url'] = ($file['thumb'] ?? null) !== null
-            ? $this->http->url('/media-thumbs/' . rawurlencode($workspace) . '/' . rawurlencode((string) $file['name']))
+            ? $file['url'] . '?variant=thumbnail'
             : $file['url'];
 
         return $file;

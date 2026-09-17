@@ -24,6 +24,27 @@ test('workspace repository creates default and custom workspace folders', functi
     assert_true(is_dir(comet_test_workspace_path('site-a') . '/content-types'));
     assert_true(is_dir(comet_test_workspace_path('site-a') . '/media'));
     assert_true(is_dir(comet_test_workspace_path('site-a') . '/media-variants'));
+    assert_false(is_dir(comet_test_workspace_path('site-a') . '/media-thumbs'));
+});
+
+test('workspace repository migrates legacy icons into the workspace', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) {
+        return;
+    }
+
+    $repository = new WorkspaceRepository();
+    $repository->save(['slug' => 'site-a', 'label' => 'Site A']);
+    mkdir(COMET_STORAGE . '/workspaces/icons', 0775, true);
+    $legacy = COMET_STORAGE . '/workspaces/icons/site-a.png';
+    $image = imagecreatetruecolor(16, 16);
+    imagepng($image, $legacy);
+    imagedestroy($image);
+
+    $workspace = $repository->find('site-a');
+
+    assert_true((bool) ($workspace['has_icon'] ?? false));
+    assert_file_exists_at(comet_test_workspace_path('site-a') . '/icon.png');
+    assert_false(is_file($legacy));
 });
 
 test('workspace repository picks up renamed workspace folders on disk', function (): void {

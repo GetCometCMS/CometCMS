@@ -75,7 +75,6 @@ final class WorkspaceContext
                 $this->path('content-types'),
                 $this->path('content'),
                 $this->path('media'),
-                $this->path('media-thumbs'),
                 $this->path('media-variants'),
                 $this->path('media-meta'),
                 $this->path('revisions'),

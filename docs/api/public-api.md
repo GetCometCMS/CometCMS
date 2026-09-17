@@ -24,7 +24,7 @@ https://yourdomain.com/api/v1/workspaces/{workspace}
 
 Requests to unscoped `/api/v1/...` content, content-type, and media routes are rejected with `workspace_required`.
 
-For example, `GET /api/v1/workspaces/site-a/content/posts` reads posts from the `site-a` workspace. Direct media URLs for scoped responses use `/media/{workspace}/{filename}` and `/media-thumbs/{workspace}/{filename}`.
+For example, `GET /api/v1/workspaces/site-a/content/posts` reads posts from the `site-a` workspace. Direct media URLs for scoped responses use `/media/{workspace}/{filename}`; thumbnails use the same endpoint with `?variant=thumbnail`.
 
 ## Response shape
 
@@ -240,7 +240,7 @@ Each file object includes the following fields:
 | ------------- | ---------------------------------------------------- |
 | `filename`    | File name                                            |
 | `url`         | Absolute URL to the file                             |
-| `thumb_url`   | Absolute URL to the generated thumbnail, or `url`    |
+| `thumb_url`   | Absolute URL to the generated thumbnail variant, or `url` |
 | `variants`    | Responsive widths, formats, limits, and ready-to-use URLs for raster images; otherwise `null` |
 | `size`        | File size in bytes                                   |
 | `mime`        | MIME type                                            |

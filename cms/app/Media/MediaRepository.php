@@ -10,7 +10,6 @@ use CometCMS\Workspaces\WorkspaceContext;
 final class MediaRepository
 {
     private string $mediaDir;
-    private string $thumbDir;
     private string $variantDir;
     private string $metadataPath;
     private WorkspaceContext $workspace;
@@ -21,13 +20,8 @@ final class MediaRepository
         WorkspaceContext::setActive($this->workspace->slug());
         $this->workspace->ensure();
         $this->mediaDir = $this->workspace->path('media');
-        $this->thumbDir = $this->workspace->path('media-thumbs');
         $this->variantDir = $this->workspace->path('media-variants');
         $this->metadataPath = $this->workspace->path('media-meta') . '/index.json';
-
-        if (!is_dir($this->thumbDir)) {
-            mkdir($this->thumbDir, 0775, true);
-        }
 
         if (!is_dir($this->variantDir)) {
             mkdir($this->variantDir, 0775, true);
@@ -36,6 +30,8 @@ final class MediaRepository
         if (!is_dir(dirname($this->metadataPath))) {
             mkdir(dirname($this->metadataPath), 0775, true);
         }
+
+        $this->removeLegacyThumbnailCache();
     }
 
     public function directory(): string
@@ -370,7 +366,6 @@ final class MediaRepository
             unlink($path);
         }
 
-        $this->deleteThumbnail($file);
         $this->deleteVariants($file);
 
         $metadata = $this->metadata();
@@ -390,7 +385,6 @@ final class MediaRepository
             }
 
             unlink($path);
-            $this->deleteThumbnail($file);
             $this->deleteVariants($file);
             $deleted[] = $file;
         }
@@ -435,7 +429,6 @@ final class MediaRepository
             throw new \RuntimeException('Could not rename media file.');
         }
 
-        $this->deleteThumbnail($file);
         $this->deleteVariants($file);
 
         if (is_array($fileMeta)) {
@@ -651,12 +644,12 @@ final class MediaRepository
      *
      * @return array{path:string,mime:string,width:int,height:int}
      */
-    public function variant(string $file, array $options): array
+    public function variant(string $file, array $options, bool $internal = false): array
     {
         $file = basename(rawurldecode($file));
         $source = $this->path($file);
 
-        if (!(bool) comet_config('media.variants.enabled', true)) {
+        if (!$internal && !(bool) comet_config('media.variants.enabled', true)) {
             throw new \InvalidArgumentException('Image variants are disabled.');
         }
 
@@ -675,7 +668,7 @@ final class MediaRepository
         $allowCustom = (bool) comet_config('media.variants.allow_custom_sizes', false);
         $allowedWidths = array_map('intval', (array) comet_config('media.variants.widths', [320, 640, 960, 1280, 1920]));
 
-        if (!$allowCustom && ($height > 0 || !in_array($width, $allowedWidths, true))) {
+        if (!$internal && !$allowCustom && ($height > 0 || !in_array($width, $allowedWidths, true))) {
             throw new \InvalidArgumentException('Choose one of the configured variant widths.');
         }
 
@@ -688,7 +681,15 @@ final class MediaRepository
         $formatValue = $options['format'] ?? $this->defaultVariantFormat();
         $format = is_scalar($formatValue) ? strtolower(trim((string) $formatValue)) : '';
         $format = $format === 'jpg' ? 'jpeg' : $format;
-        if (!in_array($format, $this->availableVariantFormats(), true)) {
+        $formats = $internal
+            ? array_keys(array_filter([
+                'jpeg' => function_exists('imagejpeg'),
+                'png' => function_exists('imagepng'),
+                'webp' => function_exists('imagewebp'),
+                'avif' => function_exists('imageavif'),
+            ]))
+            : $this->availableVariantFormats();
+        if (!in_array($format, $formats, true)) {
             throw new \InvalidArgumentException('Requested variant format is not available.');
         }
 
@@ -717,11 +718,14 @@ final class MediaRepository
         $extension = $format === 'jpeg' ? 'jpg' : $format;
         $mime = 'image/' . $format;
         $sourceFingerprint = sha1($file . '|' . (string) filesize($source) . '|' . (string) filemtime($source));
-        $transform = sha1(json_encode([$targetWidth, $targetHeight, $fit, $format, (int) comet_config('media.variants.quality', 82)]));
+        $quality = $internal
+            ? max(1, min(100, (int) ($options['quality'] ?? comet_config('media.variants.quality', 82))))
+            : (int) comet_config('media.variants.quality', 82);
+        $transform = sha1(json_encode([$targetWidth, $targetHeight, $fit, $format, $quality]));
         $directory = $this->variantStorageDirectory($file);
         $target = $directory . '/' . $sourceFingerprint . '-' . $transform . '.' . $extension;
 
-        if (is_file($target)) {
+        if (is_file($target) && !($internal && ($options['refresh'] ?? false))) {
             imagedestroy($sourceImage);
             return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
         }
@@ -740,7 +744,7 @@ final class MediaRepository
         $this->prepareVariantCanvas($variant, $format);
         imagecopyresampled($variant, $sourceImage, 0, 0, $sourceX, $sourceY, $targetWidth, $targetHeight, $cropWidth, $cropHeight);
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
-        $saved = $this->saveVariantImage($variant, $tmp, $format);
+        $saved = $this->saveVariantImage($variant, $tmp, $format, $quality);
         imagedestroy($variant);
         imagedestroy($sourceImage);
 
@@ -786,8 +790,7 @@ final class MediaRepository
                 continue;
             }
 
-            $this->deleteThumbnail($file);
-            $path = $this->ensureThumbnail($file);
+            $path = $this->ensureThumbnail($file, true);
 
             if ($path !== null) {
                 $generated++;
@@ -839,7 +842,7 @@ final class MediaRepository
         ];
     }
 
-    private function ensureThumbnail(string $file): ?string
+    private function ensureThumbnail(string $file, bool $refresh = false): ?string
     {
         if (!(bool) comet_config('media.thumbnails.enabled', true)) {
             return null;
@@ -851,13 +854,19 @@ final class MediaRepository
             return null;
         }
 
-        $target = $this->thumbnailStoragePath($file);
-
-        if (is_file($target) && (filemtime($target) ?: 0) >= (filemtime($source) ?: 0)) {
-            return $target;
+        $size = max(64, min(4096, (int) comet_config('media.thumbnails.size', 512)));
+        try {
+            return $this->variant($file, [
+                'w' => $size,
+                'h' => $size,
+                'fit' => 'contain',
+                'format' => 'jpeg',
+                'quality' => (int) comet_config('media.thumbnails.quality', 82),
+                'refresh' => $refresh,
+            ], true)['path'];
+        } catch (\Throwable) {
+            return null;
         }
-
-        return $this->generateThumbnail($source, $target, $file) ? $target : null;
     }
 
     private function isThumbnailSource(string $file): bool
@@ -867,77 +876,6 @@ final class MediaRepository
         return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'], true);
     }
 
-    private function thumbnailStoragePath(string $file): string
-    {
-        return $this->thumbDir . '/' . sha1(basename($file)) . '.jpg';
-    }
-
-    private function deleteThumbnail(string $file): void
-    {
-        $path = $this->thumbnailStoragePath($file);
-
-        if (is_file($path)) {
-            unlink($path);
-        }
-    }
-
-    private function generateThumbnail(string $source, string $target, string $file): bool
-    {
-        if (!$this->hasThumbnailGenerator($file)) {
-            return false;
-        }
-
-        $sourceImage = $this->createImageResource($source, $file);
-
-        if (!$sourceImage instanceof \GdImage) {
-            return false;
-        }
-
-        $sourceImage = $this->applyExifOrientation($sourceImage, $source, $file);
-        $width = imagesx($sourceImage);
-        $height = imagesy($sourceImage);
-
-        if ($width <= 0 || $height <= 0) {
-            imagedestroy($sourceImage);
-
-            return false;
-        }
-
-        $maxSize = max(64, min(4096, (int) comet_config('media.thumbnails.size', 512)));
-        $scale = min(1, $maxSize / max($width, $height));
-        $targetWidth = max(1, (int) round($width * $scale));
-        $targetHeight = max(1, (int) round($height * $scale));
-        $thumbnail = imagecreatetruecolor($targetWidth, $targetHeight);
-
-        if (!$thumbnail instanceof \GdImage) {
-            imagedestroy($sourceImage);
-
-            return false;
-        }
-
-        $background = imagecolorallocate($thumbnail, 255, 255, 255);
-        imagefilledrectangle($thumbnail, 0, 0, $targetWidth, $targetHeight, $background === false ? 0 : $background);
-        imagecopyresampled($thumbnail, $sourceImage, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
-
-        $quality = max(1, min(100, (int) comet_config('media.thumbnails.quality', 82)));
-        $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
-        $saved = imagejpeg($thumbnail, $tmp, $quality);
-
-        imagedestroy($thumbnail);
-        imagedestroy($sourceImage);
-
-        if (!$saved) {
-            if (is_file($tmp)) {
-                unlink($tmp);
-            }
-
-            return false;
-        }
-
-        rename($tmp, $target);
-
-        return true;
-    }
 
     private function variantGeometry(int $sourceWidth, int $sourceHeight, int $width, int $height, string $fit): array
     {
@@ -986,9 +924,9 @@ final class MediaRepository
         imagefilledrectangle($image, 0, 0, imagesx($image), imagesy($image), $background === false ? 0 : $background);
     }
 
-    private function saveVariantImage(\GdImage $image, string $path, string $format): bool
+    private function saveVariantImage(\GdImage $image, string $path, string $format, ?int $quality = null): bool
     {
-        $quality = max(1, min(100, (int) comet_config('media.variants.quality', 82)));
+        $quality = max(1, min(100, $quality ?? (int) comet_config('media.variants.quality', 82)));
 
         return match ($format) {
             'jpeg' => imagejpeg($image, $path, $quality),
@@ -1032,6 +970,22 @@ final class MediaRepository
     private function variantStorageDirectory(string $file): string
     {
         return $this->variantDir . '/' . sha1(basename($file));
+    }
+
+    private function removeLegacyThumbnailCache(): void
+    {
+        $directory = $this->workspace->root() . '/media-thumbs';
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        foreach (glob($directory . '/*') ?: [] as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+
+        @rmdir($directory);
     }
 
     private function deleteVariants(string $file): void

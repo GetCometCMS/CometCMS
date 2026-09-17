@@ -9,6 +9,8 @@ import {
   formatBytes,
   getFileIcon,
   isImageFile,
+  mediaThumbUrl,
+  mediaUrl,
   normalizeChoiceValue,
   normalizeChoiceValues,
   normalizeMediaModel,
@@ -52,5 +54,12 @@ describe("mediaUtils", () => {
   it("normalizes select and relation choices", () => {
     expect(normalizeChoiceValue([{ value: "posts" }])).toBe("posts");
     expect(normalizeChoiceValues('["posts", "pages", "posts"]')).toEqual(["posts", "pages"]);
+  });
+
+  it("uses the media variant endpoint for thumbnails", () => {
+    expect(mediaUrl("site a", "hero image.jpg")).toBe("/media/site%20a/hero%20image.jpg");
+    expect(mediaThumbUrl("site a", "hero image.jpg")).toBe(
+      "/media/site%20a/hero%20image.jpg?variant=thumbnail",
+    );
   });
 });

@@ -122,3 +122,24 @@ test('media variant cache is disposable and removed with its original', function
     assert_false(is_file($path));
     assert_false(is_dir($cacheDirectory));
 });
+
+test('media thumbnails are stored as variants', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $path = comet_test_workspace_path() . '/media/thumbnail.jpg';
+    $source = imagecreatetruecolor(800, 400);
+    imagejpeg($source, $path, 90);
+    imagedestroy($source);
+    $legacyDirectory = comet_test_workspace_path() . '/media-thumbs';
+    mkdir($legacyDirectory, 0775, true);
+    file_put_contents($legacyDirectory . '/old.jpg', 'disposable cache');
+    $repository = new MediaRepository();
+
+    $thumbnail = $repository->thumbnailPath('thumbnail.jpg');
+
+    assert_true(is_string($thumbnail));
+    assert_true(str_starts_with($thumbnail, comet_test_workspace_path() . '/media-variants/'));
+    assert_false(is_dir(comet_test_workspace_path() . '/media-thumbs'));
+});

@@ -520,6 +520,13 @@ final class ApiController
             $this->requireToken('media.read', ['type' => 'media', 'file' => $file]);
         }
 
+        if (($_GET['variant'] ?? null) === 'thumbnail') {
+            $thumbnail = $this->media->thumbnailPath($file);
+            if ($thumbnail !== null) {
+                $this->streamMediaFile($thumbnail, 'image/jpeg', $private);
+            }
+        }
+
         if (array_key_exists('w', $_GET) || array_key_exists('h', $_GET)) {
             try {
                 $variant = $this->media->variant($file, [
@@ -741,7 +748,7 @@ final class ApiController
             'name' => $file['name'],
             'url' => $this->absoluteUrl($this->mediaRoute('/media', (string) $file['name'])),
             'thumb_url' => ($file['thumb'] ?? null) !== null
-                ? $this->absoluteUrl($this->mediaRoute('/media-thumbs', (string) $file['name']))
+                ? $this->absoluteUrl($this->mediaRoute('/media', (string) $file['name'])) . '?variant=thumbnail'
                 : $this->absoluteUrl($this->mediaRoute('/media', (string) $file['name'])),
             'size' => $file['size'],
             'mime' => $file['mime'],

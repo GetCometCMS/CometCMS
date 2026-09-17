@@ -60,7 +60,7 @@ X-Comet-Workspace: site-b
 | `GET /api/v1/workspaces/{slug}/content-types/{type}` | Content type schema for a specific workspace    |
 | `GET /api/v1/workspaces/{slug}/media`                | Media list for a specific workspace             |
 | `GET /media/{slug}/{filename}`                       | Serve media file from a specific workspace      |
-| `GET /media-thumbs/{slug}/{filename}`                | Serve a generated thumbnail from that workspace |
+| `GET /media/{slug}/{filename}?variant=thumbnail`     | Serve the thumbnail variant from that workspace |
 
 ### Workspace header
 
@@ -136,14 +136,15 @@ Each workspace stores its data in workspace-scoped sub-directories:
 
 ```
 cms/storage/
-  content/{workspace}/          # Content entries
-  content-types/{workspace}/    # Content type schemas
-  media/{workspace}/            # Uploaded media files
-  media-meta/{workspace}/       # Media metadata
-  media-thumbs/{workspace}/     # Generated thumbnails
-  revisions/{workspace}/        # Revision history
-  trash/{workspace}/            # Soft-deleted entries
-  workspaces/icons/             # Workspace icons
+  workspaces/{workspace}/
+    icon.png                     # Workspace icon
+    content/                     # Content entries
+    content-types/               # Content type schemas
+    media/                       # Uploaded media files
+    media-meta/                  # Media metadata
+    media-variants/              # Generated variants, including thumbnails
+    revisions/                   # Revision history
+    trash/                       # Soft-deleted entries
 ```
 
 The default workspace uses `default` as its directory name regardless of the configured default slug.

@@ -247,15 +247,7 @@ final class WorkspaceRepository
         $label = trim((string) ($workspace['label'] ?? ''));
         $createdAt = (string) ($workspace['created_at'] ?? Security::now());
         $resolvedDefault = $defaultSlug ?? (string) (($this->settings->all())['default_workspace'] ?? WorkspaceContext::DEFAULT);
-        $iconDir = COMET_STORAGE . '/workspaces/icons/';
-        $hasIcon = false;
-
-        foreach (['jpg', 'png', 'webp', 'gif'] as $ext) {
-            if (is_file($iconDir . $slug . '.' . $ext)) {
-                $hasIcon = true;
-                break;
-            }
-        }
+        $hasIcon = $this->iconPath($slug) !== null;
 
         return [
             'slug' => $slug,
@@ -266,6 +258,51 @@ final class WorkspaceRepository
             'created_at' => $createdAt,
             'updated_at' => (string) ($workspace['updated_at'] ?? $createdAt),
         ];
+    }
+
+    public function iconPath(string $slug): ?string
+    {
+        $slug = Security::slug($slug);
+        $target = (new WorkspaceContext($slug))->root() . '/icon.png';
+
+        if (is_file($target)) {
+            return $target;
+        }
+
+        // Transparently migrate icons written by releases before icons lived
+        // inside their workspace. Re-encode them so icon.png is always a PNG.
+        foreach (['png', 'jpg', 'jpeg', 'webp', 'gif'] as $extension) {
+            $legacy = COMET_STORAGE . '/workspaces/icons/' . $slug . '.' . $extension;
+            if (!is_file($legacy)) {
+                continue;
+            }
+
+            $contents = file_get_contents($legacy);
+            $image = is_string($contents) && function_exists('imagecreatefromstring')
+                ? @imagecreatefromstring($contents)
+                : false;
+
+            if ($image instanceof \GdImage) {
+                if (@imagepng($image, $target)) {
+                    @unlink($legacy);
+                }
+                imagedestroy($image);
+            } elseif ($extension === 'png' && @rename($legacy, $target)) {
+                // PNG icons can still be migrated on installations without GD.
+            }
+
+            if (is_file($target)) {
+                $legacyDirectory = dirname($legacy);
+                if ((glob($legacyDirectory . '/*') ?: []) === []) {
+                    @rmdir($legacyDirectory);
+                }
+                return $target;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function defaultWorkspace(): array
