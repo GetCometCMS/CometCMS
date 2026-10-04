@@ -1,3 +1,4 @@
+import { APP_BASE } from '../basePath.js'
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
 
 export function fileExtension(name) {
@@ -212,7 +213,7 @@ export function normalizeChoiceValues(value) {
 }
 
 export function mediaUrl(workspace, value) {
-  return `/media/${encodeURIComponent(workspace)}/${encodeURIComponent(String(value))}`;
+  return `${APP_BASE}/media/${encodeURIComponent(workspace)}/${encodeURIComponent(String(value))}`;
 }
 
 export function mediaThumbUrl(workspace, value) {

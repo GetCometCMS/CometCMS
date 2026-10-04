@@ -173,8 +173,9 @@
             : 'border-slate-200 text-slate-500 hover:border-slate-300'
         "
         @click="setRichTextMode('visual')"
+        :aria-pressed="richTextMode === 'visual'"
       >
-        Visual
+        {{ t("editor.visual") }}
       </button>
       <button
         type="button"
@@ -185,8 +186,9 @@
             : 'border-slate-200 text-slate-500 hover:border-slate-300'
         "
         @click="setRichTextMode('raw')"
+        :aria-pressed="richTextMode === 'raw'"
       >
-        Raw
+        {{ t("editor.raw") }}
       </button>
     </div>
 
@@ -209,27 +211,33 @@
         <button
           type="button"
           class="tiptap-btn font-bold"
-          title="Bold"
+          :title="t('editor.bold')"
+          :aria-label="t('editor.bold')"
           @click="editor?.chain().focus().toggleBold().run()"
           :class="{ 'is-active': editor?.isActive('bold') }"
+          :aria-pressed="!!editor?.isActive('bold')"
         >
           B
         </button>
         <button
           type="button"
           class="tiptap-btn italic"
-          title="Italic"
+          :title="t('editor.italic')"
+          :aria-label="t('editor.italic')"
           @click="editor?.chain().focus().toggleItalic().run()"
           :class="{ 'is-active': editor?.isActive('italic') }"
+          :aria-pressed="!!editor?.isActive('italic')"
         >
           I
         </button>
         <button
           type="button"
           class="tiptap-btn"
-          title="Strikethrough"
+          :title="t('editor.strike')"
+          :aria-label="t('editor.strike')"
           @click="editor?.chain().focus().toggleStrike().run()"
           :class="{ 'is-active': editor?.isActive('strike') }"
+          :aria-pressed="!!editor?.isActive('strike')"
         >
           <s>S</s>
         </button>
@@ -237,27 +245,33 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Heading 1"
+          :title="t('editor.h1')"
+          :aria-label="t('editor.h1')"
           @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
           :class="{ 'is-active': editor?.isActive('heading', { level: 1 }) }"
+          :aria-pressed="!!editor?.isActive('heading', { level: 1 })"
         >
           H1
         </button>
         <button
           type="button"
           class="tiptap-btn"
-          title="Heading 2"
+          :title="t('editor.h2')"
+          :aria-label="t('editor.h2')"
           @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
           :class="{ 'is-active': editor?.isActive('heading', { level: 2 }) }"
+          :aria-pressed="!!editor?.isActive('heading', { level: 2 })"
         >
           H2
         </button>
         <button
           type="button"
           class="tiptap-btn"
-          title="Heading 3"
+          :title="t('editor.h3')"
+          :aria-label="t('editor.h3')"
           @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
           :class="{ 'is-active': editor?.isActive('heading', { level: 3 }) }"
+          :aria-pressed="!!editor?.isActive('heading', { level: 3 })"
         >
           H3
         </button>
@@ -265,18 +279,22 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Bullet list"
+          :title="t('editor.bulletList')"
+          :aria-label="t('editor.bulletList')"
           @click="editor?.chain().focus().toggleBulletList().run()"
           :class="{ 'is-active': editor?.isActive('bulletList') }"
+          :aria-pressed="!!editor?.isActive('bulletList')"
         >
           • List
         </button>
         <button
           type="button"
           class="tiptap-btn"
-          title="Ordered list"
+          :title="t('editor.orderedList')"
+          :aria-label="t('editor.orderedList')"
           @click="editor?.chain().focus().toggleOrderedList().run()"
           :class="{ 'is-active': editor?.isActive('orderedList') }"
+          :aria-pressed="!!editor?.isActive('orderedList')"
         >
           1. List
         </button>
@@ -284,27 +302,33 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Blockquote"
+          :title="t('editor.blockquote')"
+          :aria-label="t('editor.blockquote')"
           @click="editor?.chain().focus().toggleBlockquote().run()"
           :class="{ 'is-active': editor?.isActive('blockquote') }"
+          :aria-pressed="!!editor?.isActive('blockquote')"
         >
           "
         </button>
         <button
           type="button"
           class="tiptap-btn font-mono text-xs"
-          title="Inline code"
+          :title="t('editor.code')"
+          :aria-label="t('editor.code')"
           @click="editor?.chain().focus().toggleCode().run()"
           :class="{ 'is-active': editor?.isActive('code') }"
+          :aria-pressed="!!editor?.isActive('code')"
         >
           &lt;/&gt;
         </button>
         <button
           type="button"
           class="tiptap-btn font-mono text-xs"
-          title="Code block"
+          :title="t('editor.codeBlock')"
+          :aria-label="t('editor.codeBlock')"
           @click="editor?.chain().focus().toggleCodeBlock().run()"
           :class="{ 'is-active': editor?.isActive('codeBlock') }"
+          :aria-pressed="!!editor?.isActive('codeBlock')"
         >
           ```
         </button>
@@ -312,7 +336,8 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Horizontal rule"
+          :title="t('editor.rule')"
+          :aria-label="t('editor.rule')"
           @click="editor?.chain().focus().setHorizontalRule().run()"
         >
           —
@@ -320,7 +345,8 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Undo"
+          :title="t('editor.undo')"
+          :aria-label="t('editor.undo')"
           @click="editor?.chain().focus().undo().run()"
         >
           ↩
@@ -328,7 +354,8 @@
         <button
           type="button"
           class="tiptap-btn"
-          title="Redo"
+          :title="t('editor.redo')"
+          :aria-label="t('editor.redo')"
           @click="editor?.chain().focus().redo().run()"
         >
           ↪
@@ -371,7 +398,7 @@
     :options="selectInputOptions"
     :model-value="normalizeChoiceValues(modelValue)"
     :multiple="true"
-    placeholder="Select options…"
+    :placeholder="t('fieldValue.selectOptions')"
     @update:model-value="$emit('update:modelValue', $event)"
   />
 
@@ -395,7 +422,7 @@
       :model-value="relationValue"
       :multiple="!!config.multiple"
       :placeholder="
-        config.target ? 'Select entry…' : 'Choose a target post type first'
+        config.target ? t('fieldInput.selectEntry') : t('fieldInput.noRelationTarget')
       "
       :disabled="!config.target"
       :loading="relationLoading"
@@ -519,7 +546,7 @@
             @dragleave.prevent="onMediaDragLeave"
             @drop.prevent="onMediaDrop"
           >
-            {{ config.multiple ? "Choose media files" : "Choose media" }}
+            {{ config.multiple ? t("fieldInput.chooseMediaFiles") : t("fieldInput.chooseMedia") }}
           </button>
           <button
             v-if="mediaValues.length > 0"
@@ -527,14 +554,14 @@
             class="btn-secondary"
             @click="$emit('update:modelValue', [])"
           >
-            Clear
+            {{ t("fieldInput.clear") }}
           </button>
         </div>
         <p v-if="mediaUploading" class="text-xs text-theme-700">
-          Uploading dropped file{{ config.multiple ? "s" : "" }}...
+          {{ t("fieldInput.uploadingDropped") }}
         </p>
         <p v-else-if="isMediaDropActive" class="text-xs text-theme-700">
-          Drop to upload and select
+          {{ t("fieldInput.dropToSelect") }}
         </p>
         <p v-if="mediaUploadError" class="text-xs text-red-600">
           {{ mediaUploadError }}
@@ -647,7 +674,8 @@
             type="button"
             :disabled="rowIndex === 0"
             class="p-1 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30 transition-colors"
-            title="Move up"
+            :title="t('fieldInput.moveUp')"
+            :aria-label="t('fieldInput.moveUp')"
             @click="moveRepeaterRow(rowIndex, -1)"
           >
             <Icon icon="mdi:chevron-up" class="w-4 h-4" />
@@ -656,7 +684,8 @@
             type="button"
             :disabled="rowIndex === repeaterRows.length - 1"
             class="p-1 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30 transition-colors"
-            title="Move down"
+            :title="t('fieldInput.moveDown')"
+            :aria-label="t('fieldInput.moveDown')"
             @click="moveRepeaterRow(rowIndex, 1)"
           >
             <Icon icon="mdi:chevron-down" class="w-4 h-4" />
@@ -664,7 +693,8 @@
           <button
             type="button"
             class="p-1 rounded text-slate-400 hover:text-red-500 transition-colors"
-            title="Remove row"
+            :title="t('fieldInput.removeRow')"
+            :aria-label="t('fieldInput.removeRow')"
             @click="removeRepeaterRow(rowIndex)"
           >
             <Icon icon="mdi:close" class="w-4 h-4" />
@@ -697,7 +727,7 @@
       class="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-theme-400 hover:text-theme-600 transition-colors"
       @click="addRepeaterRow"
     >
-      + Add row
+      + {{ t("fieldInput.addRow") }}
     </button>
   </div>
 
@@ -758,12 +788,13 @@
           class="btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
         >
           <Icon icon="mdi:open-in-new" class="h-4 w-4" />
-          Open
+          {{ t("media.open") }}
         </a>
         <button
           type="button"
           class="text-slate-400 transition-colors hover:text-slate-700"
-          title="Close"
+          :title="t('common.close')"
+          :aria-label="t('common.close')"
           @click="closeMediaPreview"
         >
           <Icon icon="mdi:close" class="h-5 w-5" />
@@ -812,6 +843,9 @@ import {
   uploadedMediaFilename,
 } from "../composables/mediaUtils.js";
 import { selectOptions } from "../composables/fieldBuilderUtils.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -1133,7 +1167,7 @@ async function uploadDroppedMedia(files) {
       .filter(Boolean);
 
     if (uploadedNames.length === 0) {
-      mediaUploadError.value = "Upload finished, but no files were returned.";
+      mediaUploadError.value = t("fieldInput.uploadNoFiles");
       return;
     }
 
@@ -1142,7 +1176,7 @@ async function uploadDroppedMedia(files) {
       props.config.multiple ? uploadedNames : uploadedNames.slice(0, 1),
     );
   } catch (err) {
-    mediaUploadError.value = err.message ?? "Could not upload dropped media.";
+    mediaUploadError.value = err.message ?? t("fieldInput.uploadFailed");
   } finally {
     mediaUploading.value = false;
   }
@@ -1150,9 +1184,9 @@ async function uploadDroppedMedia(files) {
 
 const mediaValues = computed(() => normalizeMediaValues(props.modelValue));
 const mediaLabel = computed(() => {
-  if (mediaValues.value.length === 0) return "No media selected";
+  if (mediaValues.value.length === 0) return t("fieldInput.noMedia");
   if (props.config.multiple)
-    return `${mediaValues.value.length} media file${mediaValues.value.length === 1 ? "" : "s"} selected`;
+    return t(mediaValues.value.length === 1 ? "fieldInput.mediaSelectedOne" : "fieldInput.mediaSelectedMany", { count: mediaValues.value.length });
   return mediaValues.value[0];
 });
 const mediaPreviewTiles = computed(() =>

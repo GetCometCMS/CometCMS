@@ -22,8 +22,8 @@
             type="button"
             @click.stop="toggleField(field)"
             class="shrink-0 text-slate-400 hover:text-theme-600 transition-colors p-1 rounded"
-            title="Expand field"
-            aria-label="Expand field"
+            :title="t('fieldBuilder.expand')"
+            :aria-label="t('fieldBuilder.expand')"
             :aria-expanded="false"
           >
             <Icon icon="mdi:chevron-down" class="w-4 h-4 -rotate-90" />
@@ -49,7 +49,7 @@
           >
             <div class="min-w-0">
               <div class="truncate text-sm font-medium text-slate-800">
-                {{ field.label || field.key || "Untitled field" }}
+                {{ field.label || field.key || t("fieldBuilder.untitled") }}
               </div>
               <div
                 class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500"
@@ -66,14 +66,14 @@
                 <span
                   v-if="field.required"
                   class="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-amber-700"
-                  >Required</span
+                  >{{ t("fieldBuilder.required") }}</span
                 >
                 <span
                   v-if="field.localized === false"
                   class="inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700"
                 >
                   <Icon icon="mdi:web" class="h-3 w-3" />
-                  Universal
+                  {{ t("fieldBuilder.universal") }}
                 </span>
                 <span
                   v-if="fieldLayoutWidth(field) !== 'full'"
@@ -106,8 +106,8 @@
               type="button"
               @click="duplicateField(index)"
               class="text-slate-400 hover:text-theme-600 transition-colors p-1 rounded"
-              title="Duplicate field"
-              aria-label="Duplicate field"
+              :title="t('fieldBuilder.duplicate')"
+              :aria-label="t('fieldBuilder.duplicate')"
             >
               <Icon icon="mdi:content-copy" class="w-4 h-4" />
             </button>
@@ -115,8 +115,8 @@
               type="button"
               @click="removeField(index)"
               class="text-slate-400 hover:text-red-500 transition-colors p-1 rounded"
-              title="Remove field"
-              aria-label="Remove field"
+              :title="t('fieldBuilder.remove')"
+              :aria-label="t('fieldBuilder.remove')"
             >
               <Icon icon="mdi:close" class="w-4 h-4" />
             </button>
@@ -128,8 +128,8 @@
             type="button"
             @click.stop="toggleField(field)"
             class="shrink-0 text-slate-400 hover:text-theme-600 transition-colors p-1 rounded"
-            title="Collapse field"
-            aria-label="Collapse field"
+            :title="t('fieldBuilder.collapse')"
+            :aria-label="t('fieldBuilder.collapse')"
             :aria-expanded="true"
           >
             <Icon icon="mdi:chevron-down" class="w-4 h-4" />
@@ -150,7 +150,7 @@
 
           <div class="flex-1 min-w-0">
             <div class="truncate text-sm font-medium text-slate-800">
-              {{ field.label || field.key || "Untitled field" }}
+              {{ field.label || field.key || t("fieldBuilder.untitled") }}
             </div>
             <div
               class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500"
@@ -167,14 +167,14 @@
               <span
                 v-if="field.required"
                 class="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-amber-700"
-                >Required</span
+                >{{ t("fieldBuilder.required") }}</span
               >
               <span
                 v-if="field.localized === false"
                 class="inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 text-sky-700"
               >
                 <Icon icon="mdi:web" class="h-3 w-3" />
-                Universal
+                {{ t("fieldBuilder.universal") }}
               </span>
               <span
                 v-if="fieldLayoutWidth(field) !== 'full'"
@@ -206,8 +206,8 @@
               type="button"
               @click="duplicateField(index)"
               class="text-slate-400 hover:text-theme-600 transition-colors p-1 rounded"
-              title="Duplicate field"
-              aria-label="Duplicate field"
+              :title="t('fieldBuilder.duplicate')"
+              :aria-label="t('fieldBuilder.duplicate')"
             >
               <Icon icon="mdi:content-copy" class="w-4 h-4" />
             </button>
@@ -215,8 +215,8 @@
               type="button"
               @click="removeField(index)"
               class="text-slate-400 hover:text-red-500 transition-colors p-1 rounded"
-              title="Remove field"
-              aria-label="Remove field"
+              :title="t('fieldBuilder.remove')"
+              :aria-label="t('fieldBuilder.remove')"
             >
               <Icon icon="mdi:close" class="w-4 h-4" />
             </button>
@@ -228,22 +228,24 @@
             class="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto_18rem]"
           >
             <div>
-              <label class="text-xs text-slate-500 block mb-1">Label</label>
+              <label :for="`field-${index}-label`" class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.label") }}</label>
               <input
+                :id="`field-${index}-label`"
                 v-model="field.label"
                 type="text"
-                placeholder="Display name"
+                :placeholder="t('fieldBuilder.labelPlaceholder')"
                 class="form-input w-full rounded-lg border-slate-300 text-sm"
                 @input="onLabelInput(field)"
               />
             </div>
 
             <div>
-              <label class="text-xs text-slate-500 block mb-1">
-                Field key
-                <span class="text-slate-400 font-normal">(API / storage)</span>
+              <label :for="`field-${index}-key`" class="text-xs text-slate-500 block mb-1">
+                {{ t("fieldBuilder.key") }}
+                <span class="text-slate-400 font-normal">{{ t("fieldBuilder.keyHint") }}</span>
               </label>
               <input
+                :id="`field-${index}-key`"
                 v-model="field.key"
                 type="text"
                 placeholder="field_name"
@@ -267,18 +269,19 @@
                   icon="mdi:alert-outline"
                   class="w-3 h-3 inline-block align-middle mr-0.5"
                 />
-                Was
+                {{ t("fieldBuilder.renamedFrom") }}
                 <code class="font-mono bg-amber-50 px-0.5 rounded">{{
                   field._originalKey
                 }}</code>
-                - all existing entries will be migrated on save.
+                {{ t("fieldBuilder.renamedMigrate") }}
               </p>
             </div>
 
             <div>
-              <label class="text-xs text-slate-500 block mb-1">Type</label>
+              <label class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.type") }}</label>
               <SearchableSelect
                 :model-value="field.type"
+                :aria-label="t('fieldBuilder.type')"
                 :options="allowedTypeOptions(field)"
                 :clearable="false"
                 :searchable="true"
@@ -287,11 +290,12 @@
             </div>
 
             <div>
-              <label class="text-xs text-slate-500 block mb-1">Required</label>
+              <span class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.required") }}</span>
               <button
                 type="button"
                 class="relative mt-1 h-7 w-12 rounded-full transition-colors"
                 :class="field.required ? 'bg-theme-500' : 'bg-slate-300'"
+                :aria-label="t('fieldBuilder.required')"
                 :aria-pressed="field.required"
                 @click="field.required = !field.required"
               >
@@ -350,10 +354,10 @@
                   />
                   <span>
                     <span class="block text-sm font-medium text-slate-700">
-                      Same value for all languages
+                      {{ t("field.universalHint") }}
                     </span>
                     <span class="mt-1 block text-sm text-slate-500">
-                      Use a single value for this field in all languages.
+                      {{ t("fieldBuilder.universalBody") }}
                     </span>
                   </span>
                 </label>
@@ -372,10 +376,10 @@
                     />
                     <span>
                       <span class="block text-sm font-medium text-slate-700">
-                        Default value
+                        {{ t("fieldBuilder.default") }}
                       </span>
                       <span class="mt-1 block text-sm text-slate-500">
-                        Pre-fill the editor with a default value.
+                        {{ t("fieldBuilder.defaultBody") }}
                       </span>
                     </span>
                   </label>
@@ -422,7 +426,7 @@
                         class="form-checkbox rounded border-slate-300 text-theme-600"
                         @change="setFieldDefault(field, $event.target.checked)"
                       />
-                      <span class="text-sm text-slate-600">Enabled</span>
+                      <span class="text-sm text-slate-600">{{ t("fieldBuilder.enabled") }}</span>
                     </label>
 
                     <SearchableSelect
@@ -430,7 +434,7 @@
                       :model-value="selectDefaultValues(field)"
                       :options="selectDefaultOptions(field)"
                       :multiple="true"
-                      placeholder="Select defaults..."
+                      :placeholder="t('fieldBuilder.selectDefaults')"
                       @update:model-value="setFieldDefault(field, $event)"
                     />
 
@@ -440,7 +444,7 @@
                       class="form-select w-full rounded-lg border-slate-300 text-sm"
                       @change="setFieldDefault(field, $event.target.value)"
                     >
-                      <option value="">- select -</option>
+                      <option value="">{{ t("fieldValue.select") }}</option>
                       <option
                         v-for="opt in parseSelectOptions(field._optionsText)"
                         :key="opt.key"
@@ -482,16 +486,15 @@
 
               <div class="space-y-4 p-4">
                 <div>
-                  <label class="text-sm font-medium text-slate-700 block mb-2"
-                    >Description
-                    <span class="font-normal text-slate-400"
-                      >(optional helper text shown in the editor)</span
-                    ></label
+                  <label :for="`field-${index}-description`" class="text-sm font-medium text-slate-700 block mb-2"
+                    >{{ t("fieldBuilder.description") }}
+                    <span class="font-normal text-slate-400">{{ t("fieldBuilder.descriptionHint") }}</span></label
                   >
                   <textarea
+                    :id="`field-${index}-description`"
                     v-model="field.description"
                     rows="2"
-                    placeholder="Explain what this field is for..."
+                    :placeholder="t('fieldBuilder.descriptionPlaceholder')"
                     class="form-textarea w-full rounded-lg border-slate-300 text-sm"
                   />
                 </div>

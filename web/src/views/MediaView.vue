@@ -11,6 +11,7 @@
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button
+          v-if="canUpload"
           type="button"
           class="btn-primary shrink-0"
           @click="fileInput.click()"
@@ -30,6 +31,7 @@
         :dragged-file="draggedFile"
         :selected-count="selectedCount"
         :selected-names="selectedNames"
+        :can-manage="canAnyMedia('media.update')"
         @categories-updated="onCategoriesUpdated"
         @category-renamed="onCategoryRenamed"
         @category-deleted="onCategoryDeleted"
@@ -236,7 +238,16 @@
         </Transition>
 
         <div
-          v-if="!loading && files.length === 0"
+          v-if="!loading && files.length === 0 && !canUpload"
+          class="mb-6 rounded-lg border border-dashed border-slate-300 p-8 text-center"
+        >
+          <Icon class="mx-auto mb-2 h-8 w-8 text-slate-400" icon="mdi:image-off-outline" />
+          <p class="text-sm text-slate-600">{{ t("media.noFilesYet") }}</p>
+        </div>
+        <div
+          v-else-if="!loading && files.length === 0"
+          role="button"
+          tabindex="0"
           class="mb-6 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors"
           :class="
             isDraggingFile
@@ -244,6 +255,8 @@
               : 'border-slate-300 hover:border-theme-400'
           "
           @click="fileInput.click()"
+          @keydown.enter.prevent="fileInput.click()"
+          @keydown.space.prevent="fileInput.click()"
         >
           <Icon
             class="mx-auto mb-2 h-8 w-8 transition-colors"
@@ -350,6 +363,7 @@
                   t("media.selectFile", { name: file.name })
                 }}</span>
                 <input
+                  v-if="canSelectFiles"
                   type="checkbox"
                   class="form-checkbox rounded border-slate-300 text-theme-600"
                   :checked="isSelected(file)"
@@ -358,9 +372,11 @@
               </label>
 
               <button
+                v-if="canMedia('media.delete', file.category)"
                 type="button"
-                class="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-slate-400 opacity-0 shadow-sm transition-all group-hover:opacity-100 hover:text-red-500"
+                class="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-slate-400 shadow-sm transition-all hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
                 :title="t('media.delete')"
+                :aria-label="t('media.deleteNamed', { name: file.name })"
                 @click.stop="confirmDelete(file)"
               >
                 <Icon icon="mdi:trash-can-outline" class="h-3.5 w-3.5" />
@@ -427,6 +443,7 @@
                   t("media.selectFile", { name: file.name })
                 }}</span>
                 <input
+                  v-if="canSelectFiles"
                   type="checkbox"
                   class="form-checkbox rounded border-slate-300 text-theme-600"
                   :checked="isSelected(file)"
@@ -473,9 +490,11 @@
               }}</span>
               <div class="flex items-center gap-2 sm:justify-end">
                 <button
+                  v-if="canMedia('media.delete', file.category)"
                   type="button"
-                  class="btn-danger px-2 py-1 text-xs"
+                  class="btn-danger-subtle btn-sm"
                   :title="t('media.delete')"
+                  :aria-label="t('media.deleteNamed', { name: file.name })"
                   @click="confirmDelete(file)"
                 >
                   <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
@@ -592,11 +611,12 @@
                 type="button"
                 class="min-w-0 break-all text-left text-slate-800 hover:text-theme-700"
                 :title="t('media.doubleClickRename')"
-                @dblclick="startRenameFile(detailFile)"
+                @dblclick="canEditDetail && startRenameFile(detailFile)"
               >
                 {{ detailFile.name }}
               </button>
               <button
+                v-if="canEditDetail"
                 type="button"
                 class="btn-secondary shrink-0 px-2 py-1 text-xs"
                 :title="t('media.renameFile')"
@@ -659,7 +679,7 @@
                   >
                     <img
                       v-if="userMap[detailFile.uploaded_by].has_avatar"
-                      :src="`/admin/api/users/${detailFile.uploaded_by}/avatar`"
+                      :src="`${ADMIN_API_BASE}/users/${detailFile.uploaded_by}/avatar`"
                       class="w-full h-full object-cover"
                       :alt="userMap[detailFile.uploaded_by].username"
                     />
@@ -723,10 +743,13 @@
         <!-- Category -->
         <div>
           <label
+            for="media-detail-category"
             class="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1"
             >{{ t("media.category") }}</label
           >
           <select
+            id="media-detail-category"
+            :disabled="!canEditDetail"
             :value="detailFile.category ?? ''"
             class="form-select w-full rounded-lg border-slate-300 text-sm"
             @change="onDetailCategoryChange($event.target.value)"
@@ -745,10 +768,13 @@
         <!-- Visibility -->
         <div>
           <label
+            for="media-detail-visibility"
             class="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1"
             >{{ t("media.visibility") }}</label
           >
           <select
+            id="media-detail-visibility"
+            :disabled="!canEditDetail"
             :value="detailFile.visibility ?? 'public'"
             class="form-select w-full rounded-lg border-slate-300 text-sm"
             @change="onDetailVisibilityChange($event.target.value)"
@@ -771,6 +797,7 @@
             <input
               :id="`detail-alt-${detailFile.name}`"
               v-model="detailAlt"
+              :readonly="!canEditDetail"
               type="text"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
               :placeholder="t('media.altPlaceholder')"
@@ -786,6 +813,7 @@
             <input
               :id="`detail-title-${detailFile.name}`"
               v-model="detailTitle"
+              :readonly="!canEditDetail"
               type="text"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
               :placeholder="t('media.titlePlaceholder')"
@@ -830,10 +858,10 @@
         </div>
 
         <!-- Delete -->
-        <div class="pt-2 border-t border-slate-100">
+        <div v-if="canMedia('media.delete', detailFile.category)" class="pt-2 border-t border-slate-100">
           <button
             type="button"
-            class="btn-danger w-full"
+            class="btn-danger-subtle w-full justify-center"
             @click="confirmDelete(detailFile)"
           >
             {{ t("media.deleteFile") }}
@@ -869,6 +897,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
@@ -880,6 +909,8 @@ import MediaCategorySidebar from "../components/MediaCategorySidebar.vue";
 import MediaBulkEditBar from "../components/MediaBulkEditBar.vue";
 import { api } from "../api/index.js";
 import { useToastStore } from "../stores/toast.js";
+import { useAuthStore } from "../stores/auth.js";
+import { usePermissions } from "../composables/usePermissions.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useHeightTransition } from "../composables/useHeightTransition.js";
 import {
@@ -900,6 +931,13 @@ import {
 const ht = useHeightTransition();
 
 const toast = useToastStore();
+const auth = useAuthStore();
+const { canMedia, canAnyMedia } = usePermissions();
+const canUpload = computed(() => canAnyMedia("media.upload"));
+const canSelectFiles = computed(() => canAnyMedia("media.update") || canAnyMedia("media.delete"));
+const canEditDetail = computed(() =>
+  detailFile.value ? canMedia("media.update", detailFile.value.category) : false,
+);
 const apiEndpointStore = useApiEndpointStore();
 const { t } = useI18n();
 const apiEndpointOwner = "media";
@@ -959,6 +997,8 @@ const userMap = computed(() =>
 );
 
 async function loadUsers() {
+  // Names are a nicety; users without users.read see account ids instead.
+  if (!auth.can("users.read")) return;
   try {
     users.value = (await api.users.list()).data ?? [];
   } catch {
@@ -1233,7 +1273,7 @@ function onDrop(e) {
 // OS file drag tracking — use a counter to avoid flickering on dragenter/dragleave
 // across child elements. Only activates for real file drags, not internal card drags.
 function onContentDragEnter(e) {
-  if (draggedFile.value) return; // internal card drag — ignore
+  if (draggedFile.value || !canUpload.value) return; // internal card drag — ignore
   if (!e.dataTransfer?.types?.includes("Files")) return;
   dragEnterCount++;
   isDraggingFile.value = true;
@@ -1246,7 +1286,7 @@ function onContentDragLeave() {
 }
 
 function onContentDrop(e) {
-  if (draggedFile.value) return; // let the card drag handlers take over
+  if (draggedFile.value || !canUpload.value) return; // let the card drag handlers take over
   dragEnterCount = 0;
   isDraggingFile.value = false;
   onDrop(e);

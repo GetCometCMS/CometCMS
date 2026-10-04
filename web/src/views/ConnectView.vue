@@ -54,7 +54,7 @@
         <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex flex-wrap gap-2 text-xs text-slate-500">
             <span class="rounded-full bg-white px-2 py-1 ring-1 ring-slate-200">HTTP</span>
-            <span class="rounded-full bg-white px-2 py-1 ring-1 ring-slate-200">Bearer token</span>
+            <span class="rounded-full bg-white px-2 py-1 ring-1 ring-slate-200">{{ t("apiBuilder.authBearer") }}</span>
             <span class="rounded-full bg-white px-2 py-1 ring-1 ring-slate-200">{{ activeWorkspace }}</span>
           </div>
           <button
@@ -97,8 +97,8 @@ const auth = useAuthStore();
 const toast = useToastStore();
 const { t } = useI18n();
 const activeWorkspace = getActiveWorkspace();
-const apiBase = workspacedApiBase(window.location.origin);
-const mcpUrl = workspacedMcpEndpoint(window.location.origin);
+const apiBase = workspacedApiBase();
+const mcpUrl = workspacedMcpEndpoint();
 const collections = ref([]);
 const validTabs = new Set(["access-tokens", "api", "mcp", "webhooks"]);
 const activeTab = computed(() =>

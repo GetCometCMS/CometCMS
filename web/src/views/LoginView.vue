@@ -13,6 +13,13 @@
       <div class="card p-6">
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div
+            v-if="sessionExpired && !errorMsg"
+            role="status"
+            class="p-3 rounded-lg text-sm bg-amber-50 text-amber-800"
+          >
+            {{ t("login.sessionExpired") }}
+          </div>
+          <div
             v-if="errorMsg"
             class="p-3 rounded-lg text-sm"
             :class="
@@ -73,13 +80,24 @@
 </template>
 
 <script setup>
+import { adminAsset } from "../basePath.js";
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth.js";
 import { useI18n } from "../i18n/index.js";
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const sessionExpired = route.query.expired === "1";
+
+// Only return to paths inside the admin, never to another site.
+function redirectTarget() {
+  const target = typeof route.query.redirect === "string" ? route.query.redirect : "";
+  return target.startsWith("/") && !target.startsWith("//") && !target.startsWith("/login")
+    ? target
+    : "/dashboard";
+}
 const { t } = useI18n();
 const username = ref("");
 const password = ref("");
@@ -87,7 +105,7 @@ const remember = ref(false);
 const loading = ref(false);
 const errorMsg = ref("");
 const rateLimited = ref(false);
-const logoSrc = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}img/cms-logo-black.png`;
+const logoSrc = adminAsset("img/cms-logo-black.png");
 
 async function handleLogin() {
   errorMsg.value = "";
@@ -95,7 +113,7 @@ async function handleLogin() {
   loading.value = true;
   try {
     await auth.login(username.value, password.value, remember.value);
-    router.push("/dashboard");
+    router.push(redirectTarget());
   } catch (err) {
     rateLimited.value = err.status === 429;
     errorMsg.value = rateLimited.value

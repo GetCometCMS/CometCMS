@@ -21,14 +21,18 @@ final class Auth
     public function attempt(string $username, string $password, bool $remember = false): bool
     {
         $user = $this->users->findByUsername($username);
+        // Verify against a dummy hash for unknown users so response timing does
+        // not reveal which usernames exist.
+        $hash = (string) ($user['password_hash'] ?? self::dummyHash());
 
-        if ($user === null || !password_verify($password, (string) ($user['password_hash'] ?? ''))) {
+        if (!password_verify($password, $hash) || $user === null) {
             (new Logger())->warning('failed login', ['username' => $username]);
             return false;
         }
 
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
+        $_SESSION['session_epoch'] = self::epoch($user);
         $this->configureSessionCookie($remember);
         (new Logger())->info('login', ['user_id' => $user['id']]);
 
@@ -57,8 +61,36 @@ final class Auth
         }
 
         $id = $_SESSION['user_id'] ?? null;
+        $user = is_string($id) ? $this->users->find($id) : null;
 
-        return is_string($id) ? $this->users->find($id) : null;
+        // A password change bumps the user's epoch, which ends every session
+        // that was started with the old password.
+        if ($user !== null && ($_SESSION['session_epoch'] ?? 0) !== self::epoch($user)) {
+            $_SESSION = [];
+            return null;
+        }
+
+        return $user;
+    }
+
+    /** Keep the current session valid after its own user changed their password. */
+    public function refresh(array $user): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE && ($_SESSION['user_id'] ?? null) === $user['id']) {
+            session_regenerate_id(true);
+            $_SESSION['session_epoch'] = self::epoch($user);
+        }
+    }
+
+    private static function epoch(array $user): int
+    {
+        return (int) ($user['session_epoch'] ?? 0);
+    }
+
+    /** Hash of a discarded random secret, at the same cost as real password hashes. */
+    private static function dummyHash(): string
+    {
+        return '$2y$10$0.sKqCbS8YuRB4r4qYqoUekYs65G5mpb2QF7EXhxvnSKyTEyNIqUa';
     }
 
     public function check(): bool

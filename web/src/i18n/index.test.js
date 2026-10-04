@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN_LANGUAGES, normalizeLocale, setLocale, t } from './index.js'
+import { ADMIN_LANGUAGES, messages, normalizeLocale, setLocale, t } from './index.js'
 
 describe('admin i18n', () => {
   it('discovers language files as selectable admin languages', () => {
@@ -19,5 +19,13 @@ describe('admin i18n', () => {
 
     setLocale('en', { persist: false })
     expect(t('profile.language')).toBe('Admin language')
+  })
+
+  it('defines every message key in every admin language', () => {
+    const reference = Object.keys(messages.en).sort()
+
+    for (const language of ADMIN_LANGUAGES) {
+      expect(Object.keys(messages[language.value]).sort(), language.value).toEqual(reference)
+    }
   })
 })

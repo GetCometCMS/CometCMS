@@ -44,18 +44,32 @@ final class MediaRepository
         return $this->path($file);
     }
 
-    public function files(string $query = '', ?string $category = null, string $type = 'all', string $sort = 'newest', ?string $visibility = null): array
+    /**
+     * Permission context for one file, including its category so that
+     * category-scoped grants (media:category:<path>) apply to it.
+     */
+    public function permissionContext(string $file): array
+    {
+        $file = basename($file);
+
+        return ['type' => 'media', 'file' => $file, 'category' => $this->categoryFor($file, $this->metadata())];
+    }
+
+    /**
+     * @param (callable(array): bool)|null $visible receives a permission context and decides whether the file is listed
+     */
+    public function files(string $query = '', ?string $category = null, string $type = 'all', string $sort = 'newest', ?string $visibility = null, ?callable $visible = null): array
     {
         $metadata = $this->metadata();
-        $files = $this->matchingFiles($query, $category, $type, $sort, $metadata, $visibility);
+        $files = $this->visibleFiles($this->matchingFiles($query, $category, $type, $sort, $metadata, $visibility), $metadata, $visible);
 
         return array_map(fn(string $file): array => $this->item($file, $metadata), $files);
     }
 
-    public function limitedFiles(string $query = '', ?string $category = null, ?int $limit = null, int $offset = 0, string $type = 'all', string $sort = 'newest', ?string $visibility = null, ?array $usedFiles = null): array
+    public function limitedFiles(string $query = '', ?string $category = null, ?int $limit = null, int $offset = 0, string $type = 'all', string $sort = 'newest', ?string $visibility = null, ?array $usedFiles = null, ?callable $visible = null): array
     {
         $metadata = $this->metadata();
-        $files = $this->matchingFiles($query, $category, $type, $sort, $metadata, $visibility);
+        $files = $this->visibleFiles($this->matchingFiles($query, $category, $type, $sort, $metadata, $visibility), $metadata, $visible);
 
         if ($usedFiles !== null) {
             $files = array_values(array_filter($files, static fn(string $file): bool => !isset($usedFiles[$file])));
@@ -75,10 +89,10 @@ final class MediaRepository
         ];
     }
 
-    public function stats(): array
+    public function stats(?callable $visible = null): array
     {
         $metadata = $this->metadata();
-        $files = $this->matchingFiles('', null, 'all', 'name', $metadata);
+        $files = $this->visibleFiles($this->matchingFiles('', null, 'all', 'name', $metadata), $metadata, $visible);
         $categoryCounts = [];
         $uncategorized = 0;
 
@@ -1148,6 +1162,19 @@ final class MediaRepository
         }
 
         return $name;
+    }
+
+    private function visibleFiles(array $files, array $metadata, ?callable $visible): array
+    {
+        if ($visible === null) {
+            return $files;
+        }
+
+        return array_values(array_filter($files, fn(string $file): bool => (bool) $visible([
+            'type' => 'media',
+            'file' => $file,
+            'category' => $this->categoryFor($file, $metadata),
+        ])));
     }
 
     private function categoryFor(string $file, array $metadata): string

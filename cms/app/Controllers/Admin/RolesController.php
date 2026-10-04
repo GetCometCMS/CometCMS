@@ -27,6 +27,7 @@ final class RolesController extends BaseController
         $actor = $this->requirePermission('roles.create', ['resource' => 'roles:*']);
         $this->verifyCsrf();
         $body = $this->requestJson();
+        $this->requireDelegable($actor, is_array($body['permissions'] ?? null) ? $body['permissions'] : [], 'You cannot create a role with permissions you do not have yourself.');
 
         try {
             $role = $this->roles->create($body);
@@ -43,6 +44,9 @@ final class RolesController extends BaseController
         $actor = $this->requirePermission('roles.update', ['resource' => 'roles:' . $id]);
         $this->verifyCsrf();
         $body = $this->requestJson();
+        if (is_array($body['permissions'] ?? null)) {
+            $this->requireDelegable($actor, $body['permissions'], 'You cannot give a role permissions you do not have yourself.');
+        }
 
         try {
             $role = $this->roles->update($id, $body);

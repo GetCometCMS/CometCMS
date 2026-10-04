@@ -471,3 +471,36 @@ test('content repository seeds default locale from root content', function (): v
     assert_same('Edited English', $stored['translations']['en']['title']);
     assert_same('Edited summary', $stored['translations']['en']['summary']);
 });
+
+test('fields named body and data are kept on read and survive partial updates', function (): void {
+    comet_content_test_types()->save([
+        'name' => 'articles',
+        'fields' => [
+            'body' => ['type' => 'textarea'],
+            'data' => ['type' => 'json'],
+            'summary' => ['type' => 'text'],
+        ],
+    ]);
+    $repository = comet_content_test_repository();
+    $user = comet_content_test_user();
+
+    $entry = $repository->save('articles', ['title' => 'Hello', 'body' => 'Long text', 'data' => ['a' => 1], 'summary' => 'Short'], $user);
+    assert_same('Long text', $repository->find('articles', $entry['id'])['body'] ?? null);
+    assert_same(['a' => 1], $repository->find('articles', $entry['id'])['data'] ?? null);
+
+    // A bulk edit of another field must not wipe body/data.
+    $repository->bulkUpdateFields('articles', $repository->find('articles', $entry['id']), ['summary' => 'Changed'], $user);
+    $reloaded = $repository->all('articles')[0];
+    assert_same('Long text', $reloaded['body'] ?? null);
+    assert_same(['a' => 1], $reloaded['data'] ?? null);
+    assert_same('Changed', $reloaded['summary'] ?? null);
+});
+
+test('legacy root body and data keys are dropped when the schema does not define them', function (): void {
+    comet_content_test_save_posts_schema();
+    $repository = comet_content_test_repository();
+    $entry = $repository->normalizeStoredEntry(['id' => 'old', 'collection' => 'posts', 'title' => 'Old', 'body' => 'legacy', 'data' => ['x' => 1]]);
+
+    assert_false(array_key_exists('body', $entry));
+    assert_false(array_key_exists('data', $entry));
+});

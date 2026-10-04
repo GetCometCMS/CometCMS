@@ -14,6 +14,7 @@ use CometCMS\Core\Http;
 use CometCMS\Core\Security;
 use CometCMS\Logging\Logger;
 use CometCMS\Workspaces\WorkspaceContext;
+use CometCMS\Workspaces\WorkspaceRepository;
 
 abstract class BaseController
 {
@@ -33,7 +34,8 @@ abstract class BaseController
         $this->permissions = new PermissionService();
         $this->logger = new Logger();
 
-        $path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        // Normalised path, so installs in a sub-directory (/cms/admin/api/...) match too.
+        $path = $this->http->path();
         $preSetupAuthRoute = !$this->users->hasUsers() && in_array($path, [
             '/admin/api/me',
             '/admin/api/login',
@@ -84,17 +86,40 @@ abstract class BaseController
         return $user;
     }
 
-    protected function requirePermission(string $action, array $context = []): array
+    protected function can(array $user, string $action, array $context = []): bool
     {
-        $user = $this->requireUser();
         $context['principal'] = $user;
         $context['workspace'] ??= WorkspaceContext::active()->slug();
 
-        if (!$this->permissions->allows($user, $action, $context)) {
+        return $this->permissions->allows($user, $action, $context);
+    }
+
+    protected function requirePermission(string $action, array $context = []): array
+    {
+        $user = $this->requireUser();
+
+        if (!$this->can($user, $action, $context)) {
             $this->json(['error' => ['code' => 'forbidden', 'message' => 'You do not have permission to perform this action.']], 403);
         }
 
         return $user;
+    }
+
+    /**
+     * Refuse to hand out permissions the acting user does not hold, whether by
+     * assigning a role, editing a role, or minting an access token.
+     */
+    protected function requireDelegable(array $actor, array $grants, string $message): void
+    {
+        $uncovered = $this->permissions->firstUncovered($actor, $grants);
+
+        if ($uncovered !== null) {
+            $this->json(['error' => [
+                'code' => 'forbidden',
+                'message' => $message,
+                'details' => $uncovered,
+            ]], 403);
+        }
     }
 
     protected function verifyCsrf(): void
@@ -193,6 +218,9 @@ abstract class BaseController
             'show_api_footer' => $user['show_api_footer'] ?? true,
             'has_avatar' => $this->avatarPath((string) $user['id']) !== null,
             'accessible_content_types' => $accessibleContentTypes,
+            // Every user needs this to address the API before (or without)
+            // being allowed to list workspaces.
+            'default_workspace' => (new WorkspaceRepository())->getDefault(),
         ];
     }
 

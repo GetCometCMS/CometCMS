@@ -6,11 +6,11 @@
       <div>
         <div class="flex flex-wrap items-center gap-2">
           <h2 class="text-base font-semibold text-slate-900">
-            API Query Builder
+            {{ t("apiBuilder.title") }}
           </h2>
         </div>
         <p class="mt-1 text-sm text-slate-500">
-          Build a ready-to-use public API URL from your content model.
+          {{ t("apiBuilder.subtitle") }}
         </p>
       </div>
       <button
@@ -19,20 +19,20 @@
         @click="resetBuilder"
       >
         <Icon icon="mdi:refresh" class="h-4 w-4" />
-        Reset
+        {{ t("apiBuilder.reset") }}
       </button>
     </div>
 
     <div class="border-t border-slate-100 bg-slate-50/60 p-5">
       <div class="mb-2 flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-slate-900">Your API endpoint</h3>
+        <h3 class="text-sm font-semibold text-slate-900">{{ t("apiBuilder.endpoint") }}</h3>
         <button
           type="button"
           class="btn-secondary px-3 py-1.5 text-sm"
           @click="copy(endpointUrl)"
         >
           <Icon icon="mdi:content-copy" class="h-4 w-4" />
-          Copy URL
+          {{ t("apiBuilder.copyUrl") }}
         </button>
       </div>
 
@@ -81,7 +81,7 @@
           @click="copy(curlCommand)"
         >
           <Icon icon="mdi:console-line" class="h-4 w-4" />
-          Copy curl
+          {{ t("apiBuilder.copyCurl") }}
         </button>
       </div>
     </div>
@@ -96,10 +96,10 @@
             >
             <div>
               <h3 class="text-sm font-semibold text-slate-900">
-                What do you want to fetch?
+                {{ t("apiBuilder.step1") }}
               </h3>
               <p class="text-sm text-slate-500">
-                Choose a public API resource.
+                {{ t("apiBuilder.step1Body") }}
               </p>
             </div>
           </div>
@@ -138,11 +138,9 @@
                           ? 'text-theme-800'
                           : 'text-slate-800'
                       "
-                      >{{ resource.label }}</span
+                      >{{ t(`apiBuilder.resource.${resource.value}`) }}</span
                     >
-                    <span class="mt-0.5 block text-sm text-slate-500">{{
-                      resource.description
-                    }}</span>
+                    <span class="mt-0.5 block text-sm text-slate-500">{{ t(`apiBuilder.resource.${resource.value}.description`) }}</span>
                     <span
                       v-if="
                         resource.value === 'content' && selectedCollectionLabel
@@ -181,13 +179,13 @@
                   v-if="collectionTypes.length > 0"
                   class="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
                 >
-                  Collections
+                  {{ t("apiBuilder.collections") }}
                 </p>
                 <p
                   v-if="collections.length === 0"
                   class="px-2 pb-1 text-sm text-slate-500"
                 >
-                  Create a content type first
+                  {{ t("apiBuilder.noTypes") }}
                 </p>
                 <template v-else>
                   <div
@@ -210,7 +208,7 @@
                     <p
                       class="px-2 pb-2 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500"
                     >
-                      Single
+                      {{ t("apiBuilder.singles") }}
                     </p>
                     <div class="flex flex-wrap gap-2">
                       <button
@@ -239,17 +237,17 @@
             >
             <div>
               <h3 class="text-sm font-semibold text-slate-900">
-                Configure parameters
+                {{ t("apiBuilder.step2") }}
               </h3>
               <p class="text-sm text-slate-500">
-                Add pagination, search, filters, or a single item.
+                {{ t("apiBuilder.step2Body") }}
               </p>
             </div>
           </div>
 
           <div v-if="selectedResource === 'content'" class="space-y-4">
             <div>
-              <div id="api-fetch-mode-label" class="form-label">Fetch mode</div>
+              <div id="api-fetch-mode-label" class="form-label">{{ t("apiBuilder.fetchMode") }}</div>
               <div
                 role="group"
                 aria-labelledby="api-fetch-mode-label"
@@ -268,7 +266,7 @@
                   :disabled="isActiveSingleton"
                   @click="contentMode = 'list'"
                 >
-                  List
+                  {{ t("apiBuilder.modeList") }}
                 </button>
                 <button
                   type="button"
@@ -280,13 +278,13 @@
                   "
                   @click="contentMode = 'single'"
                 >
-                  Single
+                  {{ t("apiBuilder.singles") }}
                 </button>
               </div>
             </div>
 
             <div v-if="isActiveSingleton">
-              <label for="api-fixed-slug" class="form-label">Fixed slug</label>
+              <label for="api-fixed-slug" class="form-label">{{ t("apiBuilder.fixedSlug") }}</label>
               <input
                 id="api-fixed-slug"
                 :value="collectionName"
@@ -297,7 +295,7 @@
             </div>
 
             <div v-else-if="contentMode === 'single'">
-              <label class="form-label">Slug or stable ID</label>
+              <label class="form-label">{{ t("apiBuilder.identifier") }}</label>
               <SearchableSelect
                 v-model="identifier"
                 :options="entryOptions"
@@ -305,7 +303,7 @@
                 :allow-free-input="true"
                 :clearable="false"
                 placeholder="my-entry-slug"
-                aria-label="Slug or stable ID"
+                :aria-label="t('apiBuilder.identifier')"
                 @open="loadEntriesIfNeeded"
                 @search="onEntrySearch"
               />
@@ -317,7 +315,7 @@
             <template v-if="contentMode === 'list'">
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label for="api-content-limit" class="form-label">Limit</label>
+                  <label for="api-content-limit" class="form-label">{{ t("apiBuilder.limit") }}</label>
                   <input
                     id="api-content-limit"
                     v-model.trim="limit"
@@ -328,7 +326,7 @@
                   />
                 </div>
                 <div>
-                  <label for="api-content-offset" class="form-label">Offset</label>
+                  <label for="api-content-offset" class="form-label">{{ t("apiBuilder.offset") }}</label>
                   <input
                     id="api-content-offset"
                     v-model.trim="offset"
@@ -342,7 +340,7 @@
 
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label for="api-content-search" class="form-label">Search</label>
+                  <label for="api-content-search" class="form-label">{{ t("apiBuilder.search") }}</label>
                   <input
                     id="api-content-search"
                     v-model.trim="search"
@@ -352,31 +350,31 @@
                   />
                 </div>
                 <div>
-                  <label for="api-content-sort" class="form-label">Sort</label>
+                  <label for="api-content-sort" class="form-label">{{ t("apiBuilder.sort") }}</label>
                   <select
                     id="api-content-sort"
                     v-model="sort"
                     class="form-select w-full rounded-lg border-slate-300 text-sm"
                   >
-                    <option value="-created_at">Newest first</option>
-                    <option value="created_at">Oldest first</option>
-                    <option value="title">Title A-Z</option>
-                    <option value="-updated_at">Recently updated</option>
-                    <option value="-published_at">Recently published</option>
+                    <option value="-created_at">{{ t("apiBuilder.sortNewest") }}</option>
+                    <option value="created_at">{{ t("apiBuilder.sortOldest") }}</option>
+                    <option value="title">{{ t("apiBuilder.sortTitle") }}</option>
+                    <option value="-updated_at">{{ t("apiBuilder.sortUpdated") }}</option>
+                    <option value="-published_at">{{ t("apiBuilder.sortPublished") }}</option>
                   </select>
                 </div>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label for="api-filter-field" class="form-label">Filter field</label>
+                  <label for="api-filter-field" class="form-label">{{ t("apiBuilder.filterField") }}</label>
                   <select
                     id="api-filter-field"
                     v-model="filterField"
                     class="form-select w-full rounded-lg border-slate-300 text-sm"
                   >
-                    <option value="">No filter</option>
-                    <optgroup label="System fields">
+                    <option value="">{{ t("apiBuilder.noFilter") }}</option>
+                    <optgroup :label="t('apiBuilder.systemFields')">
                       <option
                         v-for="field in systemFilterFields"
                         :key="field.key"
@@ -387,7 +385,7 @@
                     </optgroup>
                     <optgroup
                       v-if="contentFilterFields.length > 0"
-                      label="Content fields"
+                      :label="t('apiBuilder.contentFields')"
                     >
                       <option
                         v-for="field in contentFilterFields"
@@ -400,7 +398,7 @@
                   </select>
                 </div>
                 <div>
-                  <label for="api-filter-operator" class="form-label">Operator</label>
+                  <label for="api-filter-operator" class="form-label">{{ t("apiBuilder.operator") }}</label>
                   <select
                     id="api-filter-operator"
                     v-model="filterOperator"
@@ -417,7 +415,7 @@
                   </select>
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="form-label">Value</label>
+                  <label class="form-label">{{ t("apiBuilder.value") }}</label>
                   <FieldValueInput
                     v-if="selectedFilterField"
                     v-model="filterValue"
@@ -425,14 +423,14 @@
                     :multiple="filterUsesMultiple"
                     input-class="w-full"
                     :placeholder="filterPlaceholder"
-                    aria-label="Filter value"
+                    :aria-label="t('apiBuilder.filterValue')"
                   />
                   <input
                     v-else
-                    aria-label="Filter value"
+                    :aria-label="t('apiBuilder.filterValue')"
                     type="text"
                     disabled
-                    placeholder="Choose a field first"
+                    :placeholder="t('apiBuilder.chooseFieldFirst')"
                     class="form-input w-full rounded-lg border-slate-300 text-sm"
                   />
                 </div>
@@ -444,13 +442,13 @@
               class="grid gap-3 sm:grid-cols-2"
             >
               <div>
-                <label for="api-include" class="form-label">Include relations</label>
+                <label for="api-include" class="form-label">{{ t("apiBuilder.include") }}</label>
                 <select
                   id="api-include"
                   v-model="include"
                   class="form-select w-full rounded-lg border-slate-300 text-sm"
                 >
-                  <option value="">None</option>
+                  <option value="">{{ t("apiBuilder.includeNone") }}</option>
                   <option
                     v-for="field in relationFields"
                     :key="field"
@@ -458,11 +456,11 @@
                   >
                     {{ field }}
                   </option>
-                  <option value="__custom">Custom comma-separated list</option>
+                  <option value="__custom">{{ t("apiBuilder.includeCustom") }}</option>
                 </select>
               </div>
               <div>
-                <label for="api-custom-include" class="form-label">Custom include</label>
+                <label for="api-custom-include" class="form-label">{{ t("apiBuilder.customInclude") }}</label>
                 <input
                   id="api-custom-include"
                   v-model.trim="customInclude"
@@ -475,13 +473,13 @@
             </div>
 
             <div v-if="collectionLocales.length > 0">
-              <label for="api-locale" class="form-label">Locale</label>
+              <label for="api-locale" class="form-label">{{ t("apiBuilder.locale") }}</label>
               <select
                 id="api-locale"
                 v-model="locale"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
-                <option value="">Default (no locale param)</option>
+                <option value="">{{ t("apiBuilder.localeDefault") }}</option>
                 <option
                   v-for="loc in collectionLocales"
                   :key="loc"
@@ -498,19 +496,19 @@
             class="space-y-4"
           >
             <div>
-              <label for="api-schema-mode" class="form-label">Schema</label>
+              <label for="api-schema-mode" class="form-label">{{ t("apiBuilder.schema") }}</label>
               <select
                 id="api-schema-mode"
                 v-model="typeMode"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
-                <option value="all">All content types</option>
-                <option value="single">One content type</option>
+                <option value="all">{{ t("apiBuilder.schemaAll") }}</option>
+                <option value="single">{{ t("apiBuilder.schemaOne") }}</option>
               </select>
             </div>
 
             <div v-if="typeMode === 'single'">
-              <label for="api-content-type" class="form-label">Content type</label>
+              <label for="api-content-type" class="form-label">{{ t("apiBuilder.contentType") }}</label>
               <select
                 id="api-content-type"
                 v-model="selectedCollection"
@@ -518,7 +516,7 @@
                 :disabled="collections.length === 0"
               >
                 <option v-if="collections.length === 0" value="">
-                  Create a content type first
+                  {{ t("apiBuilder.noTypes") }}
                 </option>
                 <option
                   v-for="collection in collections"
@@ -535,7 +533,7 @@
           <div v-else-if="selectedResource === 'media'" class="space-y-4">
             <div class="grid gap-3 sm:grid-cols-2">
               <div>
-                <label for="api-media-limit" class="form-label">Limit</label>
+                <label for="api-media-limit" class="form-label">{{ t("apiBuilder.limit") }}</label>
                 <input
                   id="api-media-limit"
                   v-model.trim="limit"
@@ -546,7 +544,7 @@
                 />
               </div>
               <div>
-                <label for="api-media-offset" class="form-label">Offset</label>
+                <label for="api-media-offset" class="form-label">{{ t("apiBuilder.offset") }}</label>
                 <input
                   id="api-media-offset"
                   v-model.trim="offset"
@@ -560,7 +558,7 @@
 
             <div class="grid gap-3 sm:grid-cols-2">
               <div>
-                <label for="api-media-search" class="form-label">Search filename</label>
+                <label for="api-media-search" class="form-label">{{ t("apiBuilder.searchFilename") }}</label>
                 <input
                   id="api-media-search"
                   v-model.trim="search"
@@ -570,7 +568,7 @@
                 />
               </div>
               <div>
-                <label for="api-media-category" class="form-label">Category</label>
+                <label for="api-media-category" class="form-label">{{ t("apiBuilder.category") }}</label>
                 <select
                   id="api-media-category"
                   v-model="mediaCategory"
@@ -600,7 +598,7 @@
             v-else
             class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500"
           >
-            Select a resource in step 1 to configure parameters.
+            {{ t("apiBuilder.selectResourceFirst") }}
           </div>
         </div>
 
@@ -612,29 +610,29 @@
             >
             <div>
               <h3 class="text-sm font-semibold text-slate-900">
-                Authorization
+                {{ t("apiBuilder.step3") }}
               </h3>
               <p class="text-sm text-slate-500">
-                Add a bearer token when private content should be included.
+                {{ t("apiBuilder.step3Body") }}
               </p>
             </div>
           </div>
 
           <div class="grid gap-4 lg:grid-cols-3">
             <div>
-              <label for="api-auth-mode" class="form-label">Header</label>
+              <label for="api-auth-mode" class="form-label">{{ t("apiBuilder.header") }}</label>
               <select
                 id="api-auth-mode"
                 v-model="authMode"
                 class="form-select w-full rounded-lg border-slate-300 text-sm"
               >
-                <option value="none">No authorization</option>
-                <option value="bearer">Bearer token</option>
+                <option value="none">{{ t("apiBuilder.authNone") }}</option>
+                <option value="bearer">{{ t("apiBuilder.authBearer") }}</option>
               </select>
             </div>
 
             <div v-if="authMode === 'bearer'">
-              <label for="api-bearer-token" class="form-label">Token</label>
+              <label for="api-bearer-token" class="form-label">{{ t("apiBuilder.token") }}</label>
               <div class="relative">
                 <input
                   id="api-bearer-token"
@@ -703,6 +701,9 @@ import {
   operatorsForField,
 } from "../composables/apiQueryBuilderUtils.js";
 import { categoryTreeOptions } from "../composables/mediaUtils.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   apiBase: {
@@ -780,15 +781,15 @@ const relationFields = computed(() => {
     .map(([name]) => name);
 });
 const systemFilterFields = computed(() => [
-  { key: "id", label: "ID / stable ID", kind: "text" },
+  { key: "id", label: t("apiBuilder.field.id"), kind: "text" },
   { key: "slug", label: "Slug", kind: "text" },
-  { key: "status", label: "Status", kind: "status" },
-  { key: "title", label: "Title", kind: "text" },
-  { key: "published_at", label: "Published at", kind: "datetime" },
-  { key: "created_at", label: "Created at", kind: "datetime" },
-  { key: "updated_at", label: "Updated at", kind: "datetime" },
-  { key: "author_id", label: "Author ID", kind: "text" },
-  { key: "updated_by", label: "Updated by", kind: "text" },
+  { key: "status", label: t("apiBuilder.field.status"), kind: "status" },
+  { key: "title", label: t("apiBuilder.field.title"), kind: "text" },
+  { key: "published_at", label: t("apiBuilder.field.publishedAt"), kind: "datetime" },
+  { key: "created_at", label: t("apiBuilder.field.createdAt"), kind: "datetime" },
+  { key: "updated_at", label: t("apiBuilder.field.updatedAt"), kind: "datetime" },
+  { key: "author_id", label: t("apiBuilder.field.authorId"), kind: "text" },
+  { key: "updated_by", label: t("apiBuilder.field.updatedBy"), kind: "text" },
 ]);
 const contentFilterFields = computed(() => {
   const fields = activeCollection.value?.fields ?? {};
@@ -823,7 +824,7 @@ const selectedFilterValueField = computed(() => {
   };
 });
 const filterPlaceholder = computed(() =>
-  filterOperator.value === "in" ? "value-1,value-2" : "Value",
+  filterOperator.value === "in" ? "value-1,value-2" : t("apiBuilder.value"),
 );
 const entryOptions = computed(() =>
   entries.value.map((e) => ({
@@ -833,9 +834,9 @@ const entryOptions = computed(() =>
 );
 
 const mediaCategoryDefaultLabel = computed(() => {
-  if (mediaCategoriesLoading.value) return "Loading categories...";
-  if (mediaCategoryOptions.value.length === 0) return "All categories";
-  return "All categories";
+  if (mediaCategoriesLoading.value) return t("apiBuilder.categoriesLoading");
+  if (mediaCategoryOptions.value.length === 0) return t("media.allCategories");
+  return t("media.allCategories");
 });
 const mediaCategoryOptions = computed(() => categoryTreeOptions(mediaCategories.value));
 
@@ -884,10 +885,10 @@ const authHeader = computed(
 );
 const authStatus = computed(() => {
   if (authMode.value === "bearer") {
-    return "Bearer header will be included. Use a token with content:read to include drafts and protected entries.";
+    return t("apiBuilder.authBearerHint");
   }
 
-  return "Public reads work without authorization and return public content only.";
+  return t("apiBuilder.authNoneHint");
 });
 const curlCommand = computed(() => {
   if (authMode.value !== "bearer") {
@@ -992,7 +993,7 @@ async function loadEntries() {
     }));
     entriesLoaded = true;
   } catch (err) {
-    entriesError.value = err.message ?? "Could not load entries.";
+    entriesError.value = err.message ?? t("perm.entriesLoadFailed");
   } finally {
     entriesLoading.value = false;
   }
@@ -1088,7 +1089,7 @@ async function loadMediaCategories() {
     mediaCategoriesLoaded.value = true;
   } catch (err) {
     mediaCategoriesError.value =
-      err.message ?? "Could not load media categories.";
+      err.message ?? t("apiBuilder.categoriesFailed");
   } finally {
     mediaCategoriesLoading.value = false;
   }
@@ -1097,9 +1098,9 @@ async function loadMediaCategories() {
 async function copy(value) {
   try {
     await navigator.clipboard.writeText(value);
-    toast.success("Copied to clipboard.");
+    toast.success(t("apiFooter.copied"));
   } catch {
-    toast.error("Could not copy to clipboard.");
+    toast.error(t("apiFooter.copyFailed"));
   }
 }
 </script>

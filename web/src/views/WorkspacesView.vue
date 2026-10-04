@@ -95,7 +95,7 @@
               <AvatarUpload
                 :src="
                   workspace.has_icon
-                    ? `/admin/api/workspaces/${workspace.slug}/icon?v=${iconVersion[workspace.slug] ?? 0}`
+                    ? `${ADMIN_API_BASE}/workspaces/${workspace.slug}/icon?v=${iconVersion[workspace.slug] ?? 0}`
                     : null
                 "
                 :fallback="workspaceInitials(workspace.label)"
@@ -150,7 +150,7 @@
                 >
                   {{ saving ? t("common.saving") : t("workspaces.save") }}
                 </button>
-                <button @click="cancelEdit" class="btn-secondary text-xs">
+                <button @click="cancelEdit" class="btn-secondary btn-sm">
                   {{ t("common.cancel") }}
                 </button>
               </template>
@@ -158,7 +158,7 @@
                 <button
                   v-if="auth.can('workspaces.manage')"
                   @click="startEdit(workspace)"
-                  class="btn-secondary text-xs"
+                  class="btn-secondary btn-sm"
                 >
                   {{ t("workspaces.rename") }}
                 </button>
@@ -166,14 +166,14 @@
                   v-if="auth.can('workspaces.manage') && !workspace.default"
                   @click="handleSetDefault(workspace.slug)"
                   :disabled="settingDefault === workspace.slug"
-                  class="btn-secondary text-xs"
+                  class="btn-secondary btn-sm"
                 >
                   {{ t("workspaces.setAsDefault") }}
                 </button>
                 <button
                   v-if="auth.can('workspaces.manage') && workspace.has_icon"
                   @click="handleIconDelete(workspace.slug)"
-                  class="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                  class="btn-secondary btn-sm"
                 >
                   {{ t("workspaces.removeIcon") }}
                 </button>
@@ -183,7 +183,7 @@
                     canArchiveWorkspace(workspace)
                   "
                   @click="confirmArchive(workspace)"
-                  class="text-xs text-red-500 hover:text-red-700 transition-colors"
+                  class="btn-danger-subtle btn-sm"
                 >
                   {{ t("workspaces.archive") }}
                 </button>
@@ -214,6 +214,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import AvatarUpload from "../components/AvatarUpload.vue";

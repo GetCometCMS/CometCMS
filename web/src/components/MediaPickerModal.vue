@@ -25,11 +25,11 @@
             icon="mdi:cloud-upload-outline"
             class="h-10 w-10 text-theme-500"
           />
-          <p class="text-sm font-medium text-theme-700">Drop to upload</p>
+          <p class="text-sm font-medium text-theme-700">{{ t("media.dropUpload") }}</p>
         </div>
       </Transition>
       <div class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
-        <h2 :id="titleId" class="text-sm font-semibold text-slate-800">Select media</h2>
+        <h2 :id="titleId" class="text-sm font-semibold text-slate-800">{{ t("mediaPicker.title") }}</h2>
         <button
           type="button"
           class="ml-auto flex items-center gap-1.5 btn-secondary text-xs px-2.5 py-1.5"
@@ -42,8 +42,8 @@
         <button
           type="button"
           class="text-slate-400 hover:text-slate-700"
-          title="Close"
-          aria-label="Close media picker"
+          :title="t('common.close')"
+          :aria-label="t('mediaPicker.close')"
           @click="close"
         >
           <Icon icon="mdi:close" class="h-5 w-5" />
@@ -60,13 +60,13 @@
 
       <div v-if="uploading" class="border-b border-theme-100 bg-theme-50 px-5 py-3">
         <div class="mb-1.5 flex items-center justify-between text-xs font-medium text-theme-700">
-          <span>{{ uploadProgress >= 100 ? "Processing..." : "Uploading..." }}</span>
+          <span>{{ uploadProgress >= 100 ? t("media.processing") : t("media.uploading") }}</span>
           <span>{{ uploadProgress }}%</span>
         </div>
         <div
           class="h-2 overflow-hidden rounded-full bg-theme-100"
           role="progressbar"
-          aria-label="Media upload progress"
+          :aria-label="t('mediaPicker.progress')"
           :aria-valuenow="uploadProgress"
           aria-valuemin="0"
           aria-valuemax="100"
@@ -104,7 +104,7 @@
             </p>
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
               <label class="relative block flex-1">
-                <span class="sr-only">Search media</span>
+                <span class="sr-only">{{ t("media.search") }}</span>
                 <Icon
                   icon="mdi:magnify"
                   class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -113,13 +113,13 @@
                   id="media-picker-search"
                   v-model="search"
                   type="search"
-                  placeholder="Search media..."
+                  :placeholder="t('media.searchPlaceholder')"
                   class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm"
                 />
               </label>
               <select
                 v-model="mediaType"
-                aria-label="Filter by media type"
+                :aria-label="t('mediaPicker.filterType')"
                 class="form-select rounded-lg border-slate-300 text-sm lg:w-44"
               >
                 <option
@@ -139,7 +139,8 @@
                       ? 'border-theme-300 bg-theme-50 text-theme-700'
                       : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
                   "
-                  title="Grid view"
+                  :title="t('media.gridView')"
+                  :aria-label="t('media.gridView')"
                   @click="viewMode = 'grid'"
                 >
                   <Icon icon="mdi:view-grid-outline" class="h-5 w-5" />
@@ -152,7 +153,8 @@
                       ? 'border-theme-300 bg-theme-50 text-theme-700'
                       : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
                   "
-                  title="List view"
+                  :title="t('media.listView')"
+                  :aria-label="t('media.listView')"
                   @click="viewMode = 'list'"
                 >
                   <Icon icon="mdi:view-list-outline" class="h-5 w-5" />
@@ -161,13 +163,13 @@
             </div>
 
             <div v-if="loading" class="py-8 text-center text-sm text-slate-500">
-              Loading...
+              {{ t("common.loading") }}
             </div>
             <div
               v-else-if="filteredFiles.length === 0"
               class="py-8 text-center text-sm text-slate-500"
             >
-              No media found.
+              {{ t("mediaPicker.empty") }}
             </div>
             <div
               v-else-if="viewMode === 'grid'"
@@ -263,7 +265,7 @@
                     >{{ file.name }}</span
                   >
                   <span class="mt-1 block text-xs text-slate-500">{{
-                    file.category || "No category"
+                    file.category || t("media.noCategory")
                   }}</span>
                 </span>
                 <span class="text-sm text-slate-500">{{
@@ -283,14 +285,14 @@
         class="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"
       >
         <span class="text-sm text-slate-500"
-          >{{ draftSelected.length }} selected</span
+          >{{ t("mediaPicker.selected", { count: draftSelected.length }) }}</span
         >
         <div class="flex items-center gap-2">
           <button type="button" class="btn-secondary" @click="close">
-            Cancel
+            {{ t("common.cancel") }}
           </button>
           <button type="button" class="btn-primary" @click="confirmSelection">
-            Use selected
+            {{ t("mediaPicker.useSelected") }}
           </button>
         </div>
       </div>
@@ -304,6 +306,9 @@ import { Icon } from "@iconify/vue";
 import { api } from "../api/index.js";
 import MediaCategorySidebar from "./MediaCategorySidebar.vue";
 import { useDialogFocus } from "../composables/useDialogFocus.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   selected: { type: [String, Array], default: "" },
@@ -344,15 +349,15 @@ const draggedFile = ref(null);
 
 const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
 
-const mediaTypeOptions = [
-  { value: "all", label: "All types" },
-  { value: "images", label: "Images" },
-  { value: "video", label: "Videos" },
-  { value: "audio", label: "Audio" },
-  { value: "documents", label: "Documents" },
-  { value: "archives", label: "Archives" },
-  { value: "other", label: "Other" },
-];
+const mediaTypeOptions = computed(() => [
+  { value: "all", label: t("media.allTypes") },
+  { value: "images", label: t("media.images") },
+  { value: "video", label: t("media.videos") },
+  { value: "audio", label: t("media.audio") },
+  { value: "documents", label: t("media.documents") },
+  { value: "archives", label: t("media.archives") },
+  { value: "other", label: t("media.other") },
+]);
 
 const filteredFiles = computed(() => files.value);
 
@@ -403,7 +408,7 @@ function categoryMatchesPath(category, categoryPath) {
 
 function fileTypeLabel(file) {
   const ext = fileExtension(file.name);
-  return ext === "" ? "File" : ext.toUpperCase();
+  return ext === "" ? t("mediaPicker.file") : ext.toUpperCase();
 }
 
 function isImage(name) {

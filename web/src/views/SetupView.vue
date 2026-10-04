@@ -120,7 +120,7 @@
                   ? 'border-red-400 focus:border-red-400 focus:ring-red-300'
                   : ''
               "
-              pattern="[A-Za-z0-9_-]+"
+              pattern="[A-Za-z0-9_\-]+"
               @input="onSlugInput"
             />
             <p v-if="slugInvalid" class="mt-1 text-xs text-red-600">
@@ -216,6 +216,7 @@
 </template>
 
 <script setup>
+import { adminAsset } from "../basePath.js";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth.js";
@@ -235,7 +236,7 @@ const workspaceName = ref("");
 const loading = ref(false);
 const errorMsg = ref("");
 const logoFailed = ref(false);
-const logoSrc = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}img/cms-logo-black.png`;
+const logoSrc = adminAsset("img/cms-logo-black.png");
 
 const {
   slug: workspaceSlug,

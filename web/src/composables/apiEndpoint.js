@@ -1,4 +1,5 @@
 import { getActiveWorkspace } from "../api/index.js";
+import { appOrigin } from "../basePath.js";
 
 const API_ROOT = "/api/v1";
 const ADMIN_API_ROOT = "/admin/api";
@@ -136,6 +137,7 @@ function encodeQueryKey(key) {
   return encodeURIComponent(key).replace(/%5B/g, "[").replace(/%5D/g, "]");
 }
 
+// Includes the installation sub-directory, so generated URLs work for /cms/ installs too.
 function defaultOrigin() {
-  return typeof window === "undefined" ? "" : window.location.origin;
+  return appOrigin();
 }

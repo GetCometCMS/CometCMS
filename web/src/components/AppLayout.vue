@@ -47,7 +47,7 @@
             >
               <img
                 v-if="activeWorkspace.has_icon"
-                :src="`/admin/api/workspaces/${selectedWorkspace}/icon?v=${iconVersions[selectedWorkspace] ?? 0}`"
+                :src="`${ADMIN_API_BASE}/workspaces/${selectedWorkspace}/icon?v=${iconVersions[selectedWorkspace] ?? 0}`"
                 class="w-full h-full object-cover"
                 :alt="activeWorkspaceLabel"
               />
@@ -94,7 +94,7 @@
                   >
                     <img
                       v-if="workspace.has_icon"
-                      :src="`/admin/api/workspaces/${workspace.slug}/icon?v=${iconVersions[workspace.slug] ?? 0}`"
+                      :src="`${ADMIN_API_BASE}/workspaces/${workspace.slug}/icon?v=${iconVersions[workspace.slug] ?? 0}`"
                       class="w-full h-full object-cover"
                       :alt="workspace.label"
                     />
@@ -292,7 +292,7 @@
               >
                 <img
                   v-if="auth.user?.has_avatar"
-                  :src="`/admin/api/users/${auth.user.id}/avatar?v=${avatarVersion}`"
+                  :src="`${ADMIN_API_BASE}/users/${auth.user.id}/avatar?v=${avatarVersion}`"
                   class="w-full h-full object-cover"
                   :alt="auth.user?.username"
                 />
@@ -340,14 +340,22 @@
             :key="toast.id"
             :role="toast.type === 'error' ? 'alert' : 'status'"
             :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
-            class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
+            class="pointer-events-auto flex max-w-sm items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
             :class="
               toast.type === 'error'
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-900 text-white'
             "
           >
-            {{ toast.message }}
+            <span class="min-w-0 flex-1">{{ toast.message }}</span>
+            <button
+              type="button"
+              class="-mr-1 shrink-0 rounded-md p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
+              :aria-label="t('common.dismiss')"
+              @click="toastStore.remove(toast.id)"
+            >
+              <Icon icon="mdi:close" class="h-4 w-4" />
+            </button>
           </div>
         </transition-group>
       </div>
@@ -363,6 +371,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE, adminAsset } from "../basePath.js";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
@@ -439,7 +448,7 @@ function handleWorkspaceSync() {
 }
 // Resolve against this module so dev assets stay on Vite's origin even though
 // PHP serves the document from a different port.
-const assetBase = `${new URL(import.meta.url).origin}${import.meta.env.BASE_URL}`;
+const assetBase = adminAsset("");
 const logoSrc = computed(() => logoForTheme(auth.user?.theme, assetBase));
 const allSidebarTypes = computed(() =>
   typesStore.list.length > 0

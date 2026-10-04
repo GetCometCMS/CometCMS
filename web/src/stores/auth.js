@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, getActiveWorkspace, setActiveWorkspace } from '../api/index.js'
+import { api, getActiveWorkspace, setActiveWorkspace, syncWorkspaceFromUser } from '../api/index.js'
 import { applyTheme, DEFAULT_THEME } from '../theme.js'
 import { DEFAULT_ADMIN_LOCALE, setLocale } from '../i18n/index.js'
 import { allowsPermission } from './permissions.js'
@@ -21,6 +21,14 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
+  function adoptUser(data) {
+    user.value = data
+    syncWorkspaceFromUser(data, allowsPermission(data?.capabilities?.permissions ?? [], 'workspaces.read', null))
+    applyTheme(user.value?.theme)
+    setLocale(user.value?.language)
+    notSetUp.value = false
+  }
+
   let initPromise = null
 
   async function init() {
@@ -29,10 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
     initPromise = (async () => {
       try {
         const res  = await api.me()
-        user.value = res.data
-        applyTheme(user.value?.theme)
-        setLocale(user.value?.language)
-        notSetUp.value = false
+        adoptUser(res.data)
       } catch (err) {
         if (err.status === 503) notSetUp.value = true
         user.value = null
@@ -48,19 +53,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refresh() {
     const res = await api.me()
-    user.value = res.data
-    applyTheme(user.value?.theme)
-    setLocale(user.value?.language)
-    notSetUp.value = false
+    adoptUser(res.data)
     return user.value
   }
 
   async function login(username, password, remember = false) {
     const res  = await api.login(username, password, remember)
-    user.value = res.data
-    applyTheme(user.value?.theme)
-    setLocale(user.value?.language)
-    notSetUp.value = false
+    adoptUser(res.data)
   }
 
   async function logout() {
@@ -75,12 +74,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Forget a session the server no longer accepts, without calling logout. */
+  function expire() {
+    user.value = null
+    initPromise = null
+  }
+
   async function setup(username, password, workspaceName, workspaceSlug) {
     const res  = await api.setup(username, password, workspaceName, workspaceSlug)
-    user.value = res.data
-    applyTheme(user.value?.theme)
-    setLocale(user.value?.language)
-    notSetUp.value = false
+    adoptUser(res.data)
     const ws = res.meta?.workspace
     if (ws) setActiveWorkspace(ws)
   }
@@ -88,6 +90,6 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user, loading, notSetUp,
     isAuthenticated,
-    can, init, refresh, login, logout, setup,
+    can, init, refresh, login, logout, setup, expire,
   }
 })

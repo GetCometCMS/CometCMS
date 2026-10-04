@@ -4,7 +4,7 @@
       <h1 class="text-2xl font-bold text-slate-900">
         {{ t("contentTypes.title") }}
       </h1>
-      <router-link to="/content-types/new" class="btn-primary">
+      <router-link v-if="canSchema('schema.create')" to="/content-types/new" class="btn-primary">
         {{ t("contentTypes.new") }}
       </router-link>
     </div>
@@ -17,13 +17,14 @@
     >
       {{ t("contentTypes.empty") }}
       <router-link
+        v-if="canSchema('schema.create')"
         to="/content-types/new"
         class="text-theme-600 hover:underline ml-1"
         >{{ t("contentTypes.createOne") }}</router-link
       >.
     </div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="card overflow-x-auto">
       <table class="w-full">
         <thead>
           <tr class="bg-slate-50 border-b border-slate-200">
@@ -77,13 +78,16 @@
           >
             <td class="px-4 py-3 text-slate-400">
               <button
+                v-if="canSchema('schema.update')"
                 type="button"
                 class="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                :title="t('contentTypes.reorder')"
-                :aria-label="t('contentTypes.reorder')"
+                :title="t('contentTypes.reorderHint')"
+                :aria-label="t('contentTypes.reorderNamed', { name: type.label })"
                 draggable="true"
                 :disabled="savingOrder"
                 @click.stop
+                @keydown.up.prevent="moveByKeyboard(type.name, -1)"
+                @keydown.down.prevent="moveByKeyboard(type.name, 1)"
                 @dragstart.stop="handleDragStart(type.name, $event)"
                 @dragend="handleDragEnd"
               >
@@ -116,7 +120,7 @@
               <div class="flex items-center justify-end gap-2" @click.stop>
                 <router-link
                   :to="contentLink(type)"
-                  class="btn-secondary text-xs py-1 px-3"
+                  class="btn-secondary btn-sm"
                 >
                   {{
                     type.singleton
@@ -125,8 +129,9 @@
                   }}
                 </router-link>
                 <router-link
+                  v-if="canSchema('schema.update', type.name)"
                   :to="`/content-types/${type.name}/edit`"
-                  class="btn-secondary text-xs py-1 px-3"
+                  class="btn-secondary btn-sm"
                 >
                   {{ t("contentTypes.edit") }}
                 </router-link>
@@ -150,6 +155,7 @@ import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
+import { usePermissions } from "../composables/usePermissions.js";
 
 const loading = ref(true);
 const types = ref([]);
@@ -159,6 +165,7 @@ const apiEndpointStore = useApiEndpointStore();
 const typesStore = useContentTypesStore();
 const toast = useToastStore();
 const { t } = useI18n();
+const { canSchema } = usePermissions();
 const apiEndpointOwner = "content-types-list";
 const draggedName = ref("");
 const dropTargetName = ref("");
@@ -193,7 +200,21 @@ function openType(name) {
     return;
   }
 
-  router.push(`/content-types/${name}/edit`);
+  const type = types.value.find((item) => item.name === name);
+  router.push(
+    canSchema("schema.update", name) || !type
+      ? `/content-types/${name}/edit`
+      : contentLink(type),
+  );
+}
+
+// Keyboard alternative to drag-and-drop: arrow keys move a type one position.
+function moveByKeyboard(name, delta) {
+  const index = types.value.findIndex((type) => type.name === name);
+  const target = types.value[index + delta];
+  if (index < 0 || !target) return;
+  draggedName.value = name;
+  handleDrop(target.name);
 }
 
 function handleDragStart(name, event) {

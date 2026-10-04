@@ -125,7 +125,7 @@
     <!-- Delete -->
     <button
       type="button"
-      class="btn-secondary py-1.5 px-3 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 disabled:opacity-40 whitespace-nowrap shrink-0 inline-flex items-center gap-1.5"
+      class="btn-danger-subtle whitespace-nowrap shrink-0 px-3 py-1.5"
       :disabled="selectedCount === 0 || applying"
       @click="emit('delete-selected')"
     >

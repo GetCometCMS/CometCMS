@@ -1,11 +1,11 @@
 <template>
   <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
     <div>
-      <label class="text-xs font-medium text-slate-500 block mb-1">Area</label>
+      <label class="text-xs font-medium text-slate-500 block mb-1">{{ t("perm.areaLabel") }}</label>
       <TabNavigation
         :items="areaOptions"
         :model-value="selectedArea"
-        aria-label="Permission area"
+        :aria-label="t('perm.areaAria')"
         variant="segmented"
         @select="selectAreaTab"
       />
@@ -17,13 +17,13 @@
     >
 
       <div v-if="selectedArea === 'content' || selectedArea === 'schema'">
-        <label class="text-xs text-slate-500 block mb-0.5">Content type</label>
+        <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.contentType") }}</label>
         <select
           v-model="selectedCollection"
           class="form-select w-full rounded-lg border-slate-300 text-xs"
           @change="onCollectionChange"
         >
-          <option value="*">All types</option>
+          <option value="*">{{ t("perm.allTypes") }}</option>
           <option
             v-for="type in contentTypes.list"
             :key="type.name"
@@ -35,9 +35,7 @@
       </div>
 
       <div v-if="selectedArea === 'content'">
-        <label class="text-xs text-slate-500 block mb-0.5"
-          >Entry ID or slug</label
-        >
+        <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.entry") }}</label>
         <SearchableSelect
           :model-value="selectedEntry"
           :options="entryOptions"
@@ -45,7 +43,7 @@
           :disabled="selectedCollection === '*'"
           :allow-free-input="true"
           :clearable="false"
-          placeholder="All entries"
+          :placeholder="t('perm.allEntries')"
           @update:model-value="onEntryChange"
           @open="loadEntriesIfNeeded"
           @search="loadEntriesIfNeeded"
@@ -56,31 +54,29 @@
       </div>
 
       <div v-if="selectedArea === 'media'">
-        <label class="text-xs text-slate-500 block mb-0.5"
-          >Media category</label
-        >
+        <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.mediaCategory") }}</label>
         <input
           v-model.trim="selectedMediaCategory"
           type="text"
-          placeholder="All media"
+          :placeholder="t('perm.allMedia')"
           class="form-input w-full rounded-lg border-slate-300 text-xs"
           @input="emitChange"
         />
       </div>
 
       <div v-if="selectedArea === 'system'">
-        <label class="text-xs text-slate-500 block mb-0.5">System section</label>
+        <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.systemSection") }}</label>
         <select
           v-model="selectedSystemResource"
           class="form-select w-full rounded-lg border-slate-300 text-xs"
           @change="emitChange"
         >
-          <option value="*">All system resources</option>
-          <option value="dashboard:*">Dashboard</option>
-          <option value="activity:*">Activity log</option>
-          <option value="backups:*">Backups</option>
-          <option value="webhooks:*">Webhooks</option>
-          <option value="workspaces:*">All workspaces</option>
+          <option value="*">{{ t("perm.allSystem") }}</option>
+          <option value="dashboard:*">{{ t("perm.action.dashboard.read") }}</option>
+          <option value="activity:*">{{ t("perm.action.activity.read") }}</option>
+          <option value="backups:*">{{ t("perm.section.backups") }}</option>
+          <option value="webhooks:*">{{ t("perm.action.webhooks.manage") }}</option>
+          <option value="workspaces:*">{{ t("perm.allWorkspaces") }}</option>
           <option
             v-for="ws in workspaces"
             :key="ws.slug"
@@ -88,16 +84,14 @@
           >
             {{ ws.label || ws.slug }}
           </option>
-          <option value="updates:*">Updates</option>
+          <option value="updates:*">{{ t("perm.section.updates") }}</option>
         </select>
       </div>
     </div>
 
     <!-- Bulk area grants when "Everything" is selected -->
     <div v-if="selectedArea === 'all'">
-      <label class="text-xs text-slate-500 block mb-1"
-        >Grant all for area</label
-      >
+      <label class="text-xs text-slate-500 block mb-1">{{ t("perm.grantAllForArea") }}</label>
       <div class="flex flex-wrap gap-2">
         <label
           v-for="group in bulkAreaGroups"
@@ -124,14 +118,14 @@
     <!-- Per-action checkboxes for all other areas -->
     <div v-else>
       <div class="mb-1 flex items-center justify-between gap-3">
-        <label class="text-xs font-medium text-slate-500">Actions</label>
+        <label class="text-xs font-medium text-slate-500">{{ t("perm.actions") }}</label>
         <button
           v-if="currentVisibleActions.length > 1"
           type="button"
           class="text-xs font-medium text-theme-700 hover:text-theme-800"
           @click="toggleAllCurrentActions"
         >
-          {{ allVisibleActionsSelected ? "Clear all" : "Select all" }}
+          {{ allVisibleActionsSelected ? t("perm.clearAll") : t("perm.selectAll") }}
         </button>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -159,14 +153,13 @@
         v-if="hiddenActionLabels.length > 0"
         class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"
       >
-        Saved on this resource but hidden here: {{ hiddenActionLabels.join(", ") }}.
-        Change the action selection to clean this grant.
+        {{ t("perm.hiddenActions", { actions: hiddenActionLabels.join(", ") }) }}
       </p>
     </div>
 
     <div v-if="selectedArea === 'content'" class="grid gap-3 md:grid-cols-3">
       <div class="md:col-span-2">
-        <label class="text-xs text-slate-500 block mb-0.5">Fields</label>
+        <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.fields") }}</label>
         <div
           v-if="fieldsForCurrentContentType.length > 0"
           class="flex flex-wrap gap-2"
@@ -187,7 +180,7 @@
           </label>
         </div>
         <p v-else class="text-xs text-slate-400">
-          Select a content type to restrict individual fields.
+          {{ t("perm.fieldsHint") }}
         </p>
       </div>
 
@@ -198,18 +191,18 @@
           class="rounded border-slate-300 text-theme-600"
           @change="setCurrentOwnOnly"
         />
-        Own entries only
+        {{ t("perm.ownOnly") }}
       </label>
     </div>
 
     <div v-if="['content', 'schema', 'media'].includes(selectedArea)">
-      <label class="text-xs text-slate-500 block mb-0.5">Workspace</label>
+      <label class="text-xs text-slate-500 block mb-0.5">{{ t("perm.workspace") }}</label>
       <select
         v-model="selectedWorkspace"
         class="form-select w-full rounded-lg border-slate-300 text-xs"
         @change="emitChange"
       >
-        <option value="">All workspaces</option>
+        <option value="">{{ t("perm.allWorkspaces") }}</option>
         <option v-for="ws in workspaces" :key="ws.slug" :value="ws.slug">
           {{ ws.label }} ({{ ws.slug }})
         </option>
@@ -217,8 +210,7 @@
     </div>
 
     <p v-if="selectedArea === 'content'" class="text-xs text-slate-400">
-      Search by title, slug, or ID. Leave empty to apply to all entries in the
-      selected content type.
+      {{ t("perm.entryHint") }}
     </p>
 
     <p class="rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-500">
@@ -242,6 +234,15 @@ import { api } from "../api/index.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import SearchableSelect from "./SearchableSelect.vue";
 import TabNavigation from "./TabNavigation.vue";
+import { useI18n } from "../i18n/index.js";
+import {
+  PERMISSION_AREAS,
+  permissionActionLabel,
+  permissionActionOptions,
+  permissionAreaLabel,
+} from "../composables/permissionLabels.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   modelValue: {
@@ -267,70 +268,14 @@ const entriesByCollection = ref({});
 const entryLoadState = ref({});
 let lastEmitted = "";
 
-const areaOptions = [
-  { value: "all", label: "Everything" },
-  { value: "system", label: "System" },
-  { value: "schema", label: "Content types" },
-  { value: "content", label: "Content" },
-  { value: "media", label: "Media" },
-  { value: "users", label: "Users & tokens" },
-];
+const areaOptions = computed(() =>
+  ["all", ...PERMISSION_AREAS].map((value) => ({ value, label: permissionAreaLabel(value) })),
+);
 
-const actionGroups = {
-  all: [{ value: "*", label: "Everything" }],
-  content: [
-    { value: "content.read", label: "Read" },
-    { value: "content.create", label: "Create" },
-    { value: "content.update", label: "Edit" },
-    { value: "content.publish", label: "Publish" },
-    { value: "content.delete", label: "Delete" },
-    { value: "content.restore", label: "Restore" },
-    { value: "content.revisions.read", label: "View revisions" },
-    { value: "content.revisions.restore", label: "Restore revisions" },
-  ],
-  schema: [
-    { value: "schema.read", label: "Read" },
-    { value: "schema.create", label: "Create" },
-    { value: "schema.update", label: "Edit" },
-    { value: "schema.delete", label: "Delete" },
-  ],
-  media: [
-    { value: "media.read", label: "Read" },
-    { value: "media.upload", label: "Upload" },
-    { value: "media.update", label: "Edit" },
-    { value: "media.delete", label: "Delete" },
-  ],
-  users: [
-    { value: "users.read", label: "Read users" },
-    { value: "users.create", label: "Create users" },
-    { value: "users.update", label: "Edit users" },
-    { value: "users.delete", label: "Delete users" },
-    { value: "tokens.read", label: "Read tokens" },
-    { value: "tokens.create", label: "Create tokens" },
-    { value: "tokens.revoke", label: "Revoke tokens" },
-    { value: "roles.read", label: "Read roles" },
-    { value: "roles.create", label: "Create roles" },
-    { value: "roles.update", label: "Edit roles" },
-    { value: "roles.delete", label: "Delete roles" },
-  ],
-  system: [
-    { value: "dashboard.read", label: "Dashboard" },
-    { value: "activity.read", label: "Activity" },
-    { value: "profile.read", label: "Read profile" },
-    { value: "profile.update", label: "Edit profile" },
-    { value: "backups.read", label: "Read backups" },
-    { value: "backups.create", label: "Create backups" },
-    { value: "backups.restore", label: "Restore backups" },
-    { value: "backups.delete", label: "Delete backups" },
-    { value: "webhooks.manage", label: "Webhooks" },
-    { value: "workspaces.read", label: "Read workspaces" },
-    { value: "workspaces.manage", label: "Manage workspaces" },
-    { value: "updates.read", label: "Read updates" },
-    { value: "updates.check", label: "Check updates" },
-    { value: "updates.download", label: "Download updates" },
-    { value: "updates.install", label: "Install updates" },
-  ],
-};
+// { area: [{ value, label }] } in the current admin language.
+const actionGroups = computed(() =>
+  Object.fromEntries(["all", ...PERMISSION_AREAS].map((area) => [area, permissionActionOptions(area)])),
+);
 
 const currentKey = computed(() => stateKeyForCurrentSelection());
 
@@ -351,7 +296,7 @@ const allVisibleActionsSelected = computed(
 const hiddenActionLabels = computed(() => {
   const visible = new Set(currentVisibleActionValues.value);
   const labels = Object.fromEntries(
-    Object.values(actionGroups)
+    Object.values(actionGroups.value)
       .flat()
       .map((action) => [action.value, action.label]),
   );
@@ -389,9 +334,9 @@ const fieldsForCurrentContentType = computed(() => {
 const summary = computed(() => {
   const actions =
     currentActions.value.length > 0
-      ? currentActions.value.join(", ")
-      : "no actions";
-  return `Allow ${actions} on ${resourceForCurrentSelection()}`;
+      ? currentActions.value.map(permissionActionLabel).join(", ")
+      : t("perm.noActions");
+  return t("perm.summary", { actions, resource: resourceForCurrentSelection() });
 });
 
 const selectedContentType = computed(() =>
@@ -455,40 +400,36 @@ function selectAreaTab(area) {
 
 function actionsFor(area) {
   if (area === "system") return systemActionsForResource();
-  return actionGroups[area] ?? actionGroups.content;
+  return actionGroups.value[area] ?? actionGroups.value.content;
 }
 
 function systemActionsForResource() {
   const resource = selectedSystemResource.value;
-  if (resource === "dashboard:*") return actionGroups.system.slice(0, 1);
-  if (resource === "activity:*") return actionGroups.system.slice(1, 2);
+  if (resource === "dashboard:*") return actionGroups.value.system.slice(0, 1);
+  if (resource === "activity:*") return actionGroups.value.system.slice(1, 2);
   if (resource === "backups:*")
-    return actionGroups.system.filter((action) =>
+    return actionGroups.value.system.filter((action) =>
       action.value.startsWith("backups."),
     );
   if (resource === "webhooks:*")
-    return actionGroups.system.filter((action) =>
+    return actionGroups.value.system.filter((action) =>
       action.value.startsWith("webhooks."),
     );
   if (resource.startsWith("workspaces:"))
-    return actionGroups.system.filter((action) =>
+    return actionGroups.value.system.filter((action) =>
       action.value.startsWith("workspaces."),
     );
   if (resource === "updates:*")
-    return actionGroups.system.filter((action) =>
+    return actionGroups.value.system.filter((action) =>
       action.value.startsWith("updates."),
     );
 
-  return actionGroups.system;
+  return actionGroups.value.system;
 }
 
-const bulkAreaGroups = [
-  { area: "system", label: "System" },
-  { area: "schema", label: "Content types" },
-  { area: "content", label: "Content" },
-  { area: "media", label: "Media" },
-  { area: "users", label: "Users, tokens & roles" },
-];
+const bulkAreaGroups = computed(() =>
+  PERMISSION_AREAS.map((area) => ({ area, label: permissionAreaLabel(area) })),
+);
 
 const bulkAreaResourceMap = {
   system: { resource: "*", key: "*" },
@@ -509,7 +450,7 @@ function areaGrantState(area) {
     .filter((item) => item.area === area)
     .flatMap((item) => item.actions);
   if (existingActions.length === 0) return "none";
-  const allActions = (actionGroups[area] ?? []).map((a) => a.value);
+  const allActions = (actionGroups.value[area] ?? []).map((a) => a.value);
   return allActions.every((action) => existingActions.includes(action))
     ? "all"
     : "some";
@@ -523,7 +464,7 @@ function toggleAreaAllGrants(area) {
     }
     permissionState.value = newState;
   } else {
-    const allActions = (actionGroups[area] ?? []).map((a) => a.value);
+    const allActions = (actionGroups.value[area] ?? []).map((a) => a.value);
     const { resource, key } = bulkAreaResourceMap[area];
     permissionState.value = {
       ...permissionState.value,
@@ -629,7 +570,7 @@ async function loadEntries() {
       [collection]: {
         loading: false,
         loaded: false,
-        error: err.message ?? "Could not load entries.",
+        error: err.message ?? t("perm.entriesLoadFailed"),
       },
     };
   }

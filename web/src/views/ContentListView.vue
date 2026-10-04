@@ -1,12 +1,12 @@
 <template>
   <div>
     <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900 capitalize">
-        {{ collection }}
+      <h1 class="text-2xl font-bold text-slate-900">
+        {{ contentTypeSchema?.label || collection }}
       </h1>
       <div class="flex items-center gap-2">
         <router-link
-          v-if="trashCount > 0"
+          v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
           :to="`/trash/${collection}`"
           class="btn-secondary"
         >
@@ -16,7 +16,11 @@
             >{{ trashCount }}</span
           >
         </router-link>
-        <router-link :to="`/content/${collection}/new`" class="btn-primary">
+        <router-link
+          v-if="canContent('content.create', collection)"
+          :to="`/content/${collection}/new`"
+          class="btn-primary"
+        >
           {{ t("contentList.newEntry") }}
         </router-link>
       </div>
@@ -180,6 +184,7 @@
             </div>
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
             <BulkEditBar
+              v-if="canContent('content.update', collection)"
               :content-type="contentTypeSchema"
               :users="users"
               :selected-count="selectAllPages ? totalEntries : selectedIds.size"
@@ -189,9 +194,11 @@
             />
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
             <button
+              v-if="canContent('content.create', collection)"
               type="button"
               :disabled="bulkDeleting || bulkDuplicating"
               :title="t('contentList.duplicateSelected')"
+              :aria-label="t('contentList.duplicateSelected')"
               class="btn-secondary py-1.5 px-3 text-sm disabled:opacity-40 whitespace-nowrap shrink-0 inline-flex items-center gap-1.5"
               @click="duplicateSelected"
             >
@@ -199,10 +206,12 @@
             </button>
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
             <button
+              v-if="canContent('content.delete', collection)"
               type="button"
               :disabled="bulkDeleting"
               :title="t('contentList.moveToTrash')"
-              class="btn-secondary py-1.5 px-3 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 disabled:opacity-40 whitespace-nowrap shrink-0 inline-flex items-center gap-1.5"
+              :aria-label="t('contentList.moveToTrash')"
+              class="btn-danger-subtle whitespace-nowrap shrink-0 px-3 py-1.5"
               @click="confirmBulkDelete"
             >
               <Icon icon="mdi:trash-can-outline" class="w-4 h-4" />
@@ -268,7 +277,7 @@
           <table class="min-w-full">
             <thead>
               <tr class="bg-slate-50 border-b border-slate-200 group/thead">
-                <th class="w-10 px-3 py-3">
+                <th v-if="canSelectEntries" class="w-10 px-3 py-3">
                   <input
                     type="checkbox"
                     :aria-label="t('contentList.selectPage')"
@@ -276,7 +285,7 @@
                     :class="
                       selectedIds.size > 0
                         ? 'opacity-100'
-                        : 'opacity-0 group-hover/thead:opacity-100'
+                        : 'sm:opacity-0 sm:group-hover/thead:opacity-100 focus-visible:opacity-100'
                     "
                     :checked="allPageSelected"
                     :indeterminate.prop="someSelected && !allPageSelected"
@@ -317,7 +326,7 @@
             <tbody class="divide-y divide-slate-100">
               <tr v-if="col.entries.length === 0">
                 <td
-                  :colspan="displayedColumns.length + 1"
+                  :colspan="displayedColumns.length + (canSelectEntries ? 1 : 0)"
                   class="px-4 py-8 text-left text-slate-500 text-sm sm:text-center"
                 >
                   {{ t("contentList.noEntries") }}
@@ -339,7 +348,7 @@
                 "
                 @click="router.push(`/content/${collection}/${entry.id}`)"
               >
-                <td class="w-10 px-3 py-3" @click.stop>
+                <td v-if="canSelectEntries" class="w-10 px-3 py-3" @click.stop>
                   <input
                     type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
@@ -347,7 +356,7 @@
                     :class="
                       selectedIds.size > 0
                         ? 'opacity-100'
-                        : 'opacity-0 group-hover:opacity-100'
+                        : 'sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100'
                     "
                     :checked="selectedIds.has(entry.id)"
                     @change="toggleSelection(entry.id)"
@@ -409,7 +418,7 @@
                             >
                               <img
                                 v-if="userMap[entry.author_id].has_avatar"
-                                :src="`/admin/api/users/${entry.author_id}/avatar`"
+                                :src="`${ADMIN_API_BASE}/users/${entry.author_id}/avatar`"
                                 class="w-full h-full object-cover"
                                 :alt="userMap[entry.author_id].username"
                               />
@@ -617,6 +626,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import BulkEditBar from "../components/BulkEditBar.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -630,13 +640,14 @@ import { useHeightTransition } from "../composables/useHeightTransition.js";
 const ht = useHeightTransition();
 import { useContentStore } from "../stores/content.js";
 import { useToastStore } from "../stores/toast.js";
+import { useAuthStore } from "../stores/auth.js";
+import { usePermissions } from "../composables/usePermissions.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { contentCollectionEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
 import {
   localeFlagCountry,
-  localeName,
 } from "../composables/localeOptions.js";
 import {
   apiSortKey,
@@ -663,6 +674,14 @@ import {
 } from "../composables/mediaUtils.js";
 
 const toast = useToastStore();
+const auth = useAuthStore();
+const { canContent } = usePermissions();
+// Selection only makes sense when at least one bulk action is available.
+const canSelectEntries = computed(() =>
+  ["content.update", "content.create", "content.delete"].some((action) =>
+    canContent(action, collection.value),
+  ),
+);
 const apiEndpointStore = useApiEndpointStore();
 const { locale, t } = useI18n();
 const apiEndpointOwner = "content-list";
@@ -1256,6 +1275,8 @@ function fieldTextValue(value, trimmed = true) {
 }
 
 async function loadUsers() {
+  // Names are a nicety; users without users.read see account ids instead.
+  if (!auth.can("users.read")) return;
   try {
     const res = await api.users.list();
     users.value = res.data;

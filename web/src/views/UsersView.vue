@@ -104,7 +104,7 @@
                   >
                     <img
                       v-if="user.has_avatar"
-                      :src="`/admin/api/users/${user.id}/avatar`"
+                      :src="`${ADMIN_API_BASE}/users/${user.id}/avatar`"
                       class="w-full h-full object-cover"
                       :alt="user.username"
                     />
@@ -127,21 +127,21 @@
                   <router-link
                     v-if="user.id === currentUser?.id"
                     to="/profile"
-                    class="btn-secondary text-xs py-1 px-3"
+                    class="btn-secondary btn-sm"
                   >
                     {{ t("users.myProfile") }}
                   </router-link>
                   <button
                     v-if="user.id !== currentUser?.id"
                     @click="openEditUser(user)"
-                    class="btn-secondary text-xs py-1 px-3"
+                    class="btn-secondary btn-sm"
                   >
                     {{ t("users.edit") }}
                   </button>
                   <button
                     v-if="user.id !== currentUser?.id"
                     @click="handleDeleteUser(user.id)"
-                    class="btn-danger text-xs py-1 px-3"
+                    class="btn-danger-subtle btn-sm"
                   >
                     {{ t("users.delete") }}
                   </button>
@@ -250,6 +250,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { ref, computed, onBeforeUnmount, onMounted } from "vue";

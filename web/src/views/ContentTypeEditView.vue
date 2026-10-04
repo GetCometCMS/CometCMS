@@ -42,26 +42,7 @@
           {{ t("contentTypeEdit.settings") }}
         </h2>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label for="content-type-name" class="form-label"
-              >{{ t("contentTypeEdit.apiName") }}
-              <span class="text-slate-400 font-normal">{{
-                t("contentTypeEdit.slugNoSpaces")
-              }}</span></label
-            >
-            <input
-              id="content-type-name"
-              v-model="form.name"
-              type="text"
-              required
-              :disabled="!isNew"
-              placeholder="blog-posts"
-              class="form-input w-full rounded-lg border-slate-300 text-sm disabled:opacity-50"
-              @blur="fixSlugOnBlur"
-            />
-          </div>
-
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label for="content-type-label" class="form-label">{{
               t("contentTypeEdit.displayLabel")
@@ -70,9 +51,31 @@
               id="content-type-label"
               v-model="form.label"
               type="text"
-              placeholder="Blog posts"
+              :placeholder="t('contentTypeEdit.displayLabelPlaceholder')"
+              :autofocus="isNew"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
             />
+          </div>
+
+          <div>
+            <label for="content-type-name" class="form-label">{{
+              t("contentTypeEdit.apiName")
+            }}</label>
+            <input
+              id="content-type-name"
+              v-model="form.name"
+              type="text"
+              required
+              :disabled="!isNew"
+              placeholder="blog-posts"
+              aria-describedby="content-type-name-help"
+              class="form-input w-full rounded-lg border-slate-300 font-mono text-sm disabled:bg-slate-50 disabled:text-slate-500"
+              @input="nameTouched = form.name !== ''"
+              @blur="fixSlugOnBlur"
+            />
+            <p id="content-type-name-help" class="mt-1 text-xs text-slate-500">
+              {{ t(isNew ? "contentTypeEdit.apiNameHelp" : "contentTypeEdit.apiNameLocked") }}
+            </p>
           </div>
 
           <div>
@@ -137,7 +140,7 @@
           </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
             <SearchableSelect
@@ -186,7 +189,7 @@
             }}</span>
           </h2>
 
-          <div class="flex items-center gap-2 text-xs">
+          <div v-if="customFields.length > 1" class="flex items-center gap-2 text-xs">
             <button
               type="button"
               class="font-medium text-slate-500 transition-colors hover:text-theme-600"
@@ -233,6 +236,15 @@
     </form>
 
     <ConfirmModal
+      v-model="leavePromptOpen"
+      :title="t('unsaved.title')"
+      :message="t('unsaved.message')"
+      :confirm-label="t('unsaved.leave')"
+      :cancel-label="t('unsaved.stay')"
+      variant="warning"
+      @confirm="confirmLeave"
+    />
+    <ConfirmModal
       v-model="showDeleteModal"
       :title="t('contentTypeEdit.deleteTitle')"
       :message="t('contentTypeEdit.deleteMessage', { name: form.name })"
@@ -257,6 +269,7 @@ import { Icon } from "@iconify/vue";
 import FieldBuilder from "../components/FieldBuilder.vue";
 import IconPickerGrid from "../components/IconPickerGrid.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
+import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import SearchableSelect from "../components/SearchableSelect.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
@@ -317,7 +330,20 @@ watch(
     }
   },
 );
+// While creating a type, derive the API name from the label until it is edited by hand.
+const nameTouched = ref(false);
+watch(
+  () => form.value.label,
+  (label) => {
+    if (isNew.value && !nameTouched.value) form.value.name = toSlug(label ?? "");
+  },
+);
 const isDirty = ref(false);
+const {
+  leavePromptOpen,
+  confirmLeave,
+  bypass: bypassLeaveGuard,
+} = useUnsavedChangesGuard(isDirty);
 const cleanState = ref("");
 let _formLoaded = false;
 
@@ -407,14 +433,14 @@ async function handleSave() {
   customFieldErrors.value = {};
 
   if (hasNameConflict()) {
-    saveError.value = t("contentTypeEdit.nameConflict");
+    failSave(t("contentTypeEdit.nameConflict"));
     return;
   }
 
   const validation = validateCustomFields(customFields.value);
   if (!validation.ok) {
     customFieldErrors.value = validation.fieldErrors;
-    saveError.value = validation.message;
+    failSave(validation.message);
     return;
   }
 
@@ -447,6 +473,7 @@ async function handleSave() {
     if (isNew.value) {
       await api.contentTypes.create(payload);
       toast.success(t("contentTypeEdit.saved"));
+      bypassLeaveGuard();
       router.push("/content-types");
     } else {
       await api.contentTypes.update(route.params.name, payload);
@@ -461,10 +488,17 @@ async function handleSave() {
     typesStore.invalidate();
     auth.refresh().catch(() => {});
   } catch (err) {
-    saveError.value = err.message;
+    failSave(err.message);
   } finally {
     saving.value = false;
   }
+}
+
+// The inline message sits below the long field list, far from the Save button
+// in the sticky header, so failures are announced as a toast as well.
+function failSave(message) {
+  saveError.value = message;
+  toast.error(message);
 }
 
 function validateCustomFields(fields) {
@@ -643,9 +677,10 @@ async function handleDelete() {
     toast.success(t("contentTypeEdit.deleted"));
     typesStore.invalidate();
     auth.refresh().catch(() => {});
+    bypassLeaveGuard();
     router.push("/content-types");
   } catch (err) {
-    saveError.value = err.message;
+    failSave(err.message);
     showDeleteModal.value = false;
   } finally {
     deleting.value = false;

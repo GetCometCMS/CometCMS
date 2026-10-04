@@ -28,7 +28,7 @@ final class MediaController extends BaseController
 
     public function index(): never
     {
-        $this->requirePermission('media.read', ['type' => 'media']);
+        $visible = $this->readableFilter('media.read');
         $category = array_key_exists('category', $_GET) ? (string) $_GET['category'] : null;
         $type = (string) ($_GET['type'] ?? 'all');
         $sort = (string) ($_GET['sort'] ?? 'newest');
@@ -38,18 +38,18 @@ final class MediaController extends BaseController
         $isLimited = array_key_exists('limit', $_GET) || array_key_exists('offset', $_GET) || $usedFiles !== null;
 
         if (!$isLimited) {
-            $data = array_map(fn(array $file): array => $this->withMediaUrl($file), $this->media->files((string) ($_GET['q'] ?? ''), $category, $type, $sort, $visibility));
-            $this->json(['data' => $data, 'meta' => ['categories' => $this->media->categories(), 'stats' => $this->media->stats()]]);
+            $data = array_map(fn(array $file): array => $this->withMediaUrl($file), $this->media->files((string) ($_GET['q'] ?? ''), $category, $type, $sort, $visibility, $visible));
+            $this->json(['data' => $data, 'meta' => ['categories' => $this->media->categories(), 'stats' => $this->media->stats($visible)]]);
         }
 
         $limit = array_key_exists('limit', $_GET) ? (int) $_GET['limit'] : null;
         $offset = (int) ($_GET['offset'] ?? 0);
-        $result = $this->media->limitedFiles((string) ($_GET['q'] ?? ''), $category, $limit, $offset, $type, $sort, $visibility, $usedFiles);
+        $result = $this->media->limitedFiles((string) ($_GET['q'] ?? ''), $category, $limit, $offset, $type, $sort, $visibility, $usedFiles, $visible);
         $data = array_map(fn(array $file): array => $this->withMediaUrl($file), $result['data']);
 
         $this->json(['data' => $data, 'meta' => array_replace($result['meta'], [
             'categories' => $this->media->categories(),
-            'stats' => $this->media->stats(),
+            'stats' => $this->media->stats($visible),
         ])]);
     }
 
@@ -123,11 +123,11 @@ final class MediaController extends BaseController
 
     public function categoryStore(): never
     {
-        $this->requirePermission('media.update', ['type' => 'media']);
-        $this->verifyCsrf();
         $body = $this->requestJson();
         $name = (string) ($body['name'] ?? '');
         $parent = (string) ($body['parent'] ?? '');
+        $this->requirePermission('media.update', ['type' => 'media', 'category' => trim($parent) === '' ? trim($name) : trim($parent) . ' / ' . trim($name)]);
+        $this->verifyCsrf();
 
         try {
             $categories = $this->media->addCategory($name, $parent);
@@ -172,10 +172,14 @@ final class MediaController extends BaseController
 
     public function categoryUpdate(string $file): never
     {
-        $this->requirePermission('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requirePermission('media.update', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $body = $this->requestJson();
-        $item = $this->media->assignCategory($file, (string) ($body['category'] ?? ''));
+        $target = (string) ($body['category'] ?? '');
+        if ($target !== '' && !$this->can($this->requireUser(), 'media.update', ['type' => 'media', 'category' => $target])) {
+            $this->json(['error' => ['code' => 'forbidden', 'message' => 'You do not have permission to move files into this category.']], 403);
+        }
+        $item = $this->media->assignCategory($file, $target);
 
         if ($item === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Media file not found.']], 404);
@@ -190,13 +194,20 @@ final class MediaController extends BaseController
 
     public function bulkCategoryUpdate(): never
     {
-        $this->requirePermission('media.update', ['type' => 'media']);
+        $user = $this->requireUser();
         $this->verifyCsrf();
         $body = $this->requestJson();
         $files = (array) ($body['files'] ?? []);
 
         if ($files === []) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Select at least one media file.']], 422);
+        }
+
+        $this->requireEachFile($user, 'media.update', $files);
+        // Moving files into a category requires access to that category too.
+        if (!$this->can($user, 'media.update', ['type' => 'media', 'category' => (string) ($body['category'] ?? '')])
+            && (string) ($body['category'] ?? '') !== '') {
+            $this->json(['error' => ['code' => 'forbidden', 'message' => 'You do not have permission to move files into this category.']], 403);
         }
 
         $items = $this->media->assignCategoryToMany($files, (string) ($body['category'] ?? ''));
@@ -210,7 +221,7 @@ final class MediaController extends BaseController
 
     public function destroy(string $file): never
     {
-        $user = $this->requirePermission('media.delete', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $user = $this->requirePermission('media.delete', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $this->media->delete($file);
         $this->cache->clear();
@@ -221,7 +232,7 @@ final class MediaController extends BaseController
 
     public function bulkDelete(): never
     {
-        $user = $this->requirePermission('media.delete', ['type' => 'media']);
+        $user = $this->requireUser();
         $this->verifyCsrf();
         $body = $this->requestJson();
         $files = (array) ($body['files'] ?? []);
@@ -229,6 +240,8 @@ final class MediaController extends BaseController
         if ($files === []) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Select at least one media file.']], 422);
         }
+
+        $this->requireEachFile($user, 'media.delete', $files);
 
         $deleted = $this->media->deleteMany($files);
         $this->cache->clear();
@@ -239,7 +252,7 @@ final class MediaController extends BaseController
 
     public function updateMeta(string $file): never
     {
-        $this->requirePermission('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requirePermission('media.update', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $body = $this->requestJson();
         $item = $this->media->updateMeta($file, (string) ($body['alt'] ?? ''), (string) ($body['title'] ?? ''));
@@ -254,7 +267,7 @@ final class MediaController extends BaseController
 
     public function updateVisibility(string $file): never
     {
-        $this->requirePermission('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requirePermission('media.update', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $body = $this->requestJson();
         $item = $this->media->updateVisibility($file, (string) ($body['visibility'] ?? 'public'));
@@ -269,7 +282,7 @@ final class MediaController extends BaseController
 
     public function bulkUpdateVisibility(): never
     {
-        $this->requirePermission('media.update', ['type' => 'media']);
+        $user = $this->requireUser();
         $this->verifyCsrf();
         $body = $this->requestJson();
         $files = (array) ($body['files'] ?? []);
@@ -277,6 +290,8 @@ final class MediaController extends BaseController
         if ($files === []) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Select at least one media file.']], 422);
         }
+
+        $this->requireEachFile($user, 'media.update', $files);
 
         $items = $this->media->updateVisibilityForMany($files, (string) ($body['visibility'] ?? 'public'));
         $this->cache->clear();
@@ -286,7 +301,7 @@ final class MediaController extends BaseController
 
     public function rename(string $file): never
     {
-        $this->requirePermission('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requirePermission('media.update', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $body = $this->requestJson();
         $oldFilename = rawurldecode($file);
@@ -316,13 +331,55 @@ final class MediaController extends BaseController
 
     public function usages(): never
     {
-        $this->requirePermission('media.read', ['type' => 'media']);
+        $this->readableFilter('media.read');
 
         $this->json(['data' => $this->buildUsages()]);
     }
 
+    /**
+     * Require that the user may perform $action on at least some media and return
+     * a listing filter, or null when every file is accessible.
+     */
+    private function readableFilter(string $action): ?\Closure
+    {
+        $user = $this->requireUser();
+
+        if ($this->can($user, $action, ['type' => 'media'])) {
+            return null;
+        }
+
+        if (!$this->permissions->grantsAction($user, $action)) {
+            $this->json(['error' => ['code' => 'forbidden', 'message' => 'You do not have permission to perform this action.']], 403);
+        }
+
+        return fn(array $context): bool => $this->can($user, $action, $context);
+    }
+
+    /** Bulk actions are all-or-nothing: refuse when any selected file is out of reach. */
+    private function requireEachFile(array $user, string $action, array $files): void
+    {
+        $denied = [];
+
+        foreach ($files as $file) {
+            $file = basename((string) $file);
+            if (!$this->can($user, $action, $this->media->permissionContext($file))) {
+                $denied[] = $file;
+            }
+        }
+
+        if ($denied !== []) {
+            $this->json(['error' => [
+                'code' => 'forbidden',
+                'message' => 'You do not have permission to change ' . count($denied) . ' of the selected files.',
+                'files' => $denied,
+            ]], 403);
+        }
+    }
+
     private function buildUsages(): array
     {
+        $user = $this->requireUser();
+
         $schemaMap = [];
 
         foreach ($this->types->all() as $schema) {
@@ -336,6 +393,11 @@ final class MediaController extends BaseController
         $usages = [];
 
         foreach ($this->content->collections() as $collection) {
+            // Never reveal entry titles from collections the user cannot read.
+            if (!$this->can($user, 'content.read', ['type' => 'content', 'collection' => (string) $collection])) {
+                continue;
+            }
+
             $schema = $schemaMap[$collection] ?? null;
             $rawFields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
 

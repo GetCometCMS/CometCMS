@@ -33,6 +33,18 @@ final class PermissionService
         return $allow;
     }
 
+    /** Whether any allow grant names $action, regardless of the resources it is limited to. */
+    public function grantsAction(array $principal, string $action): bool
+    {
+        foreach ($this->grants($principal) as $grant) {
+            if (($grant['effect'] ?? 'allow') === 'allow' && $this->matchesAny((array) ($grant['actions'] ?? []), $action)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function capabilities(array $principal): array
     {
         return [
@@ -43,6 +55,151 @@ final class PermissionService
             )))),
         ];
     }
+
+    /**
+     * Find the first permission in $grants that $principal could not exercise itself.
+     *
+     * Used before delegating access (assigning a role, editing a role, minting an
+     * access token) so nobody can hand out — or hand themselves — more than they
+     * hold. The check is deliberately conservative: a delegated allow grant is
+     * covered only when, for each of its actions and resources, the principal has
+     * an allow grant at least as broad (no narrower field list, no extra
+     * conditions) and no deny grant that could overlap it. Delegated deny grants
+     * only ever restrict access and are always acceptable.
+     *
+     * @return array{action: string, resource: string}|null null when everything is covered
+     */
+    public function firstUncovered(array $principal, array $grants): ?array
+    {
+        $own = $this->grants($principal);
+
+        foreach ($grants as $grant) {
+            if (!is_array($grant)) {
+                continue;
+            }
+
+            $grant = $this->normalizeGrant($grant);
+            if ($grant['effect'] === 'deny') {
+                continue;
+            }
+
+            foreach ($this->expandActions($grant['actions']) as $action) {
+                foreach ($grant['resources'] ?: ['*'] as $resource) {
+                    if (!$this->coversPair($own, $action, $resource, $grant)) {
+                        return ['action' => $action, 'resource' => $resource];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function coversPair(array $own, string $action, string $resource, array $delegated): bool
+    {
+        $candidates = [$resource];
+
+        // A bare "*" resource on e.g. content.read means "every content entry",
+        // which is what a grant on content:* already covers.
+        $domain = self::ACTION_DOMAINS[strstr($action, '.', true) ?: $action] ?? null;
+        if ($resource === '*' && $domain !== null) {
+            $candidates[] = $domain . ':*';
+        }
+
+        // allows() also checks unscoped resources for workspace-scoped requests,
+        // so an unscoped grant covers the same resource inside any workspace.
+        if (preg_match('/^workspace:[^:]+:(.+)$/', $resource, $match)) {
+            $candidates[] = $match[1];
+        }
+
+        $allowed = false;
+
+        foreach ($own as $grant) {
+            if (!$this->matchesAny((array) ($grant['actions'] ?? []), $action)) {
+                continue;
+            }
+
+            $patterns = (array) ($grant['resources'] ?? []);
+
+            if (($grant['effect'] ?? 'allow') === 'deny') {
+                foreach ($patterns as $pattern) {
+                    foreach ($candidates as $candidate) {
+                        if ($this->matches((string) $pattern, $candidate) || $this->matches($candidate, (string) $pattern)) {
+                            return false;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if ($allowed || !$this->grantAtLeastAsBroad($grant, $delegated)) {
+                continue;
+            }
+
+            foreach ($patterns as $pattern) {
+                foreach ($candidates as $candidate) {
+                    if ($this->matches((string) $pattern, $candidate)) {
+                        $allowed = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        return $allowed;
+    }
+
+    private function grantAtLeastAsBroad(array $own, array $delegated): bool
+    {
+        if (array_key_exists('fields', $own)) {
+            if (!array_key_exists('fields', $delegated)) {
+                return false;
+            }
+
+            foreach ((array) $delegated['fields'] as $field) {
+                if (!$this->matchesAny((array) $own['fields'], (string) $field)) {
+                    return false;
+                }
+            }
+        }
+
+        $ownConditions = (array) ($own['conditions'] ?? []);
+
+        return $ownConditions === [] || $ownConditions == (array) ($delegated['conditions'] ?? []);
+    }
+
+    /** Expand wildcard actions such as "content.*" or "*" to the concrete actions they grant. */
+    private function expandActions(array $actions): array
+    {
+        $catalog = [];
+        foreach (RoleRepository::defaultPermissions('admin') as $grant) {
+            foreach ((array) ($grant['actions'] ?? []) as $known) {
+                $catalog[] = (string) $known;
+            }
+        }
+
+        $expanded = [];
+        foreach ($actions as $action) {
+            $action = (string) $action;
+            $matches = str_contains($action, '*')
+                ? array_values(array_filter($catalog, fn(string $known): bool => $this->matches($action, $known)))
+                : [];
+            array_push($expanded, ...($matches !== [] ? $matches : [$action]));
+        }
+
+        return array_values(array_unique($expanded));
+    }
+
+    private const ACTION_DOMAINS = [
+        'content' => 'content',
+        'schema' => 'schema',
+        'media' => 'media',
+        'users' => 'users',
+        'tokens' => 'tokens',
+        'roles' => 'roles',
+        'workspaces' => 'workspaces',
+    ];
 
     public static function preset(string $role): array
     {

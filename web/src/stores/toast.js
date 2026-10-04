@@ -5,10 +5,16 @@ export const useToastStore = defineStore('toast', () => {
   const toasts = ref([])
   let nextId = 0
 
+  // Errors stay long enough to be read (and can be dismissed earlier).
+  const DURATION = { success: 4000, error: 10000 }
+
   function show(message, type = 'success') {
+    // A burst of failing requests should not stack identical messages.
+    if (toasts.value.some((toast) => toast.message === message && toast.type === type)) return
+
     const id = nextId++
     toasts.value.push({ id, message, type })
-    setTimeout(() => remove(id), 4000)
+    setTimeout(() => remove(id), DURATION[type] ?? DURATION.success)
   }
 
   function remove(id) {

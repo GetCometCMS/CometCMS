@@ -15,7 +15,7 @@
         <AvatarUpload
           :src="
             auth.user?.has_avatar
-              ? `/admin/api/users/${auth.user.id}/avatar?v=${avatarVersion}`
+              ? `${ADMIN_API_BASE}/users/${auth.user.id}/avatar?v=${avatarVersion}`
               : null
           "
           :fallback="auth.user?.username?.[0]?.toUpperCase()"
@@ -201,6 +201,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import AvatarUpload from "../components/AvatarUpload.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";

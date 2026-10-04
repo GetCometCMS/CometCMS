@@ -9,8 +9,11 @@ const outDir = process.env.COMET_ADMIN_OUT_DIR
   : resolve(projectRoot, 'dist/admin')
 const hotFile = resolve(projectRoot, 'cms/.vite-hot')
 
-export default defineConfig({
-  base: '/admin/',
+export default defineConfig(({ command }) => ({
+  // The dev server is mounted at /admin/. Production builds use relative asset
+  // URLs so the admin works from any install prefix (e.g. /cms/admin/); the
+  // PHP shell provides that prefix to the app at runtime.
+  base: command === 'build' ? './' : '/admin/',
   plugins: [
     vue(),
     // Write/clean "hot" file so PHP knows when the dev server is running.
@@ -49,4 +52,4 @@ export default defineConfig({
     },
     cors: true,
   },
-})
+}))

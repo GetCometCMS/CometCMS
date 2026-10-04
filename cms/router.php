@@ -3,18 +3,28 @@
 /**
  * PHP built-in server router.
  * Mimics Apache's mod_rewrite behaviour from .htaccess:
- * - Serve real files/directories directly (static assets, media …).
- * - Everything else goes through index.php.
+ * - Serve the compiled admin UI assets (admin/…) directly.
+ * - Everything else goes through index.php, which also serves media files.
+ *
+ * Only files inside admin/ are ever served statically. storage/, app/ and
+ * config/ contain sessions, password hashes, tokens and backups, so they must
+ * never be reachable as raw files.
  *
  * Usage:
  *   php -S localhost:8000 router.php
  */
 
-$uri  = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-$file = __DIR__ . $uri;
+$uri  = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
+$adminRoot = realpath(__DIR__ . '/admin');
+$file = realpath(__DIR__ . $uri);
 
-// Serve existing files (JS/CSS/images built by Vite, uploaded media …) directly.
-if ($uri !== '/' && is_file($file)) {
+if (
+    $adminRoot !== false
+    && $file !== false
+    && is_file($file)
+    && str_starts_with($file, $adminRoot . DIRECTORY_SEPARATOR)
+    && strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'php'
+) {
     return false;
 }
 

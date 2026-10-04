@@ -50,7 +50,8 @@ final class ContentRepository
     public function all(string $collection, bool $includeDeleted = false): array
     {
         Security::assertSafeName($collection);
-        $entries = array_map(fn(array $entry): array => $this->normalizeStoredEntry($entry), $this->store->all($collection));
+        $definedFields = $this->definedFieldNames($collection);
+        $entries = array_map(fn(array $entry): array => $this->normalizeStoredEntry($entry, $definedFields), $this->store->all($collection));
 
         if (!$includeDeleted) {
             $entries = array_values(array_filter($entries, static fn(array $entry): bool => empty($entry['deleted_at'])));
@@ -807,15 +808,36 @@ final class ContentRepository
         return $entry;
     }
 
-    public function normalizeStoredEntry(array $entry): array
+    public function normalizeStoredEntry(array $entry, ?array $definedFields = null): array
     {
         $entry['status'] ??= 'draft';
         $entry['published_at'] ??= ($entry['status'] === 'published' ? ($entry['created_at'] ?? Security::now()) : null);
         $entry['created_at'] ??= Security::now();
         $entry['updated_at'] ??= $entry['created_at'];
-        unset($entry['data'], $entry['body']);
+
+        // Pre-release entries kept a raw "data" bag and a "body" at the root.
+        // Drop those leftovers, but never a field the content type defines:
+        // "body" in particular is one of the most common field names.
+        $definedFields ??= $this->definedFieldNames((string) ($entry['collection'] ?? ''));
+        foreach (['data', 'body'] as $legacyKey) {
+            if (!isset($definedFields[$legacyKey])) {
+                unset($entry[$legacyKey]);
+            }
+        }
 
         return $entry;
+    }
+
+    /** @return array<string, true> */
+    private function definedFieldNames(string $collection): array
+    {
+        if ($collection === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $collection)) {
+            return [];
+        }
+
+        $fields = $this->types->find($collection)['fields'] ?? [];
+
+        return is_array($fields) ? array_fill_keys(array_map('strval', array_keys($fields)), true) : [];
     }
 
     private function normalizeAndValidate(

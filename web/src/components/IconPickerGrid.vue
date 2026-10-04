@@ -34,7 +34,8 @@
           ref="searchInputRef"
           v-model="query"
           type="text"
-          placeholder="Search icons…"
+          :placeholder="t('iconPicker.search')"
+          :aria-label="t('iconPicker.search')"
           class="form-input w-full rounded-lg border-slate-300 text-sm"
           @keydown.escape="close"
         />
@@ -46,7 +47,7 @@
           v-if="filteredIcons.length === 0"
           class="py-6 text-center text-sm text-slate-400"
         >
-          No icons found
+          {{ t("iconPicker.noResults") }}
         </div>
         <div v-else class="grid grid-cols-9 gap-0.5">
           <button
@@ -72,7 +73,8 @@
         <input
           :value="modelValue"
           type="text"
-          placeholder="Or type any Iconify name…"
+          :placeholder="t('iconPicker.custom')"
+          :aria-label="t('iconPicker.customLabel')"
           class="form-input w-full rounded-lg border-slate-300 text-xs"
           @input="emit('update:modelValue', $event.target.value)"
           @keydown.escape="close"
@@ -86,6 +88,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 defineProps({
   modelValue: { type: String, default: "" },

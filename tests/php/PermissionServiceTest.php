@@ -105,3 +105,53 @@ test('permission service applies owner status and locale conditions', function (
         'locale' => 'de',
     ]));
 });
+
+test('admins can delegate every permission shape the grants editor produces', function (): void {
+    $service = comet_permission_test_service();
+    $admin = ['id' => 'admin', 'role' => 'admin'];
+    $editorGrants = \CometCMS\Auth\RoleRepository::defaultPermissions('editor');
+
+    foreach ([
+        $editorGrants,
+        \CometCMS\Auth\RoleRepository::defaultPermissions('viewer'),
+        \CometCMS\Auth\RoleRepository::defaultPermissions('admin'),
+        [['effect' => 'allow', 'actions' => ['*'], 'resources' => ['*']]],
+        [['effect' => 'allow', 'actions' => ['content.*'], 'resources' => ['content:*:*']]],
+        [['effect' => 'allow', 'actions' => ['content.read', 'content.update'], 'resources' => ['workspace:site-a:content:posts:*'], 'fields' => ['title']]],
+        [['effect' => 'allow', 'actions' => ['content.update'], 'resources' => ['content:posts:abc'], 'conditions' => ['own' => true]]],
+        [['effect' => 'allow', 'actions' => ['media.read', 'media.upload'], 'resources' => ['media:category:hero']]],
+        [['effect' => 'allow', 'actions' => ['backups.read', 'backups.create'], 'resources' => ['backups:*']]],
+        [['effect' => 'allow', 'actions' => ['workspaces.manage'], 'resources' => ['workspaces:site-a']]],
+        [['effect' => 'allow', 'actions' => ['users.read', 'tokens.create', 'roles.update'], 'resources' => ['*']]],
+    ] as $grants) {
+        assert_null($service->firstUncovered($admin, $grants), json_encode($grants));
+    }
+});
+
+test('delegation is refused when the actor lacks an action or scope', function (): void {
+    $service = comet_permission_test_service();
+    $manager = comet_permission_test_token([
+        ['effect' => 'allow', 'actions' => ['users.read', 'users.update'], 'resources' => ['*']],
+        ['effect' => 'allow', 'actions' => ['content.read', 'content.update'], 'resources' => ['content:posts:*'], 'fields' => ['title', 'body']],
+        ['effect' => 'deny', 'actions' => ['content.update'], 'resources' => ['content:posts:locked']],
+    ]);
+
+    // Assigning the Admin role to oneself is the escalation this prevents.
+    assert_same(
+        ['action' => 'dashboard.read', 'resource' => '*'],
+        $service->firstUncovered($manager, \CometCMS\Auth\RoleRepository::defaultPermissions('admin')),
+    );
+    // Broader collection scope than the actor holds.
+    assert_true($service->firstUncovered($manager, [['actions' => ['content.read'], 'resources' => ['content:*']]]) !== null);
+    assert_true($service->firstUncovered($manager, [['actions' => ['content.read'], 'resources' => ['*']]]) !== null);
+    // Field-restricted actors cannot delegate unrestricted or wider field access.
+    assert_true($service->firstUncovered($manager, [['actions' => ['content.update'], 'resources' => ['content:posts:a']]]) !== null);
+    assert_true($service->firstUncovered($manager, [['actions' => ['content.update'], 'resources' => ['content:posts:a'], 'fields' => ['price']]]) !== null);
+    // A deny on part of the scope means the actor cannot delegate the whole scope.
+    assert_true($service->firstUncovered($manager, [['actions' => ['content.update'], 'resources' => ['content:posts:*'], 'fields' => ['title']]]) !== null);
+    // Within its own limits delegation works, and delegated denies are always fine.
+    assert_null($service->firstUncovered($manager, [
+        ['actions' => ['content.read'], 'resources' => ['workspace:site-a:content:posts:intro'], 'fields' => ['title']],
+        ['effect' => 'deny', 'actions' => ['*'], 'resources' => ['*']],
+    ]));
+});

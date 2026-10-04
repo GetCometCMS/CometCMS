@@ -110,6 +110,18 @@ final class ContentController extends BaseController
 
             if ($existing === null) {
                 $failed++;
+                $errors[$id] = ['_entry' => ['Entry not found.']];
+                continue;
+            }
+
+            // The collection-level check above cannot see per-entry grants
+            // (denies, ownership) or the separate publish permission.
+            $context = ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($data), 'principal' => $user];
+            $publishing = ($data['status'] ?? null) === 'published' && ($existing['status'] ?? null) !== 'published';
+            if (!$this->permissions->allows($user, 'content.update', $context)
+                || ($publishing && !$this->permissions->allows($user, 'content.publish', $context))) {
+                $failed++;
+                $errors[$id] = ['_entry' => ['You do not have permission to change this entry.']];
                 continue;
             }
 
@@ -180,18 +192,35 @@ final class ContentController extends BaseController
 
         $deleted = 0;
         $failed  = 0;
+        $errors  = [];
 
         foreach ($ids as $id) {
             $id = (string) $id;
-            try {
-                $this->content->softDelete($collection, $id, $user);
-                $deleted++;
-            } catch (\Throwable) {
+            $entry = $this->content->find($collection, $id);
+
+            if ($entry === null) {
                 $failed++;
+                $errors[$id] = 'Entry not found.';
+                continue;
+            }
+
+            if (!$this->permissions->allows($user, 'content.delete', ['type' => 'content', 'collection' => $collection, 'entry' => $entry, 'principal' => $user])) {
+                $failed++;
+                $errors[$id] = 'You do not have permission to delete this entry.';
+                continue;
+            }
+
+            try {
+                $this->content->softDelete($collection, (string) $entry['id'], $user);
+                $deleted++;
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[$id] = 'The entry could not be deleted.';
+                $this->logger->error('content.bulk_delete_failed', ['collection' => $collection, 'id' => $id, 'message' => $e->getMessage()]);
             }
         }
 
-        $this->json(['data' => ['deleted' => $deleted, 'failed' => $failed]]);
+        $this->json(['data' => ['deleted' => $deleted, 'failed' => $failed, 'errors' => $errors]]);
     }
 
     public function revisions(string $collection, string $id): never

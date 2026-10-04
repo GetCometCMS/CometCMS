@@ -34,7 +34,7 @@
             <input
               v-model="createForm.label"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
-              placeholder="Publisher"
+              :placeholder="t('roles.namePlaceholder')"
             />
           </div>
           <div>
@@ -66,30 +66,39 @@
       <div v-for="role in roles" :key="role.id" class="card p-5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h2 class="font-semibold text-slate-900">{{ role.label }}</h2>
+            <h2 class="flex items-center gap-2 font-semibold text-slate-900">
+              {{ role.label }}
+              <span
+                v-if="role.locked"
+                class="badge bg-slate-100 text-slate-600"
+                :title="t('roles.lockedHint')"
+              >
+                <Icon icon="mdi:lock-outline" class="mr-1 h-3 w-3" aria-hidden="true" />
+                {{ t("roles.locked") }}
+              </span>
+            </h2>
+            <p v-if="role.locked" class="sr-only">{{ t("roles.lockedHint") }}</p>
             <p class="text-xs text-slate-400">{{ role.id }}</p>
           </div>
           <div class="flex gap-2">
             <button
-              v-if="auth.can('roles.update')"
-              :disabled="role.locked"
+              v-if="auth.can('roles.update') && !role.locked"
               @click="openEdit(role)"
-              class="btn-secondary text-xs py-1 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn-secondary btn-sm"
             >
               {{ t("roles.edit") }}
             </button>
             <button
               v-if="auth.can('roles.create')"
               @click="handleDuplicate(role)"
-              class="btn-secondary text-xs py-1 px-3"
+              class="btn-secondary btn-sm"
             >
               {{ t("roles.duplicate") }}
             </button>
             <button
-              v-if="auth.can('roles.delete')"
-              :disabled="role.locked"
+              v-if="auth.can('roles.delete') && !role.locked"
               @click="handleDelete(role)"
-              class="btn-danger text-xs py-1 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn-danger-subtle btn-sm"
             >
               {{ t("roles.delete") }}
             </button>
@@ -154,6 +163,7 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
+import { Icon } from "@iconify/vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import PermissionBadges from "../components/PermissionBadges.vue";
 import PermissionGrantsEditor from "../components/PermissionGrantsEditor.vue";

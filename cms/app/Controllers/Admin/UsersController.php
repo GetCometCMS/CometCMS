@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Controllers\Admin;
 
+use CometCMS\Auth\RoleRepository;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Core\Security;
 
@@ -36,6 +37,8 @@ final class UsersController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Password must be at least 8 characters.']], 422);
         }
 
+        $this->requireAssignableRole($actor, (string) ($body['role'] ?? 'viewer'));
+
         try {
             $user = $this->users->create(
                 (string) ($body['username'] ?? ''),
@@ -60,7 +63,15 @@ final class UsersController extends BaseController
         }
 
         $target = $this->users->find($userId);
-        $this->users->delete($userId);
+        if ($target === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'User not found.']], 404);
+        }
+
+        try {
+            $this->users->delete($userId);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
+        }
         $this->logger->info('user.deleted', ['deleted_user_id' => $userId, 'username' => $target['username'] ?? null, 'user_id' => $current['id'] ?? null]);
         $this->json(['data' => ['ok' => true]]);
     }
@@ -76,14 +87,34 @@ final class UsersController extends BaseController
             $this->json(['error' => ['code' => 'not_found', 'message' => 'User not found.']], 404);
         }
 
+        if (isset($body['role']) && (string) $body['role'] !== (string) ($target['role'] ?? '')) {
+            $this->requireAssignableRole($actor, (string) $body['role']);
+        }
+
         try {
             $user = $this->users->update($userId, $body);
         } catch (\InvalidArgumentException $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
         }
 
+        $this->auth->refresh($user);
         $this->logger->info('user.updated', ['updated_user_id' => $userId, 'username' => $user['username'] ?? null, 'user_id' => $actor['id'] ?? null]);
         $this->json(['data' => $this->safeUser($user)]);
+    }
+
+    private function requireAssignableRole(array $actor, string $role): void
+    {
+        $roles = new RoleRepository();
+
+        if (!$roles->exists($role)) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Invalid role.']], 422);
+        }
+
+        $this->requireDelegable(
+            $actor,
+            $roles->permissions($role),
+            'You cannot assign a role that has permissions you do not have yourself.',
+        );
     }
 
     public function profileUpdate(): never
@@ -107,6 +138,7 @@ final class UsersController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
         }
 
+        $this->auth->refresh($user);
         $this->json(['data' => $this->safeUser($user)]);
     }
 

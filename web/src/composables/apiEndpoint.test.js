@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setActiveWorkspace } from "../api/index.js";
 import {
   contentCollectionEndpoint,
   contentEntryEndpoint,
@@ -13,6 +14,16 @@ import {
 const origin = "https://example.test";
 
 describe("api endpoint helpers", () => {
+  beforeEach(() => {
+    setActiveWorkspace("default");
+  });
+
+  it("keeps an installation sub-directory in generated URLs", () => {
+    expect(contentTypesEndpoint("https://example.test/cms")).toBe(
+      "https://example.test/cms/api/v1/workspaces/default/content-types",
+    );
+  });
+
   it("builds a collection list endpoint with default query parameters", () => {
     expect(
       contentCollectionEndpoint(

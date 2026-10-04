@@ -11,7 +11,7 @@
         class="api-endpoint-footer-link flex min-w-0 items-center gap-2 text-xs font-medium transition-colors"
       >
         <Icon icon="mdi:api" class="api-endpoint-footer-icon h-4 w-4" />
-        <span class="shrink-0">Build Query</span>
+        <span class="shrink-0">{{ t("apiFooter.buildQuery") }}</span>
         <span
           v-if="endpoint.authLabel"
           class="api-endpoint-footer-badge hidden shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 xl:inline-flex"
@@ -42,15 +42,15 @@
           @click="copyUrl"
         >
           <Icon icon="mdi:content-copy" class="h-4 w-4" />
-          Copy
+          {{ t("apiFooter.copy") }}
         </button>
       </div>
 
       <button
         type="button"
         class="api-endpoint-footer-dismiss flex h-8 w-8 shrink-0 items-center justify-center rounded-lg opacity-0 transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-        title="Hide API footer"
-        aria-label="Hide API footer"
+        :title="t('apiFooter.hide')"
+        :aria-label="t('apiFooter.hide')"
         @click="dismissFooter"
       >
         <Icon icon="mdi:close" class="h-4 w-4" />
@@ -67,6 +67,9 @@ import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useToastStore } from "../stores/toast.js";
 import { api } from "../api/index.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const endpointStore = useApiEndpointStore();
 const auth = useAuthStore();
@@ -83,9 +86,9 @@ const canViewFooter = computed(
 async function copyUrl() {
   try {
     await navigator.clipboard.writeText(endpoint.value.url);
-    toast.success("Copied to clipboard.");
+    toast.success(t("apiFooter.copied"));
   } catch {
-    toast.error("Could not copy to clipboard.");
+    toast.error(t("apiFooter.copyFailed"));
   }
 }
 
@@ -101,7 +104,7 @@ async function dismissFooter() {
     toast.success("API footer hidden.");
   } catch {
     auth.user.show_api_footer = previousValue;
-    toast.error("Could not hide API footer.");
+    toast.error(t("apiFooter.hideFailed"));
   }
 }
 </script>

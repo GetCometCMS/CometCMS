@@ -9,6 +9,9 @@ use CometCMS\Storage\JsonStore;
 
 final class UserRepository
 {
+    public const ADMIN_ROLE = 'admin';
+    private const LAST_ADMIN_MESSAGE = 'At least one user must keep the Admin role. Give another user the Admin role first.';
+
     private JsonStore $store;
     private RoleRepository $roles;
 
@@ -88,7 +91,18 @@ final class UserRepository
     public function delete(string $id): void
     {
         Security::assertSafeName($id);
+
+        if (($this->find($id)['role'] ?? null) === self::ADMIN_ROLE && $this->adminCount() <= 1) {
+            throw new \InvalidArgumentException(self::LAST_ADMIN_MESSAGE);
+        }
+
         $this->store->delete($id);
+    }
+
+    /** Number of users holding the locked Admin role, which is the only role that can always manage the install. */
+    public function adminCount(): int
+    {
+        return count(array_filter($this->all(), static fn(array $user): bool => ($user['role'] ?? null) === self::ADMIN_ROLE));
     }
 
     public function update(string $id, array $data): array
@@ -111,6 +125,9 @@ final class UserRepository
         if (isset($data['role'])) {
             if (!$this->roles->exists((string) $data['role'])) {
                 throw new \InvalidArgumentException('Invalid role.');
+            }
+            if (($user['role'] ?? null) === self::ADMIN_ROLE && $data['role'] !== self::ADMIN_ROLE && $this->adminCount() <= 1) {
+                throw new \InvalidArgumentException(self::LAST_ADMIN_MESSAGE);
             }
             $user['role'] = (string) $data['role'];
         }
@@ -140,6 +157,7 @@ final class UserRepository
                 throw new \InvalidArgumentException('Password must be at least 8 characters.');
             }
             $user['password_hash'] = password_hash((string) $data['password'], PASSWORD_DEFAULT);
+            $user['session_epoch'] = (int) ($user['session_epoch'] ?? 0) + 1;
         }
 
         $user['updated_at'] = Security::now();

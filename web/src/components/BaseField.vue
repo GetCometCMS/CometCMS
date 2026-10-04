@@ -14,8 +14,8 @@
       <span
         v-if="config.localized === false"
         class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100"
-        title="Same value for all languages"
-        aria-label="Same value for all languages"
+        :title="t('field.universalHint')"
+        :aria-label="t('field.universalHint')"
       >
         <Icon icon="mdi:web" class="h-3.5 w-3.5" />
       </span>
@@ -38,6 +38,9 @@
 import { useId } from "vue";
 import { Icon } from "@iconify/vue";
 import { useFieldTypeMeta } from "../composables/useFieldTypeMeta.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 defineProps({
   name: { type: String, required: true },

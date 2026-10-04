@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { ADMIN_BASE } from '../basePath.js'
 
 const routes = [
   { path: '/',              redirect: '/dashboard' },
@@ -97,10 +98,16 @@ const routes = [
     component: () => import('../views/WorkspacesView.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    // Unknown admin URLs (typos, removed pages, stale bookmarks).
+    path: '/:pathMatch(.*)*',
+    component: () => import('../views/NotFoundView.vue'),
+    meta: { requiresAuth: true },
+  },
 ]
 
 const router = createRouter({
-  history: createWebHistory('/admin'),
+  history: createWebHistory(ADMIN_BASE),
   routes,
 })
 
@@ -119,7 +126,8 @@ router.beforeEach(async (to) => {
   }
 
   if (!auth.notSetUp && !auth.isAuthenticated && to.meta.requiresAuth) {
-    return '/login'
+    // Remember deep links (bookmarks, shared entry URLs) for after sign-in.
+    return to.fullPath === '/dashboard' ? '/login' : { path: '/login', query: { redirect: to.fullPath } }
   }
 
   if (auth.isAuthenticated && (to.path === '/login' || to.path === '/setup')) {

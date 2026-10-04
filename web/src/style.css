@@ -273,9 +273,20 @@
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
 
+  /* Routine destructive actions in lists and toolbars; solid .btn-danger is
+     reserved for the final confirmation so it is never the loudest element. */
+  .btn-danger-subtle {
+    @apply btn bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 focus:ring-red-500;
+  }
+
+  .btn-sm {
+    @apply px-2.5 py-1 text-xs;
+  }
+
   .btn-primary:disabled,
   .btn-secondary:disabled,
-  .btn-danger:disabled {
+  .btn-danger:disabled,
+  .btn-danger-subtle:disabled {
     @apply cursor-not-allowed opacity-60 shadow-none;
   }
 
@@ -521,6 +532,16 @@
   background-color: rgb(15 23 42);
   border-color: rgb(51 65 85);
   color: rgb(226 232 240);
+}
+
+:root[data-theme="dark"] .btn-danger-subtle {
+  background-color: rgb(15 23 42);
+  border-color: rgb(127 29 29 / 0.7);
+  color: rgb(252 165 165);
+}
+
+:root[data-theme="dark"] .btn-danger-subtle:hover {
+  background-color: rgb(127 29 29 / 0.35);
 }
 
 :root[data-theme="dark"] .btn-secondary:hover {

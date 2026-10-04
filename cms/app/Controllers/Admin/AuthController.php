@@ -9,6 +9,7 @@ use CometCMS\Core\Http;
 use CometCMS\Core\Security;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
+use CometCMS\Workspaces\WorkspaceRepository;
 
 final class AuthController extends BaseController
 {
@@ -113,7 +114,10 @@ final class AuthController extends BaseController
             $this->json(['error' => ['code' => 'error', 'message' => $e->getMessage()]], 422);
         }
 
-        // Initialise the workspace, replacing any auto-created 'default' entry
+        // Initialise the workspace, replacing any auto-created 'default' entry.
+        // Requests served before setup may have left an empty workspace folder
+        // behind, which the registry would otherwise resurrect as a workspace.
+        (new WorkspaceRepository())->pruneEmpty($workspaceSlug);
         $store    = new SettingsStore();
         $settings = $store->all();
         $now      = Security::now();

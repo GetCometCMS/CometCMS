@@ -210,6 +210,57 @@ final class WorkspaceRepository
         return $this->save(['archived' => true], $slug);
     }
 
+    /**
+     * Remove workspace folders, other than $keep, that do not contain a single file.
+     *
+     * Repositories create a workspace's directory skeleton as soon as they are
+     * constructed, so any request served before setup materialises an empty
+     * "default" workspace. Setup calls this so the workspace the administrator
+     * chose is the only one; folders holding real data are never touched.
+     *
+     * @return list<string> the slugs that were removed
+     */
+    public function pruneEmpty(string $keep): array
+    {
+        $keep = Security::slug($keep);
+        $removed = [];
+
+        foreach ($this->workspaceDirectorySlugs() as $slug) {
+            $root = COMET_STORAGE . '/workspaces/' . $slug;
+
+            if ($slug === $keep || !is_dir($root) || is_link($root) || self::containsFiles($root)) {
+                continue;
+            }
+
+            $directories = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($directories as $directory) {
+                rmdir($directory->getPathname());
+            }
+            rmdir($root);
+            $removed[] = $slug;
+        }
+
+        return $removed;
+    }
+
+    private static function containsFiles(string $directory): bool
+    {
+        $entries = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
+        );
+
+        foreach ($entries as $entry) {
+            if (!$entry->isDir()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function getDefault(): string
     {
         $settings = $this->settings->all();

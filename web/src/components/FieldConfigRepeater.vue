@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-2">
-    <label class="text-xs text-slate-500 block mb-1">Sub-fields</label>
+    <p class="text-xs text-slate-500 block mb-1">{{ t("fieldConfig.subfields") }}</p>
     <div
       v-for="(sub, si) in field.subfields ?? []"
       :key="sub._id"
@@ -14,8 +14,9 @@
         </span>
         <div class="flex-1 grid grid-cols-3 gap-2">
           <div>
-            <label class="text-xs text-slate-400 block mb-0.5">Key</label>
+            <label :for="`${idPrefix}-${si}-key`" class="text-xs text-slate-400 block mb-0.5">{{ t("fieldConfig.key") }}</label>
             <input
+              :id="`${idPrefix}-${si}-key`"
               v-model="sub.key"
               type="text"
               placeholder="field_name"
@@ -24,8 +25,9 @@
             />
           </div>
           <div>
-            <label class="text-xs text-slate-400 block mb-0.5">Type</label>
+            <span class="text-xs text-slate-400 block mb-0.5">{{ t("fieldBuilder.type") }}</span>
             <SearchableSelect
+              :aria-label="t('fieldBuilder.type')"
               :model-value="sub.type"
               :options="subFieldTypeOptions"
               :clearable="false"
@@ -34,14 +36,14 @@
             />
           </div>
           <div class="flex flex-col justify-end">
-            <label class="text-xs text-slate-400 block mb-0.5">&nbsp;</label>
+            <span class="text-xs text-slate-400 block mb-0.5" aria-hidden="true">&nbsp;</span>
             <label class="inline-flex items-center gap-2 h-[38px]">
               <input
                 type="checkbox"
                 v-model="sub.required"
                 class="form-checkbox rounded border-slate-300 text-theme-600"
               />
-              <span class="text-sm text-slate-600">Required</span>
+              <span class="text-sm text-slate-600">{{ t("fieldBuilder.required") }}</span>
             </label>
           </div>
         </div>
@@ -49,7 +51,8 @@
           type="button"
           @click="removeSubField(si)"
           class="shrink-0 text-slate-400 hover:text-red-500 transition-colors p-1 rounded"
-          title="Remove sub-field"
+          :title="t('fieldConfig.removeSubfield')"
+          :aria-label="t('fieldConfig.removeSubfield')"
         >
           <Icon icon="mdi:close" class="w-4 h-4" />
         </button>
@@ -82,7 +85,7 @@
       @click="addSubField"
       class="w-full py-1.5 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500 hover:border-theme-400 hover:text-theme-600 transition-colors"
     >
-      + Add sub-field
+      + {{ t("fieldConfig.addSubfield") }}
     </button>
   </div>
 </template>
@@ -103,6 +106,11 @@ import {
   rangeDefaults,
   uniqueKey,
 } from "../composables/fieldBuilderUtils.js";
+import { useId } from "vue";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
+const idPrefix = useId();
 
 const props = defineProps({
   field: { type: Object, required: true },

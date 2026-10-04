@@ -603,12 +603,19 @@ final class McpServer
             'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args)]]],
             'delete_entry' => [['content.delete', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
             'list_media' => [['media.read', ['type' => 'media']]],
-            'get_media_item' => [['media.read', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
+            'get_media_item' => [['media.read', $this->mediaPermissionContext($args)]],
             'create_media_category' => [['media.update', ['type' => 'media']]],
-            'set_media_category' => [['media.update', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
-            'delete_media' => [['media.delete', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
+            'set_media_category' => [['media.update', $this->mediaPermissionContext($args)]],
+            'delete_media' => [['media.delete', $this->mediaPermissionContext($args)]],
             default => [],
         };
+    }
+
+    private function mediaPermissionContext(array $args): array
+    {
+        $filename = trim((string) ($args['filename'] ?? ''));
+
+        return $filename !== '' ? $this->media->permissionContext($filename) : ['type' => 'media', 'file' => '*'];
     }
 
     private function requiredPermissionsForTool(string $tool, array $args): array

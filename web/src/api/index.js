@@ -1,3 +1,6 @@
+import { ADMIN_API_BASE } from '../basePath.js'
+import { t } from '../i18n/index.js'
+
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
 // then kept up-to-date from the X-CSRF-Token response header.
 const browserStorage = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
@@ -10,13 +13,15 @@ const inFlightReads = new Map()
 const REQUEST_TIMEOUT_MS = 15000
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
+// '' means "not known yet": requests then omit the workspace header and the
+// server applies its configured default instead of guessing a slug.
 export function getActiveWorkspace() {
-  return activeWorkspace || defaultWorkspace || 'default'
+  return activeWorkspace || defaultWorkspace || ''
 }
 
 export function setActiveWorkspace(workspace) {
-  activeWorkspace = workspace || defaultWorkspace || 'default'
-  browserStorage?.setItem('cometcms.workspace', activeWorkspace)
+  activeWorkspace = workspace || defaultWorkspace || ''
+  if (activeWorkspace) browserStorage?.setItem('cometcms.workspace', activeWorkspace)
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('cometcms:workspace-changed', {
       detail: { workspace: activeWorkspace },
@@ -25,15 +30,45 @@ export function setActiveWorkspace(workspace) {
 }
 
 export function getDefaultWorkspace() {
-  return defaultWorkspace || activeWorkspace || 'default'
+  return defaultWorkspace || activeWorkspace || ''
 }
 
 export function setDefaultWorkspace(workspace) {
-  defaultWorkspace = workspace || activeWorkspace || 'default'
+  defaultWorkspace = workspace || activeWorkspace || ''
 
-  if (!activeWorkspace) {
+  if (!activeWorkspace && defaultWorkspace) {
     setActiveWorkspace(defaultWorkspace)
   }
+}
+
+/**
+ * Adopt the workspace the server reports for the signed-in user. Users who may
+ * not choose workspaces always work in the default one, which also discards a
+ * workspace remembered from someone else's session in this browser.
+ */
+export function syncWorkspaceFromUser(user, canChooseWorkspace) {
+  const serverDefault = user?.default_workspace
+  if (!serverDefault) return
+
+  defaultWorkspace = serverDefault
+  if (!canChooseWorkspace || !activeWorkspace) {
+    activeWorkspace = serverDefault
+    browserStorage?.setItem('cometcms.workspace', activeWorkspace)
+  }
+}
+
+// Message for responses that are not CometCMS JSON, e.g. from the web server or a proxy.
+function statusMessage(status) {
+  if (status === 413) return t('apiError.tooLarge')
+  if (status === 502 || status === 503 || status === 504) return t('apiError.unavailable')
+  return t('apiError.server', { status })
+}
+
+// Requests that fail because the admin session ended (idle timeout, password
+// change elsewhere) let the app send the user back to the sign-in screen.
+function announceExpiredSession(status, json, path) {
+  if (status !== 401 || json?.error?.code !== 'unauthenticated' || path === '/me' || path === '/login') return
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('cometcms:session-expired'))
 }
 
 function sleep(ms) {
@@ -91,7 +126,7 @@ async function request(method, path, body = null) {
 
 async function requestOnce(method, path, body = null) {
   const headers = { 'X-Requested-With': 'XMLHttpRequest' }
-  headers['X-Comet-Workspace'] = getActiveWorkspace()
+  if (getActiveWorkspace()) headers['X-Comet-Workspace'] = getActiveWorkspace()
 
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken
@@ -111,11 +146,10 @@ async function requestOnce(method, path, body = null) {
 
   const maxAttempts = method === 'GET' ? 3 : 1
   let res
-  let lastError = null
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      res = await fetchWithTimeout(`/admin/api${path}`, {
+      res = await fetchWithTimeout(`${ADMIN_API_BASE}${path}`, {
         method,
         headers,
         body: finalBody,
@@ -129,10 +163,8 @@ async function requestOnce(method, path, body = null) {
 
       break
     } catch (err) {
-      lastError = err
-
       if (attempt >= maxAttempts || !isRetryableNetworkError(err)) {
-        const error = new Error(err?.name === 'AbortError' ? 'Request timed out' : 'Network error')
+        const error = new Error(err?.name === 'AbortError' ? t('apiError.timeout') : t('apiError.network'))
         error.code = err?.name === 'AbortError' ? 'request_timeout' : 'network_error'
         throw error
       }
@@ -142,7 +174,7 @@ async function requestOnce(method, path, body = null) {
   }
 
   if (!res) {
-    const error = new Error(lastError?.message ?? 'Network error')
+    const error = new Error(t('apiError.network'))
     error.code = 'network_error'
     throw error
   }
@@ -157,14 +189,15 @@ async function requestOnce(method, path, body = null) {
   try {
     json = await res.json()
   } catch {
-    const err = new Error(`Server error (HTTP ${res.status})`)
+    const err = new Error(statusMessage(res.status))
     err.code   = 'server_error'
     err.status = res.status
     throw err
   }
 
   if (!res.ok) {
-    const err = new Error(json.error?.message ?? 'Request failed')
+    announceExpiredSession(res.status, json, path)
+    const err = new Error(json.error?.message ?? t('apiError.failed'))
     err.code    = json.error?.code ?? 'unknown'
     err.fields  = json.error?.fields ?? {}
     err.status  = res.status
@@ -178,12 +211,12 @@ async function requestOnce(method, path, body = null) {
 function requestWithProgress(method, path, formData, onProgress, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open(method, `/admin/api${path}`)
+    xhr.open(method, `${ADMIN_API_BASE}${path}`)
     // Uploads can legitimately take many minutes. A zero timeout lets the web
     // server enforce its configured request limits instead of aborting in the UI.
     xhr.timeout = timeoutMs
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
-    xhr.setRequestHeader('X-Comet-Workspace', getActiveWorkspace())
+    if (getActiveWorkspace()) xhr.setRequestHeader('X-Comet-Workspace', getActiveWorkspace())
     if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken)
 
     if (onProgress) {
@@ -202,14 +235,15 @@ function requestWithProgress(method, path, formData, onProgress, timeoutMs = 0) 
       try {
         json = JSON.parse(xhr.responseText)
       } catch {
-        const err = new Error(`Server error (HTTP ${xhr.status})`)
+        const err = new Error(statusMessage(xhr.status))
         err.code = 'server_error'
         err.status = xhr.status
         return reject(err)
       }
 
       if (xhr.status >= 400) {
-        const err = new Error(json.error?.message ?? 'Request failed')
+        announceExpiredSession(xhr.status, json, path)
+        const err = new Error(json.error?.message ?? t('apiError.failed'))
         err.code = json.error?.code ?? 'unknown'
         err.fields = json.error?.fields ?? {}
         err.status = xhr.status
@@ -220,10 +254,10 @@ function requestWithProgress(method, path, formData, onProgress, timeoutMs = 0) 
       resolve(json)
     })
 
-    xhr.addEventListener('error', () => reject(new Error('Network error')))
-    xhr.addEventListener('abort', () => reject(new Error('Upload aborted')))
+    xhr.addEventListener('error', () => reject(new Error(t('apiError.network'))))
+    xhr.addEventListener('abort', () => reject(new Error(t('apiError.uploadAborted'))))
     xhr.addEventListener('timeout', () => {
-      const err = new Error('Upload timed out')
+      const err = new Error(t('apiError.timeout'))
       err.code = 'request_timeout'
       reject(err)
     })
@@ -244,7 +278,7 @@ function downloadViaNavigation(path) {
   const separator = path.includes('?') ? '&' : '?'
   const workspaceQuery = workspace ? `${separator}workspace=${encodeURIComponent(workspace)}` : ''
   const a = document.createElement('a')
-  a.href = `/admin/api${path}${workspaceQuery}`
+  a.href = `${ADMIN_API_BASE}${path}${workspaceQuery}`
   a.style.display = 'none'
   document.body.appendChild(a)
   a.click()

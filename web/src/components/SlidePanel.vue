@@ -37,7 +37,7 @@
               class="btn-secondary py-1.5 px-3 shrink-0"
               @click="close"
             >
-              Close
+              {{ t("common.close") }}
             </button>
           </div>
 
@@ -54,6 +54,9 @@
 <script setup>
 import { ref, toRef, useId } from "vue";
 import { useDialogFocus } from "../composables/useDialogFocus.js";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },

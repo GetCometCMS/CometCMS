@@ -14,6 +14,10 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Never expose application code, configuration or stored data directly,
+    # even if storage/.htaccess was not uploaded.
+    RewriteRule ^(app|config|storage)(/|$) - [F,L]
+
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [QSA,L]
 </IfModule>

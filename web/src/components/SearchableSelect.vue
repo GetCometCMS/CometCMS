@@ -6,10 +6,10 @@
         ref="freeInputRef"
         type="text"
         :value="modelValue ?? ''"
-        :placeholder="placeholder"
+        :placeholder="placeholderText"
         :disabled="disabled"
         role="combobox"
-        :aria-label="ariaLabel || placeholder"
+        :aria-label="ariaLabel || placeholderText"
         :aria-expanded="isOpen"
         :aria-controls="listboxId"
         aria-autocomplete="list"
@@ -28,7 +28,7 @@
       ref="triggerRef"
       type="button"
       role="combobox"
-      :aria-label="ariaLabel || placeholder"
+      :aria-label="ariaLabel || placeholderText"
       :aria-expanded="isOpen"
       :aria-controls="listboxId"
       aria-haspopup="listbox"
@@ -46,7 +46,7 @@
           :icon="selectedIcon"
           class="h-4 w-4 shrink-0 text-slate-400"
         />
-        <span class="truncate">{{ selectedLabel || placeholder }}</span>
+        <span class="truncate">{{ selectedLabel || placeholderText }}</span>
       </span>
       <Icon
         icon="mdi:chevron-down"
@@ -61,7 +61,7 @@
       ref="triggerRef"
       role="combobox"
       tabindex="0"
-      :aria-label="ariaLabel || placeholder"
+      :aria-label="ariaLabel || placeholderText"
       :aria-expanded="isOpen"
       :aria-controls="listboxId"
       aria-haspopup="listbox"
@@ -86,7 +86,7 @@
         {{ labelFor(val) }}
         <button
           type="button"
-          :aria-label="`Remove ${labelFor(val)}`"
+          :aria-label="t('select.remove', { name: labelFor(val) })"
           class="ml-0.5 text-theme-500 hover:text-theme-800 leading-none"
           @click.stop="removeValue(val)"
         >
@@ -94,7 +94,7 @@
         </button>
       </span>
       <span v-if="selectedValues.length === 0" class="text-slate-400 text-sm">{{
-        placeholder
+        placeholderText
       }}</span>
     </div>
 
@@ -115,8 +115,8 @@
           ref="searchInputRef"
           v-model="searchQuery"
           type="text"
-          placeholder="Search…"
-          aria-label="Search options"
+          :placeholder="t('select.search')"
+          :aria-label="t('select.searchOptions')"
           class="form-input w-full rounded-lg border-slate-300 text-sm"
           @keydown.escape="closeDropdown"
           @keydown.enter.prevent="selectFirst"
@@ -125,13 +125,13 @@
 
       <div class="max-h-64 overflow-y-auto">
         <div v-if="loading" class="p-3 text-sm text-slate-400 text-center">
-          Loading…
+          {{ t("common.loading") }}
         </div>
         <div
           v-else-if="filteredOptions.length === 0"
           class="p-3 text-sm text-slate-400 text-center"
         >
-          No entries found
+          {{ t("select.noResults") }}
         </div>
         <button
           v-else
@@ -184,12 +184,15 @@ import {
   watch,
 } from "vue";
 import { Icon } from "@iconify/vue";
+import { useI18n } from "../i18n/index.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   options: { type: Array, default: () => [] }, // [{ value: string, label: string, icon?: string }]
   modelValue: { default: null }, // string | string[] | null
   multiple: { type: Boolean, default: false },
-  placeholder: { type: String, default: "Select…" },
+  placeholder: { type: String, default: "" },
   disabled: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   allowFreeInput: { type: Boolean, default: false }, // combobox / autocomplete mode
@@ -197,6 +200,8 @@ const props = defineProps({
   searchable: { type: Boolean, default: true },
   ariaLabel: { type: String, default: "" },
 });
+const placeholderText = computed(() => props.placeholder || t("select.placeholder"));
+
 
 const emit = defineEmits(["update:modelValue", "search", "open"]);
 

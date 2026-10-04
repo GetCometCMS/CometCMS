@@ -22,7 +22,7 @@
     :class="inputClass"
     @change="emitValue($event.target.value)"
   >
-    <option value="">-- select author --</option>
+    <option value="">{{ t("fieldValue.selectAuthor") }}</option>
     <option v-for="user in users" :key="user.id" :value="user.id">
       {{ user.username }}
     </option>
@@ -56,9 +56,9 @@
     :class="inputClass"
     @change="emitBoolean($event.target.value)"
   >
-    <option value="">-- choose --</option>
-    <option value="true">True</option>
-    <option value="false">False</option>
+    <option value="">{{ t("fieldValue.choose") }}</option>
+    <option value="true">{{ t("fieldValue.true") }}</option>
+    <option value="false">{{ t("fieldValue.false") }}</option>
   </select>
 
   <input
@@ -82,7 +82,7 @@
     "
     :multiple="true"
     :aria-label="ariaLabel"
-    placeholder="Select options..."
+    :placeholder="t('fieldValue.selectOptions')"
     :class="inputClass"
     @update:model-value="emitValue($event)"
   />
@@ -95,7 +95,7 @@
     :class="inputClass"
     @change="emitValue($event.target.value)"
   >
-    <option value="">-- select --</option>
+    <option value="">{{ t("fieldValue.select") }}</option>
     <option
       v-for="opt in normalizedSelectOptions"
       :key="opt.value"

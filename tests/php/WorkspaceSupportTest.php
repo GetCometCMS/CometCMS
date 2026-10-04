@@ -114,6 +114,27 @@ test('setup controller construction does not create a default workspace before s
     assert_false(is_dir(comet_test_workspace_path('default')));
 });
 
+test('setup pruning removes empty pre-setup workspaces but keeps workspaces with data', function (): void {
+    @unlink(COMET_STORAGE . '/settings.json');
+    // A request served before setup leaves an empty "default" skeleton behind.
+    (new WorkspaceContext('default'))->ensure();
+    (new WorkspaceContext('legacy'))->ensure();
+    file_put_contents(comet_test_workspace_path('legacy') . '/content-types/posts.json', '{}');
+    (new WorkspaceContext('acme'))->ensure();
+
+    $registry = new WorkspaceRepository();
+    $removed = $registry->pruneEmpty('acme');
+
+    assert_same(['default'], $removed);
+    assert_false(is_dir(comet_test_workspace_path('default')));
+    assert_true(is_file(comet_test_workspace_path('legacy') . '/content-types/posts.json'));
+    assert_true(is_dir(comet_test_workspace_path('acme') . '/content'));
+
+    $slugs = array_map(static fn(array $workspace): string => (string) $workspace['slug'], $registry->all(true));
+    sort($slugs);
+    assert_same(['acme', 'legacy'], $slugs);
+});
+
 test('workspace content types entries and media are isolated', function (): void {
     $registry = new WorkspaceRepository();
     $registry->save(['slug' => 'site-a', 'label' => 'Site A']);

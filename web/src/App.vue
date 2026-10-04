@@ -15,7 +15,24 @@
 </template>
 
 <script setup>
+import { onBeforeUnmount, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AppLayout from "./components/AppLayout.vue";
+import { useAuthStore } from "./stores/auth.js";
+
+const auth = useAuthStore();
+const route = useRoute();
+const router = useRouter();
+
+// The server ended the admin session: return to sign-in, then come back here.
+function handleSessionExpired() {
+  if (!auth.isAuthenticated) return;
+  auth.expire();
+  router.push({ path: "/login", query: { expired: "1", redirect: route.fullPath } });
+}
+
+onMounted(() => window.addEventListener("cometcms:session-expired", handleSessionExpired));
+onBeforeUnmount(() => window.removeEventListener("cometcms:session-expired", handleSessionExpired));
 </script>
 
 <style>

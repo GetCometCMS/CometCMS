@@ -9,6 +9,44 @@
     <LoadingSpinner v-if="loading" />
 
     <template v-else>
+      <!-- First-run guidance until the install has a content type and an entry -->
+      <section v-if="showGettingStarted" class="card mb-5 p-5" aria-labelledby="getting-started-title">
+        <h2 id="getting-started-title" class="text-base font-semibold text-slate-900">
+          {{ t("dashboard.start.title") }}
+        </h2>
+        <p class="mt-1 text-sm text-slate-500">{{ t("dashboard.start.body") }}</p>
+        <ol class="mt-4 grid gap-3 md:grid-cols-3">
+          <li v-for="(step, index) in gettingStartedSteps" :key="step.key">
+            <component
+              :is="step.to ? 'router-link' : 'div'"
+              :to="step.to"
+              class="flex h-full items-start gap-3 rounded-lg border p-4 transition"
+              :class="step.done
+                ? 'border-emerald-200 bg-emerald-50/60'
+                : step.to
+                  ? 'border-slate-200 hover:border-theme-300 hover:bg-theme-50/40'
+                  : 'border-slate-200 opacity-70'"
+            >
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                :class="step.done ? 'bg-emerald-500 text-white' : 'bg-theme-600 text-white'"
+                aria-hidden="true"
+              >
+                <Icon v-if="step.done" icon="mdi:check" class="h-4 w-4" />
+                <template v-else>{{ index + 1 }}</template>
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-slate-900">
+                  {{ step.title }}
+                  <span v-if="step.done" class="sr-only">({{ t("dashboard.start.done") }})</span>
+                </span>
+                <span class="mt-0.5 block text-xs text-slate-500">{{ step.body }}</span>
+              </span>
+            </component>
+          </li>
+        </ol>
+      </section>
+
       <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
         <!-- Recent Activity -->
         <ActivityFeed />
@@ -72,11 +110,47 @@ import { computed, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "../api/index.js";
 import { useI18n } from "../i18n/index.js";
+import { usePermissions } from "../composables/usePermissions.js";
+import { useContentTypesStore } from "../stores/contentTypes.js";
 
 const loading = ref(true);
 const stats = ref({ collections: 0, entries: 0, content_types: 0 });
 const appVersion = ref("");
 const { t } = useI18n();
+const { canSchema } = usePermissions();
+const typesStore = useContentTypesStore();
+
+const showGettingStarted = computed(
+  () =>
+    canSchema("schema.create") &&
+    (stats.value.content_types === 0 || stats.value.entries === 0),
+);
+const gettingStartedSteps = computed(() => {
+  const firstType = typesStore.list[0];
+  return [
+    {
+      key: "type",
+      title: t("dashboard.start.typeTitle"),
+      body: t("dashboard.start.typeBody"),
+      done: stats.value.content_types > 0,
+      to: stats.value.content_types > 0 ? "/content-types" : "/content-types/new",
+    },
+    {
+      key: "entry",
+      title: t("dashboard.start.entryTitle"),
+      body: t("dashboard.start.entryBody"),
+      done: stats.value.entries > 0,
+      to: firstType ? `/content/${firstType.name}` : null,
+    },
+    {
+      key: "connect",
+      title: t("dashboard.start.connectTitle"),
+      body: t("dashboard.start.connectBody"),
+      done: false,
+      to: "/connect/api",
+    },
+  ];
+});
 
 const statusItems = computed(() => [
 

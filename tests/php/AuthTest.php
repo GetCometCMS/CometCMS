@@ -104,3 +104,29 @@ test('auth allows handles unknown role edge cases safely', function (): void {
     assert_false(Auth::allows(['role' => 'admin'], 'owner'));
     assert_false(Auth::allows([], 'admin'));
 });
+
+test('changing a password ends sessions started with the old password', function (): void {
+    comet_auth_test_start_session();
+    $_SESSION = [];
+    $users = new UserRepository();
+    $users->create('casey', 'old-password', 'editor');
+    $auth = new Auth($users);
+
+    assert_true($auth->attempt('casey', 'old-password'));
+    assert_same('casey', $auth->user()['id'] ?? null);
+
+    // Someone else (an admin) resets the password: this session must end.
+    $users->update('casey', ['password' => 'new-password']);
+    assert_null($auth->user());
+
+    // The user changing their own password keeps their current session.
+    assert_true($auth->attempt('casey', 'new-password'));
+    $updated = $users->update('casey', ['password' => 'newer-password']);
+    $auth->refresh($updated);
+    assert_same('casey', $auth->user()['id'] ?? null);
+
+    // Unrelated profile edits never sign anyone out.
+    $users->update('casey', ['display_name' => 'Casey']);
+    assert_same('casey', $auth->user()['id'] ?? null);
+    assert_false($auth->attempt('nobody', 'whatever'));
+});

@@ -149,7 +149,7 @@
           {{ t("contentEdit.core") }}
         </h2>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
           <div class="col-span-1">
             <label for="content-title" class="form-label">{{ t("contentEdit.title") }}</label>
@@ -165,10 +165,11 @@
 
           <div v-if="!isSingleton">
             <label for="content-slug" class="form-label">
-              Slug
-              <span class="text-slate-400 font-normal text-xs ml-1">{{
-                t("contentEdit.slugShared")
-              }}</span>
+              {{ t("contentEdit.slug") }}
+              <span
+                v-if="contentTypeLocales.length > 0"
+                class="text-slate-400 font-normal text-xs ml-1"
+              >{{ t("contentEdit.slugShared") }}</span>
             </label>
             <input
               id="content-slug"
@@ -213,7 +214,17 @@
           </div>
           <div v-else>
             <label for="content-author" class="form-label">{{ t("contentEdit.author") }}</label>
+            <!-- Without users.read the user list is unavailable; show the account id instead. -->
+            <input
+              v-if="users.length === 0"
+              id="content-author"
+              :value="form.author_id ?? auth.user?.username ?? ''"
+              type="text"
+              readonly
+              class="form-input w-full rounded-lg border-slate-300 bg-slate-50 text-sm text-slate-600"
+            />
             <select
+              v-else
               id="content-author"
               v-model="form.author_id"
               :disabled="isReadOnly"
@@ -328,6 +339,15 @@
     </form>
 
     <ConfirmModal
+      v-model="leavePromptOpen"
+      :title="t('unsaved.title')"
+      :message="t('unsaved.message')"
+      :confirm-label="t('unsaved.leave')"
+      :cancel-label="t('unsaved.stay')"
+      variant="warning"
+      @confirm="confirmLeave"
+    />
+    <ConfirmModal
       v-model="showDeleteModal"
       :title="t('contentEdit.moveTrashTitle')"
       :message="deleteMessage"
@@ -438,7 +458,7 @@
                 >
                   <img
                     v-if="userMap[revision.created_by].has_avatar"
-                    :src="`/admin/api/users/${revision.created_by}/avatar`"
+                    :src="`${ADMIN_API_BASE}/users/${revision.created_by}/avatar`"
                     class="w-full h-full object-cover"
                     :alt="userMap[revision.created_by].username"
                   />
@@ -514,6 +534,7 @@
 </template>
 
 <script setup>
+import { ADMIN_API_BASE } from "../basePath.js";
 import {
   ref,
   computed,
@@ -527,6 +548,8 @@ import { Icon } from "@iconify/vue";
 import FieldInput from "../components/FieldInput.vue";
 import BaseField from "../components/BaseField.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
+import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
+import { usePermissions } from "../composables/usePermissions.js";
 import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
@@ -551,6 +574,8 @@ const userMap = computed(() =>
 );
 
 async function loadUsers() {
+  // Names are a nicety; users without users.read see account ids instead.
+  if (!auth.can("users.read")) return;
   try {
     users.value = (await api.users.list()).data;
   } catch {
@@ -563,6 +588,7 @@ const router = useRouter();
 const toast = useToastStore();
 const { t } = useI18n();
 const auth = useAuthStore();
+const { canContent } = usePermissions();
 const apiEndpointStore = useApiEndpointStore();
 const collection = route.params.collection;
 const apiEndpointOwner = "content-edit";
@@ -601,41 +627,13 @@ const canEditContentType = computed(() => {
     auth.can("schema.read", resource) && auth.can("schema.update", resource)
   );
 });
-const contentResourceCandidates = computed(() => {
-  const candidates = [
-    `content:${collection}:*`,
-    `content:${collection}`,
-    "content:*",
-    "*",
-  ];
-
-  if (entryId.value) {
-    candidates.unshift(`content:${collection}:${entryId.value}`);
-  }
-
-  if (form.value.slug && form.value.slug !== entryId.value) {
-    candidates.unshift(`content:${collection}:${form.value.slug}`);
-  }
-
-  return [...new Set(candidates)];
-});
-const canCreateEntry = computed(() => {
-  return [
-    `content:${collection}:*`,
-    `content:${collection}`,
-    "content:*",
-    "*",
-  ].some((resource) => auth.can("content.create", resource));
-});
+const permissionEntry = computed(() => ({ id: entryId.value, slug: form.value.slug }));
+const canCreateEntry = computed(() => canContent("content.create", collection));
 const canUpdateEntry = computed(() =>
-  contentResourceCandidates.value.some((resource) =>
-    auth.can("content.update", resource),
-  ),
+  canContent("content.update", collection, permissionEntry.value),
 );
 const canDeleteEntry = computed(() =>
-  contentResourceCandidates.value.some((resource) =>
-    auth.can("content.delete", resource),
-  ),
+  canContent("content.delete", collection, permissionEntry.value),
 );
 const canSaveEntry = computed(() =>
   isNew.value ? canCreateEntry.value : canUpdateEntry.value,
@@ -665,11 +663,12 @@ const isScheduled = computed(() => {
 });
 
 const form = ref({
+  // New entries are attributed to their creator unless another author is picked.
+  author_id: auth.user?.id ?? null,
   status: "draft",
   title: "",
   slug: "",
   published_at: "",
-  author_id: null,
   locale: "",
 });
 const contentTypeLocales = ref([]);
@@ -927,6 +926,11 @@ async function confirmDeleteTranslation() {
   }
 }
 const isDirty = ref(false);
+const {
+  leavePromptOpen,
+  confirmLeave,
+  bypass: bypassLeaveGuard,
+} = useUnsavedChangesGuard(isDirty);
 let _formLoaded = false;
 const entryMeta = ref({ created_at: null, updated_at: null, id: null });
 const contentTypeSchema = ref(null);
@@ -1110,6 +1114,7 @@ async function handleSave() {
           id: res.data.id ?? null,
         };
       } else {
+        isDirty.value = false;
         router.push(`/content/${collection}/${res.data.id}`);
       }
     } else {
@@ -1139,6 +1144,7 @@ async function handleSave() {
   } catch (err) {
     saveError.value = err.message;
     fieldErrors.value = err.fields ?? {};
+    toast.error(err.message);
   } finally {
     saving.value = false;
   }
@@ -1356,9 +1362,11 @@ async function handleDelete() {
         ? t("contentEdit.pageMovedTrash")
         : t("contentEdit.entryMovedTrash"),
     );
+    bypassLeaveGuard();
     router.push(isSingleton.value ? "/dashboard" : `/content/${collection}`);
   } catch (err) {
     saveError.value = err.message;
+    toast.error(err.message);
     showDeleteModal.value = false;
   } finally {
     deleting.value = false;

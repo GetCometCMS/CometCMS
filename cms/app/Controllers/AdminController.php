@@ -28,6 +28,9 @@ final class AdminController
 
         $csrf = Security::csrfToken();
         $name = Security::e((string) comet_config('app.name', 'CometCMS'));
+        // Installation prefix ('' at the site root, '/cms' in a sub-directory);
+        // the admin UI builds every API, router and asset URL from it.
+        $base = rtrim($this->http->url('/'), '/');
 
         $links = implode('', array_map(
             fn(string $css): string => '<link rel="stylesheet" href="' . Security::e($css) . '">',
@@ -47,6 +50,7 @@ final class AdminController
             . '<meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<meta name="csrf-token" content="' . Security::e($csrf) . '">'
+            . '<meta name="comet-base" content="' . Security::e($base) . '">'
             . '<title>' . $name . '</title>'
             . $links
             . '</head>'

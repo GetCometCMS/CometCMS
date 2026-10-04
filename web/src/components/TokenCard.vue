@@ -41,7 +41,7 @@
       <button
         v-else
         type="button"
-        class="btn-secondary inline-flex items-center gap-1 text-xs py-1 px-2 shrink-0 text-red-600 hover:border-red-200 hover:bg-red-50"
+        class="btn-danger-subtle btn-sm shrink-0"
         @click="$emit('delete')"
       >
         <Icon icon="mdi:delete-outline" class="h-4 w-4" />

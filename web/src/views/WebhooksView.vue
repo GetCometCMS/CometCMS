@@ -75,7 +75,7 @@
                 <button
                   @click="runWebhook(hook, index)"
                   :disabled="runningWebhooks[index]"
-                  class="btn-secondary text-xs"
+                  class="btn-secondary btn-sm"
                 >
                   {{
                     runningWebhooks[index]

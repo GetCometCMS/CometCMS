@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CometCMS\Controllers;
 
 use CometCMS\Auth\ApiTokenRepository;
+use CometCMS\Auth\Auth;
+use CometCMS\Auth\UserRepository;
 use CometCMS\Auth\PermissionService;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
@@ -440,9 +442,13 @@ final class ApiController
 
     public function mediaCategoryUpdate(string $file): never
     {
-        $this->requireToken('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requireToken('media.update', $this->media->permissionContext(rawurldecode($file)));
         $body = $this->http->requestJson();
-        $item = $this->media->assignCategory($file, (string) ($body['category'] ?? ''));
+        $target = (string) ($body['category'] ?? '');
+        if ($target !== '') {
+            $this->requireToken('media.update', ['type' => 'media', 'category' => $target]);
+        }
+        $item = $this->media->assignCategory($file, $target);
 
         if ($item === null) {
             $this->response->error('not_found', 'Media file not found.', 404);
@@ -457,7 +463,7 @@ final class ApiController
 
     public function mediaUpdateVisibility(string $file): never
     {
-        $this->requireToken('media.update', ['type' => 'media']);
+        $this->requireToken('media.update', $this->media->permissionContext(rawurldecode($file)));
         $body = $this->http->requestJson();
         $item = $this->media->updateVisibility($file, (string) ($body['visibility'] ?? 'public'));
 
@@ -471,12 +477,19 @@ final class ApiController
 
     public function mediaBulkUpdateVisibility(): never
     {
-        $this->requireToken('media.update', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $principal = $this->requireToken('media.update', ['type' => 'media']);
         $body = $this->http->requestJson();
         $files = (array) ($body['files'] ?? []);
 
         if ($files === []) {
             $this->response->error('validation_failed', 'Select at least one media file.', 422);
+        }
+
+        foreach ($files as $file) {
+            $context = $this->media->permissionContext((string) $file) + ['principal' => $principal, 'workspace' => $this->workspace->slug()];
+            if (!$this->permissions->allows($principal, 'media.update', $context)) {
+                $this->response->error('forbidden', 'Forbidden.', 403);
+            }
         }
 
         $items = $this->media->updateVisibilityForMany($files, (string) ($body['visibility'] ?? 'public'));
@@ -486,7 +499,7 @@ final class ApiController
 
     public function mediaUpdateMeta(string $file): never
     {
-        $this->requireToken('media.update', ['type' => 'media']);
+        $this->requireToken('media.update', $this->media->permissionContext(rawurldecode($file)));
         $body = $this->http->requestJson();
         $item = $this->media->updateMeta($file, (string) ($body['alt'] ?? ''), (string) ($body['title'] ?? ''));
 
@@ -500,7 +513,7 @@ final class ApiController
 
     public function mediaDelete(string $file): never
     {
-        $this->requireToken('media.delete', ['type' => 'media', 'file' => rawurldecode($file)]);
+        $this->requireToken('media.delete', $this->media->permissionContext(rawurldecode($file)));
         $this->media->delete($file);
         $this->cache->clear();
         $this->response->data(['ok' => true]);
@@ -517,7 +530,7 @@ final class ApiController
 
         $private = $this->media->isPrivate($file);
         if ($private) {
-            $this->requireToken('media.read', ['type' => 'media', 'file' => $file]);
+            $this->requirePrivateMediaAccess($file);
         }
 
         if (($_GET['variant'] ?? null) === 'thumbnail') {
@@ -556,7 +569,7 @@ final class ApiController
 
         $private = $this->media->isPrivate($file);
         if ($private) {
-            $this->requireToken('media.read', ['type' => 'media', 'file' => $file]);
+            $this->requirePrivateMediaAccess($file);
         }
 
         $path = $this->media->thumbnailPath($file) ?? $originalPath;
@@ -776,6 +789,15 @@ final class ApiController
             'Last-Modified' => gmdate('D, d M Y H:i:s', $modified) . ' GMT',
         ];
 
+        // Media is served from the admin's origin. Opening an uploaded SVG (or
+        // any other active document) directly must not run its scripts with the
+        // viewer's session, so render it in a sandboxed, opaque origin. PDFs are
+        // exempt: Chrome refuses to show its viewer in sandboxed documents, and
+        // that viewer is already isolated from the page's origin.
+        if ($mime !== 'application/pdf') {
+            $headers['Content-Security-Policy'] = "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox";
+        }
+
         $ifNoneMatch = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
         $ifModifiedSince = strtotime((string) ($_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? ''));
         if (!$private && ($ifNoneMatch === $etag || ($ifNoneMatch === '' && $ifModifiedSince !== false && $ifModifiedSince >= $modified))) {
@@ -956,6 +978,40 @@ final class ApiController
         }
 
         return $principal;
+    }
+
+    /**
+     * Private files are readable with an access token, or by a signed-in admin
+     * user — otherwise the admin's own media library could not preview them.
+     */
+    private function requirePrivateMediaAccess(string $file): void
+    {
+        $context = $this->media->permissionContext($file);
+
+        if ($this->bearerToken() === null) {
+            $user = $this->sessionUser();
+            if ($user !== null && $this->permissions->allows($user, 'media.read', $context + ['principal' => $user, 'workspace' => $this->workspace->slug()])) {
+                return;
+            }
+        }
+
+        $this->requireToken('media.read', $context);
+    }
+
+    /** The admin user of this browser session, read without holding the session lock. */
+    private function sessionUser(): ?array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            if (!isset($_COOKIE[session_name()]) || !is_string($_COOKIE[session_name()])) {
+                return null;
+            }
+
+            if (!@session_start(['read_and_close' => true])) {
+                return null;
+            }
+        }
+
+        return (new Auth(new UserRepository()))->user();
     }
 
     private function requireToken(string $action, array $context = []): array

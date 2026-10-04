@@ -75,7 +75,7 @@
                 <div class="flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    class="btn-secondary py-1 px-3 text-xs"
+                    class="btn-secondary btn-sm"
                     :disabled="restoringId === item.id"
                     @click="restore(item)"
                   >

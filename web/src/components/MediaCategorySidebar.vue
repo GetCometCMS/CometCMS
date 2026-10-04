@@ -5,6 +5,7 @@
         {{ t("media.categories") }}
       </h2>
       <button
+        v-if="canManage"
         type="button"
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-theme-300 hover:text-theme-700"
         :title="t('media.addCategory')"
@@ -152,10 +153,11 @@
 
         <!-- Dots menu trigger -->
         <button
-          v-if="editingCategory !== category.path"
+          v-if="canManage && editingCategory !== category.path"
           type="button"
-          class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-white hover:text-slate-700 group-hover:opacity-100 focus:opacity-100"
+          class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
           :title="t('media.categoryActions')"
+          :aria-label="t('media.categoryActions')"
           @click.stop="toggleCategoryMenu(category.path)"
         >
           <Icon icon="mdi:dots-vertical" class="h-5 w-5" />
@@ -280,6 +282,8 @@ const props = defineProps({
   draggedFile: { type: Object, default: null },
   selectedCount: { type: Number, default: 0 },
   selectedNames: { type: Array, default: () => [] },
+  // Whether the user may create, rename and delete categories.
+  canManage: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([
