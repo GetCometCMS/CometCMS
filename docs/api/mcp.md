@@ -24,8 +24,8 @@ CometCMS implements the [MCP specification](https://spec.modelcontextprotocol.io
 | ----------------- | ---------------------------------------------------- |
 | Transport         | HTTP POST, `Content-Type: application/json`          |
 | Protocol          | JSON-RPC 2.0 + MCP tool primitives                   |
-| Authentication    | Bearer token (see [Access Tokens](../guide/api-tokens)) |
-| Required header   | `Authorization: Bearer YOUR_TOKEN_HERE`              |
+| Authentication    | Optional for public reads; Bearer token for writes and private reads (see [Access Tokens](../guide/api-tokens)) |
+| Auth header       | `Authorization: Bearer YOUR_TOKEN_HERE`              |
 | Non-POST requests | Return `405 Method Not Allowed`                      |
 
 ### Lifecycle
@@ -41,7 +41,9 @@ Notifications and requests without an `id` field are treated as fire-and-forget 
 
 ## Authentication
 
-All tools require a valid Bearer token with appropriate permission grants. Tokens are created in **Access Tokens** in the admin:
+Without a Bearer token, MCP operates in read-only mode. Initialization and tool discovery are available, and `tools/list` advertises only `comet_health`, `list_content_types`, `get_content_type`, `list_entries`, `get_entry`, `list_media`, and `get_media_item`. Public schemas, published entries whose publication date has arrived, and public media can be read. Private schemas and media are omitted from listings, and relations to private collections or unpublished entries are omitted. Pagination totals and media category counts reflect public results.
+
+Write tools and direct reads of private resources require a valid Bearer token with appropriate permission grants. Calling a write tool without authentication returns a tool error with status `401`, even though it is omitted from discovery. Invalid supplied tokens are rejected with `401`; they do not fall back to anonymous access. Authenticated tools retain their existing permission checks. Tokens are created in **Access Tokens** in the admin:
 
 ```http
 Authorization: Bearer cms_ct_abc123...
@@ -49,7 +51,7 @@ Authorization: Bearer cms_ct_abc123...
 
 | HTTP status | Meaning                                                     |
 | ----------- | ----------------------------------------------------------- |
-| `401`       | Missing or malformed token.                                 |
+| `401`       | Invalid token, or token required for a write or private read. |
 | `403`       | Token is valid but lacks permission for the requested tool. |
 | `404`       | Workspace or resource not found.                            |
 | `422`       | Validation error — check parameter values and types.        |

@@ -90,17 +90,12 @@ final class McpServer
             throw new McpError('Workspace not found.', 404, ['code' => 'not_found']);
         }
 
-        if ($token === null || trim($token) === '') {
-            throw new McpError('Missing bearer token.', 401, ['code' => 'unauthorized'], [], [
-                'Create an access token in CometCMS and send it as Authorization: Bearer <token>.',
-            ]);
-        }
-
         WorkspaceContext::setActive($workspace);
         $this->workspace = WorkspaceContext::active();
         $this->tokens = new ApiTokenRepository();
         $this->permissions = new PermissionService();
-        $principal = $this->tokens->findByToken($token);
+        $anonymous = $token === null || trim($token) === '';
+        $principal = $anonymous ? [] : $this->tokens->findByToken($token);
 
         if ($principal === null) {
             (new Logger())->warning('invalid mcp api token');
@@ -152,6 +147,7 @@ final class McpServer
                 'icon' => $icon,
             ],
             'instructions' => implode(' ', [
+                $this->principal === [] ? 'Unauthenticated access is read-only: only public schemas, published entries, and public media are available. Send a bearer access token for private reads or writes.' : 'Authenticated access uses the bearer token permission grants.',
                 'Use CometCMS tools to inspect schemas, manage entries, and work with media.',
                 'Content type updates are surgical by default: omitted label, icon, locales, default_locale, and fields are preserved.',
                 'When updating content type fields, pass only the fields to add or change; use remove_fields to delete fields, or replace_fields for a full field map replacement.',
@@ -170,6 +166,9 @@ final class McpServer
         }
 
         try {
+            if ($this->principal === [] && !$this->toolSchemas()[$name]['annotations']['readOnlyHint']) {
+                throw new McpError('A bearer token is required for write tools.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool($name, $args));
+            }
             $callback = $this->toolCallbacks()[$name];
             return $this->textResult($callback($args));
         } catch (McpError $e) {
@@ -249,7 +248,7 @@ final class McpServer
     private function listContentTypes(): array
     {
         $this->requirePermission('list_content_types', []);
-        return ['data' => $this->types->all()];
+        return ['data' => array_values(array_filter($this->types->all(), fn(array $type): bool => $this->principal !== [] || ($type['visibility'] ?? 'public') !== 'private'))];
     }
 
     private function getContentType(array $args): array
@@ -338,11 +337,12 @@ final class McpServer
             'filter' => $this->normalizeFilters($args['filters'] ?? []),
         ];
 
-        $result = $this->content->query($collection, $params, true);
+        $admin = $this->principal !== [];
+        $result = $this->content->query($collection, $params, $admin);
         $include = $this->includeFields($params['include']);
         $locale = $params['locale'];
         $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
-        $result['data'] = array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, true), $result['data']));
+        $result['data'] = array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data']));
 
         return $this->pageInfo($result);
     }
@@ -353,8 +353,12 @@ final class McpServer
         $identifier = $this->segment($args['identifier'] ?? '', 'identifier');
         $this->requireCollection($collection, 'Content collection not found.');
 
-        $entry = $this->content->findByIdentifier($collection, $identifier, true);
-        if ($entry === null) {
+        if ($this->principal === []) {
+            $this->requirePermission('get_entry', ['collection' => $collection]);
+        }
+        $admin = $this->principal !== [];
+        $entry = $this->content->findByIdentifier($collection, $identifier, $admin);
+        if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry))) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
         }
 
@@ -369,7 +373,7 @@ final class McpServer
 
         $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale);
 
-        return ['data' => $this->publicEntry($entry, $collection, true)];
+        return ['data' => $this->publicEntry($entry, $collection, $admin)];
     }
 
     private function createEntry(array $args): array
@@ -429,6 +433,9 @@ final class McpServer
             array_key_exists('category', $args) ? (string) $args['category'] : null,
             $this->limit($args['limit'] ?? self::DEFAULT_LIMIT),
             max(0, (int) ($args['offset'] ?? 0)),
+            'all',
+            'newest',
+            $this->principal === [] ? 'public' : null,
         );
 
         $result['data'] = array_map(fn(array $file): array => $this->mediaSummaryItem($file), $result['data']);
@@ -446,6 +453,10 @@ final class McpServer
 
         if ($item === null) {
             throw new McpError('Media file not found.', 404, ['code' => 'not_found']);
+        }
+
+        if ($this->principal === [] && ($item['visibility'] ?? 'public') === 'private') {
+            throw new McpError('A bearer token is required for private media.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool('get_media_item', $args));
         }
 
         return ['data' => $this->publicMediaItem($item)];
@@ -500,6 +511,9 @@ final class McpServer
     private function tools(): array
     {
         $schemas = $this->toolSchemas();
+        if ($this->principal === []) {
+            $schemas = array_filter($schemas, static fn(array $schema): bool => $schema['annotations']['readOnlyHint']);
+        }
         return array_values(array_map(static fn(string $name, array $schema): array => [
             'name' => $name,
             'title' => $schema['title'],
@@ -565,6 +579,14 @@ final class McpServer
 
     private function requirePermission(string $tool, array $args): void
     {
+        if ($this->principal === []) {
+            $schema = isset($args['collection']) ? $this->types->find((string) $args['collection']) : null;
+            if ($this->toolSchemas()[$tool]['annotations']['readOnlyHint'] && ($schema['visibility'] ?? 'public') !== 'private') {
+                return;
+            }
+
+            throw new McpError('A bearer token is required for this operation.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool($tool, $args));
+        }
         foreach ($this->permissionChecks($tool, $args) as [$action, $context]) {
             $context['principal'] = $this->principal;
             $context['workspace'] ??= $this->workspace->slug();
@@ -724,7 +746,7 @@ final class McpServer
             return array_values(array_filter(array_map(fn(mixed $file): ?string => $this->mediaUrl((string) $file), $value)));
         }
 
-        if (($config['type'] ?? '') === 'repeater') {
+        if (($config['type'] ?? '') === 'repeater' && $admin) {
             return is_array($value) ? $value : [];
         }
 
@@ -733,7 +755,7 @@ final class McpServer
         }
 
         if (isset($value['collection'], $value['id'])) {
-            if (!$admin && !$this->content->isPubliclyVisible($value)) {
+            if (!$admin && (!$this->content->isPubliclyVisible($value) || ($this->types->find((string) $value['collection'])['visibility'] ?? 'public') === 'private')) {
                 return null;
             }
 
@@ -742,7 +764,7 @@ final class McpServer
 
         $mapped = [];
         foreach ($value as $key => $item) {
-            $mapped[$key] = $item;
+            $mapped[$key] = $admin ? $item : $this->publicValue($item, [], $admin);
         }
 
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
@@ -791,7 +813,7 @@ final class McpServer
             $counts[$category] = 0;
         }
 
-        foreach ($this->media->files() as $file) {
+        foreach ($this->media->files(visibility: $this->principal === [] ? 'public' : null) as $file) {
             $category = (string) ($file['category'] ?? '');
             if ($category === '') {
                 $category = 'Uncategorized';

@@ -10,7 +10,7 @@ use CometCMS\Media\MediaRepository;
 use CometCMS\Mcp\McpServer;
 use CometCMS\Workspaces\WorkspaceContext;
 
-function comet_test_mcp_request(string $token, string $method, array $params = [], mixed $id = 1): array
+function comet_test_mcp_request(?string $token, string $method, array $params = [], mixed $id = 1): array
 {
     $request = [
         'jsonrpc' => '2.0',
@@ -25,7 +25,7 @@ function comet_test_mcp_request(string $token, string $method, array $params = [
     return (new McpServer(new Http()))->handle($request, 'default', $token);
 }
 
-function comet_test_mcp_tool(string $token, string $name, array $arguments = []): array
+function comet_test_mcp_tool(?string $token, string $name, array $arguments = []): array
 {
     [$response, $status] = comet_test_mcp_request($token, 'tools/call', [
         'name' => $name,
@@ -47,6 +47,103 @@ function comet_test_mcp_token(array $permissions): string
 {
     return (new ApiTokenRepository())->create('MCP test', '', $permissions);
 }
+
+test('anonymous mcp initializes and advertises only read tools', function (): void {
+    foreach ([null, '', '   '] as $token) {
+        [$response, $status] = comet_test_mcp_request($token, 'initialize');
+        assert_same(200, $status);
+        assert_true(str_contains($response['result']['instructions'], 'read-only'));
+        [$response, $status] = comet_test_mcp_request($token, 'tools/list');
+        assert_same(200, $status);
+        assert_same(['comet_health', 'list_content_types', 'get_content_type', 'list_entries', 'get_entry', 'list_media', 'get_media_item'], array_column($response['result']['tools'], 'name'));
+    }
+    [, $health] = comet_test_mcp_tool(null, 'comet_health');
+    assert_same(true, $health['data']['ok']);
+    [$response, $status] = (new McpServer())->handle(['jsonrpc' => '2.0', 'method' => 'notifications/initialized'], 'default', null);
+    assert_same(202, $status);
+    assert_null($response);
+});
+
+test('anonymous mcp rejects every write tool before execution', function (): void {
+    foreach (['create_content_type', 'update_content_type', 'delete_content_type', 'create_entry', 'update_entry', 'delete_entry', 'create_media_category', 'set_media_category', 'delete_media'] as $name) {
+        [$response, $payload] = comet_test_mcp_tool(null, $name);
+        assert_same(true, $response['result']['isError']);
+        assert_same(401, $payload['error']['status']);
+        assert_true($payload['error']['required_permissions'] !== []);
+    }
+});
+
+test('anonymous mcp reads public schemas and published entries only', function (): void {
+    $types = new ContentTypeRepository();
+    $types->save(['name' => 'posts', 'fields' => ['title' => ['type' => 'text']]]);
+    $types->save(['name' => 'members', 'visibility' => 'private']);
+    $content = ContentRepository::make();
+    $user = ['id' => 'tester'];
+    $content->save('posts', ['title' => 'Public', 'slug' => 'public', 'status' => 'published'], $user);
+    $content->save('posts', ['title' => 'Draft', 'slug' => 'draft', 'status' => 'draft'], $user);
+    $content->save('posts', ['title' => 'Future', 'slug' => 'future', 'status' => 'published', 'published_at' => '2099-01-01T00:00:00Z'], $user);
+    [, $payload] = comet_test_mcp_tool(null, 'list_content_types');
+    assert_true(in_array('posts', array_column($payload['data'], 'name'), true));
+    assert_false(in_array('members', array_column($payload['data'], 'name'), true));
+    [, $payload] = comet_test_mcp_tool(null, 'get_content_type', ['collection' => 'posts']);
+    assert_same('posts', $payload['data']['name']);
+    foreach (['get_content_type', 'list_entries', 'get_entry'] as $name) {
+        [, $payload] = comet_test_mcp_tool(null, $name, ['collection' => 'members', 'identifier' => 'missing']);
+        assert_same(401, $payload['error']['status']);
+    }
+    [, $payload] = comet_test_mcp_tool(null, 'list_entries', ['collection' => 'posts', 'filters' => ['status' => 'draft']]);
+    assert_same([], $payload['data']);
+    [, $payload] = comet_test_mcp_tool(null, 'list_entries', ['collection' => 'posts', 'limit' => 1]);
+    assert_same(1, $payload['meta']['total']);
+    assert_null($payload['meta']['next_offset']);
+    assert_same('Public', $payload['data'][0]['title']);
+    [, $payload] = comet_test_mcp_tool(null, 'get_entry', ['collection' => 'posts', 'identifier' => 'public']);
+    assert_same('Public', $payload['data']['title']);
+    foreach (['draft', 'future'] as $identifier) {
+        [, $payload] = comet_test_mcp_tool(null, 'get_entry', ['collection' => 'posts', 'identifier' => $identifier]);
+        assert_same(404, $payload['error']['status']);
+    }
+});
+
+test('anonymous mcp media listings and category counts exclude private files', function (): void {
+    file_put_contents(comet_test_workspace_path() . '/media/public.jpg', 'image');
+    file_put_contents(comet_test_workspace_path() . '/media/private.jpg', 'image');
+    $media = new MediaRepository();
+    $media->assignCategory('public.jpg', 'Images');
+    $media->assignCategory('private.jpg', 'Images');
+    $media->updateVisibility('private.jpg', 'private');
+    [, $payload] = comet_test_mcp_tool(null, 'list_media');
+    assert_same(['public.jpg'], array_column($payload['data'], 'filename'));
+    assert_same(1, $payload['meta']['total']);
+    $counts = array_column($payload['meta']['categories'], 'count', 'name');
+    assert_same(1, $counts['Images']);
+    [, $payload] = comet_test_mcp_tool(null, 'get_media_item', ['filename' => 'public.jpg']);
+    assert_same('public.jpg', $payload['data']['filename']);
+    [, $payload] = comet_test_mcp_tool(null, 'get_media_item', ['filename' => 'private.jpg']);
+    assert_same(401, $payload['error']['status']);
+});
+
+test('anonymous mcp omits private and unpublished expanded relations', function (): void {
+    $types = new ContentTypeRepository();
+    $types->save(['name' => 'members', 'visibility' => 'private']);
+    $types->save(['name' => 'posts']);
+    $types->save(['name' => 'pages', 'fields' => [
+        'member' => ['type' => 'relation', 'target' => 'members'],
+        'posts' => ['type' => 'relation', 'target' => 'posts', 'multiple' => true],
+    ]]);
+    $content = ContentRepository::make();
+    $user = ['id' => 'tester'];
+    $member = $content->save('members', ['title' => 'Secret', 'status' => 'published'], $user);
+    $published = $content->save('posts', ['title' => 'Visible', 'status' => 'published'], $user);
+    $draft = $content->save('posts', ['title' => 'Hidden', 'status' => 'draft'], $user);
+    $content->save('pages', ['title' => 'Home', 'slug' => 'home', 'status' => 'published', 'member' => $member['id'], 'posts' => [$published['id'], $draft['id']]], $user);
+    foreach (['list_entries', 'get_entry'] as $name) {
+        [, $payload] = comet_test_mcp_tool(null, $name, ['collection' => 'pages', 'identifier' => 'home', 'include' => 'member,posts']);
+        $entry = $name === 'list_entries' ? $payload['data'][0] : $payload['data'];
+        assert_null($entry['data']['member']);
+        assert_same(['Visible'], array_column($entry['data']['posts'], 'title'));
+    }
+});
 
 test('mcp initialize returns server metadata and capabilities', function (): void {
     $token = comet_test_mcp_token([
@@ -175,12 +272,8 @@ test('mcp tools call can list content types with an authorized token', function 
     assert_true(in_array('posts', $names, true));
 });
 
-test('mcp reports missing invalid and underpermissioned tokens', function (): void {
+test('mcp reports invalid and underpermissioned tokens', function (): void {
     $request = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'];
-
-    [$missing, $missingStatus] = (new McpServer(new Http()))->handle($request, 'default', null);
-    assert_same(401, $missingStatus);
-    assert_same('Missing bearer token.', $missing['error']['message'] ?? null);
 
     [$invalid, $invalidStatus] = (new McpServer(new Http()))->handle($request, 'default', 'ctcms_missing');
     assert_same(401, $invalidStatus);
