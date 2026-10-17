@@ -1553,8 +1553,6 @@ const messages = {
   'site.prop.level': 'Ebene',
   'site.prop.html': 'Text',
   'site.prop.media': 'Bild',
-  'site.prop.alt': 'Alternativtext',
-  'site.prop.caption': 'Bildunterschrift',
   'site.prop.min_width': 'Mindestbreite',
   'site.prop.max_width': 'Maximale Breite',
   'site.prop.variant': 'Stil',

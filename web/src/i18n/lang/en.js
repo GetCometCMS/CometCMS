@@ -1548,8 +1548,6 @@ const messages = {
     'site.prop.level': 'Level',
     'site.prop.html': 'Text',
     'site.prop.media': 'Image',
-    'site.prop.alt': 'Alternative text',
-    'site.prop.caption': 'Caption',
     'site.prop.min_width': 'Minimum width',
     'site.prop.max_width': 'Maximum width',
     'site.prop.variant': 'Style',

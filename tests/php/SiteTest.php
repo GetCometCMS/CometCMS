@@ -723,6 +723,44 @@ test('background blur renders a separate decorative layer for public images only
     }
 });
 
+test('image elements use media library metadata instead of layout overrides', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');
+    $media = new \CometCMS\Media\MediaRepository();
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [
+        LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+            LayoutSchema::node('image', ['media' => 'photo.svg', 'alt' => 'Old alt', 'caption' => 'Old caption']),
+        ])]),
+    ])]);
+    $props = $nodes[0]['children'][0]['children'][0]['children'][0]['props'];
+    assert_false(array_key_exists('alt', $props));
+    assert_false(array_key_exists('caption', $props));
+    $spec = LayoutSchema::spec()['kinds']['image']['props'];
+    assert_false(array_key_exists('alt', $spec));
+    assert_false(array_key_exists('caption', $spec));
+
+    $media->updateMeta('photo.svg', 'Library "alt" & text', 'Library <title>');
+    foreach ([false, true] as $annotate) {
+        $ctx = comet_site_test_context();
+        $ctx->annotate = $annotate;
+        $html = (new NodeRenderer($ctx))->render($nodes);
+        assert_true(str_contains($html, 'alt="Library &quot;alt&quot; &amp; text"'));
+        assert_true(str_contains($html, '<figcaption>Library &lt;title&gt;</figcaption>'));
+        assert_false(str_contains($html, 'Old alt'));
+        assert_false(str_contains($html, 'Old caption'));
+    }
+
+    $media->updateMeta('photo.svg', 'Updated alt', 'Updated title');
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_true(str_contains($html, 'alt="Updated alt"'));
+    assert_true(str_contains($html, '<figcaption>Updated title</figcaption>'));
+
+    $media->updateMeta('photo.svg', '', '');
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_true(str_contains($html, 'alt=""'));
+    assert_false(str_contains($html, '<figcaption>'));
+});
+
 test('image elements are rendered within their width bounds', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');

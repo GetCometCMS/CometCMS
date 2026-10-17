@@ -211,8 +211,6 @@ final class LayoutSchema
             ],
             'image' => [
                 'media' => ['type' => 'media', 'default' => ''],
-                'alt' => ['type' => 'string', 'max' => 300, 'default' => ''],
-                'caption' => ['type' => 'string', 'max' => 300, 'default' => ''],
                 'ratio' => $ratio,
                 'fit' => $fit,
                 'position' => $position,

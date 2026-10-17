@@ -342,14 +342,15 @@ final class NodeRenderer
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose an image</div>') : '';
         }
 
-        $html = $this->mediaElement($item, $props, $state, $props['alt']);
+        $html = $this->mediaElement($item, $props, $state);
         $link = $this->resolveLink($props['link'], $state);
         if ($link !== null) {
             $html = $this->anchor($link, $html, 'c-image-link');
         }
 
-        if ($props['caption'] !== '') {
-            $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($props['caption']) . '</figcaption></figure>';
+        $caption = (string) ($item['title'] ?? '');
+        if ($caption !== '') {
+            $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($caption) . '</figcaption></figure>';
         }
 
         [$classes, $style] = $this->imageWidth($props);
@@ -861,10 +862,10 @@ final class NodeRenderer
 
     // ─── Media ───────────────────────────────────────────────────────────────
 
-    private function mediaElement(array $item, array $props, array $state, string $alt = ''): string
+    private function mediaElement(array $item, array $props, array $state): string
     {
         $mime = (string) ($item['mime'] ?? '');
-        $alt = $alt !== '' ? $alt : (string) ($item['alt'] ?? '');
+        $alt = (string) ($item['alt'] ?? '');
 
         if (str_starts_with($mime, 'video/')) {
             return '<video class="c-video" controls preload="metadata" src="' . Security::e($this->ctx->mediaUrl($item['name'])) . '"></video>';

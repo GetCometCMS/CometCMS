@@ -16,7 +16,7 @@ final class SmartValue
     public const PROPERTIES = [
         'heading' => ['text' => 'text', 'link' => 'link'],
         'text' => ['html' => 'html'],
-        'image' => ['media' => 'media', 'alt' => 'text', 'caption' => 'text', 'link' => 'link'],
+        'image' => ['media' => 'media', 'link' => 'link'],
         'button' => ['label' => 'text', 'link' => 'link'],
         'field' => ['source' => 'value'],
     ];
