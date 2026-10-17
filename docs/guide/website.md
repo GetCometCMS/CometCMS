@@ -83,6 +83,8 @@ The builder stores layouts as structured JSON and shares its schema with the ser
 
 The header and footer are shown on every page and are edited directly in the page builder: select the header or footer to edit its shared layout. Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.
 
+Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button and its dropdown at every screen size, including desktop.
+
 The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
 
 For a section link, enter an anchor ID assigned in the page builder, such as `contact` or `#contact`. Choose **Section** to jump within the current page, or add an optional section to a page, entry or listing destination. Custom links also accept website paths, external URLs, `mailto:` and `tel:` links. Parent links and submenu disclosure buttons work independently on the published website.

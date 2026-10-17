@@ -1529,6 +1529,7 @@ const messages = {
   'site.prop.paginate': 'Seitenzahlen anzeigen',
   'site.prop.empty_text': 'Text, wenn leer',
   'site.prop.menu': 'Menü',
+  'site.prop.always_button': 'Menü immer als Button anzeigen',
   'site.prop.orientation': 'Richtung',
   'site.prop.collapse_mobile': 'Auf Mobilgeräten zu einem Button einklappen',
   'site.prop.show_logo': 'Logo anzeigen',

@@ -217,6 +217,7 @@ final class LayoutSchema
             ],
             'menu' => [
                 'menu' => ['type' => 'menu', 'default' => 'main'],
+                'always_button' => ['type' => 'bool', 'default' => false],
                 'orientation' => ['type' => 'enum', 'options' => ['horizontal', 'vertical'], 'default' => 'horizontal'],
                 'collapse_mobile' => ['type' => 'bool', 'default' => true],
             ],

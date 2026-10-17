@@ -1524,6 +1524,7 @@ const messages = {
     'site.prop.paginate': 'Show page numbers',
     'site.prop.empty_text': 'Text when empty',
     'site.prop.menu': 'Menu',
+    'site.prop.always_button': 'Always show menu button',
     'site.prop.orientation': 'Direction',
     'site.prop.collapse_mobile': 'Collapse into a button on mobile',
     'site.prop.show_logo': 'Show logo',

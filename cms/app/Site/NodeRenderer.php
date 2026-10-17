@@ -417,10 +417,12 @@ final class NodeRenderer
         }
 
         $list = $this->menuItems($menu['items'], $state, 'c-menu-list');
-        $classes = 'c-menu c-menu-' . $props['orientation'] . ($props['collapse_mobile'] ? ' c-menu-collapsible' : '');
+        $collapsible = $props['always_button'] || $props['collapse_mobile'];
+        $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
+            . ($props['always_button'] ? ' c-menu-always-button' : '');
         $toggle = '';
 
-        if ($props['collapse_mobile']) {
+        if ($collapsible) {
             $id = 'menu-' . Security::e($node['id']);
             $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="Menu">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';

@@ -29,6 +29,39 @@ function comet_menu_test_render(SiteContext $context, array $state = []): string
     return (new NodeRenderer($context))->render($layout, $state);
 }
 
+test('menu button mode persists and overrides mobile collapsing without changing existing defaults', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+
+    foreach ([
+        [[], false, true],
+        [['collapse_mobile' => false], false, false],
+        [['always_button' => true], true, true],
+        [['always_button' => true, 'collapse_mobile' => false, 'orientation' => 'vertical'], true, false],
+    ] as [$props, $alwaysButton, $collapseMobile]) {
+        $menu = LayoutSchema::node('menu', $props);
+        $column = LayoutSchema::node('column', [], [], [$menu]);
+        $row = LayoutSchema::node('row', [], [], [$column]);
+        $saved = $site->saveRegion('header', [LayoutSchema::node('section', [], [], [$row])]);
+        $reloaded = (new SiteRepository())->region('header');
+        assert_same($saved, $reloaded);
+        $savedProps = $reloaded[0]['children'][0]['children'][0]['children'][0]['props'];
+        assert_same($alwaysButton, $savedProps['always_button']);
+        assert_same($collapseMobile, $savedProps['collapse_mobile']);
+
+        foreach ([false, true] as $annotate) {
+            $context = comet_site_test_context($site);
+            $context->annotate = $annotate;
+            $html = (new NodeRenderer($context))->render($reloaded);
+            assert_same($alwaysButton, str_contains($html, ' c-menu-always-button'));
+            assert_same($alwaysButton || $collapseMobile, str_contains($html, ' c-menu-collapsible'));
+            assert_same($alwaysButton || $collapseMobile, str_contains($html, 'class="c-menu-toggle"'));
+            assert_same($alwaysButton || $collapseMobile, str_contains($html, 'class="c-menu-button"'));
+            assert_true(str_contains($html, 'class="c-menu-list"'));
+        }
+    }
+});
+
 test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
     $site = new SiteRepository();
     $menus = [['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_chain(5), comet_menu_test_item('second')]]];

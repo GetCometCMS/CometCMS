@@ -212,6 +212,10 @@ const visibleProps = computed(() => {
     return keys.filter((key) => !["fit", "position"].includes(key) || props.ratio);
   }
 
+  if (current.kind === "menu" && props.always_button) {
+    return keys.filter((key) => !["orientation", "collapse_mobile"].includes(key));
+  }
+
   return keys;
 });
 
