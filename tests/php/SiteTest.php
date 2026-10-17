@@ -741,10 +741,30 @@ test('rows, columns and elements take a background image over their background c
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
     assert_same(2, substr_count($html, 'class="c-background-blur" aria-hidden="true"'));
     assert_same(3, substr_count($html, 'c-has-bg-image'));
-    assert_true((bool) preg_match('/class="c-row [^"]*c-has-bg-image[^"]*c-r-lg c-sh-md c-bd-all"/', $html), 'Rows render their image, radius, shadow and border.');
+    assert_true((bool) preg_match('/class="c-row [^"]*c-has-bg-image[^"]*c-r-lg c-sh-md c-bd c-bd-left c-bd-top c-bd-right c-bd-bottom"/', $html), 'Rows render their image, radius, shadow and border.');
     assert_true((bool) preg_match('/class="c-col c-col-12 c-has-bg-image[^"]*c-overlay-dark[^"]*c-bg-surface"/', $html), 'Columns keep their color under the image.');
     assert_true((bool) preg_match('/class="c-el c-el-text c-has-bg-image[^"]*c-bg-surface"/', $html));
     assert_true(str_contains(Theme::stylesheet([]), ':where(.c-has-bg-image) { position: relative; }'), 'Overlay and blur layers are anchored outside sections too.');
+});
+
+test('borders pick their sides and only keep a look while a side is set', function (): void {
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('text', [], ['border' => ['bottom', 'left', 'diagonal'], 'border_width' => 9, 'border_style' => 'dashed', 'border_color' => 'custom-brand']),
+        LayoutSchema::node('text', [], ['border' => [], 'border_width' => 3, 'border_style' => 'dotted', 'border_color' => 'primary']),
+        LayoutSchema::node('text', [], ['border' => 'top']),
+        LayoutSchema::node('text', [], ['border' => 'none']),
+    ])])])]);
+    $elements = $nodes[0]['children'][0]['children'][0]['children'];
+
+    assert_same(['border' => ['left', 'bottom'], 'border_width' => 6, 'border_style' => 'dashed', 'border_color' => 'custom-brand'], $elements[0]['style'], 'Sides keep their order and the width is clamped.');
+    assert_same([], $elements[1]['style'], 'Without a side there is nothing to style.');
+    assert_same(['border' => ['top']], $elements[2]['style'], 'Older single-side borders still load.');
+    assert_same([], $elements[3]['style']);
+
+    $html = (new NodeRenderer(comet_site_test_context()))->render([$elements[0]]);
+    assert_true(str_contains($html, 'c-bd c-bd-left c-bd-bottom c-bdw-6 c-bds-dashed c-bdc-custom-brand'));
+    $css = Theme::stylesheet(['custom_colors' => ['custom-brand' => ['color' => '#ff0000']]]);
+    assert_true(str_contains($css, '.c-bd.c-bdc-custom-brand{--c-bd-c:var(--c-custom-brand);}'), 'Custom colors color borders too.');
 });
 
 test('theme spacing and radius tokens drive the stylesheet', function (): void {

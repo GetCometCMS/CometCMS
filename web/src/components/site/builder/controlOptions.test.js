@@ -27,6 +27,14 @@ describe('builder option bars', () => {
     expect(barOptions('props', 'size', ['sm', 'md', 'lg'], { title, theme, kind: 'button' })[1].title).toBe('md')
   })
 
+  it('picks border sides by icon and previews line styles', () => {
+    expect(barOptions('style', 'border', ['left', 'top', 'right', 'bottom'], { title }).map((option) => option.icon)).toEqual([
+      'mdi:border-left-variant', 'mdi:border-top-variant', 'mdi:border-right-variant', 'mdi:border-bottom-variant',
+    ])
+    const styles = barOptions('style', 'border_style', ['solid', 'dashed', 'double'], { title })
+    expect(styles.map((option) => option.style.borderTop)).toEqual(['2px solid currentColor', '2px dashed currentColor', '4px double currentColor'])
+  })
+
   it('falls back when a bar would not fit', () => {
     expect(barOptions('props', 'tag', ['', 'p', 'h1', 'span', 'div'], { title })).toBeNull()
     expect(numberBar(1, 6)).toHaveLength(6)

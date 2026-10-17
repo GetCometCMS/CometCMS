@@ -1077,13 +1077,29 @@ final class NodeRenderer
             'font_family' => 'c-ff-',
             'radius' => 'c-r-',
             'shadow' => 'c-sh-',
-            'border' => 'c-bd-',
             'max_width' => 'c-mw-',
         ];
 
         foreach ($prefixes as $key => $prefix) {
             if (($style[$key] ?? '') !== '') {
                 $classes[] = $prefix . $style[$key];
+            }
+        }
+
+        $sides = (array) ($style['border'] ?? []);
+        if ($sides !== []) {
+            $classes[] = 'c-bd';
+            foreach ($sides as $side) {
+                $classes[] = 'c-bd-' . $side;
+            }
+            if (($style['border_width'] ?? 1) !== 1) {
+                $classes[] = 'c-bdw-' . $style['border_width'];
+            }
+            if (($style['border_style'] ?? 'solid') !== 'solid') {
+                $classes[] = 'c-bds-' . $style['border_style'];
+            }
+            if (($style['border_color'] ?? '') !== '') {
+                $classes[] = 'c-bdc-' . $style['border_color'];
             }
         }
 

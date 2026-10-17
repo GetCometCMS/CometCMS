@@ -1,6 +1,15 @@
 <template>
-  <div class="space-y-3">
-    <div role="group" class="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" :aria-label="t('site.link.type')">
+  <div :class="compact ? 'space-y-2' : 'space-y-3'">
+    <div v-if="compact" class="flex gap-1.5">
+      <LinkModeMenu :model-value="mode" :options="modes" :label="t('site.link.type')" @update:model-value="setMode" />
+      <button v-if="!['none', 'anchor'].includes(link.type)" type="button"
+        class="flex w-8 shrink-0 items-center justify-center rounded-lg border transition-colors"
+        :class="link.new_tab ? 'border-theme-200 bg-theme-50 text-theme-700' : 'border-slate-300 bg-white text-slate-400 hover:text-slate-700'"
+        :aria-pressed="!!link.new_tab" :title="t('site.link.newTab')" :aria-label="t('site.link.newTab')" @click="update({ new_tab: !link.new_tab })">
+        <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+      </button>
+    </div>
+    <div v-else role="group" class="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1" :aria-label="t('site.link.type')">
       <button v-for="option in modes" :key="option.value" type="button"
         class="rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors"
         :class="mode === option.value ? 'bg-white text-theme-700 shadow-sm' : 'text-slate-600 hover:bg-white/60'"
@@ -10,8 +19,8 @@
     </div>
 
     <label v-if="mode === 'page'" class="block">
-      <span class="form-label">{{ t('site.link.page') }}</span>
-      <select :value="pageValue" class="form-select w-full rounded-lg border-slate-300 text-sm" @change="choosePage($event.target.value)">
+      <span :class="labelClass">{{ t('site.link.page') }}</span>
+      <select :value="pageValue" :class="fieldClass" class="form-select w-full rounded-lg border-slate-300" @change="choosePage($event.target.value)">
         <option v-if="allow.includes('home')" value="home">{{ t('site.link.home') }}</option>
         <option v-if="link.type === 'entry' && !pages.some((type) => type.name === link.collection)" :value="link.collection" disabled>{{ link.collection }} · {{ t('site.link.unavailableShort') }}</option>
         <option v-for="page in pages" :key="page.name" :value="page.name">{{ page.label }}</option>
@@ -19,8 +28,8 @@
     </label>
 
     <label v-if="mode === 'entry' || mode === 'index'" class="block">
-      <span class="form-label">{{ t('site.link.collection') }}</span>
-      <select :value="link.collection || ''" class="form-select w-full rounded-lg border-slate-300 text-sm" @change="chooseCollection($event.target.value)">
+      <span :class="labelClass">{{ t('site.link.collection') }}</span>
+      <select :value="link.collection || ''" :class="fieldClass" class="form-select w-full rounded-lg border-slate-300" @change="chooseCollection($event.target.value)">
         <option value="">{{ t('site.link.chooseType') }}</option>
         <option v-if="link.collection && !collections.some((type) => type.name === link.collection)" :value="link.collection" disabled>{{ link.collection }} · {{ t('site.link.unavailableShort') }}</option>
         <option v-for="type in collections" :key="type.name" :value="type.name">{{ type.label }}</option>
@@ -34,23 +43,24 @@
     <p v-if="unavailableRoute" class="text-xs text-amber-700" role="status">{{ t('site.link.unavailableRoute') }}</p>
 
     <label v-if="mode === 'url'" class="block">
-      <span class="form-label">{{ t('site.link.url') }}</span>
-      <input :value="link.url || ''" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm"
+      <span :class="labelClass">{{ t('site.link.url') }}</span>
+      <input :value="link.url || ''" type="text" :class="fieldClass" class="form-input w-full rounded-lg border-slate-300" :title="compact ? t('site.link.urlHint') : undefined"
         :placeholder="t('site.link.urlPlaceholder')" @input="update({ url: $event.target.value })" />
-      <span class="mt-1 block text-xs text-slate-500">{{ t('site.link.urlHint') }}</span>
+      <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t('site.link.urlHint') }}</span>
     </label>
 
     <label v-if="['anchor', 'home', 'entry', 'index'].includes(link.type)" class="block">
-      <span class="form-label">{{ t(link.type === 'anchor' ? 'site.link.anchor' : 'site.link.optionalAnchor') }}</span>
+      <span :class="labelClass">{{ t(link.type === 'anchor' ? 'site.link.anchor' : 'site.link.optionalAnchor') }}</span>
       <div class="flex items-center rounded-lg border border-slate-300 bg-white focus-within:ring-1 focus-within:ring-theme-500">
-        <span class="pl-3 text-sm text-slate-400" aria-hidden="true">#</span>
-        <input :value="link.anchor || ''" type="text" class="form-input min-w-0 flex-1 rounded-lg border-0 text-sm focus:ring-0"
+        <span class="pl-3 text-slate-400" :class="fieldClass" aria-hidden="true">#</span>
+        <input :value="link.anchor || ''" type="text" :class="fieldClass" class="form-input min-w-0 flex-1 rounded-lg border-0 focus:ring-0"
+          :title="compact ? t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') : undefined"
           :placeholder="t('site.link.anchorPlaceholder')" @input="update({ anchor: $event.target.value })" />
       </div>
-      <span class="mt-1 block text-xs text-slate-500">{{ t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') }}</span>
+      <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') }}</span>
     </label>
     <p v-if="issue" class="text-xs text-red-700" role="status">{{ t(`site.link.${issue}`) }}</p>
-    <label v-if="!['none', 'anchor'].includes(link.type)" class="flex items-center gap-2 text-xs text-slate-600">
+    <label v-if="!compact && !['none', 'anchor'].includes(link.type)" class="flex items-center gap-2 text-xs text-slate-600">
       <input type="checkbox" class="rounded border-slate-300 text-theme-600" :checked="link.new_tab" @change="update({ new_tab: $event.target.checked })" />
       {{ t('site.link.newTab') }}
     </label>
@@ -61,6 +71,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import ContentLinkPicker from './ContentLinkPicker.vue'
+import LinkModeMenu from './LinkModeMenu.vue'
 import MenuLinkSummary from './MenuLinkSummary.vue'
 import { destinationAvailable, eligibleTypes, entryTitle, linkIssue } from '../../composables/siteLinks.js'
 import { useI18n } from '../../i18n/index.js'
@@ -70,10 +81,14 @@ const props = defineProps({
   types: { type: Array, default: () => [] }, settings: { type: Object, default: null },
   context: { type: String, default: '' }, groupHeading: { type: Boolean, default: false },
   allow: { type: Array, default: () => ['none', 'url', 'current', 'home', 'index', 'entry', 'anchor'] },
+  /** One-row type menu and smaller fields, for narrow sidebars. */
+  compact: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'destination-label'])
 const { t } = useI18n()
 const link = computed(() => props.modelValue ?? { type: 'none' })
+const labelClass = computed(() => props.compact ? 'mb-1 block text-xs font-medium text-slate-600' : 'form-label')
+const fieldClass = computed(() => props.compact ? 'py-1.5 text-xs' : 'text-sm')
 const resolvedEntry = ref(null)
 const pendingPage = ref('')
 watch(() => props.context, () => { pendingPage.value = '' })

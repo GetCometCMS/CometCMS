@@ -85,6 +85,12 @@ final class LayoutSchema
     /** Background image options; older layouts stored them as section props. */
     private const BACKGROUND_IMAGE_KEYS = ['background_image', 'background_size', 'background_position', 'background_repeat', 'background_blur', 'overlay'];
 
+    /** Border sides and how they are drawn; the look only applies once a side is picked. */
+    private const BORDER_KEYS = ['border', 'border_width', 'border_style', 'border_color'];
+
+    /** Borders used to be a single choice of sides. */
+    private const LEGACY_BORDERS = ['all' => ['left', 'top', 'right', 'bottom'], 'top' => ['top'], 'bottom' => ['bottom']];
+
     public static function styleSpec(): array
     {
         return [
@@ -107,7 +113,10 @@ final class LayoutSchema
             'font_family' => ['type' => 'enum', 'options' => ['', 'body', 'heading'], 'default' => ''],
             'radius' => ['type' => 'enum', 'options' => ['', 'none', 'theme', 'sm', 'md', 'lg', 'full'], 'default' => ''],
             'shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
-            'border' => ['type' => 'enum', 'options' => ['', 'none', 'all', 'top', 'bottom'], 'default' => ''],
+            'border' => ['type' => 'set', 'options' => ['left', 'top', 'right', 'bottom'], 'default' => []],
+            'border_width' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 1],
+            'border_style' => ['type' => 'enum', 'options' => ['solid', 'dashed', 'dotted', 'double'], 'default' => 'solid'],
+            'border_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
             'max_width' => ['type' => 'enum', 'options' => ['', 'narrow', 'prose'], 'default' => ''],
             'hide_on' => ['type' => 'set', 'options' => ['mobile', 'tablet', 'desktop'], 'default' => []],
             'class' => ['type' => 'class', 'default' => ''],
@@ -119,11 +128,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'border', 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', 'border', 'class', 'anchor', 'hide_on'],
+            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
+            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
-            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', 'border', 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', 'border', 'max_width', 'class', 'anchor', 'hide_on'],
+            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, 'class', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -464,7 +473,7 @@ final class LayoutSchema
             ]);
 
             return [
-                self::node('section', ['width' => 'full'], ['border' => 'all', 'radius' => 'theme', 'background' => 'background'], $top),
+                self::node('section', ['width' => 'full'], ['border' => ['left', 'top', 'right', 'bottom'], 'radius' => 'theme', 'background' => 'background'], $top),
             ];
         }
 
@@ -566,7 +575,7 @@ final class LayoutSchema
     {
         if ($region === 'header') {
             return [
-                self::node('section', ['width' => 'contained'], ['padding_y' => 'sm', 'border' => 'bottom', 'background' => 'background'], [
+                self::node('section', ['width' => 'contained'], ['padding_y' => 'sm', 'border' => ['bottom'], 'background' => 'background'], [
                     self::node('row', ['align' => 'center', 'justify' => 'between'], [], [
                         self::node('column', ['span' => ['mobile' => 8, 'tablet' => 4, 'desktop' => 0]], [], [
                             self::node('site_title', [], ['margin_bottom' => 'none']),
@@ -580,7 +589,7 @@ final class LayoutSchema
         }
 
         return [
-            self::node('section', ['width' => 'contained'], ['padding_y' => 'lg', 'background' => 'surface', 'border' => 'top'], [
+            self::node('section', ['width' => 'contained'], ['padding_y' => 'lg', 'background' => 'surface', 'border' => ['top']], [
                 self::node('row', ['align' => 'center'], [], [
                     self::node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 0]], [], [
                         self::node('text', ['html' => ['type' => 'template', 'parts' => ['<p>© ', SmartValue::reference('year', 'site'), ' ', SmartValue::reference('title', 'site'), '</p>']]], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'none']),
@@ -702,6 +711,9 @@ final class LayoutSchema
     {
         $specs = self::styleSpec();
         $normalized = [];
+        if (is_string($style['border'] ?? null)) {
+            $style['border'] = self::LEGACY_BORDERS[$style['border']] ?? [];
+        }
 
         foreach (self::styleKeys($kind) as $key) {
             if (!array_key_exists($key, $style)) {
@@ -715,6 +727,10 @@ final class LayoutSchema
             if ($value !== $specs[$key]['default']) {
                 $normalized[$key] = $value;
             }
+        }
+
+        if (!isset($normalized['border'])) {
+            unset($normalized['border_width'], $normalized['border_style'], $normalized['border_color']);
         }
 
         return $normalized;

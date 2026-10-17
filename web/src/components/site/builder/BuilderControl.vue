@@ -8,7 +8,7 @@
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
       <template v-if="def.binding === 'media' || def.binding === 'link'" #literal>
         <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" :compact="group === 'style'" @update:model-value="emitValue" />
-        <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
+        <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
       </template>
     </SmartValueEditor>
 
@@ -101,7 +101,7 @@
 
     <MediaSelect v-else-if="def.type === 'media'" :model-value="value" :name="inputId" @update:model-value="emitValue" />
 
-    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
+    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
 
     <div v-else-if="def.type === 'spans'" class="space-y-1.5">
       <div v-for="device in devices" :key="device" class="flex items-center gap-1.5">
@@ -133,14 +133,27 @@
       </div>
     </div>
 
-    <OptionBar
-      v-else-if="def.type === 'set'"
-      multiple
-      danger
-      :model-value="value ?? []"
-      :options="setOptions"
-      @update:model-value="emitValue"
-    />
+    <div v-else-if="def.type === 'set'" class="flex gap-1.5">
+      <OptionBar
+        multiple
+        :danger="name === 'hide_on'"
+        :model-value="value ?? []"
+        :options="setOptions"
+        @update:model-value="emitValue"
+      />
+      <button
+        v-if="name === 'border'"
+        type="button"
+        class="flex w-9 shrink-0 items-center justify-center rounded-lg border transition-colors"
+        :class="allSet ? 'border-theme-200 bg-white text-theme-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-900'"
+        :aria-pressed="allSet"
+        :title="t('site.option.all')"
+        :aria-label="t('site.option.all')"
+        @click="emitValue(allSet ? [] : [...def.options])"
+      >
+        <Icon icon="mdi:border-all-variant" class="h-4 w-4" />
+      </button>
+    </div>
 
     <select
       v-else
@@ -244,13 +257,18 @@ const enumBar = computed(() =>
 );
 const isPositionGrid = computed(() => (props.def.options ?? []).length === 9 && props.def.options.includes("top-left"));
 const numberOptions = computed(() => numberBar(props.def.min ?? 0, props.def.max ?? 0));
-const setOptions = computed(() =>
-  (props.def.options ?? []).map((option) => ({
+const setOptions = computed(() => {
+  const options = props.def.options ?? [];
+  if (props.name !== "hide_on") {
+    return barOptions(props.group, props.name, options, { title: optionLabel }) ?? options.map((option) => ({ value: option, title: optionLabel(option), label: optionLabel(option) }));
+  }
+  return options.map((option) => ({
     value: option,
     icon: DEVICE_ICONS[option],
     title: t("site.builder.hideOnDevice", { device: t(`site.device.${option}`) }),
-  })),
-);
+  }));
+});
+const allSet = computed(() => (props.def.options ?? []).every((option) => (props.value ?? []).includes(option)));
 
 function spanCellClass(device, span) {
   const own = props.value?.[device] ?? 0;

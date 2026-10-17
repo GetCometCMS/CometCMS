@@ -13,7 +13,7 @@ const ICONS = {
   'props.direction': { column: 'mdi:arrow-down', row: 'mdi:arrow-right' },
   'props.content_justify': { start: 'mdi:align-horizontal-left', center: 'mdi:align-horizontal-center', end: 'mdi:align-horizontal-right', between: 'mdi:arrow-left-right' },
   'props.content_align': { start: 'mdi:align-vertical-top', center: 'mdi:align-vertical-center', end: 'mdi:align-vertical-bottom', stretch: 'mdi:arrow-expand-vertical' },
-  'style.border': { none: 'mdi:border-none-variant', all: 'mdi:border-all-variant', top: 'mdi:border-top-variant', bottom: 'mdi:border-bottom-variant' },
+  'style.border': { left: 'mdi:border-left-variant', top: 'mdi:border-top-variant', right: 'mdi:border-right-variant', bottom: 'mdi:border-bottom-variant' },
   'style.radius': { none: 'mdi:square-outline', theme: 'mdi:square-rounded-outline', full: 'mdi:circle-outline' },
   'style.max_width': { narrow: 'mdi:arrow-collapse-horizontal', prose: 'mdi:text-long' },
   'props.orientation': { horizontal: 'mdi:dots-horizontal', vertical: 'mdi:dots-vertical' },
@@ -72,6 +72,15 @@ export function barOptions(group, name, values, { title, theme = null, kind = ''
 
   if (values.every((value) => /^h[1-6]$/.test(value))) {
     return values.map((value) => ({ ...describe(value), label: value.toUpperCase() }))
+  }
+
+  // Each line style drawn as a short sample of itself.
+  if (name === 'border_style') {
+    return values.map((value) => ({
+      ...describe(value),
+      label: '',
+      style: { display: 'inline-block', width: '1.25rem', borderTop: `${value === 'double' ? 4 : 2}px ${value} currentColor` },
+    }))
   }
 
   if (name === 'font_weight') {

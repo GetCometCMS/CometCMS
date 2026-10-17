@@ -128,7 +128,7 @@ const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
   { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
   { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family"] },
-  { key: "shape", keys: ["radius", "shadow", "border", "max_width"] },
+  { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
 
@@ -155,9 +155,13 @@ const fieldWarning = computed(() => {
 /** Image options only apply once there is an image; covering images never repeat. */
 const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
 
+/** How a border looks only matters once a side is picked. */
+const BORDER_OPTIONS = ["border_width", "border_style", "border_color"];
+
 function styleVisible(key) {
   const style = node.value?.style ?? {};
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
+  if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
   return key !== "background_repeat" || (style.background_size ?? styleSpec.value.background_size?.default) !== "cover";
 }
 

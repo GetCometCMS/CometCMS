@@ -392,9 +392,22 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-sh-sm { box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04); }
 .c-sh-md { box-shadow: 0 6px 18px -6px rgb(0 0 0 / 0.15); }
 .c-sh-lg { box-shadow: 0 20px 45px -15px rgb(0 0 0 / 0.25); }
-.c-bd-all { border: 1px solid var(--c-border); }
-.c-bd-top { border-top: 1px solid var(--c-border); }
-.c-bd-bottom { border-bottom: 1px solid var(--c-border); }
+/* Each bordered element resets the look, so it never inherits a parent's. */
+.c-bd { --c-bd-w: 1px; --c-bd-s: solid; --c-bd-c: var(--c-border); }
+.c-bd-left { border-left: var(--c-bd-w) var(--c-bd-s) var(--c-bd-c); }
+.c-bd-top { border-top: var(--c-bd-w) var(--c-bd-s) var(--c-bd-c); }
+.c-bd-right { border-right: var(--c-bd-w) var(--c-bd-s) var(--c-bd-c); }
+.c-bd-bottom { border-bottom: var(--c-bd-w) var(--c-bd-s) var(--c-bd-c); }
+.c-bd.c-bdw-2 { --c-bd-w: 2px; } .c-bd.c-bdw-3 { --c-bd-w: 3px; } .c-bd.c-bdw-4 { --c-bd-w: 4px; } .c-bd.c-bdw-5 { --c-bd-w: 5px; } .c-bd.c-bdw-6 { --c-bd-w: 6px; }
+.c-bd.c-bds-dashed { --c-bd-s: dashed; } .c-bd.c-bds-dotted { --c-bd-s: dotted; } .c-bd.c-bds-double { --c-bd-s: double; }
+.c-bd.c-bdc-primary { --c-bd-c: var(--c-primary); }
+.c-bd.c-bdc-secondary { --c-bd-c: var(--c-secondary); }
+.c-bd.c-bdc-accent { --c-bd-c: var(--c-accent); }
+.c-bd.c-bdc-background { --c-bd-c: var(--c-background); }
+.c-bd.c-bdc-surface { --c-bd-c: var(--c-surface); }
+.c-bd.c-bdc-text { --c-bd-c: var(--c-text); }
+.c-bd.c-bdc-muted { --c-bd-c: var(--c-muted); }
+.c-bd.c-bdc-border { --c-bd-c: var(--c-border); }
 .c-mw-narrow { max-width: var(--narrow); }
 .c-mw-prose { max-width: 68ch; }
 
