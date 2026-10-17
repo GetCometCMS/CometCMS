@@ -170,7 +170,7 @@ function onDrop() {
 }
 .outline-action:hover:not(:disabled) {
   opacity: 1;
-  background: rgb(0 0 0 / 0.08);
+  background: rgb(var(--color-slate-900) / 0.08);
 }
 .outline-action:disabled {
   opacity: 0.25;

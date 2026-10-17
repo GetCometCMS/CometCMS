@@ -10,7 +10,7 @@
         :class="
           toast.type === 'error'
             ? 'bg-red-600 text-white'
-            : 'bg-slate-900 text-white'
+            : 'bg-ink-900 text-white'
         "
       >
         <span class="min-w-0 flex-1">{{ toast.message }}</span>

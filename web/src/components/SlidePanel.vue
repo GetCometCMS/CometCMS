@@ -3,7 +3,7 @@
     <Transition name="slide-panel">
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-40 flex justify-end bg-slate-900/30"
+        class="fixed inset-0 z-40 flex justify-end bg-ink-900/30"
         @mousedown.self="close"
       >
         <aside

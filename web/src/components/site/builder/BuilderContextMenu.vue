@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
 }
 
 :root[data-theme="dark"] .builder-menu-action:enabled:is(:hover, :focus) {
-  background-color: #1e293b;
+  background-color: rgb(var(--color-slate-100));
 }
 
 :root[data-theme="dark"] .builder-menu-action-danger:enabled:is(:hover, :focus) {

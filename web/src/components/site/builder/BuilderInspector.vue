@@ -306,11 +306,11 @@ function updateProp(key, value) {
   align-items: center;
   justify-content: center;
   border-radius: 0.375rem;
-  color: rgb(100 116 139);
+  color: rgb(var(--color-slate-500));
 }
 .inspector-action:hover:not(:disabled) {
-  background: rgb(241 245 249);
-  color: rgb(15 23 42);
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
 }
 .inspector-action:disabled {
   opacity: 0.35;
@@ -319,11 +319,11 @@ function updateProp(key, value) {
   display: inline-block;
   min-width: 1.25rem;
   padding: 0 0.3rem;
-  border: 1px solid rgb(203 213 225);
+  border: 1px solid rgb(var(--color-slate-300));
   border-bottom-width: 2px;
   border-radius: 0.25rem;
   font: 600 10px/1.4 ui-monospace, monospace;
   text-align: center;
-  background: white;
+  background: rgb(var(--color-surface));
 }
 </style>

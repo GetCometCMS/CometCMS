@@ -1,13 +1,13 @@
 <template>
   <div ref="containerRef" class="relative h-full w-full overflow-hidden">
     <div
-      class="mx-auto origin-top-left overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200"
+      class="mx-auto origin-top-left overflow-hidden rounded-xl bg-[#fff] shadow-sm ring-1 ring-slate-200"
       :class="{ 'transition-[width] duration-200': device !== 'full' }"
       :style="frameBoxStyle"
     >
       <iframe
         ref="iframeRef"
-        class="block border-0 bg-white"
+        class="block border-0 bg-[#fff]"
         :style="iframeStyle"
         :title="title"
         :srcdoc="srcdoc"
@@ -17,7 +17,7 @@
 
     <div
       v-if="loading"
-      class="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-medium text-white"
+      class="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-full bg-ink-900/80 px-3 py-1 text-xs font-medium text-white"
     >
       <span class="h-2 w-2 animate-pulse rounded-full bg-theme-400"></span>
       {{ t("site.preview.updating") }}

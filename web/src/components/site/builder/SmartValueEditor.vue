@@ -189,12 +189,15 @@ function clear() {
 .smart-editor :deep(h3) { font-size: 0.95rem; }
 .smart-editor :deep(h4) { font-size: 0.85rem; }
 .smart-editor :deep(:is(p, h1, h2, h3, h4, ul, ol, blockquote, pre, hr) + :is(ul, ol, blockquote, pre, hr)) { margin-top: 0.5rem; }
-.smart-editor :deep(blockquote) { border-left: 3px solid rgb(148 163 184); padding-left: 0.6rem; color: rgb(100 116 139); }
-.smart-editor :deep(code) { border-radius: 0.2rem; background: rgb(148 163 184 / 0.2); padding: 0.05rem 0.25rem; font-family: ui-monospace, monospace; font-size: 0.9em; }
+.smart-editor :deep(blockquote) { border-left: 3px solid rgb(var(--color-slate-400)); padding-left: 0.6rem; color: rgb(var(--color-slate-500)); }
+.smart-editor :deep(code) { border-radius: 0.2rem; background: rgb(var(--color-slate-400) / 0.2); padding: 0.05rem 0.25rem; font-family: ui-monospace, monospace; font-size: 0.9em; }
 .smart-editor :deep(pre) { border-radius: 0.375rem; background: rgb(15 23 42); color: rgb(226 232 240); padding: 0.5rem 0.6rem; overflow-x: auto; }
 .smart-editor :deep(pre code) { background: none; padding: 0; }
-.smart-editor :deep(hr) { border: 0; border-top: 1px solid rgb(148 163 184 / 0.6); margin: 0.75rem 0; }
+.smart-editor :deep(hr) { border: 0; border-top: 1px solid rgb(var(--color-slate-400) / 0.6); margin: 0.75rem 0; }
 .smart-editor :deep(mark) { background: rgb(253 224 71 / 0.6); color: inherit; border-radius: 0.15rem; padding: 0 0.1rem; }
 .smart-editor :deep(a) { color: rgb(79 70 229); text-decoration: underline; text-underline-offset: 2px; }
 .smart-editor :deep(.ProseMirror) { max-height: 36rem; overflow-y: auto; resize: vertical; }
+:root[data-theme="dark"] .smart-editor :deep(.smart-reference) { color: rgb(199 210 254); background: rgb(99 102 241 / 0.2); }
+:root[data-theme="dark"] .smart-editor :deep(a) { color: rgb(165 180 252); }
+:root[data-theme="dark"] .smart-editor :deep(mark) { background: rgb(250 204 21 / 0.3); }
 </style>

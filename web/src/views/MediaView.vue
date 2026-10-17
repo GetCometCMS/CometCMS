@@ -395,7 +395,7 @@
                 />
                 <Icon v-else v-bind="getFileIcon(file.name)" class="h-9 w-9" />
                 <span
-                  class="absolute inset-0 flex items-center justify-center bg-slate-950/0 transition-colors group-hover:bg-slate-950/10"
+                  class="absolute inset-0 flex items-center justify-center bg-ink-950/0 transition-colors group-hover:bg-ink-950/10"
                 >
                   <Icon
                     icon="mdi:eye-outline"

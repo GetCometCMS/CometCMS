@@ -219,7 +219,7 @@ const themeColors = {
   orange: "bg-orange-500",
   red: "bg-red-500",
   cyan: "bg-cyan-500",
-  dark: "bg-slate-800",
+  dark: "bg-ink-800",
 };
 import { DEFAULT_ADMIN_LOCALE, setLocale, useI18n } from "../i18n/index.js";
 import { userAdminEndpoint } from "../composables/apiEndpoint.js";

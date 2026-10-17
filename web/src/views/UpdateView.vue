@@ -421,14 +421,14 @@ function formatBytes(bytes) {
 }
 
 .updates-changelog :deep(.ProseMirror blockquote) {
-  border-left: 3px solid rgb(203 213 225);
+  border-left: 3px solid rgb(var(--color-slate-300));
   margin: 0.5rem 0;
   padding-left: 0.75rem;
-  color: rgb(71 85 105);
+  color: rgb(var(--color-slate-600));
 }
 
 .updates-changelog :deep(.ProseMirror code) {
-  background: rgb(226 232 240);
+  background: rgb(var(--color-slate-200));
   border-radius: 0.25rem;
   padding: 0.05rem 0.3rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

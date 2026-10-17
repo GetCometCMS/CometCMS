@@ -465,7 +465,7 @@
         </button>
         <div
           v-if="mediaPreviewOverflow > 0"
-          class="rounded-md bg-slate-900/75 text-white text-xs font-semibold flex items-center justify-center"
+          class="rounded-md bg-ink-900/75 text-white text-xs font-semibold flex items-center justify-center"
         >
           +{{ mediaPreviewOverflow }}
         </div>
@@ -775,7 +775,7 @@
 
   <div
     v-if="mediaPreviewFile"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 px-4 py-6"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/70 px-4 py-6"
     @click.self="closeMediaPreview"
   >
     <div
@@ -804,7 +804,7 @@
           <Icon icon="mdi:close" class="h-5 w-5" />
         </button>
       </div>
-      <div class="flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
+      <div class="flex min-h-0 flex-1 items-center justify-center bg-ink-950 p-4">
         <img
           v-if="mediaPreviewIsImage"
           :src="mediaPreviewUrl"
@@ -1438,7 +1438,7 @@ const subFieldGridCols = computed(() => {
 }
 
 .tiptap-content :deep(.ProseMirror pre) {
-  @apply bg-slate-900 text-slate-100 rounded-lg p-3 my-2 font-mono text-xs overflow-x-auto;
+  @apply bg-ink-900 text-ink-100 rounded-lg p-3 my-2 font-mono text-xs overflow-x-auto;
 }
 
 .tiptap-content :deep(.ProseMirror pre code) {

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @mousedown.self="close">
+    <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4" @mousedown.self="close">
       <form
         ref="dialogRef"
         class="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl"

@@ -37,7 +37,7 @@
       </div>
 
       <div
-        class="flex min-h-12 items-center gap-3 rounded-lg bg-slate-950 px-3 py-2 text-sm text-slate-100"
+        class="flex min-h-12 items-center gap-3 rounded-lg bg-ink-950 px-3 py-2 text-sm text-ink-100"
       >
         <span class="shrink-0 font-mono text-xs font-semibold text-theme-300"
           >GET</span

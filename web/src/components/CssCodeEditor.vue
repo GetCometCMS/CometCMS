@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px rgb(var(--color-theme-500, 99 102 241));
 }
 .css-code-editor.is-disabled {
-  background: rgb(248 250 252);
+  background: rgb(var(--color-slate-50));
 }
 .css-code-editor :deep(.cm-editor) {
   height: 100%;
@@ -97,15 +97,18 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 .css-code-editor :deep(.cm-gutters) {
-  border-right: 1px solid rgb(226 232 240);
-  background: rgb(248 250 252);
-  color: rgb(148 163 184);
+  border-right: 1px solid rgb(var(--color-slate-200));
+  background: rgb(var(--color-slate-50));
+  color: rgb(var(--color-slate-400));
 }
 .css-code-editor :deep(.cm-activeLine),
 .css-code-editor :deep(.cm-activeLineGutter) {
-  background: rgb(241 245 249 / 0.7);
+  background: rgb(var(--color-slate-100) / 0.7);
 }
 .css-code-editor :deep(.cm-placeholder) {
-  color: rgb(148 163 184);
+  color: rgb(var(--color-slate-400));
+}
+.css-code-editor :deep(.cm-cursor) {
+  border-left-color: currentColor;
 }
 </style>

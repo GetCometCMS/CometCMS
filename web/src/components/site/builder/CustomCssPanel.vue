@@ -63,10 +63,10 @@ const classes = computed(() => themeCssClasses(theme.value?.custom_css ?? ""));
   align-items: center;
   justify-content: center;
   border-radius: 0.375rem;
-  color: rgb(100 116 139);
+  color: rgb(var(--color-slate-500));
 }
 .panel-action:hover {
-  background: rgb(241 245 249);
-  color: rgb(15 23 42);
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
 }
 </style>

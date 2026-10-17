@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen flex-col bg-slate-100">
+  <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
     <header class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
       <router-link :to="backTo" class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" :title="t('site.builder.back')">
@@ -165,7 +165,7 @@
       </ResizableSidebar>
 
       <!-- Canvas -->
-      <main class="min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
+      <main class="builder-stage min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
         <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" @keydown="onKeydown" />
       </main>
 
@@ -747,11 +747,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  color: rgb(71 85 105);
+  color: rgb(var(--color-slate-600));
 }
 .topbar-action:hover:not(:disabled) {
-  background: rgb(241 245 249);
-  color: rgb(15 23 42);
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
 }
 .topbar-action:disabled {
   opacity: 0.35;
@@ -764,16 +764,16 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  color: rgb(100 116 139);
+  color: rgb(var(--color-slate-500));
   transition: background-color 150ms, color 150ms;
 }
 .rail-action:hover {
-  background: rgb(241 245 249);
-  color: rgb(15 23 42);
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
 }
 .rail-action.is-active {
   background: rgb(var(--color-theme-50, 239 246 255));
-  color: rgb(var(--color-theme-700, 29 78 216));
+  color: rgb(var(--color-theme-text, 29 78 216));
 }
 .panel-close {
   display: inline-flex;
@@ -782,10 +782,10 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 0.375rem;
-  color: rgb(100 116 139);
+  color: rgb(var(--color-slate-500));
 }
 .panel-close:hover {
-  background: rgb(241 245 249);
-  color: rgb(15 23 42);
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
 }
 </style>

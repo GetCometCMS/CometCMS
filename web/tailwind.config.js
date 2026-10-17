@@ -1,3 +1,12 @@
+const defaultColors = require('tailwindcss/colors')
+
+// Neutrals are driven by CSS variables so the dark theme can invert the scale
+// in one place (style.css) instead of overriding every slate utility.
+const slateShades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+const slate = Object.fromEntries(
+  slateShades.map((shade) => [shade, `rgb(var(--color-slate-${shade}) / <alpha-value>)`]),
+)
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -7,6 +16,10 @@ export default {
   theme: {
     extend: {
       colors: {
+        slate,
+        // Fixed dark neutrals for surfaces that stay dark in every theme
+        // (modal backdrops, toasts, code bars, image overlays).
+        ink: defaultColors.slate,
         theme: {
           50: 'rgb(var(--color-theme-50) / <alpha-value>)',
           100: 'rgb(var(--color-theme-100) / <alpha-value>)',

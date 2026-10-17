@@ -118,11 +118,8 @@ defineExpose({ openLink: () => { if (!linkOpen.value) toggleLink() } })
 </script>
 
 <style scoped>
-.rich-text-btn { display: inline-flex; height: 1.75rem; width: 1.75rem; align-items: center; justify-content: center; border-radius: 0.375rem; color: rgb(100 116 139); transition: background-color 0.15s, color 0.15s; }
-.rich-text-btn:hover:not(:disabled) { background: rgb(226 232 240); color: rgb(15 23 42); }
+.rich-text-btn { display: inline-flex; height: 1.75rem; width: 1.75rem; align-items: center; justify-content: center; border-radius: 0.375rem; color: rgb(var(--color-slate-500)); transition: background-color 0.15s, color 0.15s; }
+.rich-text-btn:hover:not(:disabled) { background: rgb(var(--color-slate-200)); color: rgb(var(--color-slate-900)); }
 .rich-text-btn:disabled { opacity: 0.35; cursor: default; }
-.rich-text-btn.is-active { background: rgb(255 255 255); color: rgb(15 23 42); box-shadow: 0 0 0 1px rgb(203 213 225), 0 1px 2px rgb(15 23 42 / 0.08); }
-:root[data-theme="dark"] .rich-text-btn { color: rgb(148 163 184); }
-:root[data-theme="dark"] .rich-text-btn:hover:not(:disabled) { background: rgb(51 65 85); color: rgb(241 245 249); }
-:root[data-theme="dark"] .rich-text-btn.is-active { background: rgb(30 41 59); color: rgb(241 245 249); box-shadow: 0 0 0 1px rgb(71 85 105); }
+.rich-text-btn.is-active { background: rgb(var(--color-surface)); color: rgb(var(--color-slate-900)); box-shadow: 0 0 0 1px rgb(var(--color-slate-300)), 0 1px 2px rgb(0 0 0 / 0.08); }
 </style>
