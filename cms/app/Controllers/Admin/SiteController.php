@@ -90,10 +90,11 @@ final class SiteController extends BaseController
     /** Live URL and draft preview URL for one entry. */
     public function links(string $type, string $id): never
     {
-        $user = $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
+        $user = $this->requireUser();
         $settings = $this->site->settings();
         $context = $this->context();
         $entry = $context->content->findByIdentifier($type, $id);
+        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
         $url = null;
 
         if ($settings['enabled'] && $entry !== null && $context->content->isPubliclyVisible($entry)) {
@@ -476,8 +477,11 @@ final class SiteController extends BaseController
     /** Full-page draft preview of one entry, opened from the entry editor. */
     public function previewEntry(string $type, string $id): never
     {
-        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
-        $html = (new SiteService($this->context()))->previewEntry($type, $id, (string) ($_GET['locale'] ?? ''));
+        $this->requireUser();
+        $context = $this->context();
+        $entry = $context->content->findByIdentifier($type, $id);
+        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
+        $html = (new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? ''));
 
         if ($html === null) {
             http_response_code(404);

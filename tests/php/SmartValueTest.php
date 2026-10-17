@@ -178,6 +178,30 @@ test('incompatible designs use defaults without deleting data and old revisions 
     assert_same(LayoutSchema::FORMAT_VERSION, $store->read('layouts', 'blog', 'detail')['format_version']);
 });
 
+test('columns and column components resolve bound backgrounds while preserving responsive order', function (): void {
+    $site = comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');
+    [$context, $state] = smart_test_state();
+    $state['type']['fields']['photo'] = ['type' => 'media'];
+    $state['entry']['photo'] = ['photo.svg'];
+    $column = LayoutSchema::node('column', ['span' => ['mobile' => 12, 'tablet' => 6]], ['background_image' => SmartValue::reference('photo')], [LayoutSchema::node('heading', ['text' => 'Content'])]);
+    $component = $site->createComponent('Bound column', [$column], 'blog');
+    $instance = LayoutSchema::node('component', ['component' => $component['id'], 'root' => 'column', 'span' => ['mobile' => 12, 'tablet' => 6]]);
+    $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', ['reverse_mobile' => true], [], [$column, $instance])])]);
+    foreach ([false, true] as $annotate) {
+        $context->annotate = $annotate;
+        $html = (new NodeRenderer($context))->render($layout, $state);
+        assert_same(2, substr_count($html, 'background-image:'), 'Both columns resolve their media reference.');
+        assert_same(2, substr_count($html, 'c-t-col-6'));
+        assert_true(str_contains($html, '--c-column-order:0'));
+        assert_true(str_contains($html, '--c-column-order:-1'));
+        assert_false(str_contains($html, 'Unresolved content reference'));
+    }
+    (new \CometCMS\Media\MediaRepository())->updateVisibility('photo.svg', 'private');
+    $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout, $state);
+    assert_false(str_contains($html, 'background-image:'), 'Bound column backgrounds never expose private media.');
+});
+
 test('smart media and links preserve types and reject unsafe or ambiguous values', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');

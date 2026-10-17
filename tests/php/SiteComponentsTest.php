@@ -26,6 +26,29 @@ function comet_component_test_instance(string $id, string $component, string $ro
     return ['id' => $id, 'kind' => 'component', 'props' => ['component' => $component, 'root' => $root]];
 }
 
+test('repeated navigation components give every menu its own matching toggle and label', function (): void {
+    $site = comet_site_test_setup();
+    $component = $site->createComponent('Navigation', [comet_component_test_section([LayoutSchema::node('menu', ['menu' => 'main'])])]);
+    $site->saveRegion('header', [comet_component_test_instance('header-nav', $component['id'])]);
+    $site->saveLayout('blog', 'detail', [
+        comet_component_test_instance('first-nav', $component['id']),
+        comet_component_test_instance('second-nav', $component['id']),
+    ]);
+    $html = comet_site_test_get('/blog/hello')['body'];
+    $document = new DOMDocument();
+    @$document->loadHTML($html);
+    $xpath = new DOMXPath($document);
+    $toggles = $xpath->query('//input[@class="c-menu-toggle"]');
+    assert_same(3, $toggles->length);
+    $ids = [];
+    foreach ($toggles as $toggle) {
+        $id = $toggle->getAttribute('id');
+        assert_false(in_array($id, $ids, true), 'Each rendered menu needs a unique toggle ID.');
+        $ids[] = $id;
+        assert_same($id, $xpath->query('label[@class="c-menu-button"]', $toggle->parentNode)->item(0)->getAttribute('for'));
+    }
+});
+
 test('component instances are placed like their root kind and never keep children', function (): void {
     $nodes = LayoutSchema::normalize([
         comet_component_test_instance('i1', 'cabc', 'section'),

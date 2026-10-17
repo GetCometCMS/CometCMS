@@ -98,7 +98,7 @@ The embedded MCP uses the same access tokens and permission grants as the REST A
 
 ## Website
 
-Each workspace can also publish its content as a website, rendered by PHP on the same server. Open **Website** in the admin, switch it on, choose which content types become pages and at which URLs (e.g. `/blog/{slug}`), and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; drafts can be previewed by signed-in editors.
+Each workspace can also publish its content as a website, rendered by PHP on the same server. Enable **Page Builder** in a content type's settings and choose its page URLs (e.g. `/blog/{slug}`). Open **Page Builder** under **System** to choose a homepage and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. The website is online while it has a homepage or at least one content type with the Page Builder enabled. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; authorized editors can preview drafts.
 
 Pages are cached, set no cookies, ship no JavaScript and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
 

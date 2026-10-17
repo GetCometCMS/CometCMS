@@ -1,9 +1,91 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => 'default', api: { site: { saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
+const mocks = vi.hoisted(() => ({ workspace: 'default' }))
+vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
 import { useSiteStore } from './site.js'
 import { api } from '../api/index.js'
+
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+const siteData = (workspace) => ({ workspace, settings: { title: workspace }, theme: {}, menus: [] })
+
+describe('workspace loads', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mocks.workspace = 'default'
+  })
+
+  it('ignores an old workspace response after the new workspace finishes loading', async () => {
+    const old = deferred()
+    api.site.get.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: siteData('second') })
+    const site = useSiteStore()
+    const first = site.load()
+    mocks.workspace = 'second'
+    await site.load()
+    site.draft.settings.title = 'Pending second workspace title'
+    old.resolve({ data: siteData('default') })
+    await first
+    expect(site.data.workspace).toBe('second')
+    expect(site.draft.settings.title).toBe('Pending second workspace title')
+    expect((await site.load()).workspace).toBe('second')
+    expect(api.site.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears old data while switching and shares the new pending request', async () => {
+    api.site.get.mockResolvedValueOnce({ data: siteData('default') })
+    const site = useSiteStore()
+    await site.load()
+    const pending = deferred()
+    api.site.get.mockReturnValueOnce(pending.promise)
+    mocks.workspace = 'second'
+    const next = site.load()
+    const shared = site.load()
+    expect(site.data).toBeNull()
+    expect(site.draft).toBeNull()
+    expect(site.loading).toBe(true)
+    expect(api.site.get).toHaveBeenCalledTimes(2)
+    pending.resolve({ data: siteData('second') })
+    expect((await next).workspace).toBe('second')
+    expect((await shared).workspace).toBe('second')
+  })
+
+  it('ignores stale errors without clearing the active loading state or request', async () => {
+    const old = deferred(), current = deferred()
+    api.site.get.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
+    const site = useSiteStore()
+    const first = site.load()
+    mocks.workspace = 'second'
+    const next = site.load()
+    const failed = expect(first).rejects.toThrow('Old workspace failed')
+    old.reject(new Error('Old workspace failed'))
+    await failed
+    expect(site.error).toBe('')
+    expect(site.loading).toBe(true)
+    const shared = site.load()
+    expect(api.site.get).toHaveBeenCalledTimes(2)
+    current.resolve({ data: siteData('second') })
+    await Promise.all([next, shared])
+    expect(site.loading).toBe(false)
+  })
+
+  it('invalidates pending requests even when reloading the same workspace', async () => {
+    const old = deferred()
+    api.site.get.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: siteData('replacement') })
+    const site = useSiteStore()
+    const first = site.load()
+    site.invalidate()
+    await site.load()
+    old.resolve({ data: siteData('old') })
+    await first
+    expect(site.data.workspace).toBe('replacement')
+    expect(site.draft.settings.title).toBe('replacement')
+  })
+})
 
 describe('website revision restoration', () => {
   beforeEach(() => setActivePinia(createPinia()))

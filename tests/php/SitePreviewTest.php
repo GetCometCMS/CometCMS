@@ -2,6 +2,47 @@
 
 declare(strict_types=1);
 
+test('entry previews and website links enforce entry read restrictions for slugs and stable IDs', function (): void {
+    $seed = <<<'PHP'
+$roles->create(['label' => 'Restricted', 'permissions' => [
+    ['effect' => 'allow', 'actions' => ['content.read'], 'resources' => ['content:posts:*']],
+    ['effect' => 'deny', 'actions' => ['content.read'], 'resources' => ['content:posts:locked']],
+]]);
+$users->create('limited', 'secret-password', 'restricted');
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+$content = \CometCMS\Content\ContentRepository::make();
+$locked = $content->save('posts', ['title' => 'Confidential draft', 'slug' => 'locked'], ['id' => 'admin']);
+$content->save('posts', ['title' => 'Allowed draft', 'slug' => 'open'], ['id' => 'admin']);
+PHP;
+    $controller = '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))';
+    foreach (['previewEntry', 'links'] as $method) {
+        foreach (['"locked"', '$locked["uid"]'] as $identifier) {
+            [$status] = comet_admin_request('limited', $seed, 'GET', '/admin/site-preview/posts/locked', $controller . '->' . $method . '("posts", ' . $identifier . ');');
+            assert_same(403, $status, 'An explicit entry deny applies to ' . $method . ' for ' . $identifier);
+        }
+        [$status] = comet_admin_request('limited', $seed, 'GET', '/admin/site-preview/posts/open', $controller . '->' . $method . '("posts", "open");');
+        assert_same(200, $status, 'Allowed drafts remain available through ' . $method);
+    }
+});
+
+test('entry previews support permissions limited to the author of the entry', function (): void {
+    $seed = <<<'PHP'
+$roles->create(['label' => 'Author', 'permissions' => [
+    ['effect' => 'allow', 'actions' => ['content.read'], 'resources' => ['content:posts:*'], 'conditions' => ['own' => true]],
+]]);
+$users->create('writer', 'secret-password', 'author');
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+$content = \CometCMS\Content\ContentRepository::make();
+$content->save('posts', ['title' => 'Own draft', 'slug' => 'own'], ['id' => 'writer']);
+$content->save('posts', ['title' => 'Another draft', 'slug' => 'other'], ['id' => 'admin']);
+PHP;
+    $controller = '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))';
+    foreach (['own' => 200, 'other' => 403] as $slug => $expected) {
+        [$status] = comet_admin_request('writer', $seed, 'GET', '/admin/site-preview/posts/' . $slug, $controller . '->previewEntry("posts", "' . $slug . '");');
+        assert_same($expected, $status);
+    }
+});
+
 /** Exercise the real entry point and session bootstrap using an isolated install. */
 function comet_site_preview_test_install(): string
 {

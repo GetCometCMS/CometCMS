@@ -26,6 +26,7 @@ export const useSiteStore = defineStore('site', () => {
   const pageBuilderActive = ref(false)
   let workspace = ''
   let inFlight = null
+  let requestGeneration = 0
 
   const dirtyParts = computed(() => {
     if (!data.value || !draft.value) return []
@@ -59,28 +60,34 @@ export const useSiteStore = defineStore('site', () => {
 
   async function load({ force = false } = {}) {
     const active = getActiveWorkspace()
+    if (workspace !== active) invalidate()
     if (!force && data.value && workspace === active) return data.value
     if (inFlight && workspace === active) return inFlight
 
     workspace = active
     loading.value = true
     error.value = ''
-    inFlight = api.site.get()
+    const generation = ++requestGeneration
+    const current = () => generation === requestGeneration && active === getActiveWorkspace()
+    const request = api.site.get()
       .then((res) => {
-        if (workspace !== getActiveWorkspace()) return data.value
+        if (!current()) return data.value
         data.value = res.data
         syncPageBuilderActive()
         resetDraft()
         return data.value
       })
       .catch((err) => {
-        error.value = err.message
+        if (current()) error.value = err.message
         throw err
       })
       .finally(() => {
-        loading.value = false
-        inFlight = null
+        if (inFlight === request) {
+          loading.value = false
+          inFlight = null
+        }
       })
+    inFlight = request
 
     return inFlight
   }
@@ -162,6 +169,11 @@ export const useSiteStore = defineStore('site', () => {
   }
 
   function invalidate() {
+    requestGeneration += 1
+    inFlight = null
+    loading.value = false
+    error.value = ''
+    fieldErrors.value = {}
     data.value = null
     pageBuilderActive.value = false
     draft.value = null

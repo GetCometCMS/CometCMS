@@ -137,7 +137,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image source/alt/caption, button label, background images, and element link destinations. Other layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image source, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

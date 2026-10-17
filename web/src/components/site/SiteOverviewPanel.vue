@@ -94,7 +94,6 @@ const homeEntries = ref([]);
 const loadingEntries = ref(false);
 
 const publicTypes = computed(() => site.data.types.filter((type) => type.visibility !== "private"));
-const pageTypes = computed(() => publicTypes.value.filter((type) => settings.value.routes[type.name]?.enabled));
 const homeType = computed(() => publicTypes.value.find((type) => type.name === settings.value.homepage.type) ?? null);
 const homeEntryOptions = computed(() => [
   { value: "", label: t("site.overview.homepageList") },

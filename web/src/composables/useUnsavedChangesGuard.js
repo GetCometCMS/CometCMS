@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 
 /**
  * Ask before leaving a view with unsaved changes.
@@ -11,8 +11,10 @@ import { onBeforeRouteLeave } from 'vue-router'
  *
  * `isDirty` is a ref, or a function of the destination route (undefined when
  * the tab closes) for changes that survive some in-app navigation.
+ * `guardUpdates` also guards path changes within the same route record, for
+ * editors whose keyed view remounts when a different document is selected.
  */
-export function useUnsavedChangesGuard(isDirty) {
+export function useUnsavedChangesGuard(isDirty, { guardUpdates = false } = {}) {
   const dirtyFor = typeof isDirty === 'function' ? isDirty : () => isDirty.value
   const leavePromptOpen = ref(false)
   let resolveLeave = null
@@ -24,13 +26,18 @@ export function useUnsavedChangesGuard(isDirty) {
     resolve?.(allowed)
   }
 
-  onBeforeRouteLeave((to) => {
+  function guard(to) {
     if (bypassed || !dirtyFor(to)) return true
     leavePromptOpen.value = true
     return new Promise((resolve) => {
       resolveLeave = resolve
     })
-  })
+  }
+
+  onBeforeRouteLeave(guard)
+  if (guardUpdates) {
+    onBeforeRouteUpdate((to, from) => to.path === from.path || guard(to))
+  }
 
   function confirmLeave() {
     settle(true)

@@ -305,6 +305,7 @@ const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_c
 const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
   (to) => builder.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
+  { guardUpdates: true },
 );
 
 const RAIL_WIDTH = 48;

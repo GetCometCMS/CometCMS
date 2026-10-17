@@ -34,6 +34,8 @@ final class NodeRenderer
 
     private int $annotationsSuspended = 0;
 
+    private int $menuSequence = 0;
+
     private SmartValue $smart;
 
     public function __construct(private readonly SiteContext $ctx)
@@ -64,7 +66,7 @@ final class NodeRenderer
         }
     }
 
-    private function node(array $node, array $state): string
+    private function node(array $node, array $state, ?int $order = null): string
     {
         $warnings = false;
         foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
@@ -93,8 +95,8 @@ final class NodeRenderer
         $html = match ($node['kind'] ?? '') {
             'section' => $this->section($node, $state),
             'row' => $this->row($node, $state),
-            'column' => $this->column($node, $state),
-            LayoutSchema::COMPONENT => $this->component($node, $state),
+            'column' => $this->column($node, $state, $order),
+            LayoutSchema::COMPONENT => $this->component($node, $state, $order),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -207,7 +209,7 @@ final class NodeRenderer
         $inner = '';
         foreach ($node['children'] as $index => $column) {
             $order = $reverse ? -$index : null;
-            $inner .= $column['kind'] === LayoutSchema::COMPONENT ? $this->component($column, $state, $order) : $this->column($column, $state, $order);
+            $inner .= $this->node($column, $state, $order);
         }
         if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
             return '';
@@ -277,8 +279,7 @@ final class NodeRenderer
 
         $this->annotationsSuspended++;
         try {
-            // Rows render their columns directly; a column component does too.
-            $html = $root === 'column' ? $this->column($tree, $state, $order) : $this->node($tree, $state);
+            $html = $this->node($tree, $state, $order);
         } finally {
             $this->annotationsSuspended--;
         }
@@ -456,7 +457,8 @@ final class NodeRenderer
         $toggle = '';
 
         if ($collapsible) {
-            $id = 'menu-' . Security::e($node['id']);
+            // A component or card can render the same menu node several times.
+            $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
             $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="Menu">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';
         }
