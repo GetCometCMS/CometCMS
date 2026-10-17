@@ -780,6 +780,14 @@ test('entrance animations keep their timing only while an animation is set', fun
     assert_true(str_contains(Theme::stylesheet([]), '@keyframes c-anim-fade-up'));
 });
 
+test('theme animation speeds and stagger are clamped and become stylesheet variables', function (): void {
+    $theme = Theme::normalize(['motion' => ['fast' => 20, 'normal' => 833, 'slow' => 9000, 'stagger' => 'slow']]);
+    assert_same(['fast' => 100, 'normal' => 850, 'slow' => 5000, 'stagger' => 120], $theme['motion']);
+
+    $css = Theme::stylesheet($theme);
+    assert_true(str_contains($css, '--motion-normal:850;--motion-slow:5000;--motion-stagger:120;'));
+});
+
 test('theme spacing and radius tokens drive the stylesheet', function (): void {
     $theme = Theme::normalize([
         'space' => ['xs' => 2, 'md' => 24, 'xl' => 999],

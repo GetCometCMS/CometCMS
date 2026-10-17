@@ -30,6 +30,9 @@ final class Theme
 
     public const TYPE_SCALES = ['1.125', '1.2', '1.25', '1.333'];
 
+    /** Entrance animation speeds in ms. */
+    public const MOTION_SPEEDS = ['fast', 'normal', 'slow'];
+
     /** Heading levels and the type scale step each one uses by default. */
     public const HEADING_LEVELS = ['h1' => 5, 'h2' => 4, 'h3' => 3, 'h4' => 2, 'h5' => 1, 'h6' => 0];
 
@@ -102,6 +105,8 @@ final class Theme
             'narrow_width' => 760,
             'space' => ['xs' => 4, 'sm' => 8, 'md' => 16, 'lg' => 32, 'xl' => 56, '2xl' => 96],
             'link_underline' => true,
+            // Animation speeds and the extra delay per stagger step, in ms.
+            'motion' => ['fast' => 400, 'normal' => 700, 'slow' => 1100, 'stagger' => 120],
             'custom_css' => '',
         ];
     }
@@ -131,6 +136,7 @@ final class Theme
             'narrow_width' => self::clampInt($theme['narrow_width'] ?? null, 480, 1200, $defaults['narrow_width']),
             'space' => self::space($theme, $defaults['space']),
             'link_underline' => (bool) ($theme['link_underline'] ?? $defaults['link_underline']),
+            'motion' => self::motion($theme['motion'] ?? [], $defaults['motion']),
             'custom_css' => self::customCss((string) ($theme['custom_css'] ?? '')),
         ];
     }
@@ -166,6 +172,11 @@ final class Theme
 
         foreach ($theme['radii'] as $token => $px) {
             $root['--radius-' . $token] = $px . 'px';
+        }
+
+        // Unitless ms, so the stylesheet can turn them into times and scroll distances.
+        foreach ($theme['motion'] as $key => $ms) {
+            $root['--motion-' . $key] = (string) $ms;
         }
 
         foreach ($theme['space'] as $token => $px) {
@@ -427,6 +438,19 @@ final class Theme
         }
 
         return $space;
+    }
+
+    private static function motion(mixed $motion, array $defaults): array
+    {
+        $motion = is_array($motion) ? $motion : [];
+        $normalized = [];
+
+        foreach (self::MOTION_SPEEDS as $speed) {
+            $normalized[$speed] = self::clampInt($motion[$speed] ?? null, 100, 5000, $defaults[$speed], 50);
+        }
+        $normalized['stagger'] = self::clampInt($motion['stagger'] ?? null, 0, 5000, $defaults['stagger'], 10);
+
+        return $normalized;
     }
 
     private static function oneOf(mixed $value, array $allowed, string $default): string

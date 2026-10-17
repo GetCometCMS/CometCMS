@@ -174,6 +174,45 @@
         </div>
       </BuilderGroup>
 
+      <BuilderGroup v-model:open="expanded.motion" :title="t('site.theme.motion')" content-class="mt-2 space-y-4 px-1">
+        <p class="text-xs text-slate-500">{{ t("site.theme.motionHint") }}</p>
+        <!-- Stored in ms, shown in seconds. -->
+        <RangeRow
+          v-for="speed in MOTION_SPEEDS"
+          :key="speed"
+          :model-value="theme.motion[speed] / 1000"
+          :label="t(`site.option.${speed}`)"
+          :min="0.1"
+          :max="5"
+          :step="0.05"
+          unit="s"
+          @update:model-value="theme.motion[speed] = Math.round($event * 1000)"
+        />
+        <RangeRow
+          :model-value="theme.motion.stagger / 1000"
+          :label="t('site.theme.motionStagger')"
+          :min="0"
+          :max="5"
+          :step="0.01"
+          unit="s"
+          @update:model-value="theme.motion.stagger = Math.round($event * 1000)"
+        />
+        <div class="flex items-center gap-3 rounded-lg bg-slate-50 p-2 ring-1 ring-slate-200">
+          <button type="button" class="btn-secondary btn-sm" @click="motionPreview++">
+            <Icon icon="mdi:play" class="h-4 w-4" />
+            {{ t("site.theme.motionPreview") }}
+          </button>
+          <div :key="motionPreview" class="flex flex-1 justify-end gap-1.5" aria-hidden="true">
+            <span
+              v-for="step in 4"
+              :key="step"
+              class="motion-sample h-6 w-6 rounded bg-theme-400"
+              :style="{ animationDuration: `${theme.motion.normal}ms`, animationDelay: `${(step - 1) * theme.motion.stagger}ms` }"
+            ></span>
+          </div>
+        </div>
+      </BuilderGroup>
+
       <BuilderGroup v-model:open="expanded.css" :title="t('site.theme.customCss')" content-class="mt-2 space-y-3 px-1">
         <p class="text-xs text-slate-500">
           {{ site.data.can_edit_css ? t("site.theme.customCssHint") : t("site.theme.customCssAdminOnly") }}
@@ -218,6 +257,7 @@ const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
 const RADIUS_TOKENS = ["sm", "md", "lg"];
 const TOKEN_LABELS = { xs: "XS", sm: "S", md: "M", lg: "L", xl: "XL", "2xl": "2XL" };
 const SPACING_PRESETS = { compact: 0.8, normal: 1, relaxed: 1.25 };
+const MOTION_SPEEDS = ["fast", "normal", "slow"];
 
 const COLOR_KEYS = ["primary", "secondary", "accent", "background", "surface", "text", "muted", "border"];
 
@@ -273,7 +313,8 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, css: false });
+const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false, css: false });
+const motionPreview = ref(0);
 
 const palettes = computed(() => {
   if (theme.value.mode === "dark") return [{ key: "dark_colors" }];
@@ -351,6 +392,12 @@ function setHex(palette, key, value) {
 </script>
 
 <style scoped>
+.motion-sample {
+  animation: motion-sample cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes motion-sample {
+  from { opacity: 0; transform: translateY(0.75rem); }
+}
 .panel-action {
   display: inline-flex;
   height: 1.75rem;

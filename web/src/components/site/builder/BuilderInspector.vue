@@ -136,7 +136,9 @@ const STYLE_GROUPS = [
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const tab = ref("content");
-const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, true])));
+/** Only the most used groups start open. */
+const OPEN_STYLE_GROUPS = ["spacing", "text"];
+const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
 
 const node = computed(() => builder.selected.value);
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
