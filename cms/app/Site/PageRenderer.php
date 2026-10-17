@@ -63,25 +63,10 @@ final class PageRenderer
         ], $main, $state);
     }
 
-    /** Homepage shown until one is chosen: site title plus the latest of each section. */
+    /** Branded blank page shown until a public homepage is available. */
     public function autoHome(): string
     {
-        $url = $this->ctx->homeUrl();
-        $alternates = [];
-        foreach ($this->ctx->locales() as $locale) {
-            $alternates[$locale] = $this->ctx->homeUrl($locale);
-        }
-
-        $state = $this->state(null, null, $url, 1, $alternates);
-        $main = $this->nodes->render($this->autoHomeNodes(), $state);
-
-        return $this->document([
-            'title' => $this->homeTitle(),
-            'description' => (string) ($this->ctx->settings()['description'] ?? ''),
-            'canonical' => $url,
-            'og_type' => 'website',
-            'body_class' => 'c-view-home',
-        ], $main, $state);
+        return PlaceholderPage::render($this->homeTitle(), $this->ctx->htmlLang());
     }
 
     public function notFound(string $path): string
@@ -440,40 +425,4 @@ final class PageRenderer
         return $width === null ? [] : ['w' => $width, 'format' => in_array('jpeg', $descriptor['formats'], true) ? 'jpeg' : $descriptor['default_format']];
     }
 
-    private function autoHomeNodes(): array
-    {
-        $settings = $this->ctx->settings();
-        $hero = [LayoutSchema::node('heading', ['text' => '{site}', 'level' => 'h1'], ['font_size' => '5xl', 'margin_bottom' => 'sm'])];
-
-        if (($settings['tagline'] ?? '') !== '') {
-            $hero[] = LayoutSchema::node('heading', ['text' => '{tagline}', 'level' => 'h2'], ['text_color' => 'muted', 'font_weight' => 'normal', 'font_size' => 'xl']);
-        }
-
-        $nodes = [
-            LayoutSchema::node('section', ['width' => 'contained'], ['padding_y' => '2xl', 'background' => 'surface'], [
-                LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], $hero)]),
-            ]),
-        ];
-
-        foreach ($this->ctx->site->types() as $name => $type) {
-            if (!empty($type['singleton']) || $this->ctx->route($name) === null) {
-                continue;
-            }
-
-            $elements = [
-                LayoutSchema::node('heading', ['text' => (string) $type['label'], 'level' => 'h2']),
-                LayoutSchema::node('collection', ['type' => $name, 'limit' => 3, 'columns' => 3, 'exclude_current' => false]),
-            ];
-
-            if ($this->ctx->indexUrl($name) !== null) {
-                $elements[] = LayoutSchema::node('button', ['label' => 'View all', 'variant' => 'outline', 'link' => ['type' => 'index', 'collection' => $name]]);
-            }
-
-            $nodes[] = LayoutSchema::node('section', ['width' => 'contained'], ['padding_y' => 'xl'], [
-                LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], $elements)]),
-            ]);
-        }
-
-        return LayoutSchema::normalize($nodes);
-    }
 }

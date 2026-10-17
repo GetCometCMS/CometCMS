@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Controllers;
 
 use CometCMS\Core\Http;
+use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteService;
@@ -78,6 +79,16 @@ final class SiteController
 
         echo $css;
         exit;
+    }
+
+    /** The public root of a headless install stays separate from the admin. */
+    public function placeholder(): never
+    {
+        $this->send([
+            'status' => 200,
+            'body' => PlaceholderPage::render(),
+            'content_type' => 'text/html; charset=utf-8',
+        ], 'BYPASS');
     }
 
     private function send(array $response, string $cacheStatus): never

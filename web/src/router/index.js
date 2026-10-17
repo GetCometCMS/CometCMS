@@ -103,7 +103,11 @@ const routes = [
     redirect: '/website/builder/region/header?settings=design',
   },
   {
-    path: '/website/:tab(overview|header-footer|components|menus)?',
+    path: '/website/header-footer',
+    redirect: '/website/builder/region/header',
+  },
+  {
+    path: '/website/:tab(overview|components|menus)?',
     component: () => import('../views/WebsiteView.vue'),
     meta: { requiresAuth: true },
   },

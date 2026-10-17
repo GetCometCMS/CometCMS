@@ -379,7 +379,7 @@ try {
     }
 
     if ($path === '/') {
-        $http->redirect($http->url('/admin'));
+        (new SiteController($http))->placeholder();
     }
 
     $http->notFound();

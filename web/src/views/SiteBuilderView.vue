@@ -379,7 +379,7 @@ const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/") || back.startsWith("/website/")) return back;
   if (target === "component") return "/website/components";
-  return target === "region" ? "/website/header-footer" : `/content-types/${name}/edit#website`;
+  return target === "region" ? "/website/overview" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => {
   if (target === "component") return component.value?.name ?? "";

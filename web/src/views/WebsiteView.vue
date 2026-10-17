@@ -85,7 +85,6 @@
       />
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
-      <SiteRegionsPanel v-else-if="activeTab === 'header-footer'" />
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <SiteMenusPanel v-else />
     </template>
@@ -110,7 +109,6 @@ import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
-import SiteRegionsPanel from "../components/site/SiteRegionsPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
@@ -128,11 +126,10 @@ const DESIGN_PATH = "/website/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "header-footer", "components", "menus"]);
+const validTabs = new Set(["overview", "components", "menus"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/website/overview" },
-  { value: "header-footer", label: t("site.tab.headerFooter"), icon: "mdi:page-layout-header-footer", to: "/website/header-footer" },
   { value: "components", label: t("site.tab.components"), icon: "mdi:puzzle-outline", to: "/website/components" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/website/menus" },
 ]);

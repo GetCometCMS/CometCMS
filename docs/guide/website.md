@@ -6,7 +6,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 ## Putting it online
 
-There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with **frontend pages**. With neither, the workspace stays fully headless and the root URL falls through to the default CometCMS behaviour.
+There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with **frontend pages**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
 Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Show content as frontend pages** in the base settings card. The **Frontend pages** card then appears with URL, search engine and layout settings:
 
@@ -20,7 +20,7 @@ Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose 
 
 The **Frontend pages** column in the content types table shows which types publish pages. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. Private types cannot enable public frontend pages. Turning on the first frontend pages of a headless workspace puts its website online.
 
-The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage but with frontend pages, the site root shows an automatic overview with the newest entries of every published collection. Set the homepage to **None** and turn off all frontend pages to return to a fully headless setup.
+The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Enabled frontend pages remain accessible at their own URLs. Set the homepage to **None** and turn off all frontend pages to return to a fully headless setup.
 
 ## Layouts and the builder
 
@@ -81,7 +81,7 @@ The builder stores layouts as structured JSON and shares its schema with the ser
 
 ## Header, footer and menus
 
-The header and footer are shown on every page and are edited in the same builder (**Header & footer** tab). Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.
+The header and footer are shown on every page and are edited directly in the page builder: select the header or footer to edit its shared layout. Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.
 
 The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
 

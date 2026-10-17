@@ -59,6 +59,28 @@ function comet_site_preview_test_request(int $port, string $path, string $cookie
     return [(int) ($match[1] ?? 0), (string) $body, $headers];
 }
 
+test('headless public roots show the placeholder in root and subdirectory installs', function (): void {
+    $root = comet_site_preview_test_install();
+    $port = 22080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $root . '/router.php');
+
+    try {
+        usleep(300000);
+        foreach (['/', '/cms/'] as $path) {
+            [$status, $body, $headers] = comet_site_preview_test_request($port, $path);
+            assert_same(200, $status);
+            assert_true(str_contains($body, 'alt="CometCMS"'));
+            assert_true(str_contains($body, 'src="data:image/png;base64,'), 'The logo needs no admin build or asset request.');
+            assert_false(isset($headers['location']), 'The public root does not redirect into the admin.');
+            assert_true(str_contains($headers['content-type'], 'text/html'));
+            assert_true(str_contains($headers['content-security-policy'], "script-src 'none'"));
+        }
+        assert_same(404, comet_site_preview_test_request($port, '/unknown-page')[0]);
+    } finally {
+        comet_test_stop_process($server);
+    }
+});
+
 test('website history routes protect revisions and restore saved layouts regions and themes', function (): void {
     $root = comet_site_preview_test_install();
     $sessionPrefix = 'history-' . bin2hex(random_bytes(6));

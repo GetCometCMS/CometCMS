@@ -191,12 +191,16 @@ test('website hides drafts, private types and unknown paths', function (): void 
     assert_null((new SiteService(comet_site_test_context()))->previewEntry('notes', 'private-note'));
 });
 
-test('website homepage falls back to an overview and follows the homepage setting', function (): void {
+test('website homepage shows a branded placeholder until a homepage is chosen', function (): void {
     $site = comet_site_test_setup();
     $auto = comet_site_test_get('/');
     assert_same(200, $auto['status']);
     assert_true(str_contains($auto['body'], 'Comet Site'));
-    assert_true(str_contains($auto['body'], '/blog/hello'));
+    assert_true(str_contains($auto['body'], 'alt="CometCMS"'));
+    assert_true(str_contains($auto['body'], 'noindex,nofollow'));
+    assert_false(str_contains($auto['body'], '/blog/hello'), 'The placeholder does not list content.');
+    assert_false(str_contains($auto['body'], 'c-site-header'), 'The placeholder is independent of the website layout.');
+    assert_same(200, comet_site_test_get('/blog/hello')['status'], 'Frontend pages remain accessible.');
 
     $settings = $site->settings();
     $settings['homepage'] = ['type' => 'about', 'entry' => ''];
@@ -206,6 +210,19 @@ test('website homepage falls back to an overview and follows the homepage settin
     assert_true(str_contains($home['body'], 'We build things.'));
     $about = comet_site_test_get('/about');
     assert_true(str_contains($about['body'], '<link rel="canonical" href="https://example.test/">'), 'The homepage entry is canonical at the root.');
+});
+
+test('unavailable homepage entries fall back without exposing unpublished content', function (): void {
+    $site = comet_site_test_setup();
+    foreach (['secret-draft', 'missing-entry'] as $entry) {
+        $settings = $site->settings();
+        $settings['homepage'] = ['type' => 'blog', 'entry' => $entry];
+        $site->saveSettings($settings);
+        $response = comet_site_test_get('/');
+        assert_same(200, $response['status']);
+        assert_true(str_contains($response['body'], 'alt="CometCMS"'));
+        assert_false(str_contains($response['body'], 'Secret draft'));
+    }
 });
 
 test('website routes localized entries under a locale prefix', function (): void {
