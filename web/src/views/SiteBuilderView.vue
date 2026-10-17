@@ -60,7 +60,7 @@
           <span class="sr-only">{{ t("site.builder.editContent") }}</span>
         </router-link>
 
-        <DeviceToggle v-model="device" />
+        <DeviceToggle v-model="device" allow-full-width />
 
         <div class="flex items-center">
           <button type="button" class="topbar-action" :disabled="!builder.canUndo.value" :title="`${t('site.builder.undo')} (Ctrl+Z)`" @click="builder.undo()">
@@ -102,9 +102,16 @@
 
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
-    <div v-else class="flex min-h-0 flex-1">
+    <div v-else ref="builderAreaRef" class="flex min-h-0 flex-1">
       <!-- Palette & outline -->
-      <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
+      <ResizableSidebar
+        v-model="leftWidth"
+        side="left"
+        :label="t('site.builder.resizeLeft')"
+        :min="224"
+        :max="leftMaxWidth"
+        class="border-r border-slate-200"
+      >
         <div class="border-b border-slate-200 p-2">
           <SegmentedControl
             v-model="leftTab"
@@ -118,17 +125,24 @@
           <BuilderPalette v-if="leftTab === 'add'" :with-fields="target === 'layout'" />
           <BuilderOutline v-else />
         </div>
-      </aside>
+      </ResizableSidebar>
 
       <!-- Canvas -->
-      <main class="min-w-0 flex-1 p-3 xl:p-5">
+      <main class="min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
         <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" @keydown="onKeydown" />
       </main>
 
       <!-- Inspector -->
-      <aside class="w-72 shrink-0 border-l border-slate-200 bg-white xl:w-80">
+      <ResizableSidebar
+        v-model="rightWidth"
+        side="right"
+        :label="t('site.builder.resizeRight')"
+        :min="256"
+        :max="rightMaxWidth"
+        class="border-l border-slate-200"
+      >
         <BuilderInspector />
-      </aside>
+      </ResizableSidebar>
     </div>
 
     <BuilderContextMenu />
@@ -178,6 +192,7 @@ import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vu
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
+import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import SiteHistory from "../components/site/SiteHistory.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
@@ -193,6 +208,28 @@ const toast = useToastStore();
 const { t } = useI18n();
 const builder = createSiteBuilder({ t });
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(builder.isDirty);
+
+const builderAreaRef = ref(null);
+const builderWidth = ref(window.innerWidth);
+const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
+const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
+const leftMaxWidth = computed(() => Math.max(224, Math.min(480, builderWidth.value - rightWidth.value - 320)));
+const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftWidth.value - 320)));
+let builderResizeObserver = null;
+
+watch(builderAreaRef, (area) => {
+  builderResizeObserver?.disconnect();
+  if (!area) return;
+  builderResizeObserver = new ResizeObserver(([entry]) => {
+    builderWidth.value = entry.contentRect.width;
+  });
+  builderResizeObserver.observe(area);
+});
+watch([leftMaxWidth, rightMaxWidth], () => {
+  leftWidth.value = Math.min(leftWidth.value, leftMaxWidth.value);
+  rightWidth.value = Math.min(rightWidth.value, rightMaxWidth.value);
+}, { immediate: true });
+onBeforeUnmount(() => builderResizeObserver?.disconnect());
 
 const target = route.params.target;
 const name = String(route.params.name);

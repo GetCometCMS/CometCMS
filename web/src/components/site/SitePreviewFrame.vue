@@ -1,8 +1,11 @@
 <template>
   <div ref="containerRef" class="relative h-full w-full overflow-hidden">
     <div
-      class="mx-auto origin-top-left overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 transition-[width] duration-200"
-      :class="device === 'desktop' ? 'rounded-none' : 'rounded-xl'"
+      class="mx-auto origin-top-left overflow-hidden bg-white shadow-sm ring-1 ring-slate-200"
+      :class="[
+        device === 'desktop' || device === 'full' ? 'rounded-none' : 'rounded-xl',
+        { 'transition-[width] duration-200': device !== 'full' },
+      ]"
       :style="frameBoxStyle"
     >
       <iframe
@@ -65,16 +68,16 @@ let resizeObserver = null;
 
 const deviceWidth = computed(() => DEVICE_WIDTHS[props.device] ?? DEVICE_WIDTHS.desktop);
 const scale = computed(() =>
-  containerWidth.value > 0 ? Math.min(1, containerWidth.value / deviceWidth.value) : 1,
+  props.device !== "full" && containerWidth.value > 0 ? Math.min(1, containerWidth.value / deviceWidth.value) : 1,
 );
 const iframeStyle = computed(() => ({
-  width: `${deviceWidth.value}px`,
+  width: props.device === "full" ? "100%" : `${deviceWidth.value}px`,
   height: `${Math.max(320, containerHeight.value / scale.value)}px`,
   transform: scale.value < 1 ? `scale(${scale.value})` : undefined,
   transformOrigin: "top left",
 }));
 const frameBoxStyle = computed(() => ({
-  width: `${deviceWidth.value * scale.value}px`,
+  width: props.device === "full" ? "100%" : `${deviceWidth.value * scale.value}px`,
   height: `${Math.max(320, containerHeight.value)}px`,
 }));
 

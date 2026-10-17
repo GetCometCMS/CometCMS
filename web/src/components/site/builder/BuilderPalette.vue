@@ -1,12 +1,23 @@
 <template>
   <div class="space-y-5 p-3">
+    <div class="sticky top-0 z-10 -mx-3 bg-white px-3 pb-2">
+      <label class="sr-only" :for="searchId">{{ t("site.builder.searchPalette") }}</label>
+      <input
+        :id="searchId"
+        v-model="search"
+        type="search"
+        :placeholder="t('site.builder.searchPalette')"
+        class="form-input w-full rounded-lg border-slate-300 text-sm"
+        @keydown.esc.stop.prevent="search = ''"
+      />
+    </div>
     <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
 
-    <section>
+    <section v-if="presets.length || layoutKinds.length">
       <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ t("site.builder.layout") }}</h3>
       <div class="grid grid-cols-3 gap-1.5">
         <button
-          v-for="preset in PRESETS"
+          v-for="preset in presets"
           :key="preset.join('-')"
           type="button"
           draggable="true"
@@ -24,11 +35,11 @@
         </button>
       </div>
       <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-        <PaletteItem v-for="kind in ['row', 'column']" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
       </div>
     </section>
 
-    <section>
+    <section v-if="elementKinds.length">
       <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ t("site.builder.elements") }}</h3>
       <div class="grid grid-cols-2 gap-1.5">
         <PaletteItem
@@ -43,7 +54,7 @@
       </div>
     </section>
 
-    <section v-if="showFields">
+    <section v-if="showFields && (fields.length || !searchTerms.length)">
       <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
         {{ templateOwner ? t("site.builder.itemFields", { field: templateOwnerLabel }) : t("site.builder.fields") }}
       </h3>
@@ -62,11 +73,14 @@
         <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
       </div>
     </section>
+    <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !elementKinds.length && !fields.length" role="status" class="px-1 text-sm text-slate-500">
+      {{ t("site.builder.noSearchResults") }}
+    </p>
   </div>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, useId } from "vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { ancestors, sectionPreset } from "../../../composables/layoutTree.js";
@@ -84,9 +98,25 @@ const props = defineProps({
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const { fieldTypeIcon } = useFieldTypeMeta();
+const search = ref("");
+const searchId = `builder-palette-search-${useId()}`;
+const searchTerms = computed(() => search.value.trim().toLowerCase().split(/\s+/).filter(Boolean));
+
+function matches(...values) {
+  const text = values.filter(Boolean).join(" ").toLowerCase();
+  return searchTerms.value.every((term) => text.includes(term));
+}
+
+const presets = computed(() => PRESETS.filter((preset) => matches(
+  t("site.builder.layout"), builder.kindLabel("section"), "section",
+  t("site.builder.columns", { count: preset.length }), preset.join("·"),
+)));
+const layoutKinds = computed(() => ["row", "column"].filter((kind) => matches(
+  t("site.builder.layout"), builder.kindLabel(kind), kind,
+)));
 
 const elementKinds = computed(() =>
-  (builder.spec.value?.elements ?? []).filter((kind) => kind !== "field"),
+  (builder.spec.value?.elements ?? []).filter((kind) => kind !== "field" && matches(builder.kindLabel(kind), kind)),
 );
 
 /** The repeater whose item template the selection is in (or is). */
@@ -98,9 +128,12 @@ const templateOwner = computed(() => {
 });
 const templateOwnerLabel = computed(() => (templateOwner.value ? builder.nodeSummary(templateOwner.value) : ""));
 const showFields = computed(() => props.withFields || templateOwner.value !== null);
-const fields = computed(() =>
+const availableFields = computed(() =>
   templateOwner.value ? builder.subfieldsOf(templateOwner.value) : props.withFields ? builder.typeFields() : [],
 );
+const fields = computed(() => availableFields.value.filter((field) => matches(
+  field.label, field.key, field.type, field.system ? t("site.builder.system") : "",
+)));
 
 function create(kind) {
   return builder.make(kind);

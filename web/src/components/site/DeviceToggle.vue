@@ -1,7 +1,7 @@
 <template>
   <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="group" :aria-label="t('site.preview.device')">
     <button
-      v-for="device in DEVICES"
+      v-for="device in devices"
       :key="device.value"
       type="button"
       class="rounded-md p-1.5 transition-colors"
@@ -17,6 +17,7 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import { useI18n } from "../../i18n/index.js";
 
@@ -26,7 +27,14 @@ const DEVICES = [
   { value: "mobile", icon: "mdi:cellphone" },
 ];
 
-defineProps({ modelValue: { type: String, default: "desktop" } });
+const props = defineProps({
+  modelValue: { type: String, default: "desktop" },
+  /** The fluid viewport is an editor tool, not a device preview. */
+  allowFullWidth: { type: Boolean, default: false },
+});
 defineEmits(["update:modelValue"]);
 const { t } = useI18n();
+const devices = computed(() => props.allowFullWidth
+  ? [...DEVICES, { value: "full", icon: "mdi:arrow-expand-horizontal" }]
+  : DEVICES);
 </script>
