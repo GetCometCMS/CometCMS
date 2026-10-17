@@ -18,6 +18,44 @@ async function builderFixture() {
   return builder
 }
 
+describe('builder page navigation', () => {
+  it('removes disabled types from navigation while retaining their layouts and data bindings', async () => {
+    const builder = await builderFixture()
+    builder.types.value.push({ name: 'private', visibility: 'private' }, { name: 'unused' })
+    builder.settings.value = { routes: { posts: { enabled: true }, company: { enabled: false }, private: { enabled: true } } }
+    const saved = JSON.stringify(builder.nodes.value)
+
+    expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['posts'])
+    builder.settings.value.routes.posts.enabled = false
+    expect(builder.pageTypes.value).toEqual([])
+    expect(JSON.stringify(builder.nodes.value)).toBe(saved)
+    expect(builder.typeFields().some((field) => field.key === 'intro')).toBe(true)
+    const repeater = builder.nodes.value[0].children[0].children[0].children[1]
+    expect(builder.fieldConfig(repeater).type).toBe('repeater')
+
+    builder.settings.value.routes.company.enabled = true
+    expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['company'])
+    builder.settings.value = null
+    expect(builder.pageTypes.value).toEqual([])
+  })
+
+  it('retains a public homepage without a separate route for single pages and collections', async () => {
+    const builder = await builderFixture()
+    builder.settings.value = { routes: {}, homepage: { type: 'company', entry: '' } }
+    expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['company'])
+
+    builder.settings.value.homepage = { type: 'posts', entry: '' }
+    expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['posts'])
+    builder.settings.value.homepage.entry = 'welcome'
+    expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['posts'])
+
+    builder.types.value[0].visibility = 'private'
+    expect(builder.pageTypes.value).toEqual([])
+    builder.settings.value.homepage.type = 'deleted'
+    expect(builder.pageTypes.value).toEqual([])
+  })
+})
+
 describe('builder integration with smart values', () => {
   it('retains references through undo, redo, copy, paste, save and reload', async () => {
     const builder = await builderFixture()

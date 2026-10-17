@@ -94,13 +94,13 @@ const allGroups = computed(() => [
   {
     key: "pages",
     label: t("site.builder.pages"),
-    items: builder.types.value.map((type) => ({
+    items: builder.pageTypes.value.map((type) => ({
       key: `layout:${type.name}`,
       label: type.label ?? type.name,
       icon: type.singleton ? "mdi:file-document-outline" : "mdi:file-multiple-outline",
       path: `/page-builder/builder/layout/${type.name}/detail`,
       current: props.target === "layout" && props.name === type.name,
-      isHomepage: site.data?.settings?.homepage?.type === type.name,
+      isHomepage: builder.settings.value?.homepage?.type === type.name,
       isDefault: site.data?.layouts?.[type.name]?.detail === false,
     })),
   },

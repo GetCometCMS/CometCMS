@@ -68,6 +68,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const types = ref([])
   const menus = ref([])
   const settings = ref(null)
+  /** Types with editable website pages; all types remain available for data bindings. */
+  const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
+    && (settings.value?.routes?.[item.name]?.enabled || settings.value?.homepage?.type === item.name)))
   const currentAvailable = ref(true)
   /** Reusable components ({ id, name, root, type }) offered in the palette. */
   const components = ref([])
@@ -659,7 +662,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   const api = {
-    nodes, spec, type, types, menus, settings, selectedId, selected, hoverId, drag,
+    nodes, spec, type, types, pageTypes, menus, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, linkedChanged, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,
