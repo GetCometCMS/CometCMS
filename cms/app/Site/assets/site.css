@@ -204,6 +204,14 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-figure figcaption { margin-top: 0.5em; font-size: var(--fs-sm); color: var(--c-muted); }
 .c-image-link { display: block; }
 /* Width bounds of an image element; never wider than its column. */
+.c-el-image.c-img-sized {
+  width: fit-content;
+  min-width: min(var(--c-img-min, 0px), 100%);
+  max-width: min(var(--c-img-max, 100%), 100%);
+}
+.c-el-image.c-img-sized:has(.c-ratio) { width: 100%; }
+.c-ta-center.c-el-image.c-img-sized { margin-left: auto; margin-right: auto; }
+.c-ta-right.c-el-image.c-img-sized { margin-left: auto; }
 .c-img-sized img:not(.c-ratio img), .c-img-sized .c-ratio {
   min-width: min(var(--c-img-min, 0px), 100%);
   max-width: min(var(--c-img-max, 100%), 100%);
