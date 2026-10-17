@@ -60,8 +60,16 @@
       @input="emitNumber($event.target.value)"
     />
 
+    <CssClassInput
+      v-else-if="def.type === 'class'"
+      :id="inputId"
+      :model-value="value ?? ''"
+      :options="customClasses"
+      @update:model-value="emitValue"
+    />
+
     <input
-      v-else-if="def.type === 'string' || def.type === 'class' || (def.type === 'key' && !keyOptions)"
+      v-else-if="def.type === 'string' || (def.type === 'key' && !keyOptions)"
       :id="inputId"
       type="text"
       :value="value"
@@ -139,6 +147,8 @@ import LinkEditor from "../LinkEditor.vue";
 import MediaSelect from "../MediaSelect.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
+import CssClassInput from "./CssClassInput.vue";
+import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { useSiteStore } from "../../../stores/site.js";
@@ -160,6 +170,7 @@ const builder = useSiteBuilder();
 const site = useSiteStore();
 const { t } = useI18n();
 const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.name}`);
+const customClasses = computed(() => themeCssClasses(site.data?.theme?.custom_css ?? ""));
 const label = computed(() => {
   // Fields have a yes/no "link to the entry"; other elements pick a link target.
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
