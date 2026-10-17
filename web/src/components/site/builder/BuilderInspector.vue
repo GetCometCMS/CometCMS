@@ -15,9 +15,6 @@
       <button type="button" class="inspector-action hover:!text-red-600" :title="t('common.delete')" :disabled="locked" @click="builder.remove(node.id)">
         <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
       </button>
-      <button type="button" class="inspector-action" :title="t('site.menu.more')" @click="openMenu">
-        <Icon icon="mdi:dots-horizontal" class="h-4 w-4" />
-      </button>
     </div>
 
     <div v-if="!isInstance" class="border-b border-slate-200 px-4 py-2">
@@ -217,11 +214,6 @@ const visibleProps = computed(() => {
 
   return keys;
 });
-
-function openMenu(event) {
-  const rect = event.currentTarget.getBoundingClientRect();
-  builder.openContextMenu(node.value.id, rect.right - 288, rect.bottom + 6);
-}
 
 function updateProp(key, value) {
   if (key !== "source") {
