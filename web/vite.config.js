@@ -51,6 +51,8 @@ export default defineConfig(({ command }) => ({
       '/site-preview': 'http://localhost:8000',
       '/api': 'http://localhost:8000',
       '/media': 'http://localhost:8000',
+      // Site assets the builder canvas loads, such as language flags.
+      '/_site': 'http://localhost:8000',
     },
     cors: true,
   },
