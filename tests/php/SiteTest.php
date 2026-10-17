@@ -723,16 +723,16 @@ test('background blur renders a separate decorative layer for public images only
     }
 });
 
-test('columns and elements take a background image over their background color', function (): void {
+test('rows, columns and elements take a background image over their background color', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/texture.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
     $background = ['background' => 'surface', 'background_image' => 'texture.svg', 'overlay' => 'dark', 'background_blur' => 4];
-    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg'], [
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg', 'radius' => 'lg', 'shadow' => 'md', 'border' => 'all'], [
         LayoutSchema::node('column', [], $background, [LayoutSchema::node('heading', ['text' => 'Column'])]),
         LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Element</p>'], $background)]),
     ])])]);
 
-    assert_same([], $nodes[0]['children'][0]['style'], 'Rows offer no background.');
+    assert_same('texture.svg', $nodes[0]['children'][0]['style']['background_image'], 'Rows keep their background image.');
     $columnStyle = $nodes[0]['children'][0]['children'][0]['style'];
     ksort($columnStyle);
     ksort($background);
@@ -740,7 +740,8 @@ test('columns and elements take a background image over their background color',
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
     assert_same(2, substr_count($html, 'class="c-background-blur" aria-hidden="true"'));
-    assert_same(2, substr_count($html, 'c-has-bg-image'));
+    assert_same(3, substr_count($html, 'c-has-bg-image'));
+    assert_true((bool) preg_match('/class="c-row [^"]*c-has-bg-image[^"]*c-r-lg c-sh-md c-bd-all"/', $html), 'Rows render their image, radius, shadow and border.');
     assert_true((bool) preg_match('/class="c-col c-col-12 c-has-bg-image[^"]*c-overlay-dark[^"]*c-bg-surface"/', $html), 'Columns keep their color under the image.');
     assert_true((bool) preg_match('/class="c-el c-el-text c-has-bg-image[^"]*c-bg-surface"/', $html));
     assert_true(str_contains(Theme::stylesheet([]), ':where(.c-has-bg-image) { position: relative; }'), 'Overlay and blur layers are anchored outside sections too.');

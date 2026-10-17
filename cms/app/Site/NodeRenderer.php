@@ -213,7 +213,9 @@ final class NodeRenderer
             return '';
         }
 
-        return '<div' . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])]) . '>' . $inner . '</div>';
+        $background = $this->background($node['style']);
+
+        return '<div' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $inner . '</div>';
     }
 
     private function column(array $node, array $state, ?int $order = null): string

@@ -120,7 +120,7 @@ final class LayoutSchema
     {
         return match ($kind) {
             'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'border', 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'class', 'hide_on'],
+            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', 'border', 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
             'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', 'border', 'class', 'hide_on'],
             default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', 'border', 'max_width', 'class', 'anchor', 'hide_on'],
