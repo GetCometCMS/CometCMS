@@ -142,3 +142,41 @@ describe('builder components', () => {
   })
 })
 
+
+describe('builder linked state', () => {
+  it('undoes and redoes linked edits in order with tree edits', async () => {
+    let builder
+    const state = { theme: null }
+    await renderToString(createSSRApp({ setup() {
+      builder = createSiteBuilder({ t: (key) => key, linked: { get: () => state.theme, set: (theme) => { state.theme = theme } } })
+      return () => null
+    } }))
+    builder.spec.value = { root: ['section'], kinds: { section: { props: {}, children: [] } } }
+    builder.load([])
+
+    // The first theme to arrive is the loaded one, not an edit.
+    state.theme = { primary: '#000000' }
+    builder.linkedChanged()
+    expect(builder.canUndo.value).toBe(false)
+
+    builder.mutate((tree) => { tree.push(builder.make('section')) })
+    state.theme = { primary: '#ff0000' }
+    builder.linkedChanged()
+
+    builder.undo()
+    expect(state.theme).toEqual({ primary: '#000000' })
+    expect(builder.nodes.value).toHaveLength(1)
+    builder.undo()
+    expect(builder.nodes.value).toHaveLength(0)
+    expect(builder.canUndo.value).toBe(false)
+    builder.redo()
+    builder.redo()
+    expect(state.theme).toEqual({ primary: '#ff0000' })
+
+    // A saved theme replaces the baseline without an undo step.
+    state.theme = { primary: '#ff0000', updated_at: 'now' }
+    builder.linkedChanged({ record: false })
+    builder.undo()
+    expect(state.theme).toEqual({ primary: '#000000' })
+  })
+})

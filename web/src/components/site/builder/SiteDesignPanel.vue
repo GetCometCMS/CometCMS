@@ -6,14 +6,6 @@
         <h2 class="text-sm font-semibold text-slate-900">{{ t("site.builder.designSettings") }}</h2>
         <p class="truncate text-xs text-slate-500">{{ t("site.builder.designSettingsHint") }}</p>
       </div>
-      <SiteHistory
-        :title="t('site.history.themeTitle')"
-        :fetch-revisions="api.site.themeRevisions"
-        :restore-revision="api.site.restoreThemeRevision"
-        :dirty="site.dirtyParts.includes('theme')"
-        :busy="busy || site.saving || site.loading"
-        @restored="site.applyRestoredTheme"
-      />
       <button type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
         <span class="sr-only">{{ t("site.builder.closeSettings") }}</span>
@@ -212,20 +204,14 @@ import LoadingSpinner from "../../LoadingSpinner.vue";
 import ToggleSwitch from "../../ToggleSwitch.vue";
 import RangeRow from "../RangeRow.vue";
 import SegmentedControl from "../SegmentedControl.vue";
-import SiteHistory from "../SiteHistory.vue";
 import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
-import { api } from "../../../api/index.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
 import { newId } from "../../../composables/layoutTree.js";
 
 /** Global design of the website, edited on the site draft; the builder canvas is its preview. */
-defineProps({
-  /** The builder is saving or loading; restoring a revision waits for it. */
-  busy: { type: Boolean, default: false },
-});
 const emit = defineEmits(["close"]);
 
 const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];

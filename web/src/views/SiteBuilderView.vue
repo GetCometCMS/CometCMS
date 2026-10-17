@@ -88,7 +88,20 @@
           <span v-if="themeDirty" class="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"></span>
         </button>
 
+        <!-- With the design panel open, the history is the design's. -->
         <SiteHistory
+          v-if="settingsOpen"
+          key="theme"
+          :title="t('site.history.themeTitle')"
+          :fetch-revisions="api.site.themeRevisions"
+          :restore-revision="api.site.restoreThemeRevision"
+          :dirty="themeDirty"
+          :busy="loading || saving || site.saving || site.loading"
+          @restored="site.applyRestoredTheme"
+        />
+        <SiteHistory
+          v-else
+          key="layout"
           :title="t(target === 'component' ? 'site.history.componentTitle' : 'site.history.layoutTitle')"
           :fetch-revisions="fetchRevisions"
           :restore-revision="restoreRevision"
@@ -156,7 +169,7 @@
         :max="rightMaxWidth"
         class="border-l border-slate-200"
       >
-        <SiteDesignPanel v-if="settingsOpen" :busy="saving || loading" @close="settingsOpen = false" />
+        <SiteDesignPanel v-if="settingsOpen" @close="settingsOpen = false" />
         <BuilderInspector v-else />
       </ResizableSidebar>
     </div>
@@ -250,7 +263,16 @@ const builder = createSiteBuilder({
     // Unsaved changes are guarded like any other way out of the builder.
     edit: (id) => router.push({ path: `/website/builder/component/${id}`, query: { back: route.fullPath } }),
   },
+  // Design edits are undone and redone together with layout edits.
+  linked: {
+    get: () => site.draft?.theme,
+    set: (theme) => {
+      if (site.draft) site.draft.theme = theme;
+    },
+  },
 });
+// Synchronous, so the store's own replacements while saving or loading are told apart from edits.
+watch(() => site.draft?.theme, () => builder.linkedChanged({ record: !site.saving && !site.loading }), { deep: true, flush: "sync" });
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(

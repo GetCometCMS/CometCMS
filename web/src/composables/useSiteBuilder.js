@@ -36,8 +36,11 @@ const HISTORY_LIMIT = 100
  *
  * `componentApi` connects reusable components: create({ name, nodes, type })
  * stores a new component, load(id) returns one with its nodes.
+ *
+ * `linked` ({ get(), set(value) }) is state outside the tree that shares its
+ * undo history, such as the site design; report its edits with linkedChanged().
  */
-export function createSiteBuilder({ t, componentApi = {} }) {
+export function createSiteBuilder({ t, componentApi = {}, linked = null }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
@@ -67,6 +70,8 @@ export function createSiteBuilder({ t, componentApi = {} }) {
   const future = ref([])
   let lastCoalesce = ''
   let lastChange = 0
+  /** JSON of the linked state as the history last saw it. */
+  let linkedSnapshot = readLinked()
 
   const selected = computed(() => (selectedId.value ? findNode(nodes.value, selectedId.value) : null))
   const isDirty = computed(() => JSON.stringify(nodes.value) !== savedSnapshot.value)
@@ -78,6 +83,7 @@ export function createSiteBuilder({ t, componentApi = {} }) {
     savedSnapshot.value = JSON.stringify(nodes.value)
     past.value = []
     future.value = []
+    linkedSnapshot = readLinked()
     if (selectedId.value && !findNode(nodes.value, selectedId.value)) selectedId.value = null
   }
 
@@ -89,31 +95,64 @@ export function createSiteBuilder({ t, componentApi = {} }) {
 
   /** Apply a change with an undo step; edits with the same `coalesce` key in quick succession share one. */
   function mutate(change, { coalesce = '' } = {}) {
+    record(coalesce, linkedSnapshot)
+    return change(nodes.value)
+  }
+
+  /**
+   * Turn an edit of the linked state into an undo step; edits in quick
+   * succession share one. With `record: false` the new state just becomes
+   * the baseline, e.g. after it was saved or reloaded.
+   */
+  function linkedChanged({ record: recordStep = true } = {}) {
+    const current = readLinked()
+    if (current === linkedSnapshot) return
+    const previous = linkedSnapshot
+    linkedSnapshot = current
+    // The first state that arrives is a load, not an edit.
+    if (recordStep && previous !== 'null') record('linked', previous)
+  }
+
+  function record(coalesce, linkedState) {
     const now = Date.now()
     if (!coalesce || coalesce !== lastCoalesce || now - lastChange > 1000) {
-      past.value.push(JSON.stringify(nodes.value))
+      past.value.push({ nodes: JSON.stringify(nodes.value), linked: linkedState })
       if (past.value.length > HISTORY_LIMIT) past.value.shift()
       future.value = []
     }
     lastCoalesce = coalesce
     lastChange = now
-    return change(nodes.value)
+  }
+
+  function readLinked() {
+    return linked ? JSON.stringify(linked.get() ?? null) : 'null'
+  }
+
+  function currentStep() {
+    return { nodes: JSON.stringify(nodes.value), linked: linkedSnapshot }
+  }
+
+  function restore(step) {
+    nodes.value = JSON.parse(step.nodes)
+    if (linked && step.linked !== 'null' && step.linked !== linkedSnapshot) {
+      // Set the snapshot first so the change this causes is not recorded again.
+      linkedSnapshot = step.linked
+      linked.set(JSON.parse(step.linked))
+    }
+    lastCoalesce = ''
+    keepSelection()
   }
 
   function undo() {
     if (!past.value.length) return
-    future.value.push(JSON.stringify(nodes.value))
-    nodes.value = JSON.parse(past.value.pop())
-    lastCoalesce = ''
-    keepSelection()
+    future.value.push(currentStep())
+    restore(past.value.pop())
   }
 
   function redo() {
     if (!future.value.length) return
-    past.value.push(JSON.stringify(nodes.value))
-    nodes.value = JSON.parse(future.value.pop())
-    lastCoalesce = ''
-    keepSelection()
+    past.value.push(currentStep())
+    restore(future.value.pop())
   }
 
   function keepSelection() {
@@ -503,7 +542,7 @@ export function createSiteBuilder({ t, componentApi = {} }) {
   const api = {
     nodes, spec, type, types, menus, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
-    load, markSaved, mutate, undo, redo, select, selectParent,
+    load, markSaved, mutate, linkedChanged, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
     updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
