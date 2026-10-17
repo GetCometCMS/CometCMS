@@ -59,20 +59,6 @@
           <Icon icon="mdi:file-document-edit-outline" class="h-5 w-5" />
           <span class="sr-only">{{ t("site.builder.editContent") }}</span>
         </router-link>
-        <a
-          v-if="liveUrl"
-          :href="liveUrl"
-          target="_blank"
-          rel="noopener"
-          class="topbar-action"
-          :title="`${t('site.builder.viewLive')} – ${liveUrl}`"
-        >
-          <Icon icon="mdi:open-in-new" class="h-5 w-5" />
-          <span class="sr-only">{{ t("site.builder.viewLive") }}</span>
-        </a>
-        <span v-else-if="liveHint" class="topbar-action cursor-default opacity-35" :title="liveHint">
-          <Icon icon="mdi:open-in-new" class="h-5 w-5" />
-        </span>
 
         <DeviceToggle v-model="device" />
 
@@ -98,10 +84,17 @@
           @restored="onRevisionRestored"
         />
 
-        <button type="button" class="btn-primary relative" :disabled="saving || loading || !builder.isDirty.value" @click="save">
+        <SplitButton
+          :primary-disabled="saving || loading || !builder.isDirty.value"
+          :menu-label="t('common.moreActions')"
+          :items="saveMenuItems"
+          @click="save"
+        >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
-          <span v-if="builder.isDirty.value && !saving" class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
-        </button>
+          <template #badge>
+            <span v-if="builder.isDirty.value && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
+          </template>
+        </SplitButton>
       </div>
     </header>
 
@@ -177,6 +170,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import SplitButton from "../components/SplitButton.vue";
 import DeviceToggle from "../components/site/DeviceToggle.vue";
 import SegmentedControl from "../components/site/SegmentedControl.vue";
 import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
@@ -233,6 +227,15 @@ const liveUrl = computed(() => {
   return entryUrl.value;
 });
 const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
+const saveMenuItems = computed(() => liveUrl.value || liveHint.value ? [{
+  key: "preview",
+  label: t("site.entry.preview"),
+  icon: "mdi:open-in-new",
+  href: liveUrl.value,
+  target: "_blank",
+  disabled: !liveUrl.value,
+  title: liveUrl.value ? `${t("site.builder.viewLive")} – ${liveUrl.value}` : liveHint.value,
+}] : []);
 const contentLink = computed(() => {
   if (target !== "layout" || variant === "index" || !previewEntry.value) return null;
   return builder.type.value?.singleton ? `/content/${name}` : `/content/${name}/${previewEntry.value}`;

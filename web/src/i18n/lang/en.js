@@ -35,6 +35,7 @@ const messages = {
     'common.areYouSure': 'Are you sure?',
     'common.remove': 'Remove',
     'common.saving': 'Saving...',
+    'common.moreActions': 'More actions',
 
     'profile.title': 'My profile',
     'profile.picture.title': 'Profile picture',

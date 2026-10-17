@@ -35,6 +35,7 @@ const messages = {
   'common.areYouSure': 'Bist du sicher?',
   'common.remove': 'Entfernen',
   'common.saving': 'Wird gespeichert...',
+  'common.moreActions': 'Weitere Aktionen',
 
   'profile.title': 'Mein Profil',
   'profile.picture.title': 'Profilbild',
