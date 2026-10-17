@@ -97,7 +97,10 @@ const quick = computed(() => {
   if (!kind) return [];
   const allowedStyle = builder.spec.value?.kinds?.[kind]?.style ?? [];
   if (kind === COMPONENT && node.value.props?.root !== "column") return [];
-  const list = QUICK[kind] ?? (allowedStyle.includes("align") ? [["style", "align"]] : []);
+  const list = [...(QUICK[kind] ?? [])];
+  if (allowedStyle.includes("align") && !list.some(([group, key]) => group === "style" && key === "align")) {
+    list.push(["style", "align"]);
+  }
   return list.filter(([group, key]) => (group === "style" ? allowedStyle.includes(key) : key in (builder.spec.value?.kinds?.[kind]?.props ?? {})));
 });
 
