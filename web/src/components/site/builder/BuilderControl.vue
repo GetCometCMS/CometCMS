@@ -249,6 +249,8 @@ const label = computed(() => {
 const hint = computed(() => {
   if (props.name === "class") return t("site.builder.classHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
+  if (props.node.kind === "section" && props.name === "sticky" && props.value !== "none") return t("site.builder.stickyHint");
+  if (props.node.kind === "section" && props.name === "overlap" && props.value) return t("site.builder.overlapHint");
   return "";
 });
 

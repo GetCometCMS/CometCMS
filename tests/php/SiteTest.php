@@ -489,7 +489,7 @@ test('custom theme colors validate tokens and values and generate both palettes'
     assert_true(str_contains($css, '--c-custom-brand:#aabbcc;'));
     assert_true(str_contains($css, '@media (prefers-color-scheme: dark){:root{'));
     assert_true(str_contains($css, '--c-custom-brand:#123456;'));
-    assert_true(str_contains($css, '.c-bg-custom-brand{background-color:var(--c-custom-brand);color:var(--c-on-custom-brand);}'));
+    assert_true(str_contains($css, '.c-bg-custom-brand{--c-fill:var(--c-custom-brand);background-color:var(--c-custom-brand);color:var(--c-on-custom-brand);}'));
     assert_true(str_contains($css, '.c-fg-custom-brand{color:var(--c-custom-brand);}'));
     assert_false(str_contains($css, '</style>'));
     assert_false(str_contains($css, 'background:url(x)'));
@@ -736,6 +736,32 @@ test('column reversal persists independently per device and orders every column'
             assert_true(strpos($html, 'Second column') < strpos($html, 'Third column'));
             assert_true(strpos($html, 'Third column') < strpos($html, 'Fourth column'));
         }
+    }
+});
+
+test('section scroll behavior upgrades the old sticky switch and only adds effects to sections that stay in view', function (): void {
+    $site = comet_site_test_setup();
+    $row = fn(): array => LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading')])]);
+
+    foreach ([
+        [['sticky' => true], 'always', ['c-sticky']],
+        [['sticky' => false], 'none', []],
+        [['sticky' => 'sideways'], 'none', []],
+        [['sticky' => 'reveal', 'scroll_effect' => ['shadow', 'glass', 'bogus']], 'reveal', ['c-sticky', 'c-sticky-reveal', 'c-scroll-shadow', 'c-scroll-glass']],
+        [['overlap' => true, 'scroll_effect' => ['compact']], 'none', ['c-overlap', 'c-scroll-compact']],
+        // A section that scrolls away has nothing to show its effects on.
+        [['scroll_effect' => ['shadow']], 'none', []],
+    ] as [$props, $sticky, $classes]) {
+        $saved = $site->saveRegion('header', [['kind' => 'section', 'props' => $props, 'children' => [$row()]]]);
+        $reloaded = (new SiteRepository())->region('header');
+        assert_same($saved, $reloaded);
+        assert_same($sticky, $reloaded[0]['props']['sticky']);
+        assert_same(array_values(array_intersect(['shadow', 'glass', 'compact'], (array) ($props['scroll_effect'] ?? []))), $reloaded[0]['props']['scroll_effect']);
+
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($reloaded);
+        preg_match('/<section class="([^"]*)"/', $html, $match);
+        $rendered = array_values(array_filter(explode(' ', $match[1]), static fn(string $class): bool => preg_match('/^c-(sticky|overlap|scroll-)/', $class) === 1));
+        assert_same($classes, $rendered);
     }
 });
 

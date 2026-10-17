@@ -62,6 +62,31 @@ test('menu button mode persists and overrides mobile collapsing without changing
     }
 });
 
+test('menu panels render a close control only when a button opens them', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+
+    foreach ([
+        [['panel' => 'fullscreen'], ' c-menu-fullscreen', 1, 0],
+        [['panel' => 'drawer', 'always_button' => true], ' c-menu-drawer', 1, 1],
+        [['panel' => 'drawer', 'collapse_mobile' => false], '', 0, 0],
+        [['panel' => 'sideways'], '', 0, 0],
+        [[], '', 0, 0],
+    ] as [$props, $class, $closes, $backdrops]) {
+        $menu = LayoutSchema::node('menu', $props);
+        $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+        foreach (['fullscreen', 'drawer'] as $panel) {
+            assert_same($class === ' c-menu-' . $panel, str_contains($html, ' c-menu-' . $panel));
+        }
+        assert_same($closes, substr_count($html, 'class="c-menu-close"'));
+        assert_same($backdrops, substr_count($html, 'class="c-menu-backdrop"'));
+        // Every close control toggles this menu's own switch.
+        preg_match('/id="(menu-[^"]+)"/', $html, $toggle);
+        assert_same($closes + $backdrops + ($toggle ? 1 : 0), $toggle ? substr_count($html, 'for="' . $toggle[1] . '"') : 0);
+    }
+});
+
 test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
     $site = new SiteRepository();
     $menus = [['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_chain(5), comet_menu_test_item('second')]]];

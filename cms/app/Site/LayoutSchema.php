@@ -164,7 +164,12 @@ final class LayoutSchema
                 'width' => ['type' => 'enum', 'options' => ['contained', 'narrow', 'full'], 'default' => 'contained'],
                 'min_height' => ['type' => 'enum', 'options' => ['', 'half', 'screen'], 'default' => ''],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
-                'sticky' => ['type' => 'bool', 'default' => false],
+                // Always stays at the top; reveal hides it while scrolling down and brings it back on the way up.
+                'sticky' => ['type' => 'enum', 'options' => ['none', 'always', 'reveal'], 'default' => 'none'],
+                // Takes no room: the content below starts underneath, as behind a transparent header.
+                'overlap' => ['type' => 'bool', 'default' => false],
+                // How a sticky or floating section changes once the page is scrolled.
+                'scroll_effect' => ['type' => 'set', 'options' => ['shadow', 'glass', 'compact'], 'default' => []],
             ],
             'row' => [
                 'gap' => ['type' => 'enum', 'options' => ['none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => 'md'],
@@ -253,6 +258,8 @@ final class LayoutSchema
                 'always_button' => ['type' => 'bool', 'default' => false],
                 'orientation' => ['type' => 'enum', 'options' => ['horizontal', 'vertical'], 'default' => 'horizontal'],
                 'collapse_mobile' => ['type' => 'bool', 'default' => true],
+                // How the menu button shows the list.
+                'panel' => ['type' => 'enum', 'options' => ['dropdown', 'fullscreen', 'drawer'], 'default' => 'dropdown'],
             ],
             'site_title' => [
                 'show_logo' => ['type' => 'bool', 'default' => true],
@@ -751,6 +758,10 @@ final class LayoutSchema
 
     private static function normalizeProps(string $kind, array $props): array
     {
+        // Sections used to be either sticky or not.
+        if ($kind === 'section' && is_bool($props['sticky'] ?? null)) {
+            $props['sticky'] = $props['sticky'] ? 'always' : 'none';
+        }
         $normalized = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {

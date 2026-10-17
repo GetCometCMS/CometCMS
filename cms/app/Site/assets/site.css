@@ -67,6 +67,42 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-section.c-v-center > .c-container, .c-section.c-v-center { justify-content: center; }
 .c-section.c-v-end > .c-container, .c-section.c-v-end { justify-content: flex-end; }
 .c-sticky { position: sticky; top: 0; z-index: 40; }
+/* A sticky header section stays in view down the whole page, not just across the header. */
+.c-header:has(> .c-sticky) { display: contents; }
+/* Floating sections take no room, so the content below starts underneath them. */
+.c-overlap { position: absolute; left: 0; right: 0; z-index: 40; }
+.c-overlap.c-sticky { position: fixed; top: 0; }
+.c-sticky, .c-overlap { transition: translate .3s ease, background-color .3s, box-shadow .3s, padding .3s, margin .3s; }
+/* An open menu panel stays above everything else, sticky sections further down included. */
+.c-section:has(.c-menu-toggle:checked) { z-index: 1000; }
+/*
+ * Scroll states come from the page itself (no scripts): scrolled down or up,
+ * and whether it is scrolled at all. Browsers without them keep the section
+ * in place, with its background, and without the effects.
+ */
+html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
+@container scroll-state(scrolled: bottom) {
+  .c-sticky-reveal:not(:focus-within, :has(.c-menu-toggle:checked)) { translate: 0 calc(-100% - 2rem); }
+}
+@container not scroll-state(scrollable: top) {
+  .c-site .c-section.c-overlap { background-color: transparent; --c-bd-c: transparent; box-shadow: none; }
+}
+@container scroll-state(scrollable: top) {
+  .c-site .c-section.c-scroll-shadow { box-shadow: 0 10px 30px -14px rgb(0 0 0 / 0.35); }
+  .c-site .c-section.c-scroll-glass { background-color: color-mix(in srgb, var(--c-fill, var(--c-background)) 72%, transparent); }
+  /* On a layer of its own: a filter on the section would trap a full-screen menu inside it. */
+  .c-scroll-glass::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+  }
+  /* Margin makes up for the padding, so the page does not shift (and jump back to the top) while scrolling. */
+  .c-site .c-section.c-scroll-compact {
+    padding-top: min(var(--c-py, 0px), var(--space-xs)) !important; padding-bottom: min(var(--c-py, 0px), var(--space-xs)) !important;
+    margin-bottom: calc(2 * max(0px, var(--c-py, 0px) - var(--space-xs)));
+  }
+  .c-scroll-compact .c-logo { max-height: 2.1em; }
+}
+.c-logo { transition: max-height .3s; }
 .c-has-bg-image { color: inherit; }
 /* Columns and elements anchor overlay and blur layers; sections stay sticky when asked. */
 :where(.c-has-bg-image) { position: relative; }
@@ -87,7 +123,7 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-overlay-dark { color: #fff; }
 .c-overlay-light::before { background: rgb(255 255 255 / 0.65); }
 .c-overlay-light { color: #0f172a; }
-.c-region .c-section:not(.c-py-none):not([class*="c-py-"]) { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+.c-region .c-section:not(.c-py-none):not([class*="c-py-"]) { --c-py: var(--space-sm); padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
 
 /* Background images (sections, columns and elements) and focal points */
 .c-bg-size-cover { background-size: cover; }
@@ -343,6 +379,44 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
   .c-ta-right .c-menu-collapsible .c-menu-list { left: auto; right: 0; }
   .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu { position: static; width: auto; max-width: none; max-height: none; min-width: 0; overflow: visible; box-shadow: none; border: 0; padding: 0 0 0 1em; }
 }
+/* Without a visible button there is nothing to toggle, so keyboard focus skips the switch. */
+@media (min-width: 768px) {
+  .c-menu-collapsible:not(.c-menu-always-button) > .c-menu-toggle { display: none; }
+}
+
+/* Full-screen and side panel menus */
+.c-menu-close, .c-menu-backdrop { display: none; }
+.c-menu-fullscreen > .c-menu-toggle:checked ~ .c-menu-list,
+.c-menu-drawer > .c-menu-toggle:checked ~ .c-menu-list {
+  display: flex !important; position: fixed; z-index: 1000; flex-direction: column; flex-wrap: nowrap; gap: 0.2em;
+  width: auto; min-width: 0; max-width: none; margin: 0; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--c-background); color: var(--c-text); border: 0; border-radius: 0; box-shadow: none;
+  transition: opacity .25s ease, translate .3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.c-menu-fullscreen > .c-menu-toggle:checked ~ .c-menu-list {
+  inset: 0; justify-content: safe center; align-items: center; text-align: center; padding: 4.5rem var(--gutter, 1.25rem); font-size: var(--fs-2xl);
+}
+.c-menu-fullscreen .c-submenu { font-size: var(--fs-base); }
+.c-menu-fullscreen.c-menu .c-submenu { padding-left: 0; }
+.c-menu-drawer > .c-menu-toggle:checked ~ .c-menu-list {
+  top: 0; right: 0; bottom: 0; left: auto; width: min(22rem, 85vw); padding: 4.5rem 1rem 1.5rem;
+  justify-content: flex-start; align-items: stretch; text-align: left; font-size: var(--fs-lg); box-shadow: -20px 0 50px -20px rgb(0 0 0 / 0.35);
+}
+@starting-style {
+  .c-menu-fullscreen > .c-menu-toggle:checked ~ .c-menu-list { opacity: 0; }
+  .c-menu-drawer > .c-menu-toggle:checked ~ .c-menu-list { translate: 100% 0; }
+  .c-menu-toggle:checked ~ .c-menu-backdrop { opacity: 0; }
+}
+.c-menu-toggle:checked ~ .c-menu-close {
+  display: block; position: fixed; top: 1rem; right: 1rem; z-index: 1001; width: 2.6em; height: 2.6em;
+  border-radius: var(--radius); cursor: pointer; color: var(--c-text);
+}
+.c-menu-close::before, .c-menu-close::after { content: ""; position: absolute; top: 50%; left: 25%; right: 25%; height: 2px; margin-top: -1px; background: currentColor; border-radius: 2px; rotate: 45deg; }
+.c-menu-close::after { rotate: -45deg; }
+.c-menu-close:hover { background: rgb(var(--c-primary-rgb) / 0.07); }
+.c-menu-toggle:checked ~ .c-menu-backdrop { display: block; position: fixed; inset: 0; z-index: 999; background: rgb(0 0 0 / 0.45); cursor: pointer; transition: opacity .25s; }
+/* The page stays put behind an open panel. */
+html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-toggle:checked) { overflow: hidden; }
 .c-languages ul { list-style: none; display: flex; gap: 0.35em; margin: 0; padding: 0; }
 .c-languages a { display: inline-block; padding: 0.25em 0.5em; border-radius: calc(var(--radius) * 0.75); text-decoration: none; color: inherit; font-size: var(--fs-sm); font-weight: 600; opacity: 0.7; }
 .c-languages a[aria-current] { opacity: 1; background: rgb(var(--c-primary-rgb) / 0.1); color: var(--c-primary); }
@@ -353,12 +427,13 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 
 /* ── Style tokens ─────────────────────────────────────────────────────── */
 .c-py-none { padding-top: 0; padding-bottom: 0; }
-.c-py-xs { padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
-.c-py-sm { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
-.c-py-md { padding-top: var(--space-md); padding-bottom: var(--space-md); }
-.c-py-lg { padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
-.c-py-xl { padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
-.c-py-2xl { padding-top: var(--space-2xl); padding-bottom: var(--space-2xl); }
+/* --c-py lets a compact sticky section know how much padding it gives up. */
+.c-py-xs { --c-py: var(--space-xs); padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
+.c-py-sm { --c-py: var(--space-sm); padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+.c-py-md { --c-py: var(--space-md); padding-top: var(--space-md); padding-bottom: var(--space-md); }
+.c-py-lg { --c-py: var(--space-lg); padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
+.c-py-xl { --c-py: var(--space-xl); padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
+.c-py-2xl { --c-py: var(--space-2xl); padding-top: var(--space-2xl); padding-bottom: var(--space-2xl); }
 .c-px-none { padding-left: 0; padding-right: 0; }
 .c-px-xs { padding-left: var(--space-xs); padding-right: var(--space-xs); }
 .c-px-sm { padding-left: var(--space-sm); padding-right: var(--space-sm); }
@@ -373,14 +448,14 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-mb-xl { margin-bottom: var(--space-xl); }
 .c-mb-2xl { margin-bottom: var(--space-2xl); }
 
-.c-bg-background { background-color: var(--c-background); color: var(--c-text); }
-.c-bg-surface { background-color: var(--c-surface); color: var(--c-text); }
-.c-bg-primary { background-color: var(--c-primary); color: var(--c-on-primary); }
-.c-bg-secondary { background-color: var(--c-secondary); color: var(--c-on-secondary); }
-.c-bg-accent { background-color: var(--c-accent); color: var(--c-on-accent); }
-.c-bg-text { background-color: var(--c-text); color: var(--c-on-text); }
-.c-bg-muted { background-color: var(--c-muted); color: var(--c-on-muted); }
-.c-bg-border { background-color: var(--c-border); color: var(--c-on-border); }
+.c-bg-background { --c-fill: var(--c-background); background-color: var(--c-background); color: var(--c-text); }
+.c-bg-surface { --c-fill: var(--c-surface); background-color: var(--c-surface); color: var(--c-text); }
+.c-bg-primary { --c-fill: var(--c-primary); background-color: var(--c-primary); color: var(--c-on-primary); }
+.c-bg-secondary { --c-fill: var(--c-secondary); background-color: var(--c-secondary); color: var(--c-on-secondary); }
+.c-bg-accent { --c-fill: var(--c-accent); background-color: var(--c-accent); color: var(--c-on-accent); }
+.c-bg-text { --c-fill: var(--c-text); background-color: var(--c-text); color: var(--c-on-text); }
+.c-bg-muted { --c-fill: var(--c-muted); background-color: var(--c-muted); color: var(--c-on-muted); }
+.c-bg-border { --c-fill: var(--c-border); background-color: var(--c-border); color: var(--c-on-border); }
 .c-bg-primary a:not(.c-button), .c-bg-secondary a:not(.c-button), .c-bg-accent a:not(.c-button) { color: inherit; }
 .c-bg-primary .c-button-primary { background: var(--c-on-primary); color: var(--c-primary); }
 .c-bg-primary .c-button-outline, .c-bg-secondary .c-button-outline { color: inherit; }
@@ -455,7 +530,11 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
   --c-anim-ms: var(--motion-normal, 700);
   --c-anim-step: 0;
   --c-anim-shift: 1.5rem;
-  animation: calc(var(--c-anim-ms) * 1ms) cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--c-anim-step) * var(--motion-stagger, 120) * 1ms) both;
+  /*
+   * The keyframes only set where an animation starts, so nothing needs to be
+   * held once it ends; a held transform would trap full-screen menus inside.
+   */
+  animation: calc(var(--c-anim-ms) * 1ms) cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--c-anim-step) * var(--motion-stagger, 120) * 1ms) backwards;
 }
 .c-anim.c-anim-fast { --c-anim-ms: var(--motion-fast, 400); }
 .c-anim.c-anim-slow { --c-anim-ms: var(--motion-slow, 1100); }
@@ -506,6 +585,8 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 /* ── Preview & builder ────────────────────────────────────────────────── */
 .c-preview-bar { position: sticky; top: 0; z-index: 100; background: #f59e0b; color: #1f2937; text-align: center; font: 600 13px/1.4 system-ui, sans-serif; padding: 6px 12px; }
 .c-preview-main { border: 2px dashed var(--c-border); border-radius: var(--radius-box); padding: var(--space-2xl) var(--space-md); text-align: center; color: var(--c-muted); }
+/* Room to scroll, so a sticky or floating header can be tried out while editing it. */
+.c-view-region-preview:has(.c-header .c-sticky, .c-header .c-overlap) .c-preview-main { min-height: 160vh; }
 .c-placeholder { border: 1px dashed var(--c-border); border-radius: calc(var(--radius-box) * 0.75); padding: 0.75em 1em; color: var(--c-muted); font: 13px/1.4 system-ui, sans-serif; background: repeating-linear-gradient(-45deg, transparent 0 8px, rgb(var(--c-primary-rgb) / 0.04) 8px 16px); }
 .c-placeholder-warning { border-color: #f59e0b; color: #b45309; }
 .c-placeholder-drop { min-height: 3.5em; display: flex; align-items: center; justify-content: center; }

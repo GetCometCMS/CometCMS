@@ -254,8 +254,15 @@ const visibleProps = computed(() => {
     return keys.filter((key) => (props.direction === "row" || !["content_justify", "content_align"].includes(key)) && (key !== "span" || !builder.isCard(current)));
   }
 
-  if (current.kind === "menu" && props.always_button) {
-    return keys.filter((key) => !["orientation", "collapse_mobile"].includes(key));
+  if (current.kind === "section") {
+    // Scroll effects show on a section that stays in view while scrolling.
+    return keys.filter((key) => key !== "scroll_effect" || (props.sticky ?? "none") !== "none" || props.overlap);
+  }
+
+  if (current.kind === "menu") {
+    // The panel style only matters once there is a menu button.
+    const hasButton = props.always_button || props.collapse_mobile;
+    return keys.filter((key) => (key !== "panel" || hasButton) && (!props.always_button || !["orientation", "collapse_mobile"].includes(key)));
   }
 
   return keys;

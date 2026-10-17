@@ -177,8 +177,20 @@ final class NodeRenderer
         if ($props['vertical_align'] !== 'start') {
             $classes[] = 'c-v-' . $props['vertical_align'];
         }
-        if ($props['sticky']) {
+        if ($props['sticky'] !== 'none') {
             $classes[] = 'c-sticky';
+            if ($props['sticky'] === 'reveal') {
+                $classes[] = 'c-sticky-reveal';
+            }
+        }
+        if ($props['overlap']) {
+            $classes[] = 'c-overlap';
+        }
+        // Scroll effects only show on a section that is still in view once the page scrolls.
+        if ($props['sticky'] !== 'none' || $props['overlap']) {
+            foreach ($props['scroll_effect'] as $effect) {
+                $classes[] = 'c-scroll-' . $effect;
+            }
         }
 
         $background = $this->background($node['style']);
@@ -461,17 +473,23 @@ final class NodeRenderer
         $list = $this->menuItems($menu['items'], $state, 'c-menu-list');
         $collapsible = $props['always_button'] || $props['collapse_mobile'];
         $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
-            . ($props['always_button'] ? ' c-menu-always-button' : '');
-        $toggle = '';
+            . ($props['always_button'] ? ' c-menu-always-button' : '')
+            . ($collapsible && $props['panel'] !== 'dropdown' ? ' c-menu-' . $props['panel'] : '');
+        $toggle = $close = '';
 
         if ($collapsible) {
             // A component or card can render the same menu node several times.
             $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
             $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="Menu">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';
+            // A full-screen or side panel covers the menu button, so it brings its own way to close.
+            if ($props['panel'] !== 'dropdown') {
+                $close = '<label for="' . $id . '" class="c-menu-close" aria-hidden="true"></label>'
+                    . ($props['panel'] === 'drawer' ? '<label for="' . $id . '" class="c-menu-backdrop" aria-hidden="true"></label>' : '');
+            }
         }
 
-        return $this->element($node, '<nav class="' . $classes . '" aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . '</nav>');
+        return $this->element($node, '<nav class="' . $classes . '" aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
     }
 
     private function menuItems(array $items, array $state, string $class): string

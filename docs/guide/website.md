@@ -92,7 +92,19 @@ The builder stores layouts as structured JSON and shares its schema with the ser
 
 The header and footer are shown on every page and are edited directly in the page builder: select the header or footer to edit its shared layout. Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.
 
-Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button and its dropdown at every screen size, including desktop.
+Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button at every screen size, including desktop. **Menu button opens** chooses what the button shows: a dropdown under the button, a full-screen menu with large centered links, or a side panel that slides in from the right over a dimmed page. Full-screen menus and side panels have their own close button (clicking the dimmed page also closes a side panel), and the page behind them does not scroll while they are open.
+
+### Sticky and floating headers
+
+Each section has scroll options in its content settings, usually used for the section in the header that holds the logo and menu:
+
+| Option                           | Effect                                                                                                                                                                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stick to the top**             | **Always** keeps the section at the top of the window down the whole page. **When scrolling up** hides it while the visitor scrolls down and brings it back as soon as they scroll up. Other header sections, such as a top bar above, scroll away normally. |
+| **Float over the content below** | The section takes no room, so the page's first section (a hero image, for example) starts underneath it. It stays transparent at the top of the page and shows its background once the visitor scrolls.                                             |
+| **When scrolled**                | For sticky and floating sections: add a **Shadow**, make the background **Frosted** (translucent and blurred), or make the section **Compact** by reducing its vertical padding.                                                                      |
+
+A floating sticky section is pinned to the very top of the window, so use it as the header's first section. When editing the header, the preview gets extra room so you can scroll it and try these options. Pages still ship no JavaScript: these effects use CSS scroll states. Browsers without them, such as Firefox, keep **When scrolling up** sections always visible, show floating sections with their background, and skip the scroll effects.
 
 The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
 

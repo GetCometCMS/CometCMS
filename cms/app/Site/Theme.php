@@ -211,7 +211,7 @@ final class Theme
         $css .= self::headingStyles($theme['headings']);
 
         foreach ($theme['custom_colors'] as $key => $_color) {
-            $css .= "\n.c-bg-" . $key . '{background-color:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
+            $css .= "\n.c-bg-" . $key . '{--c-fill:var(--c-' . $key . ');background-color:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
             $css .= '.c-fg-' . $key . '{color:var(--c-' . $key . ');}';
             $css .= '.c-bd.c-bdc-' . $key . '{--c-bd-c:var(--c-' . $key . ');}';
             $css .= '.c-bg-' . $key . ' a:not(.c-button){color:inherit;}';

@@ -1,11 +1,8 @@
 <template>
   <div ref="containerRef" class="relative h-full w-full overflow-hidden">
     <div
-      class="mx-auto origin-top-left overflow-hidden bg-white shadow-sm ring-1 ring-slate-200"
-      :class="[
-        device === 'desktop' || device === 'full' ? 'rounded-none' : 'rounded-xl',
-        { 'transition-[width] duration-200': device !== 'full' },
-      ]"
+      class="mx-auto origin-top-left overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200"
+      :class="{ 'transition-[width] duration-200': device !== 'full' }"
       :style="frameBoxStyle"
     >
       <iframe
