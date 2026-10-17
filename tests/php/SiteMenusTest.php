@@ -87,6 +87,60 @@ test('menu panels render a close control only when a button opens them', functio
     }
 });
 
+test('menu panel position and palette persist and render in public and builder views', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+
+    foreach ([
+        ['drawer', 'left', 'custom-brand', 'inverse', 'background'],
+        ['drawer', 'right', 'surface', 'text', 'text'],
+        ['fullscreen', 'left', 'primary', 'custom-brand', 'custom-brand'],
+    ] as [$panel, $side, $background, $text, $textToken]) {
+        $menu = LayoutSchema::node('menu', [
+            'panel' => $panel, 'panel_side' => $side, 'always_button' => true,
+            'panel_background' => $background, 'panel_text_color' => $text,
+        ]);
+        $saved = $site->saveRegion('header', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $reloaded = (new SiteRepository())->region('header');
+        assert_same($saved, $reloaded);
+        $props = $reloaded[0]['children'][0]['children'][0]['children'][0]['props'];
+        assert_same($side, $props['panel_side']);
+        assert_same($background, $props['panel_background']);
+        assert_same($text, $props['panel_text_color']);
+
+        foreach ([false, true] as $annotate) {
+            $context = comet_site_test_context($site);
+            $context->annotate = $annotate;
+            $html = (new NodeRenderer($context))->render($reloaded);
+            assert_same($panel === 'drawer', str_contains($html, ' c-menu-drawer-' . $side));
+            assert_true(str_contains($html, '--c-menu-background:var(--c-' . $background . ')'));
+            assert_true(str_contains($html, '--c-menu-text:var(--c-' . $textToken . ')'));
+        }
+    }
+});
+
+test('menu panel options default safely and do not style dropdowns or menus without a button', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+    foreach ([[], ['panel_side' => 'top', 'panel_background' => 'custom-evil; color:red', 'panel_text_color' => ['primary']]] as $props) {
+        $menu = LayoutSchema::node('menu', $props);
+        $normalized = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $savedProps = $normalized[0]['children'][0]['children'][0]['children'][0]['props'];
+        assert_same('right', $savedProps['panel_side']);
+        assert_same('', $savedProps['panel_background']);
+        assert_same('', $savedProps['panel_text_color']);
+    }
+
+    foreach ([['panel' => 'dropdown'], ['panel' => 'drawer', 'collapse_mobile' => false], ['panel' => 'fullscreen', 'collapse_mobile' => false]] as $props) {
+        $menu = LayoutSchema::node('menu', $props + ['panel_side' => 'left', 'panel_background' => 'primary', 'panel_text_color' => 'inverse']);
+        $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+        assert_false(str_contains($html, '--c-menu-background'));
+        assert_false(str_contains($html, '--c-menu-text'));
+        assert_false(str_contains($html, ' c-menu-drawer-left'));
+    }
+});
+
 test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
     $site = new SiteRepository();
     $menus = [['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_chain(5), comet_menu_test_item('second')]]];

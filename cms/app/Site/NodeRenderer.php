@@ -472,10 +472,21 @@ final class NodeRenderer
 
         $list = $this->menuItems($menu['items'], $state, 'c-menu-list');
         $collapsible = $props['always_button'] || $props['collapse_mobile'];
+        $hasPanel = $collapsible && $props['panel'] !== 'dropdown';
         $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
             . ($props['always_button'] ? ' c-menu-always-button' : '')
-            . ($collapsible && $props['panel'] !== 'dropdown' ? ' c-menu-' . $props['panel'] : '');
+            . ($hasPanel ? ' c-menu-' . $props['panel'] : '')
+            . ($hasPanel && $props['panel'] === 'drawer' ? ' c-menu-drawer-' . $props['panel_side'] : '');
         $toggle = $close = '';
+        $panelStyle = [];
+        if ($hasPanel) {
+            foreach (['panel_background' => '--c-menu-background', 'panel_text_color' => '--c-menu-text'] as $key => $variable) {
+                if ($props[$key] !== '') {
+                    $color = $props[$key] === 'inverse' ? 'background' : $props[$key];
+                    $panelStyle[] = $variable . ':var(--c-' . $color . ')';
+                }
+            }
+        }
 
         if ($collapsible) {
             // A component or card can render the same menu node several times.
@@ -489,7 +500,9 @@ final class NodeRenderer
             }
         }
 
-        return $this->element($node, '<nav class="' . $classes . '" aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
+        $style = $panelStyle !== [] ? ' style="' . Security::e(implode(';', $panelStyle)) . '"' : '';
+
+        return $this->element($node, '<nav class="' . $classes . '"' . $style . ' aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
     }
 
     private function menuItems(array $items, array $state, string $class): string

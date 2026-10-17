@@ -260,6 +260,9 @@ final class LayoutSchema
                 'collapse_mobile' => ['type' => 'bool', 'default' => true],
                 // How the menu button shows the list.
                 'panel' => ['type' => 'enum', 'options' => ['dropdown', 'fullscreen', 'drawer'], 'default' => 'dropdown'],
+                'panel_side' => ['type' => 'enum', 'options' => ['left', 'right'], 'default' => 'right'],
+                'panel_background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+                'panel_text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
             ],
             'site_title' => [
                 'show_logo' => ['type' => 'bool', 'default' => true],

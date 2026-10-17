@@ -262,7 +262,13 @@ const visibleProps = computed(() => {
   if (current.kind === "menu") {
     // The panel style only matters once there is a menu button.
     const hasButton = props.always_button || props.collapse_mobile;
-    return keys.filter((key) => (key !== "panel" || hasButton) && (!props.always_button || !["orientation", "collapse_mobile"].includes(key)));
+    const rules = {
+      panel: hasButton,
+      panel_side: hasButton && props.panel === "drawer",
+      panel_background: hasButton && ["fullscreen", "drawer"].includes(props.panel),
+      panel_text_color: hasButton && ["fullscreen", "drawer"].includes(props.panel),
+    };
+    return keys.filter((key) => rules[key] !== false && (!props.always_button || !["orientation", "collapse_mobile"].includes(key)));
   }
 
   return keys;
