@@ -71,41 +71,6 @@
           </button>
         </div>
 
-        <button
-          type="button"
-          class="topbar-action"
-          :class="{ 'is-active': settingsOpen }"
-          :aria-pressed="settingsOpen"
-          :title="t('site.builder.designSettings')"
-          @click="toggleSettings"
-        >
-          <Icon icon="mdi:cog-outline" class="h-5 w-5" />
-          <span class="sr-only">{{ t("site.builder.designSettings") }}</span>
-          <span v-if="themeDirty" class="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"></span>
-        </button>
-
-        <!-- With the design panel open, the history is the design's. -->
-        <SiteHistory
-          v-if="settingsOpen"
-          key="theme"
-          :title="t('site.history.themeTitle')"
-          :fetch-revisions="api.site.themeRevisions"
-          :restore-revision="api.site.restoreThemeRevision"
-          :dirty="themeDirty"
-          :busy="loading || saving || site.saving || site.loading"
-          @restored="site.applyRestoredTheme"
-        />
-        <SiteHistory
-          v-else
-          key="layout"
-          :title="t(target === 'component' ? 'site.history.componentTitle' : 'site.history.layoutTitle')"
-          :fetch-revisions="fetchRevisions"
-          :restore-revision="restoreRevision"
-          :dirty="builder.isDirty.value"
-          :busy="loading || saving"
-          @restored="onRevisionRestored"
-        />
-
         <SplitButton
           :primary-disabled="saving || loading || (!layoutSavable && !themeDirty)"
           :menu-label="t('common.moreActions')"
@@ -127,28 +92,74 @@
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
     <div v-else ref="builderAreaRef" class="flex min-h-0 flex-1">
-      <!-- Palette & outline -->
+      <!-- Panel rail: one left panel at a time; picking the open one collapses it. -->
+      <nav class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2" :aria-label="t('site.builder.panels')">
+        <button
+          v-for="panel in panels"
+          :key="panel.value"
+          type="button"
+          class="rail-action"
+          :class="{ 'is-active': leftPanel === panel.value }"
+          :aria-pressed="leftPanel === panel.value"
+          :title="panel.label"
+          @click="togglePanel(panel.value)"
+        >
+          <Icon :icon="panel.icon" class="h-5 w-5" />
+          <span class="sr-only">{{ panel.label }}</span>
+          <span v-if="panel.dirty" class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"></span>
+        </button>
+      </nav>
+
       <ResizableSidebar
+        v-if="leftPanel"
         v-model="leftWidth"
         side="left"
         :label="t('site.builder.resizeLeft')"
-        :min="224"
+        :min="leftMinWidth"
         :max="leftMaxWidth"
         class="border-r border-slate-200"
       >
-        <div class="border-b border-slate-200 p-2">
-          <SegmentedControl
-            v-model="leftTab"
-            :options="[
-              { value: 'add', label: t('site.builder.add'), icon: 'mdi:plus-box-outline', showLabel: true },
-              { value: 'outline', label: t('site.builder.outline'), icon: 'mdi:file-tree-outline', showLabel: true },
-            ]"
-          />
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-auto">
-          <BuilderPalette v-if="leftTab === 'add'" :with-fields="builder.currentAvailable.value" />
-          <BuilderOutline v-else />
-        </div>
+        <SiteDesignPanel v-if="leftPanel === 'design'" @close="leftPanel = null" />
+        <template v-else>
+          <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
+            <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
+              <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
+              <span class="sr-only">{{ t("site.builder.closePanel") }}</span>
+            </button>
+          </div>
+          <div v-if="leftPanel === 'history'" class="border-b border-slate-200 p-2">
+            <SegmentedControl
+              v-model="historyScope"
+              :options="[
+                { value: 'layout', label: t(target === 'component' ? 'site.history.scope.component' : 'site.history.scope.layout') },
+                { value: 'theme', label: t('site.history.scope.design') },
+              ]"
+            />
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
+            <BuilderOutline v-else-if="leftPanel === 'outline'" />
+            <BuilderHistory
+              v-else-if="historyScope === 'theme'"
+              :key="`theme-${historyVersion}`"
+              :fetch-revisions="api.site.themeRevisions"
+              :restore-revision="api.site.restoreThemeRevision"
+              :dirty="themeDirty"
+              :busy="saving || site.saving || site.loading"
+              @restored="site.applyRestoredTheme"
+            />
+            <BuilderHistory
+              v-else
+              :key="`layout-${historyVersion}`"
+              :fetch-revisions="fetchRevisions"
+              :restore-revision="restoreRevision"
+              :dirty="builder.isDirty.value"
+              :busy="saving"
+              @restored="onRevisionRestored"
+            />
+          </div>
+        </template>
       </ResizableSidebar>
 
       <!-- Canvas -->
@@ -161,12 +172,11 @@
         v-model="rightWidth"
         side="right"
         :label="t('site.builder.resizeRight')"
-        :min="settingsOpen ? SETTINGS_MIN_WIDTH : 256"
+        :min="256"
         :max="rightMaxWidth"
         class="border-l border-slate-200"
       >
-        <SiteDesignPanel v-if="settingsOpen" @close="settingsOpen = false" />
-        <BuilderInspector v-else />
+        <BuilderInspector />
       </ResizableSidebar>
     </div>
 
@@ -220,8 +230,8 @@ import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
+import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
-import SiteHistory from "../components/site/SiteHistory.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
@@ -266,13 +276,30 @@ const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
   (to) => builder.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
 );
 
+const RAIL_WIDTH = 48;
+const DESIGN_MIN_WIDTH = 320;
+/** The open left panel: "add", "outline", "design", "history", or null when collapsed. */
+const leftPanel = ref(route.query.settings === "design" ? "design" : "add");
+const historyScope = ref("layout");
+/** Bumped after saving so an open history list shows the version the save kept. */
+const historyVersion = ref(0);
+const panels = computed(() => [
+  { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
+  { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value },
+  { value: "history", label: t("site.history.title"), icon: "mdi:history" },
+]);
+const activePanel = computed(() => panels.value.find((panel) => panel.value === leftPanel.value));
+
 const builderAreaRef = ref(null);
 const builderWidth = ref(window.innerWidth);
 const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
 const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
-const leftMaxWidth = computed(() => Math.max(224, Math.min(480, builderWidth.value - rightWidth.value - 320)));
-const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftWidth.value - 320)));
-const SETTINGS_MIN_WIDTH = 320;
+const leftMinWidth = computed(() => (leftPanel.value === "design" ? DESIGN_MIN_WIDTH : 224));
+/** Width the left panel takes from the canvas: nothing while collapsed. */
+const leftSpace = computed(() => RAIL_WIDTH + (leftPanel.value ? leftWidth.value : 0));
+const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
+const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftSpace.value - 320)));
 let builderResizeObserver = null;
 
 watch(builderAreaRef, (area) => {
@@ -303,7 +330,6 @@ const sampleId = ref("");
 const locales = ref([]);
 const locale = ref("");
 const device = ref("desktop");
-const leftTab = ref("add");
 const pendingVariant = ref("");
 const canvasRef = ref(null);
 const indexUrl = ref(null);
@@ -312,7 +338,6 @@ const entryUrl = ref(null);
 const component = ref(null);
 const usages = ref([]);
 const converting = ref(false);
-const settingsOpen = ref(route.query.settings === "design");
 
 /** The layout has changes that can be saved. */
 const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.value) && !builder.hasSyntaxErrors.value);
@@ -415,17 +440,12 @@ function isBuilderPath(path) {
   return typeof path === "string" && path.startsWith("/page-builder/builder/");
 }
 
-function toggleSettings() {
-  settingsOpen.value = !settingsOpen.value;
-  // The panel replaces the inspector; picking an element again shows it.
-  if (settingsOpen.value) builder.select(null);
+function togglePanel(panel) {
+  leftPanel.value = leftPanel.value === panel ? null : panel;
 }
 
-watch(builder.selectedId, (id) => {
-  if (id) settingsOpen.value = false;
-});
-watch(settingsOpen, (open) => {
-  if (open) rightWidth.value = Math.max(rightWidth.value, Math.min(SETTINGS_MIN_WIDTH, rightMaxWidth.value));
+watch(leftPanel, (panel) => {
+  if (panel === "design") leftWidth.value = Math.max(leftWidth.value, Math.min(DESIGN_MIN_WIDTH, leftMaxWidth.value));
 }, { immediate: true });
 
 watch(locale, (value) => { builder.locale.value = value; });
@@ -496,6 +516,7 @@ async function save() {
       else site.markCustomized(target, name, variant, true);
     }
     if (saveTheme) await site.save({ parts: ["theme"] });
+    historyVersion.value++;
     const message = !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
     toast.success(t(message));
   } catch (err) {
@@ -638,7 +659,35 @@ onBeforeUnmount(() => {
 .topbar-action:disabled {
   opacity: 0.35;
 }
-.topbar-action.is-active {
+.rail-action {
+  position: relative;
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: rgb(100 116 139);
+  transition: background-color 150ms, color 150ms;
+}
+.rail-action:hover {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+.rail-action.is-active {
+  background: rgb(var(--color-theme-50, 239 246 255));
+  color: rgb(var(--color-theme-700, 29 78 216));
+}
+.panel-close {
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: rgb(100 116 139);
+}
+.panel-close:hover {
   background: rgb(241 245 249);
   color: rgb(15 23 42);
 }

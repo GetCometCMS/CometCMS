@@ -1,15 +1,12 @@
 <template>
-  <button type="button" class="btn-secondary btn-sm" :disabled="busy || restoring" @click="openHistory">
-    <Icon icon="mdi:history" class="h-4 w-4" />
-    {{ t('site.history.title') }}
-  </button>
-  <SlidePanel :model-value="open" :title="title" :subtitle="t('site.history.hint')" @update:model-value="(value) => { if (!restoring) open = value; }">
+  <div>
+    <p class="px-4 pt-3 text-xs text-slate-500">{{ t('site.history.hint') }}</p>
     <p v-if="error" role="alert" class="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
-    <p v-if="loading" class="p-6 text-sm text-slate-500">{{ t('common.loading') }}</p>
-    <p v-else-if="!revisions.length && !error" class="p-6 text-sm text-slate-500">{{ t('site.history.empty') }}</p>
-    <div v-else class="divide-y divide-slate-100">
-      <article v-for="revision in revisions" :key="revision.id" class="flex items-start justify-between gap-4 p-5">
-        <div class="min-w-0 space-y-1">
+    <div v-if="loading" class="flex justify-center p-6"><LoadingSpinner /></div>
+    <p v-else-if="!revisions.length && !error" class="p-4 text-sm text-slate-500">{{ t('site.history.empty') }}</p>
+    <div v-else class="mt-2 divide-y divide-slate-100">
+      <article v-for="revision in revisions" :key="revision.id" class="flex items-start justify-between gap-3 px-4 py-3">
+        <div class="min-w-0 space-y-0.5">
           <p class="text-sm font-semibold text-slate-800">{{ formatDate(revision.created_at) }}</p>
           <p class="text-xs text-slate-500">
             {{ t(`site.history.event.${revision.event}`) }}
@@ -20,7 +17,7 @@
         <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="busy || restoring" @click="pending = revision">{{ t('site.history.restore') }}</button>
       </article>
     </div>
-  </SlidePanel>
+  </div>
   <ConfirmModal
     :model-value="!!pending"
     :title="t('site.history.restoreTitle')"
@@ -34,15 +31,13 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from "vue";
-import { Icon } from "@iconify/vue";
-import SlidePanel from "../SlidePanel.vue";
-import ConfirmModal from "../ConfirmModal.vue";
-import { useToastStore } from "../../stores/toast.js";
-import { useI18n } from "../../i18n/index.js";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import ConfirmModal from "../../ConfirmModal.vue";
+import LoadingSpinner from "../../LoadingSpinner.vue";
+import { useToastStore } from "../../../stores/toast.js";
+import { useI18n } from "../../../i18n/index.js";
 
 const props = defineProps({
-  title: { type: String, required: true },
   fetchRevisions: { type: Function, required: true },
   restoreRevision: { type: Function, required: true },
   dirty: { type: Boolean, default: false },
@@ -51,7 +46,6 @@ const props = defineProps({
 const emit = defineEmits(["restored"]);
 const { t, locale } = useI18n();
 const toast = useToastStore();
-const open = ref(false);
 const loading = ref(false);
 const restoring = ref(false);
 const revisions = ref([]);
@@ -63,11 +57,12 @@ function formatDate(value) {
   return new Date(value).toLocaleString(locale.value, { dateStyle: "medium", timeStyle: "medium" });
 }
 
-async function openHistory() {
-  open.value = true;
+async function load() {
   loading.value = true;
   error.value = "";
   revisions.value = [];
+  pending.value = null;
+  restoring.value = false;
   const request = ++sequence;
   try {
     const result = await props.fetchRevisions();
@@ -89,8 +84,10 @@ async function restore() {
     if (request !== sequence) return;
     emit("restored", result.data);
     toast.success(t("site.history.restored"));
-    open.value = false;
     pending.value = null;
+    restoring.value = false;
+    // Restoring keeps the replaced version as a new revision.
+    load();
   } catch (err) {
     if (request === sequence) {
       error.value = err.message;
@@ -101,17 +98,12 @@ async function restore() {
   }
 }
 
-function reset() {
-  sequence++;
-  open.value = false;
-  pending.value = null;
-  restoring.value = false;
-  revisions.value = [];
-}
+watch(() => props.fetchRevisions, load, { immediate: true });
+defineExpose({ reload: load });
 
-onMounted(() => window.addEventListener("cometcms:workspace-changed", reset));
+onMounted(() => window.addEventListener("cometcms:workspace-changed", load));
 onBeforeUnmount(() => {
   sequence++;
-  window.removeEventListener("cometcms:workspace-changed", reset);
+  window.removeEventListener("cometcms:workspace-changed", load);
 });
 </script>
