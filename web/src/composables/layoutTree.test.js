@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   ancestors,
+  applyColumnPreset,
+  columnLayoutOf,
+  stackColumns,
   canContain,
   cloneWithNewIds,
   countNodes,
@@ -131,9 +134,27 @@ describe('layout tree', () => {
   it('builds column presets and resolves responsive spans', () => {
     const preset = sectionPreset(spec, [4, 8])
     const spans = preset.children[0].children.map((column) => column.props.span)
-    expect(spans).toEqual([{ mobile: 12, tablet: 6, desktop: 4 }, { mobile: 12, tablet: 8, desktop: 8 }])
+    expect(spans).toEqual([{ mobile: 12, tablet: 4, desktop: 0 }, { mobile: 12, tablet: 8, desktop: 0 }])
+    expect(sectionPreset(spec, [4, 4, 4]).children[0].children[0].props.span).toEqual({ mobile: 12, tablet: 6, desktop: 4 })
     expect(effectiveSpan({ mobile: 12, tablet: 6, desktop: 0 }, 'desktop')).toBe(6)
     expect(effectiveSpan({ mobile: 12, tablet: 0, desktop: 4 }, 'tablet')).toBe(12)
+  })
+
+  it('rearranges columns without losing content', () => {
+    const nodes = layout()
+    const row = findNode(nodes, 'r1')
+
+    applyColumnPreset(spec, row, [12])
+    expect(row.children.map((column) => column.id)).toEqual(['c1'])
+    expect(row.children[0].children.map((node) => node.id)).toEqual(['h1', 'f1'])
+    expect(columnLayoutOf(row)).toEqual({ spans: [12], stacked: false })
+
+    applyColumnPreset(spec, row, [4, 4, 4])
+    expect(row.children).toHaveLength(3)
+    expect(columnLayoutOf(row)).toEqual({ spans: [4, 4, 4], stacked: false })
+
+    stackColumns(row)
+    expect(columnLayoutOf(row)).toEqual({ spans: [12, 12, 12], stacked: true })
   })
 
   it('clones nodes with fresh ids', () => {

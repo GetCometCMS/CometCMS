@@ -44,11 +44,14 @@ final class AdminController
 
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
+        // The admin must never show up in search results next to the website.
+        header('X-Robots-Tag: noindex, nofollow');
         echo '<!doctype html>'
             . '<html lang="en">'
             . '<head>'
             . '<meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<meta name="robots" content="noindex,nofollow">'
             . '<meta name="csrf-token" content="' . Security::e($csrf) . '">'
             . '<meta name="comet-base" content="' . Security::e($base) . '">'
             . '<title>' . $name . '</title>'

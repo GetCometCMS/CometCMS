@@ -1,10 +1,13 @@
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   ancestors,
+  applyColumnPreset,
   clone,
+  columnLayoutOf,
   contains,
   createNode,
   duplicateNode,
+  effectiveSpan,
   findNode,
   insertNode,
   isInsideTemplate,
@@ -12,6 +15,7 @@ import {
   removeNode,
   resolveDrop,
   shiftNode,
+  stackColumns,
 } from './layoutTree.js'
 
 const KEY = Symbol('site-builder')
@@ -257,6 +261,32 @@ export function createSiteBuilder({ t }) {
     if (where?.parent) selectedId.value = where.parent.id
   }
 
+  /** The column row a section, row or column belongs to (a section's first row). */
+  function columnRowFor(node) {
+    if (!node) return null
+    if (node.kind === 'row') return node
+    if (node.kind === 'section') return node.children.find((child) => child.kind === 'row') ?? null
+    if (node.kind === 'column') return locate(nodes.value, node.id)?.parent ?? null
+    return null
+  }
+
+  /** Rearrange the columns around `id` into `spans`, or stack them with 'stacked'. */
+  function setColumns(id, layout) {
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node) return
+      let row = columnRowFor(node)
+      if (!row && node.kind === 'section') {
+        row = createNode(spec.value, 'row')
+        node.children.push(row)
+      }
+      if (!row) return
+      if (layout === 'stacked') stackColumns(row)
+      else applyColumnPreset(spec.value, row, layout)
+    })
+    keepSelection()
+  }
+
   function make(kind, props = {}, style = {}, children = []) {
     return createNode(spec.value, kind, props, style, children)
   }
@@ -288,8 +318,12 @@ export function createSiteBuilder({ t }) {
       case 'text':
         return String(props.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
       case 'column': {
-        const span = props.span ?? {}
-        return [span.mobile, span.tablet, span.desktop].map((value) => value || '·').join(' / ')
+        const span = effectiveSpan(props.span, 'desktop')
+        return span === 12 ? t('site.prop.full_width') : `${span}/12`
+      }
+      case 'row': {
+        const layout = columnLayoutOf(node)
+        return layout.stacked ? t('site.builder.stacked') : layout.spans.join(' + ')
       }
       case 'section':
         return t(`site.option.${props.width ?? 'contained'}`)
@@ -303,7 +337,7 @@ export function createSiteBuilder({ t }) {
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, undo, redo, select, selectParent,
     bindableFields, subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
-    updateValue, insert, dropAt, remove, duplicate, shift, make,
+    updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeSummary,
   }
 

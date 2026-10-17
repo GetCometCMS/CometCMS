@@ -257,12 +257,55 @@ export function duplicateNode(nodes, id) {
   return copy
 }
 
+/**
+ * Responsive spans for column `span` (of 12) in a layout of `count` columns:
+ * phones always stack, two columns sit side by side from tablets on, three
+ * or more show two per line on tablets and the full layout on desktops.
+ */
+export function presetSpan(span, count) {
+  if (count <= 1 || span >= 12) return { mobile: 12, tablet: 0, desktop: 0 }
+  if (count === 2) return { mobile: 12, tablet: span, desktop: 0 }
+  return { mobile: 12, tablet: 6, desktop: span }
+}
+
 /** Section > row > columns preset with the given column spans (desktop). */
 export function sectionPreset(spec, spans) {
-  const columns = spans.map((span) => createNode(spec, 'column', {
-    span: { mobile: 12, tablet: span === 12 ? 0 : Math.max(6, span), desktop: span === 12 ? 0 : span },
-  }))
+  const columns = spans.map((span) => createNode(spec, 'column', { span: presetSpan(span, spans.length) }))
   return createNode(spec, 'section', {}, { padding_y: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
+}
+
+/**
+ * Rearrange a row into columns with the given desktop spans. Content is kept:
+ * surplus columns hand their elements to the last remaining column.
+ */
+export function applyColumnPreset(spec, row, spans) {
+  const columns = (row.children ?? []).filter((child) => child.kind === 'column')
+  while (columns.length < spans.length) columns.push(createNode(spec, 'column'))
+
+  if (columns.length > spans.length) {
+    const surplus = columns.splice(spans.length)
+    columns[columns.length - 1].children.push(...surplus.flatMap((column) => column.children ?? []))
+  }
+
+  columns.forEach((column, index) => {
+    column.props = { ...column.props, span: presetSpan(spans[index], spans.length) }
+  })
+  row.children = columns
+  return row
+}
+
+/** Put a row's columns underneath each other on every device. */
+export function stackColumns(row) {
+  for (const column of row.children ?? []) {
+    column.props = { ...column.props, span: { mobile: 12, tablet: 0, desktop: 0 } }
+  }
+  return row
+}
+
+/** Desktop spans of a row's columns and whether they are stacked. */
+export function columnLayoutOf(row) {
+  const spans = (row?.children ?? []).map((column) => effectiveSpan(column.props?.span, 'desktop'))
+  return { spans, stacked: spans.length > 1 && spans.every((span) => span === 12) }
 }
 
 /** Column spans on a device, applying the mobile > tablet > desktop fallback. */

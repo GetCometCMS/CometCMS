@@ -7,8 +7,9 @@
 
     <!-- enum -->
     <template v-if="def.type === 'enum' || def.type === 'display'">
+      <OptionBar v-if="enumBar" :model-value="enumValue" :options="enumBar" @update:model-value="emitValue" />
       <SegmentedControl
-        v-if="enumOptions.length <= 4 && enumOptions.every((option) => option.label.length <= 9)"
+        v-else-if="enumOptions.length <= 4 && enumOptions.every((option) => option.label.length <= 9)"
         :model-value="enumValue"
         :options="enumOptions"
         @update:model-value="emitValue"
@@ -25,6 +26,13 @@
     </template>
 
     <ToggleSwitch v-else-if="def.type === 'bool'" :id="inputId" :model-value="!!value" @update:model-value="emitValue" />
+
+    <OptionBar
+      v-else-if="def.type === 'int' && numberOptions"
+      :model-value="value"
+      :options="numberOptions"
+      @update:model-value="emitValue"
+    />
 
     <input
       v-else-if="def.type === 'int'"
@@ -56,33 +64,44 @@
 
     <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" @update:model-value="emitValue" />
 
-    <div v-else-if="def.type === 'spans'" class="grid grid-cols-3 gap-1.5">
-      <label v-for="device in ['mobile', 'tablet', 'desktop']" :key="device" class="block">
-        <span class="mb-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-          <Icon :icon="DEVICE_ICONS[device]" class="h-3 w-3" />{{ t(`site.device.${device}`) }}
-        </span>
-        <select
-          :value="value?.[device] ?? 0"
-          class="form-select w-full rounded-lg border-slate-300 px-2 py-1 text-xs"
-          @change="emitValue({ ...value, [device]: Number($event.target.value) })"
+    <div v-else-if="def.type === 'spans'" class="space-y-1.5">
+      <div v-for="device in ['desktop', 'tablet', 'mobile']" :key="device" class="flex items-center gap-1.5">
+        <Icon :icon="DEVICE_ICONS[device]" class="h-4 w-4 shrink-0 text-slate-400" :title="t(`site.device.${device}`)" />
+        <div class="flex h-6 flex-1 gap-px overflow-hidden rounded-md bg-slate-200 p-px" role="radiogroup" :aria-label="t(`site.device.${device}`)">
+          <button
+            v-for="span in 12"
+            :key="span"
+            type="button"
+            role="radio"
+            :aria-checked="value?.[device] === span"
+            :title="t('site.builder.spanOf', { span })"
+            class="flex-1 rounded-[3px] transition-colors"
+            :class="spanCellClass(device, span)"
+            @click="emitValue({ ...value, [device]: span })"
+          ></button>
+        </div>
+        <button
+          v-if="device !== 'mobile'"
+          type="button"
+          class="w-10 shrink-0 rounded-md px-1 py-0.5 text-[10px] font-semibold"
+          :class="!value?.[device] ? 'bg-theme-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+          :title="t('site.builder.spanAutoHint')"
+          @click="emitValue({ ...value, [device]: 0 })"
         >
-          <option v-if="device !== 'mobile'" :value="0">{{ t("site.option.inherit") }}</option>
-          <option v-for="span in 12" :key="span" :value="span">{{ spanLabel(span) }}</option>
-        </select>
-      </label>
+          {{ t("site.builder.spanAuto") }}
+        </button>
+        <span v-else class="w-10 shrink-0 text-center text-[10px] font-semibold text-slate-500">{{ value?.mobile ?? 12 }}/12</span>
+      </div>
     </div>
 
-    <div v-else-if="def.type === 'set'" class="flex flex-wrap gap-3">
-      <label v-for="option in def.options" :key="option" class="flex items-center gap-1.5 text-xs text-slate-600">
-        <input
-          type="checkbox"
-          class="rounded border-slate-300 text-theme-600"
-          :checked="(value ?? []).includes(option)"
-          @change="toggleSet(option, $event.target.checked)"
-        />
-        {{ t(`site.device.${option}`) }}
-      </label>
-    </div>
+    <OptionBar
+      v-else-if="def.type === 'set'"
+      multiple
+      danger
+      :model-value="value ?? []"
+      :options="setOptions"
+      @update:model-value="emitValue"
+    />
 
     <select
       v-else
@@ -104,10 +123,13 @@ import ToggleSwitch from "../../ToggleSwitch.vue";
 import LinkEditor from "../LinkEditor.vue";
 import MediaSelect from "../MediaSelect.vue";
 import SegmentedControl from "../SegmentedControl.vue";
+import OptionBar from "./OptionBar.vue";
+import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
+import { effectiveSpan } from "../../../composables/layoutTree.js";
+import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
-const DEVICE_ICONS = { mobile: "mdi:cellphone", tablet: "mdi:tablet", desktop: "mdi:monitor" };
 const SORTABLE_TYPES = ["text", "number", "range", "date", "datetime", "select", "boolean", "slug"];
 
 const props = defineProps({
@@ -120,6 +142,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update"]);
 const builder = useSiteBuilder();
+const site = useSiteStore();
 const { t } = useI18n();
 const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.name}`);
 const label = computed(() => {
@@ -151,6 +174,34 @@ const enumOptions = computed(() => {
   }
   return (props.def.options ?? []).map((option) => ({ value: option, label: optionLabel(option) }));
 });
+
+/** Theme colors for swatches, matching what the site shows. */
+const themeColors = computed(() => {
+  const theme = site.data?.theme;
+  if (!theme) return null;
+  return theme.mode === "dark" ? theme.dark_colors : theme.colors;
+});
+
+const enumBar = computed(() =>
+  props.def.type === "enum"
+    ? barOptions(props.group, props.name, props.def.options ?? [], { title: optionLabel, colors: themeColors.value })
+    : null,
+);
+const numberOptions = computed(() => numberBar(props.def.min ?? 0, props.def.max ?? 0));
+const setOptions = computed(() =>
+  (props.def.options ?? []).map((option) => ({
+    value: option,
+    icon: DEVICE_ICONS[option],
+    title: t("site.builder.hideOnDevice", { device: t(`site.device.${option}`) }),
+  })),
+);
+
+function spanCellClass(device, span) {
+  const own = props.value?.[device] ?? 0;
+  if (own > 0) return span <= own ? "bg-theme-500" : "bg-white hover:bg-theme-100";
+  // Inherited from the smaller device: shown lighter.
+  return span <= effectiveSpan(props.value, device) ? "bg-theme-200" : "bg-white hover:bg-theme-100";
+}
 
 // A field without a chosen display uses its type's first display.
 const enumValue = computed(() =>
@@ -208,10 +259,6 @@ const selectOptions = computed(() => {
   }
 });
 
-function spanLabel(span) {
-  return span === 12 ? t("site.option.full") : `${span}/12`;
-}
-
 function emitValue(value) {
   emit("update", value);
 }
@@ -220,13 +267,6 @@ function emitNumber(raw) {
   if (raw === "") return;
   const number = Math.round(Number(raw));
   if (Number.isFinite(number)) emit("update", Math.max(props.def.min ?? number, Math.min(props.def.max ?? number, number)));
-}
-
-function toggleSet(option, checked) {
-  const current = new Set(props.value ?? []);
-  if (checked) current.add(option);
-  else current.delete(option);
-  emit("update", (props.def.options ?? []).filter((item) => current.has(item)));
 }
 </script>
 

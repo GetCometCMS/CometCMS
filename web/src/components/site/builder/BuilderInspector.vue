@@ -29,6 +29,7 @@
 
     <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
       <template v-if="tab === 'content'">
+        <ColumnLayoutPicker v-if="['section', 'row', 'column'].includes(node.kind)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
         </div>
@@ -85,6 +86,7 @@
 import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
+import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { findNode, locate } from "../../../composables/layoutTree.js";
