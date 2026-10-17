@@ -1,10 +1,10 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-bold text-slate-900">
         {{ contentTypeSchema?.label || collection }}
       </h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <router-link
           v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
           :to="`/trash/${collection}`"
@@ -16,6 +16,19 @@
             >{{ trashCount }}</span
           >
         </router-link>
+        <nav v-if="canEditTemplates" class="flex flex-wrap items-center gap-1.5" :aria-label="t('site.collection.templates')">
+          <span class="mr-1 text-xs font-semibold text-slate-500">{{ t('site.collection.templates') }}</span>
+          <router-link
+            v-for="template in COLLECTION_TEMPLATES"
+            :key="template.variant"
+            :to="{ path: `/website/builder/layout/${collection}/${template.variant}`, query: { back: route.fullPath } }"
+            class="btn-secondary btn-sm"
+            :title="t('site.collection.editTemplate', { template: t(`site.variant.${template.variant}`) })"
+          >
+            <Icon :icon="template.icon" class="h-4 w-4" />
+            {{ t(`site.variant.${template.variant}`) }}
+          </router-link>
+        </nav>
         <router-link
           v-if="canContent('content.create', collection)"
           :to="`/content/${collection}/new`"
@@ -692,6 +705,29 @@ const userMap = computed(() =>
 
 // ── Content type schema (for BulkEditBar field list) ─────────────────────────
 const contentTypeSchema = ref(null);
+const websiteStatus = ref(null);
+const COLLECTION_TEMPLATES = [
+  { variant: "detail", icon: "mdi:file-document-outline" },
+  { variant: "card", icon: "mdi:card-text-outline" },
+  { variant: "index", icon: "mdi:view-grid-outline" },
+];
+const canEditTemplates = computed(() =>
+  contentTypeSchema.value && !isSingleton.value
+  && contentTypeSchema.value.visibility !== "private"
+  && websiteStatus.value?.can_manage
+  && websiteStatus.value.types?.[collection.value]?.routed,
+);
+
+async function loadWebsiteStatus() {
+  websiteStatus.value = null;
+  const workspace = getActiveWorkspace();
+  try {
+    const res = await api.site.status();
+    if (workspace === getActiveWorkspace()) websiteStatus.value = res.data;
+  } catch {
+    // Website controls are optional; content remains editable if this request fails.
+  }
+}
 
 async function loadContentType() {
   contentTypeSchema.value = null;
@@ -1293,6 +1329,7 @@ function onColPickerClickOutside(e) {
 
 onMounted(async () => {
   visibleColumns.value = loadColumnPrefs(collection.value);
+  loadWebsiteStatus();
   // Load schema first so default_locale is available when load() sends ?locale=
   await loadContentType();
   load();
@@ -1358,6 +1395,7 @@ async function duplicateSelected() {
 watch(
   () => route.params.collection,
   async () => {
+    loadWebsiteStatus();
     visibleColumns.value = loadColumnPrefs(collection.value);
     pageOffset.value = 0;
     resetSort();

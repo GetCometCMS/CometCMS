@@ -302,9 +302,9 @@
         </div>
       </div>
 
-      <!-- The shared page layout is edited in the full-screen builder. -->
+      <!-- Single pages keep their design action alongside their content. -->
       <section
-        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        v-if="isSingleton && !isNew && siteLinks?.can_manage && siteLinks.routed"
         class="card flex h-96 flex-col items-center justify-center gap-4 p-6 text-center"
         aria-labelledby="page-design-heading"
       >

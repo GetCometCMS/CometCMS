@@ -272,9 +272,11 @@ $users->create('editor', 'secret-password', 'editor');
 $types = new \CometCMS\Content\ContentTypeRepository();
 $types->save(['name' => 'pages']);
 $types->save(['name' => 'data-only']);
+$types->save(['name' => 'homepage-only']);
 $types->save(['name' => 'notes', 'visibility' => 'private']);
 (new \CometCMS\Site\SiteRepository())->saveSettings([
     'enabled' => false,
+    'homepage' => ['type' => 'homepage-only'],
     'routes' => ['pages' => ['enabled' => true], 'notes' => ['enabled' => true]],
 ]);
 PHP;
@@ -286,8 +288,12 @@ PHP;
     assert_false($json['data']['enabled']);
     assert_false($json['data']['can_manage'], 'Editors can see the status without website management permission.');
     assert_true($json['data']['types']['pages']['pages_enabled']);
+    assert_true($json['data']['types']['pages']['routed']);
+    assert_true($json['data']['types']['homepage-only']['routed'], 'Homepage templates remain editable without enabling a separate URL.');
+    assert_false($json['data']['types']['homepage-only']['pages_enabled']);
     assert_false($json['data']['types']['pages']['enabled'], 'Configured pages are not live while the website is off.');
     assert_false($json['data']['types']['data-only']['pages_enabled']);
+    assert_false($json['data']['types']['data-only']['routed']);
     assert_false($json['data']['types']['notes']['pages_enabled'], 'Private types cannot enable public pages.');
 });
 

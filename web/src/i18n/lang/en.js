@@ -1529,6 +1529,8 @@ const messages = {
     'site.entry.view': 'View on website',
     'site.typeCard.title': 'Frontend pages',
     'site.entry.pageDesign': 'Page design',
+    'site.collection.templates': 'Templates',
+    'site.collection.editTemplate': 'Edit the {template} template shared by all entries in this collection.',
     'site.entry.editDesign': 'Edit page',
     'site.entry.editDesignHint': 'Design the layout shared by all entries of this content type, using this entry as the preview.',
     'site.builder.editContent': 'Edit the content of this entry',

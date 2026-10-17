@@ -69,6 +69,7 @@ final class SiteController extends BaseController
             $types[$name] = [
                 'enabled' => $settings['enabled'] && $route['enabled'],
                 'pages_enabled' => $route['enabled'],
+                'routed' => $route['enabled'] || ($settings['homepage']['type'] ?? '') === $name,
                 'pattern' => $route['pattern'],
                 'index_path' => $route['index_path'],
             ];
