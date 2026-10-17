@@ -8,8 +8,10 @@ use CometCMS\Core\ValidationException;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\NodeRenderer;
 use CometCMS\Site\PageRenderer;
+use CometCMS\Site\SiteContext;
 use CometCMS\Site\SmartValue;
 use CometCMS\Site\SiteRepository;
+use CometCMS\Site\Text;
 use CometCMS\Storage\JsonStore;
 
 function smart_test_state(): array
@@ -223,11 +225,11 @@ test('smart relation traversal is bounded and formatting uses the existing date 
     assert_same('One two…', (new SmartValue($context))->resolve($ref, $state)['value']);
     $state['entry']['amount'] = 1234.5;
     $state['type']['fields']['amount'] = ['type' => 'number'];
-    assert_same((new NodeRenderer($context))->formatNumber(1234.5), (new SmartValue($context))->text(SmartValue::reference('amount'), $state)['value']);
+    assert_same(Text::number(1234.5, $context->htmlLang()), (new SmartValue($context))->text(SmartValue::reference('amount'), $state)['value']);
     $state['entry']['created_at'] = '2026-10-17T13:10:00Z';
     $ref = SmartValue::reference('created_at');
     $ref['filters'] = [['name' => 'date', 'value' => 'long']];
-    assert_same((new NodeRenderer($context))->formatDate($state['entry']['created_at'], 'long'), (new SmartValue($context))->resolve($ref, $state)['value']);
+    assert_same(Text::date($state['entry']['created_at'], 'long', $context->htmlLang()), (new SmartValue($context))->resolve($ref, $state)['value']);
 });
 
 test('builder API returns validation errors for invalid smart content instead of server errors', function (): void {
@@ -263,4 +265,23 @@ test('specific entry references require immutable UIDs rather than mutable slugs
     assert_null((new SmartValue($context))->resolve($ref, $state)['value']);
     $ref['entry'] = $state['entry']['uid'];
     assert_same($state['entry']['title'], (new SmartValue($context))->resolve($ref, $state)['value']);
+});
+
+test('bound page URLs keep a single base path and locale prefix in links', function (): void {
+    comet_site_test_setup();
+    $context = SiteContext::make(new SiteRepository(), '/cms', 'https://example.test');
+    $state = ['type' => $context->type('blog'), 'entry' => $context->findEntry('blog', 'hello')];
+    $renderer = new NodeRenderer($context);
+    $url = SmartValue::reference('url');
+
+    $button = $renderer->render([LayoutSchema::node('button', ['label' => 'Read', 'link' => ['type' => 'dynamic', 'value' => $url, 'new_tab' => false]])], $state);
+    assert_true(str_contains($button, 'href="/cms/blog/hello"'), $button);
+    $heading = $renderer->render([LayoutSchema::node('heading', ['text' => 'Read', 'link' => $url])], $state);
+    assert_true(str_contains($heading, 'href="/cms/blog/hello"'), $heading);
+    assert_same('/cms/blog/hello', (new SmartValue($context))->resolve($url, $state)['value'], 'Text output shows the full path once.');
+
+    $custom = ['type' => 'dynamic', 'value' => SmartValue::reference('title', 'site'), 'new_tab' => false];
+    $context->site->saveSettings(['title' => '/about'] + $context->site->settings());
+    $relative = (new NodeRenderer(SiteContext::make(new SiteRepository(), '/cms', 'https://example.test')))->render([LayoutSchema::node('button', ['label' => 'About', 'link' => $custom])], $state);
+    assert_true(str_contains($relative, 'href="/cms/about"'), 'Site-relative field values still get the base path: ' . $relative);
 });

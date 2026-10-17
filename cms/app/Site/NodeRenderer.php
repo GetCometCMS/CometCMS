@@ -68,7 +68,7 @@ final class NodeRenderer
             $binding = $node['props'][$key] ?? null;
             if ($target === 'link' && ($binding['type'] ?? '') === 'dynamic') {
                 $resolved = $this->smart->resolve($binding['value'], $state);
-                $node['props'][$key] = ['type' => 'url', 'url' => is_scalar($resolved['value']) ? (string) $resolved['value'] : '', 'new_tab' => $binding['new_tab'] ?? false];
+                $node['props'][$key] = $this->boundLink($resolved, (bool) ($binding['new_tab'] ?? false));
                 $warnings = $warnings || $resolved['missing'];
                 continue;
             }
@@ -122,6 +122,10 @@ final class NodeRenderer
         }
 
         $resolved = $this->smart->resolve($binding, $state);
+        if ($target === 'link') {
+            return ['value' => $this->boundLink($resolved, false), 'missing' => $resolved['missing'] || is_array($resolved['value'])];
+        }
+
         $value = $resolved['value'];
         $missing = $resolved['missing'];
         $fallback = array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback') !== [];
@@ -136,12 +140,20 @@ final class NodeRenderer
             $missing = true;
         }
 
-        return [
-            'value' => $target === 'link'
-                ? ['type' => 'url', 'url' => is_scalar($value) ? (string) $value : '', 'new_tab' => false]
-                : (is_scalar($value) ? (string) $value : ''),
-            'missing' => $missing,
-        ];
+        return ['value' => is_scalar($value) ? (string) $value : '', 'missing' => $missing];
+    }
+
+    /**
+     * A link to a bound destination. Page URLs (`url` of an entry) are final
+     * paths that already carry the base path and locale; other values are
+     * treated like a typed URL.
+     */
+    private function boundLink(array $resolved, bool $newTab): array
+    {
+        $value = is_scalar($resolved['value']) ? (string) $resolved['value'] : '';
+        $href = ($resolved['config']['type'] ?? '') === 'url' ? $value : $this->siteUrl($value);
+
+        return ['type' => 'href', 'href' => (string) $href, 'new_tab' => $newTab];
     }
 
     // ─── Structure ───────────────────────────────────────────────────────────
@@ -836,7 +848,9 @@ final class NodeRenderer
     {
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
-            'dynamic' => $this->dynamicLink($link, $state),
+            // Bound destinations, resolved by boundLink() before rendering.
+            'href' => (string) ($link['href'] ?? ''),
+            'dynamic' => $this->boundLink($this->smart->resolve($link['value'], $state), false)['href'],
             'current' => $this->currentEntryUrl($state),
             'home' => $this->ctx->homeUrl(),
             'index' => $this->ctx->indexUrl((string) ($link['collection'] ?? '')),
@@ -850,12 +864,6 @@ final class NodeRenderer
         }
 
         return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
-    }
-
-    private function dynamicLink(array $link, array $state): ?string
-    {
-        $resolved = $this->smart->resolve($link['value'], $state);
-        return is_scalar($resolved['value']) ? $this->siteUrl((string) $resolved['value']) : null;
     }
 
     private function linkedEntryUrl(string $type, string $slug): ?string
@@ -1040,54 +1048,14 @@ final class NodeRenderer
             : trim(html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '</li>'], ' ', (string) $value)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
-    public function formatNumber(mixed $value): string
+    private function formatNumber(mixed $value): string
     {
-        if (!is_numeric($value)) {
-            return (string) $value;
-        }
-
-        $string = (string) $value;
-        $decimals = str_contains($string, '.') ? strlen(rtrim(substr($string, strpos($string, '.') + 1), '0')) : 0;
-
-        if (class_exists(\NumberFormatter::class)) {
-            $formatter = new \NumberFormatter($this->ctx->htmlLang(), \NumberFormatter::DECIMAL);
-            $formatter->setAttribute(\NumberFormatter::FRACTION_DIGITS, $decimals);
-
-            return (string) $formatter->format((float) $value);
-        }
-
-        return number_format((float) $value, $decimals);
+        return Text::number($value, $this->ctx->htmlLang());
     }
 
-    public function formatDate(string $value, string $format): string
+    private function formatDate(string $value, string $format): string
     {
-        $time = strtotime($value);
-
-        if ($time === false) {
-            return $value;
-        }
-
-        if (class_exists(\IntlDateFormatter::class)) {
-            [$date, $clock] = match ($format) {
-                'long' => [\IntlDateFormatter::LONG, \IntlDateFormatter::NONE],
-                'datetime' => [\IntlDateFormatter::MEDIUM, \IntlDateFormatter::SHORT],
-                'time' => [\IntlDateFormatter::NONE, \IntlDateFormatter::SHORT],
-                default => [\IntlDateFormatter::MEDIUM, \IntlDateFormatter::NONE],
-            };
-            $formatter = new \IntlDateFormatter($this->ctx->htmlLang(), $date, $clock, date_default_timezone_get());
-            $formatted = $formatter->format($time);
-
-            if (is_string($formatted)) {
-                return $formatted;
-            }
-        }
-
-        return date(match ($format) {
-            'long' => 'F j, Y',
-            'datetime' => 'Y-m-d H:i',
-            'time' => 'H:i',
-            default => 'Y-m-d',
-        }, $time);
+        return Text::date($value, $format, $this->ctx->htmlLang());
     }
 
     private function fileSize(int $bytes): string

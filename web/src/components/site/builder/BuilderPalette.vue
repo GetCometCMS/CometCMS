@@ -13,81 +13,62 @@
     </div>
     <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
 
-    <section v-if="presets.length || layoutKinds.length" class="group">
-      <h3 class="mb-2">
-        <button type="button" class="category-toggle" :aria-expanded="expanded.layout" :aria-controls="`${searchId}-layout`" @click="expanded.layout = !expanded.layout">
-          {{ t("site.builder.layout") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.layout }" aria-hidden="true" />
-        </button>
-      </h3>
-      <div v-show="expanded.layout" :id="`${searchId}-layout`">
-        <div class="grid grid-cols-3 gap-1.5">
-          <button
-            v-for="preset in presets"
-            :key="preset.join('-')"
-            type="button"
-            draggable="true"
-            class="flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
-            style="cursor: grab"
-            :title="t('site.builder.columns', { count: preset.length })"
-            @click="builder.insert(sectionPreset(builder.spec.value, preset))"
-            @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
-            @dragend="end"
-          >
-            <span class="flex h-4 w-full gap-0.5">
-              <span v-for="(span, index) in preset" :key="index" class="rounded-sm bg-theme-200" :style="{ flex: span }"></span>
-            </span>
-            <span class="text-[10px]">{{ preset.join("·") }}</span>
-          </button>
-        </div>
-        <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-          <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
-        </div>
-      </div>
-    </section>
-
-    <section v-if="elementKinds.length" class="group">
-      <h3 class="mb-2">
-        <button type="button" class="category-toggle" :aria-expanded="expanded.elements" :aria-controls="`${searchId}-elements`" @click="expanded.elements = !expanded.elements">
-          {{ t("site.builder.elements") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.elements }" aria-hidden="true" />
-        </button>
-      </h3>
-      <div v-show="expanded.elements" :id="`${searchId}-elements`" class="grid grid-cols-2 gap-1.5">
-        <PaletteItem
-          v-for="kind in elementKinds"
-          :key="kind"
-          :icon="KIND_ICONS[kind]"
-          :label="builder.kindLabel(kind)"
-          @add="builder.insert(create(kind))"
-          @drag="start($event, () => create(kind))"
+    <BuilderGroup v-if="presets.length || layoutKinds.length" v-model:open="expanded.layout" :title="t('site.builder.layout')">
+      <div class="grid grid-cols-3 gap-1.5">
+        <button
+          v-for="preset in presets"
+          :key="preset.join('-')"
+          type="button"
+          draggable="true"
+          class="flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
+          style="cursor: grab"
+          :title="t('site.builder.columns', { count: preset.length })"
+          @click="builder.insert(sectionPreset(builder.spec.value, preset))"
+          @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
           @dragend="end"
-        />
-      </div>
-    </section>
-
-    <section v-if="showFields && (fields.length || !searchTerms.length)" class="group">
-      <h3 class="mb-2">
-        <button type="button" class="category-toggle" :aria-expanded="expanded.fields" :aria-controls="`${searchId}-fields`" @click="expanded.fields = !expanded.fields">
-          {{ templateOwner ? t("site.builder.itemFields", { field: templateOwnerLabel }) : t("site.builder.fields") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.fields }" aria-hidden="true" />
+        >
+          <span class="flex h-4 w-full gap-0.5">
+            <span v-for="(span, index) in preset" :key="index" class="rounded-sm bg-theme-200" :style="{ flex: span }"></span>
+          </span>
+          <span class="text-[10px]">{{ preset.join("·") }}</span>
         </button>
-      </h3>
-      <div v-show="expanded.fields" :id="`${searchId}-fields`" class="space-y-1">
-        <PaletteItem
-          v-for="field in fields"
-          :key="field.key"
-          wide
-          :icon="fieldTypeIcon(field.type)"
-          :label="field.label"
-          :meta="field.system ? t('site.builder.system') : field.type"
-          @add="builder.insert(fieldNode(field))"
-          @drag="start($event, () => fieldNode(field))"
-          @dragend="end"
-        />
-        <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
       </div>
-    </section>
+      <div class="mt-1.5 grid grid-cols-2 gap-1.5">
+        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+      </div>
+    </BuilderGroup>
+
+    <BuilderGroup v-if="elementKinds.length" v-model:open="expanded.elements" :title="t('site.builder.elements')" content-class="mt-2 grid grid-cols-2 gap-1.5">
+      <PaletteItem
+        v-for="kind in elementKinds"
+        :key="kind"
+        :icon="KIND_ICONS[kind]"
+        :label="builder.kindLabel(kind)"
+        @add="builder.insert(create(kind))"
+        @drag="start($event, () => create(kind))"
+        @dragend="end"
+      />
+    </BuilderGroup>
+
+    <BuilderGroup
+      v-if="showFields && (fields.length || !searchTerms.length)"
+      v-model:open="expanded.fields"
+      :title="templateOwner ? t('site.builder.itemFields', { field: templateOwnerLabel }) : t('site.builder.fields')"
+      content-class="mt-2 space-y-1"
+    >
+      <PaletteItem
+        v-for="field in fields"
+        :key="field.key"
+        wide
+        :icon="fieldTypeIcon(field.type)"
+        :label="field.label"
+        :meta="field.system ? t('site.builder.system') : field.type"
+        @add="builder.insert(fieldNode(field))"
+        @drag="start($event, () => fieldNode(field))"
+        @dragend="end"
+      />
+      <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
+    </BuilderGroup>
     <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !elementKinds.length && !fields.length" role="status" class="px-1 text-sm text-slate-500">
       {{ t("site.builder.noSearchResults") }}
     </p>
@@ -96,7 +77,7 @@
 
 <script setup>
 import { computed, ref, useId, watch } from "vue";
-import { Icon } from "@iconify/vue";
+import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
@@ -179,8 +160,3 @@ function end() {
 }
 </script>
 
-<style scoped>
-.category-toggle {
-  @apply flex w-full items-center justify-between gap-2 rounded px-1 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500;
-}
-</style>

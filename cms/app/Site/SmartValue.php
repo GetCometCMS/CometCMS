@@ -215,7 +215,7 @@ final class SmartValue
                 $value = $filter['value'];
                 $config = ($config['type'] ?? '') === 'media' ? $config : ['type' => 'text'];
             } elseif ($filter['name'] === 'date' && !self::empty($value) && is_scalar($value)) {
-                $value = (new NodeRenderer($this->ctx))->formatDate((string) $value, $filter['value']);
+                $value = Text::date((string) $value, $filter['value'], $this->ctx->htmlLang());
                 $config = ['type' => 'text'];
             } elseif ($filter['name'] === 'truncate' && !self::empty($value)) {
                 $value = Text::words($this->plain($value, $config), $filter['value']);
@@ -244,10 +244,10 @@ final class SmartValue
             return trim(html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         }
         if (in_array($config['type'] ?? '', ['number', 'range'], true)) {
-            return (new NodeRenderer($this->ctx))->formatNumber($value);
+            return Text::number($value, $this->ctx->htmlLang());
         }
         if (in_array($config['type'] ?? '', ['date', 'datetime'], true)) {
-            return (new NodeRenderer($this->ctx))->formatDate((string) $value, 'date');
+            return Text::date((string) $value, 'date', $this->ctx->htmlLang());
         }
         return (string) $value;
     }

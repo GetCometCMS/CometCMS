@@ -302,22 +302,29 @@
         </div>
       </div>
 
-      <!-- Pages and collection entries keep their design action alongside their content. -->
+      <!--
+        Pages and collection entries keep their design action alongside their
+        content. A single page is mostly its design, so it gets a large canvas;
+        collection entries keep it compact so their fields stay in view.
+      -->
       <section
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
-        class="card flex h-96 flex-col items-center justify-center gap-4 p-6 text-center"
+        class="card flex gap-4 p-6"
+        :class="isSingleton ? 'h-96 flex-col items-center justify-center text-center' : 'flex-col items-start sm:flex-row sm:items-center'"
         aria-labelledby="page-design-heading"
       >
-        <Icon icon="mdi:pencil-ruler" class="h-8 w-8 text-slate-400" />
-        <h2 id="page-design-heading" class="text-sm font-semibold text-slate-700">
-          {{ t("site.entry.pageDesign") }}
-        </h2>
-        <p id="page-design-hint" class="max-w-md text-sm text-slate-500">
-          {{ t("site.entry.editDesignHint") }}
-        </p>
+        <Icon icon="mdi:pencil-ruler" class="shrink-0 text-slate-400" :class="isSingleton ? 'h-8 w-8' : 'h-6 w-6'" />
+        <div :class="isSingleton ? 'contents' : 'min-w-0 flex-1'">
+          <h2 id="page-design-heading" class="text-sm font-semibold text-slate-700">
+            {{ t("site.entry.pageDesign") }}
+          </h2>
+          <p id="page-design-hint" class="max-w-md text-sm text-slate-500">
+            {{ t("site.entry.editDesignHint") }}
+          </p>
+        </div>
         <router-link
           :to="designLink"
-          class="btn-primary"
+          class="btn-primary shrink-0"
           aria-describedby="page-design-hint"
         >
           <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
