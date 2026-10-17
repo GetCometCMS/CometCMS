@@ -88,6 +88,9 @@ final class LayoutSchema
     /** Border sides and how they are drawn; the look only applies once a side is picked. */
     private const BORDER_KEYS = ['border', 'border_width', 'border_style', 'border_color'];
 
+    /** Entrance animation and its timing; the timing only applies to an animation. */
+    private const ANIMATION_KEYS = ['animation', 'animation_trigger', 'animation_duration', 'animation_delay'];
+
     /** Borders used to be a single choice of sides. */
     private const LEGACY_BORDERS = ['all' => ['left', 'top', 'right', 'bottom'], 'top' => ['top'], 'bottom' => ['bottom']];
 
@@ -118,6 +121,12 @@ final class LayoutSchema
             'border_style' => ['type' => 'enum', 'options' => ['solid', 'dashed', 'dotted', 'double'], 'default' => 'solid'],
             'border_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
             'max_width' => ['type' => 'enum', 'options' => ['', 'narrow', 'prose'], 'default' => ''],
+            'animation' => ['type' => 'enum', 'options' => ['none', 'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'zoom-in', 'zoom-out', 'blur'], 'default' => 'none'],
+            // Scroll plays as the element comes into view; load plays once the page opens.
+            'animation_trigger' => ['type' => 'enum', 'options' => ['scroll', 'load'], 'default' => 'scroll'],
+            'animation_duration' => ['type' => 'enum', 'options' => ['fast', 'normal', 'slow'], 'default' => 'normal'],
+            // Stagger step: later steps start a little after earlier ones.
+            'animation_delay' => ['type' => 'int', 'min' => 0, 'max' => 6, 'default' => 0],
             'hide_on' => ['type' => 'set', 'options' => ['mobile', 'tablet', 'desktop'], 'default' => []],
             'class' => ['type' => 'class', 'default' => ''],
             'anchor' => ['type' => 'key', 'default' => ''],
@@ -128,11 +137,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
-            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', 'class', 'anchor', 'hide_on'],
+            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -731,6 +740,9 @@ final class LayoutSchema
 
         if (!isset($normalized['border'])) {
             unset($normalized['border_width'], $normalized['border_style'], $normalized['border_color']);
+        }
+        if (!isset($normalized['animation'])) {
+            unset($normalized['animation_trigger'], $normalized['animation_duration'], $normalized['animation_delay']);
         }
 
         return $normalized;

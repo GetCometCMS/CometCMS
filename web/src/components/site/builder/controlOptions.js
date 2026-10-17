@@ -20,6 +20,19 @@ const ICONS = {
   'props.sort_order': { desc: 'mdi:sort-descending', asc: 'mdi:sort-ascending' },
   'props.display': { cards: 'mdi:view-grid-outline', list: 'mdi:format-list-bulleted' },
   'props.fit': { cover: 'mdi:crop', contain: 'mdi:fit-to-screen-outline' },
+  'style.animation': {
+    none: DEFAULT_ICON,
+    fade: 'mdi:circle-opacity',
+    'fade-up': 'mdi:arrow-up',
+    'fade-down': 'mdi:arrow-down',
+    'fade-left': 'mdi:arrow-left',
+    'fade-right': 'mdi:arrow-right',
+    'zoom-in': 'mdi:magnify-plus-outline',
+    'zoom-out': 'mdi:magnify-minus-outline',
+    blur: 'mdi:blur',
+  },
+  'style.animation_trigger': { scroll: 'mdi:gesture-swipe-up', load: 'mdi:play-outline' },
+  'style.animation_duration': { fast: 'mdi:speedometer', normal: 'mdi:speedometer-medium', slow: 'mdi:speedometer-slow' },
   'style.overlay': { none: 'mdi:image-outline', light: 'mdi:brightness-5', dark: 'mdi:brightness-3' },
 }
 
@@ -92,9 +105,9 @@ export function barOptions(group, name, values, { title, theme = null, kind = ''
   return null
 }
 
-/** Small integer ranges (e.g. 1–6 columns) as a bar of numbers. */
+/** Small integer ranges (e.g. 1–6 columns, 0–6 delay steps) as a bar of numbers. */
 export function numberBar(min, max) {
-  if (max - min > 5) return null
+  if (max - min > 6) return null
   return Array.from({ length: max - min + 1 }, (_, index) => {
     const value = min + index
     return { value, title: String(value), label: String(value) }

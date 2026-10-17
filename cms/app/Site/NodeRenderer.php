@@ -1103,6 +1103,20 @@ final class NodeRenderer
             }
         }
 
+        if (($style['animation'] ?? 'none') !== 'none') {
+            $classes[] = 'c-anim';
+            $classes[] = 'c-anim-' . $style['animation'];
+            if (($style['animation_trigger'] ?? 'scroll') === 'load') {
+                $classes[] = 'c-anim-load';
+            }
+            if (($style['animation_duration'] ?? 'normal') !== 'normal') {
+                $classes[] = 'c-anim-' . $style['animation_duration'];
+            }
+            if (($style['animation_delay'] ?? 0) > 0) {
+                $classes[] = 'c-anim-d-' . $style['animation_delay'];
+            }
+        }
+
         foreach ((array) ($style['hide_on'] ?? []) as $device) {
             $classes[] = 'c-hide-' . $device;
         }

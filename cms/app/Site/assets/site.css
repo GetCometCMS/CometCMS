@@ -411,6 +411,44 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-mw-narrow { max-width: var(--narrow); }
 .c-mw-prose { max-width: 68ch; }
 
+/*
+ * Entrance animations, CSS only. "Scroll" ties the animation to the element
+ * entering the viewport where scroll timelines are supported and otherwise
+ * plays on load; each delay step starts a little later. Every animated
+ * element resets its timing, so it never inherits a parent's.
+ */
+.c-anim { --c-anim-step: 0; --c-anim-dur: 0.7s; --c-anim-len: 70%; --c-anim-shift: 1.5rem; animation: var(--c-anim-dur) cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--c-anim-step) * 120ms) both; }
+.c-anim.c-anim-fast { --c-anim-dur: 0.4s; --c-anim-len: 40%; }
+.c-anim.c-anim-slow { --c-anim-dur: 1.1s; --c-anim-len: 100%; }
+.c-anim.c-anim-d-1 { --c-anim-step: 1; } .c-anim.c-anim-d-2 { --c-anim-step: 2; } .c-anim.c-anim-d-3 { --c-anim-step: 3; }
+.c-anim.c-anim-d-4 { --c-anim-step: 4; } .c-anim.c-anim-d-5 { --c-anim-step: 5; } .c-anim.c-anim-d-6 { --c-anim-step: 6; }
+.c-anim-fade { animation-name: c-anim-fade; }
+.c-anim-fade-up { animation-name: c-anim-fade-up; }
+.c-anim-fade-down { animation-name: c-anim-fade-down; }
+.c-anim-fade-left { animation-name: c-anim-fade-left; }
+.c-anim-fade-right { animation-name: c-anim-fade-right; }
+.c-anim-zoom-in { animation-name: c-anim-zoom-in; }
+.c-anim-zoom-out { animation-name: c-anim-zoom-out; }
+.c-anim-blur { animation-name: c-anim-blur; }
+@supports (animation-timeline: view()) {
+  .c-anim:not(.c-anim-load) {
+    animation-duration: auto;
+    animation-delay: 0s;
+    animation-timeline: view();
+    animation-range: entry calc(var(--c-anim-step) * 12%) entry calc(var(--c-anim-step) * 12% + var(--c-anim-len));
+  }
+}
+/* Sideways entrances must not widen the page. */
+.c-main { overflow-x: clip; }
+@keyframes c-anim-fade { from { opacity: 0; } }
+@keyframes c-anim-fade-up { from { opacity: 0; transform: translateY(var(--c-anim-shift)); } }
+@keyframes c-anim-fade-down { from { opacity: 0; transform: translateY(calc(var(--c-anim-shift) * -1)); } }
+@keyframes c-anim-fade-left { from { opacity: 0; transform: translateX(var(--c-anim-shift)); } }
+@keyframes c-anim-fade-right { from { opacity: 0; transform: translateX(calc(var(--c-anim-shift) * -1)); } }
+@keyframes c-anim-zoom-in { from { opacity: 0; transform: scale(0.92); } }
+@keyframes c-anim-zoom-out { from { opacity: 0; transform: scale(1.08); } }
+@keyframes c-anim-blur { from { opacity: 0; filter: blur(10px); } }
+
 @media (max-width: 767px) { .c-hide-mobile { display: none !important; } }
 @media (min-width: 768px) and (max-width: 1023px) { .c-hide-tablet { display: none !important; } }
 @media (min-width: 1024px) { .c-hide-desktop { display: none !important; } }

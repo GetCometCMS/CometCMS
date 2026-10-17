@@ -767,6 +767,19 @@ test('borders pick their sides and only keep a look while a side is set', functi
     assert_true(str_contains($css, '.c-bd.c-bdc-custom-brand{--c-bd-c:var(--c-custom-brand);}'), 'Custom colors color borders too.');
 });
 
+test('entrance animations keep their timing only while an animation is set', function (): void {
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], ['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 9], [
+        LayoutSchema::node('row', [], ['animation' => 'spin', 'animation_delay' => 2], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Hello'])])]),
+    ])]);
+
+    assert_same(['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 6], $nodes[0]['style'], 'Delay steps are clamped.');
+    assert_same([], $nodes[0]['children'][0]['style'], 'Unknown animations and their orphaned timing are dropped.');
+
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-6'));
+    assert_true(str_contains(Theme::stylesheet([]), '@keyframes c-anim-fade-up'));
+});
+
 test('theme spacing and radius tokens drive the stylesheet', function (): void {
     $theme = Theme::normalize([
         'space' => ['xs' => 2, 'md' => 24, 'xl' => 999],

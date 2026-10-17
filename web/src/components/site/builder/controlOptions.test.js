@@ -35,6 +35,13 @@ describe('builder option bars', () => {
     expect(styles.map((option) => option.style.borderTop)).toEqual(['2px solid currentColor', '2px dashed currentColor', '4px double currentColor'])
   })
 
+  it('shows animations and their timing as icons', () => {
+    const animations = barOptions('style', 'animation', ['none', 'fade', 'fade-up', 'zoom-in', 'blur'], { title })
+    expect(animations.map((option) => option.icon)).toEqual([DEFAULT_ICON, 'mdi:circle-opacity', 'mdi:arrow-up', 'mdi:magnify-plus-outline', 'mdi:blur'])
+    expect(barOptions('style', 'animation_duration', ['fast', 'normal', 'slow'], { title }).every((option) => option.icon)).toBe(true)
+    expect(numberBar(0, 6).map((option) => option.label)).toEqual(['0', '1', '2', '3', '4', '5', '6'])
+  })
+
   it('falls back when a bar would not fit', () => {
     expect(barOptions('props', 'tag', ['', 'p', 'h1', 'span', 'div'], { title })).toBeNull()
     expect(numberBar(1, 6)).toHaveLength(6)

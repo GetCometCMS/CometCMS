@@ -129,6 +129,7 @@ const STYLE_GROUPS = [
   { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
   { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
+  { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
 
@@ -155,13 +156,15 @@ const fieldWarning = computed(() => {
 /** Image options only apply once there is an image; covering images never repeat. */
 const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
 
-/** How a border looks only matters once a side is picked. */
+/** How a border looks only matters once a side is picked; timing only once there is an animation. */
 const BORDER_OPTIONS = ["border_width", "border_style", "border_color"];
+const ANIMATION_OPTIONS = ["animation_trigger", "animation_duration", "animation_delay"];
 
 function styleVisible(key) {
   const style = node.value?.style ?? {};
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
+  if (ANIMATION_OPTIONS.includes(key) && (style.animation ?? "none") === "none") return false;
   return key !== "background_repeat" || (style.background_size ?? styleSpec.value.background_size?.default) !== "cover";
 }
 
