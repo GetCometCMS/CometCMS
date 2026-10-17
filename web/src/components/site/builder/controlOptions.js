@@ -27,15 +27,35 @@ const WEIGHTS = { normal: 400, medium: 500, semibold: 600, bold: 700 }
 
 const COLOR_KEYS = new Set(['style.background', 'style.text_color'])
 
+/** Options whose values are theme spacing tokens. */
+const SPACE_KEYS = new Set(['style.padding_y', 'style.padding_x', 'style.margin_bottom'])
+
+/** The theme value behind a token option, e.g. "16px", for tooltips. */
+function tokenHint(key, value, kind, theme) {
+  if (!theme) return ''
+  const isSpace = SPACE_KEYS.has(key) || (key === 'props.size' && kind === 'spacer')
+  if (isSpace && theme.space?.[value] !== undefined) return `${theme.space[value]}px`
+  if (key !== 'style.radius') return ''
+  if (theme.radii?.[value] !== undefined) return `${theme.radii[value]}px`
+  if (value === 'theme') {
+    if (theme.radius === 'none') return '0px'
+    return theme.radii?.[theme.radius] !== undefined ? `${theme.radii[theme.radius]}px` : ''
+  }
+  return ''
+}
+
 export const DEVICE_ICONS = { mobile: 'mdi:cellphone', tablet: 'mdi:tablet', desktop: 'mdi:monitor' }
 
 /**
  * Bar options for an enum, or null when a bar would not fit.
  * `title(value)` returns the translated name of an option.
  */
-export function barOptions(group, name, values, { title, colors = null }) {
+export function barOptions(group, name, values, { title, colors = null, theme = null, kind = '' }) {
   const key = `${group}.${name}`
-  const describe = (value) => ({ value, title: title(value) })
+  const describe = (value) => ({
+    value,
+    title: [title(value), tokenHint(key, value, kind, theme)].filter(Boolean).join(' · '),
+  })
 
   if (COLOR_KEYS.has(key) && colors) {
     return values.map((value) => (value === ''
@@ -43,8 +63,12 @@ export function barOptions(group, name, values, { title, colors = null }) {
       : { ...describe(value), swatch: colors[value === 'inverse' ? 'background' : value] ?? '#ccc' }))
   }
 
-  if (ICONS[key] && values.every((value) => value === '' || ICONS[key][value])) {
-    return values.map((value) => ({ ...describe(value), icon: value === '' ? DEFAULT_ICON : ICONS[key][value] }))
+  // Icons where they say more than a word; size tokens keep their short label.
+  if (ICONS[key] && values.every((value) => value === '' || ICONS[key][value] || value in SCALE)) {
+    return values.map((value) => {
+      if (value === '') return { ...describe(value), icon: DEFAULT_ICON }
+      return ICONS[key][value] ? { ...describe(value), icon: ICONS[key][value] } : { ...describe(value), label: SCALE[value] }
+    })
   }
 
   if (values.length <= 8 && values.every((value) => value in SCALE)) {

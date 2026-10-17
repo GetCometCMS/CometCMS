@@ -40,7 +40,7 @@ const BUILDER_CSS = `
 [data-drop-root]:empty::before{content:attr(data-empty-label);font:500 13px/1.4 system-ui,sans-serif;color:#64748b}
 .cometcms-drop{position:absolute;z-index:2147483646;pointer-events:none;background:#2563eb;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .cometcms-drop.is-box{background:rgba(37,99,235,.08);border:2px dashed #2563eb;box-shadow:none;border-radius:6px}
-.cometcms-badge{position:absolute;z-index:2147483647;pointer-events:none;transform:translateY(-100%);background:#2563eb;color:#fff;font:600 11px/1 system-ui,sans-serif;padding:4px 7px;border-radius:4px 4px 0 0;white-space:nowrap}
+.cometcms-badge{position:absolute;z-index:2147483647;cursor:pointer;transform:translateY(-100%);background:#2563eb;color:#fff;font:600 11px/1 system-ui,sans-serif;padding:4px 7px;border-radius:4px 4px 0 0;white-space:nowrap}
 `;
 
 function attach(document) {
@@ -64,6 +64,11 @@ function attach(document) {
   doc.querySelectorAll("img, a").forEach((element) => element.setAttribute("draggable", "false"));
 
   doc.addEventListener("click", onClick, true);
+  doc.addEventListener("contextmenu", onContextMenu);
+  doc.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest?.(".cometcms-badge")) builder.closeContextMenu();
+  });
+  doc.defaultView?.addEventListener("scroll", () => builder.closeContextMenu(), { passive: true });
   doc.addEventListener("mouseover", onMouseOver);
   doc.documentElement.addEventListener("mouseleave", () => {
     builder.hoverId.value = null;
@@ -97,7 +102,8 @@ function applySelection(scroll) {
   el.setAttribute("data-builder-selected", "");
   const rect = el.getBoundingClientRect();
   const win = doc.defaultView;
-  badge.textContent = builder.kindLabel(el.dataset.kind);
+  badge.textContent = `${builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node))}  ⋯`;
+  badge.title = t("site.menu.more");
   badge.style.left = `${rect.left + win.scrollX}px`;
   badge.style.top = `${Math.max(16, rect.top + win.scrollY)}px`;
   badge.hidden = false;
@@ -112,9 +118,44 @@ function applyHover() {
   if (el && builder.hoverId.value !== builder.selectedId.value) el.setAttribute("data-builder-hover", "");
 }
 
+/** Viewport coordinates in the admin for a point inside the (scaled) preview. */
+function toViewport(x, y) {
+  const iframe = doc?.defaultView?.frameElement;
+  if (!iframe) return { x, y };
+  const rect = iframe.getBoundingClientRect();
+  const scale = iframe.offsetWidth > 0 ? rect.width / iframe.offsetWidth : 1;
+  return { x: rect.left + x * scale, y: rect.top + y * scale };
+}
+
+/** Where to open the menu for a node, e.g. from the keyboard. */
+function positionFor(id) {
+  const el = element(id);
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return toViewport(rect.left + 12, Math.max(rect.top, 0) + 12);
+}
+
+function onContextMenu(event) {
+  const el = event.target.closest?.("[data-node]");
+  if (!el) return;
+  event.preventDefault();
+  selectedFromCanvas = true;
+  const point = toViewport(event.clientX, event.clientY);
+  builder.openContextMenu(el.dataset.node, point.x, point.y);
+}
+
 function onClick(event) {
   event.preventDefault();
   event.stopPropagation();
+
+  // The badge on the selection opens its menu.
+  if (event.target.closest?.(".cometcms-badge") && builder.selectedId.value) {
+    const rect = badge.getBoundingClientRect();
+    const point = toViewport(rect.left, rect.bottom + 4);
+    builder.openContextMenu(builder.selectedId.value, point.x, point.y);
+    return;
+  }
+
   const el = event.target.closest?.("[data-node]");
   selectedFromCanvas = true;
   builder.select(el?.dataset.node ?? null);
@@ -239,10 +280,12 @@ watch(
   },
 );
 watch(() => builder.hoverId.value, applyHover);
+// Labels follow the arrangement (Column ↔ Row) before the preview re-renders.
+watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));
 
 onBeforeUnmount(() => {
   doc = null;
 });
 
-defineExpose({ refresh: () => frameRef.value?.refresh() });
+defineExpose({ refresh: () => frameRef.value?.refresh(), positionFor });
 </script>

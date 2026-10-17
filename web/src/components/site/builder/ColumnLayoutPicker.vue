@@ -1,7 +1,7 @@
 <template>
-  <section class="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-    <div class="flex items-center justify-between gap-2">
-      <h4 class="text-xs font-semibold text-slate-700">{{ t("site.builder.columnLayout") }}</h4>
+  <section class="space-y-2.5" :class="compact ? '' : 'rounded-xl border border-slate-200 bg-slate-50/70 p-3'">
+    <div v-if="!compact" class="flex items-center justify-between gap-2">
+      <h4 class="text-xs font-semibold text-slate-700">{{ title }}</h4>
       <span v-if="node.kind !== 'row'" class="truncate text-[10px] text-slate-400">{{ t("site.builder.columnLayoutTarget") }}</span>
     </div>
 
@@ -46,7 +46,7 @@
       </button>
     </div>
 
-    <p class="text-[11px] leading-snug text-slate-500">{{ t("site.builder.columnLayoutHint") }}</p>
+    <p v-if="!compact" class="text-[11px] leading-snug text-slate-500">{{ t("site.builder.columnLayoutHint") }}</p>
   </section>
 </template>
 
@@ -62,6 +62,8 @@ const PRESETS = [[12], [6, 6], [4, 4, 4], [3, 3, 3, 3], [4, 8], [8, 4]];
 const props = defineProps({
   /** A section, row or column; the picker edits the row it belongs to. */
   node: { type: Object, required: true },
+  /** Without heading and hint, for the context menu. */
+  compact: { type: Boolean, default: false },
 });
 
 const builder = useSiteBuilder();
@@ -69,6 +71,7 @@ const { t } = useI18n();
 
 const row = computed(() => builder.columnRowFor(props.node));
 const layout = computed(() => columnLayoutOf(row.value));
+const title = computed(() => (row.value ? builder.nodeLabel(row.value) : t("site.builder.columnLayout")));
 const direction = computed(() => (layout.value.stacked ? "stacked" : "side"));
 const directions = computed(() => [
   { value: "side", label: t("site.builder.sideBySide"), icon: "mdi:view-column-outline" },

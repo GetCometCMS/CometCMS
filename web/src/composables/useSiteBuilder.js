@@ -3,6 +3,7 @@ import {
   ancestors,
   applyColumnPreset,
   clone,
+  cloneWithNewIds,
   columnLayoutOf,
   contains,
   createNode,
@@ -14,6 +15,7 @@ import {
   locate,
   removeNode,
   resolveDrop,
+  sectionPreset,
   shiftNode,
   stackColumns,
 } from './layoutTree.js'
@@ -43,6 +45,11 @@ export function createSiteBuilder({ t }) {
   const selectedId = ref(null)
   const hoverId = ref(null)
   const drag = shallowRef(null)
+  /** Copied node and copied style, for paste. */
+  const clipboard = shallowRef(null)
+  const styleClipboard = shallowRef(null)
+  /** Open context menu: { id, x, y } in viewport coordinates. */
+  const contextMenu = ref(null)
   const savedSnapshot = ref('[]')
   const past = ref([])
   const future = ref([])
@@ -184,9 +191,9 @@ export function createSiteBuilder({ t }) {
     }, { coalesce: `${id}:${group}:${key}` })
   }
 
-  /** Insert a new node near the selection (or at the end). */
-  function insert(node) {
-    const current = selected.value
+  /** Insert a new node near `targetId` (default: the selection), or at the end. */
+  function insert(node, targetId = selectedId.value) {
+    const current = targetId ? findNode(nodes.value, targetId) : null
     const inside = current && (['section', 'row', 'column'].includes(current.kind) || isTemplateField(current))
     const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
     if (!result) return false
@@ -287,6 +294,58 @@ export function createSiteBuilder({ t }) {
     keepSelection()
   }
 
+  /** Add one more column to the set around `id`, keeping the columns equal. */
+  function addColumn(id) {
+    const row = columnRowFor(findNode(nodes.value, id))
+    const count = (row?.children.length ?? 0) + 1
+    setColumns(id, Array.from({ length: count }, () => Math.max(1, Math.floor(12 / count))))
+  }
+
+  /** Insert an empty one-column section after the section that contains `id`. */
+  function addSectionAfter(id) {
+    const section = id ? [...ancestors(nodes.value, id), findNode(nodes.value, id)].find((node) => node?.kind === 'section') : null
+    const node = sectionPreset(spec.value, [12])
+    const index = section ? locate(nodes.value, section.id).index + 1 : nodes.value.length
+    mutate((tree) => insertNode(tree, null, index, node))
+    selectedId.value = node.id
+  }
+
+  function copy(id = selectedId.value) {
+    const node = id ? findNode(nodes.value, id) : null
+    if (node) clipboard.value = clone(node)
+  }
+
+  /** Paste the copied node after `id` (or inside it when it is a container). */
+  function paste(id = selectedId.value) {
+    if (!clipboard.value) return false
+    return insert(cloneWithNewIds(clipboard.value), id)
+  }
+
+  function copyStyle(id = selectedId.value) {
+    const node = id ? findNode(nodes.value, id) : null
+    if (node) styleClipboard.value = clone(node.style ?? {})
+  }
+
+  /** Apply the copied style, keeping only what the target kind supports. */
+  function pasteStyle(id = selectedId.value) {
+    if (!styleClipboard.value || !id) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node) return
+      const allowed = spec.value?.kinds?.[node.kind]?.style ?? []
+      node.style = Object.fromEntries(Object.entries(styleClipboard.value).filter(([key]) => allowed.includes(key)))
+    })
+  }
+
+  function openContextMenu(id, x, y) {
+    if (id) selectedId.value = id
+    contextMenu.value = { id: id ?? selectedId.value, x, y }
+  }
+
+  function closeContextMenu() {
+    contextMenu.value = null
+  }
+
   function make(kind, props = {}, style = {}, children = []) {
     return createNode(spec.value, kind, props, style, children)
   }
@@ -295,6 +354,27 @@ export function createSiteBuilder({ t }) {
 
   function kindLabel(kind) {
     return t(`site.kind.${kind}`)
+  }
+
+  /**
+   * Whether a column set (or a column inside one) is arranged underneath
+   * each other on desktops — then it reads as rows rather than columns.
+   */
+  function isStacked(node) {
+    if (!node) return false
+    if (node.kind === 'row') return columnLayoutOf(node).stacked
+    if (node.kind === 'column') {
+      const parent = locate(nodes.value, node.id)?.parent
+      return parent?.kind === 'row' && columnLayoutOf(parent).stacked
+    }
+    return false
+  }
+
+  /** Name of a node as the user sees it: column sets follow their arrangement. */
+  function nodeLabel(node) {
+    if (!node) return ''
+    if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
+    return kindLabel(node.kind)
   }
 
   function nodeSummary(node) {
@@ -338,7 +418,9 @@ export function createSiteBuilder({ t }) {
     load, markSaved, mutate, undo, redo, select, selectParent,
     bindableFields, subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
     updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
-    kindLabel, nodeSummary,
+    kindLabel, nodeLabel, isStacked, nodeSummary,
+    clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
+    addColumn, addSectionAfter, openContextMenu, closeContextMenu,
   }
 
   provide(KEY, api)

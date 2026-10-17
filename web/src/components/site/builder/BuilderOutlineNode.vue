@@ -17,6 +17,7 @@
       @dragover.prevent.stop="onDragOver"
       @dragleave="dropPosition = ''"
       @drop.prevent.stop="onDrop"
+      @contextmenu.prevent="builder.openContextMenu(node.id, $event.clientX, $event.clientY)"
     >
       <span v-if="dropPosition === 'before'" class="pointer-events-none absolute inset-x-0 -top-px h-0.5 rounded bg-theme-500"></span>
       <span v-if="dropPosition === 'after'" class="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded bg-theme-500"></span>
@@ -33,7 +34,7 @@
       <span v-else class="w-5 shrink-0"></span>
 
       <Icon :icon="icon" class="h-4 w-4 shrink-0" :class="isSelected ? 'text-white/80' : 'text-slate-400'" />
-      <span class="shrink-0 font-medium">{{ builder.kindLabel(node.kind) }}</span>
+      <span class="shrink-0 font-medium">{{ builder.nodeLabel(node) }}</span>
       <span class="min-w-0 flex-1 truncate" :class="isSelected ? 'text-white/70' : 'text-slate-400'">{{ builder.nodeSummary(node) }}</span>
 
       <span class="hidden shrink-0 items-center group-hover:flex" :class="{ '!flex': isSelected }">
@@ -48,6 +49,9 @@
         </button>
         <button type="button" class="outline-action" :title="t('common.delete')" @click.stop="builder.remove(node.id)">
           <Icon icon="mdi:trash-can-outline" class="h-3.5 w-3.5" />
+        </button>
+        <button type="button" class="outline-action" :title="t('site.menu.more')" @click.stop="openMenu">
+          <Icon icon="mdi:dots-horizontal" class="h-3.5 w-3.5" />
         </button>
       </span>
     </div>
@@ -68,7 +72,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
-import { KIND_ICONS } from "./kindIcons.js";
+import { nodeIcon } from "./kindIcons.js";
 import { contains, findNode } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
@@ -99,7 +103,7 @@ const icon = computed(() => {
     const config = builder.fieldConfig(props.node);
     return config ? fieldTypeIcon(config.type) : "mdi:alert-outline";
   }
-  return KIND_ICONS[props.node.kind] ?? "mdi:shape-outline";
+  return nodeIcon(props.node, builder.isStacked(props.node));
 });
 
 // Reveal the selection when it is chosen on the canvas.
@@ -115,6 +119,11 @@ watch(
   },
   { immediate: true },
 );
+
+function openMenu(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  builder.openContextMenu(props.node.id, rect.left, rect.bottom + 4);
+}
 
 function onDragStart(event) {
   builder.drag.value = { source: "move", id: props.node.id };

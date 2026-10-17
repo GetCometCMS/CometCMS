@@ -16,9 +16,17 @@ final class Theme
 
     public const MODES = ['light', 'dark', 'auto'];
 
-    public const RADII = ['none', 'sm', 'md', 'lg', 'xl'];
+    /** Default corner for buttons, images and cards: none, a radius token, or fully round. */
+    public const RADII = ['none', 'sm', 'md', 'lg', 'full'];
 
-    public const SPACING = ['compact', 'normal', 'relaxed'];
+    /** Corner radius tokens in px. */
+    public const RADIUS_TOKENS = ['sm', 'md', 'lg'];
+
+    /** Spacing scale tokens in px, used by padding, space below, gaps and spacers. */
+    public const SPACE_TOKENS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl'];
+
+    /** Density presets of earlier themes, kept to convert them into a spacing scale. */
+    public const SPACING = ['compact' => 0.8, 'normal' => 1.0, 'relaxed' => 1.25];
 
     public const TYPE_SCALES = ['1.125', '1.2', '1.25', '1.333'];
 
@@ -74,9 +82,10 @@ final class Theme
             'type_scale' => '1.25',
             'heading_weight' => 700,
             'radius' => 'md',
+            'radii' => ['sm' => 4, 'md' => 8, 'lg' => 14],
             'container_width' => 1200,
             'narrow_width' => 760,
-            'spacing' => 'normal',
+            'space' => ['xs' => 4, 'sm' => 8, 'md' => 16, 'lg' => 32, 'xl' => 56, '2xl' => 96],
             'link_underline' => true,
             'custom_css' => '',
         ];
@@ -98,10 +107,12 @@ final class Theme
             'line_height' => round(self::clampFloat($theme['line_height'] ?? null, 1.1, 2.2, $defaults['line_height']), 2),
             'type_scale' => self::oneOf(isset($theme['type_scale']) ? (string) $theme['type_scale'] : null, self::TYPE_SCALES, $defaults['type_scale']),
             'heading_weight' => self::clampInt($theme['heading_weight'] ?? null, 300, 900, $defaults['heading_weight'], 100),
-            'radius' => self::oneOf($theme['radius'] ?? null, self::RADII, $defaults['radius']),
+            // "xl" was a fixed size before radius tokens existed.
+            'radius' => self::oneOf(($theme['radius'] ?? null) === 'xl' ? 'lg' : ($theme['radius'] ?? null), self::RADII, $defaults['radius']),
+            'radii' => self::radii($theme, $defaults['radii']),
             'container_width' => self::clampInt($theme['container_width'] ?? null, 720, 1920, $defaults['container_width']),
             'narrow_width' => self::clampInt($theme['narrow_width'] ?? null, 480, 1200, $defaults['narrow_width']),
-            'spacing' => self::oneOf($theme['spacing'] ?? null, self::SPACING, $defaults['spacing']),
+            'space' => self::space($theme, $defaults['space']),
             'link_underline' => (bool) ($theme['link_underline'] ?? $defaults['link_underline']),
             'custom_css' => self::customCss((string) ($theme['custom_css'] ?? '')),
         ];
@@ -115,8 +126,11 @@ final class Theme
     {
         $theme = self::normalize($theme);
         $scale = (float) $theme['type_scale'];
-        $radius = ['none' => '0', 'sm' => '0.25rem', 'md' => '0.5rem', 'lg' => '0.875rem', 'xl' => '1.25rem'][$theme['radius']];
-        $space = ['compact' => 0.8, 'normal' => 1.0, 'relaxed' => 1.25][$theme['spacing']];
+        $radius = match ($theme['radius']) {
+            'none' => '0',
+            'full' => '9999px',
+            default => 'var(--radius-' . $theme['radius'] . ')',
+        };
 
         $root = [
             '--font-body' => self::FONT_STACKS[$theme['fonts']['body']],
@@ -125,11 +139,21 @@ final class Theme
             '--line-height' => (string) $theme['line_height'],
             '--heading-weight' => (string) $theme['heading_weight'],
             '--radius' => $radius,
+            // Surfaces (images, cards, sections) never become pills: "round"
+            // only rounds buttons and other small controls fully.
+            '--radius-box' => $theme['radius'] === 'full' ? 'var(--radius-lg)' : $radius,
             '--container' => $theme['container_width'] . 'px',
             '--narrow' => $theme['narrow_width'] . 'px',
-            '--space-unit' => self::number($space) . 'rem',
             '--link-decoration' => $theme['link_underline'] ? 'underline' : 'none',
         ];
+
+        foreach ($theme['radii'] as $token => $px) {
+            $root['--radius-' . $token] = $px . 'px';
+        }
+
+        foreach ($theme['space'] as $token => $px) {
+            $root['--space-' . $token] = self::number($px / 16) . 'rem';
+        }
 
         foreach (['sm' => -1, 'base' => 0, 'lg' => 1, 'xl' => 2, '2xl' => 3, '3xl' => 4, '4xl' => 5, '5xl' => 6] as $step => $power) {
             $root['--fs-' . $step] = self::number(pow($scale, $power)) . 'rem';
@@ -239,6 +263,31 @@ final class Theme
         // The stylesheet is also inlined into <style> for previews; a closing
         // tag sequence must never be able to end that element early.
         return trim(str_ireplace(['</style', '<style', '<!--', '-->'], '', $css));
+    }
+
+    private static function radii(array $theme, array $defaults): array
+    {
+        $radii = [];
+
+        foreach (self::RADIUS_TOKENS as $token) {
+            $radii[$token] = self::clampInt($theme['radii'][$token] ?? null, 0, 64, $defaults[$token]);
+        }
+
+        return $radii;
+    }
+
+    /** The spacing scale; themes saved with a density preset are converted. */
+    private static function space(array $theme, array $defaults): array
+    {
+        $factor = self::SPACING[$theme['spacing'] ?? 'normal'] ?? 1.0;
+        $space = [];
+
+        foreach (self::SPACE_TOKENS as $token) {
+            $fallback = (int) round($defaults[$token] * $factor);
+            $space[$token] = self::clampInt($theme['space'][$token] ?? null, 0, 400, $fallback);
+        }
+
+        return $space;
     }
 
     private static function oneOf(mixed $value, array $allowed, string $default): string

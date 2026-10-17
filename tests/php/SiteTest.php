@@ -332,3 +332,49 @@ test('the locked admin role always holds new built-in permissions', function ():
     assert_true($permissions->allows(['id' => 'a', 'role' => 'admin'], 'site.manage', ['resource' => 'site:*']));
     assert_false($permissions->allows(['id' => 'e', 'role' => 'editor'], 'site.manage', ['resource' => 'site:*']));
 });
+
+test('background images and cropped images follow their size and focal point', function (): void {
+    $nodes = LayoutSchema::normalize([
+        ['kind' => 'section', 'props' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
+            ['kind' => 'row', 'children' => [['kind' => 'column', 'children' => [
+                ['kind' => 'image', 'props' => ['media' => 'x.jpg', 'ratio' => '16:9', 'position' => 'bottom-left']],
+                ['kind' => 'image', 'props' => ['position' => 'somewhere']],
+            ]]]],
+        ]],
+    ]);
+
+    $section = $nodes[0]['props'];
+    assert_same(['contain', 'top-right', true], [$section['background_size'], $section['background_position'], $section['background_repeat']]);
+    $images = $nodes[0]['children'][0]['children'][0]['children'];
+    assert_same('bottom-left', $images[0]['props']['position']);
+    assert_same('center', $images[1]['props']['position'], 'Unknown focal points fall back to the center.');
+
+    $css = Theme::stylesheet([]);
+    foreach (['.c-bg-size-contain', '.c-bg-pos-top-right', '.c-bg-repeat', '.c-obj-pos-bottom-left > img'] as $selector) {
+        assert_true(str_contains($css, $selector), $selector . ' is styled.');
+    }
+});
+
+test('theme spacing and radius tokens drive the stylesheet', function (): void {
+    $theme = Theme::normalize([
+        'space' => ['xs' => 2, 'md' => 24, 'xl' => 999],
+        'radii' => ['sm' => 3, 'lg' => 99],
+        'radius' => 'lg',
+    ]);
+
+    assert_same(['xs' => 2, 'sm' => 8, 'md' => 24, 'lg' => 32, 'xl' => 400, '2xl' => 96], $theme['space']);
+    assert_same(['sm' => 3, 'md' => 8, 'lg' => 64], $theme['radii']);
+
+    $css = Theme::stylesheet($theme);
+    assert_true(str_contains($css, '--space-md:1.5rem;'), 'Spacing tokens become rem values.');
+    assert_true(str_contains($css, '--radius-sm:3px;'));
+    assert_true(str_contains($css, '--radius:var(--radius-lg);'), 'The default corner points at a token.');
+    assert_true(str_contains($css, '.c-r-md { border-radius: var(--radius-md); }'));
+    assert_true(str_contains(Theme::stylesheet(['radius' => 'full']), '--radius-box:var(--radius-lg);'), 'Round corners do not turn images into pills.');
+
+    // Themes saved before tokens existed keep their look.
+    $legacy = Theme::normalize(['spacing' => 'relaxed', 'radius' => 'xl']);
+    assert_same(40, $legacy['space']['lg'], 'A relaxed density scales the default scale.');
+    assert_same('lg', $legacy['radius']);
+    assert_false(array_key_exists('spacing', $legacy));
+});

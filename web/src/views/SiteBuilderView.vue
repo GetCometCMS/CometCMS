@@ -96,7 +96,7 @@
 
       <!-- Canvas -->
       <main class="min-w-0 flex-1 p-3 xl:p-5">
-        <BuilderCanvas :body="previewBody" :device="device" @keydown="onKeydown" />
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" @keydown="onKeydown" />
       </main>
 
       <!-- Inspector -->
@@ -104,6 +104,8 @@
         <BuilderInspector />
       </aside>
     </div>
+
+    <BuilderContextMenu />
 
     <ConfirmModal
       v-model="leavePromptOpen"
@@ -145,6 +147,7 @@ import LoadingSpinner from "../components/LoadingSpinner.vue";
 import DeviceToggle from "../components/site/DeviceToggle.vue";
 import SegmentedControl from "../components/site/SegmentedControl.vue";
 import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
+import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
@@ -180,6 +183,7 @@ const locale = ref("");
 const device = ref("desktop");
 const leftTab = ref("add");
 const pendingVariant = ref("");
+const canvasRef = ref(null);
 
 const variants = computed(() => {
   if (target !== "layout" || !builder.type.value) return [];
@@ -290,7 +294,22 @@ function onKeydown(event) {
 
   if (editing) return;
 
-  if (modifier && key === "z") {
+  // Shift+F10 and the context-menu key open the menu for the selection.
+  if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && builder.selectedId.value) {
+    event.preventDefault();
+    const point = canvasRef.value?.positionFor(builder.selectedId.value) ?? { x: window.innerWidth / 2, y: 120 };
+    builder.openContextMenu(builder.selectedId.value, point.x, point.y);
+    return;
+  }
+
+  const hasTextSelection = !!window.getSelection()?.toString();
+
+  if (modifier && key === "c" && builder.selectedId.value && !hasTextSelection) {
+    builder.copy();
+  } else if (modifier && key === "v" && builder.clipboard.value) {
+    event.preventDefault();
+    builder.paste();
+  } else if (modifier && key === "z") {
     event.preventDefault();
     if (event.shiftKey) builder.redo();
     else builder.undo();
@@ -304,7 +323,8 @@ function onKeydown(event) {
     event.preventDefault();
     builder.remove();
   } else if (event.key === "Escape") {
-    builder.select(null);
+    if (builder.contextMenu.value) builder.closeContextMenu();
+    else builder.select(null);
   } else if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && builder.selectedId.value) {
     event.preventDefault();
     builder.shift(builder.selectedId.value, event.key === "ArrowUp" ? -1 : 1);
@@ -313,7 +333,8 @@ function onKeydown(event) {
 
 onMounted(() => {
   load();
-  site.load().catch(() => {});
+  // Swatches and token hints show the saved theme; refresh unless edits are pending.
+  site.load({ force: !site.isDirty }).catch(() => {});
   window.addEventListener("keydown", onKeydown);
 });
 

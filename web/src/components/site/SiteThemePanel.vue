@@ -113,16 +113,54 @@
       <!-- Layout -->
       <section class="card space-y-4 p-5">
         <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.layout") }}</h2>
-        <div>
-          <span class="form-label">{{ t("site.theme.radius") }}</span>
-          <SegmentedControl v-model="theme.radius" :options="['none', 'sm', 'md', 'lg', 'xl'].map((value) => ({ value, label: t(`site.option.${value}`) }))" />
-        </div>
-        <div>
-          <span class="form-label">{{ t("site.theme.spacing") }}</span>
-          <SegmentedControl v-model="theme.spacing" :options="['compact', 'normal', 'relaxed'].map((value) => ({ value, label: t(`site.theme.spacingOption.${value}`) }))" />
-        </div>
         <RangeRow v-model="theme.container_width" :label="t('site.theme.containerWidth')" :min="720" :max="1920" :step="20" unit="px" />
         <RangeRow v-model="theme.narrow_width" :label="t('site.theme.narrowWidth')" :min="480" :max="1200" :step="20" unit="px" />
+      </section>
+
+      <!-- Spacing scale -->
+      <section class="card space-y-4 p-5">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.spacingScale") }}</h2>
+          <p class="mt-1 text-xs text-slate-500">{{ t("site.theme.spacingScaleHint") }}</p>
+        </div>
+        <SegmentedControl
+          :model-value="spacingPreset"
+          :options="Object.keys(SPACING_PRESETS).map((value) => ({ value, label: t(`site.theme.spacingOption.${value}`) }))"
+          @update:model-value="applySpacingPreset"
+        />
+        <div class="space-y-2">
+          <div v-for="token in SPACE_TOKENS" :key="token" class="grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem] items-center gap-3">
+            <span class="text-xs font-semibold text-slate-600">{{ TOKEN_LABELS[token] }}</span>
+            <div class="flex h-5 items-center">
+              <span class="h-3 rounded-sm bg-theme-300 transition-all" :style="{ width: `${Math.min(100, (theme.space[token] / 160) * 100)}%`, minWidth: '2px' }"></span>
+            </div>
+            <TokenInput v-model="theme.space[token]" :max="400" :label="TOKEN_LABELS[token]" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Corners -->
+      <section class="card space-y-4 p-5">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.corners") }}</h2>
+          <p class="mt-1 text-xs text-slate-500">{{ t("site.theme.cornersHint") }}</p>
+        </div>
+        <div>
+          <span class="form-label">{{ t("site.theme.defaultCorner") }}</span>
+          <SegmentedControl
+            v-model="theme.radius"
+            :options="['none', 'sm', 'md', 'lg', 'full'].map((value) => ({ value, label: value === 'none' ? '0' : value === 'full' ? t('site.theme.round') : TOKEN_LABELS[value] }))"
+          />
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div v-for="token in RADIUS_TOKENS" :key="token" class="space-y-2 text-center">
+            <div
+              class="mx-auto h-12 w-12 border-2 border-theme-400 bg-theme-50"
+              :style="{ borderRadius: `${theme.radii[token]}px` }"
+            ></div>
+            <TokenInput v-model="theme.radii[token]" :max="64" :label="TOKEN_LABELS[token]" :prefix="TOKEN_LABELS[token]" />
+          </div>
+        </div>
       </section>
 
       <!-- Custom CSS -->
@@ -174,9 +212,15 @@ import DeviceToggle from "./DeviceToggle.vue";
 import RangeRow from "./RangeRow.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import SitePreviewFrame from "./SitePreviewFrame.vue";
+import TokenInput from "./TokenInput.vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
+
+const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
+const RADIUS_TOKENS = ["sm", "md", "lg"];
+const TOKEN_LABELS = { xs: "XS", sm: "S", md: "M", lg: "L", xl: "XL", "2xl": "2XL" };
+const SPACING_PRESETS = { compact: 0.8, normal: 1, relaxed: 1.25 };
 
 const COLOR_KEYS = ["primary", "secondary", "accent", "background", "surface", "text", "muted", "border"];
 
@@ -196,7 +240,7 @@ const PRESETS = [
       colors: { primary: "#b91c1c", secondary: "#111827", accent: "#1d4ed8", background: "#ffffff", surface: "#f6f6f4", text: "#111111", muted: "#6b6b6b", border: "#e5e5e5" },
       fonts: { heading: "didone", body: "transitional" },
       radius: "none",
-      spacing: "relaxed",
+      spacingFactor: 1.25,
       type_scale: "1.333",
     },
   },
@@ -213,7 +257,8 @@ const PRESETS = [
       mode: "dark",
       dark_colors: { primary: "#a78bfa", secondary: "#e9e5ff", accent: "#f472b6", background: "#0f0d1a", surface: "#1a1730", text: "#ede9fe", muted: "#a1a1c2", border: "#2a2545" },
       fonts: { heading: "geometric", body: "system" },
-      radius: "xl",
+      radius: "lg",
+      radii: { sm: 6, md: 12, lg: 20 },
     },
   },
   {
@@ -267,15 +312,34 @@ function presetSwatches(preset) {
 
 function applyPreset(preset) {
   const defaults = JSON.parse(JSON.stringify(site.data.theme_defaults));
+  const { spacingFactor = 1, ...presetTheme } = preset.theme;
   const next = {
     ...defaults,
-    ...preset.theme,
+    ...presetTheme,
     colors: { ...defaults.colors, ...(preset.theme.colors ?? {}) },
     dark_colors: { ...defaults.dark_colors, ...(preset.theme.dark_colors ?? {}) },
     fonts: { ...defaults.fonts, ...(preset.theme.fonts ?? {}) },
+    radii: { ...defaults.radii, ...(preset.theme.radii ?? {}) },
+    space: scaledSpace(spacingFactor),
     custom_css: theme.value.custom_css,
   };
   site.draft.theme = { ...theme.value, ...next };
+}
+
+function scaledSpace(factor) {
+  const base = site.data.theme_defaults.space;
+  return Object.fromEntries(SPACE_TOKENS.map((token) => [token, Math.round(base[token] * factor)]));
+}
+
+/** The density preset the current scale matches, if any. */
+const spacingPreset = computed(() =>
+  Object.keys(SPACING_PRESETS).find((key) =>
+    SPACE_TOKENS.every((token) => scaledSpace(SPACING_PRESETS[key])[token] === theme.value.space[token]),
+  ) ?? "",
+);
+
+function applySpacingPreset(key) {
+  theme.value.space = scaledSpace(SPACING_PRESETS[key]);
 }
 
 function resetTheme() {

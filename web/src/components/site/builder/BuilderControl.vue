@@ -7,7 +7,22 @@
 
     <!-- enum -->
     <template v-if="def.type === 'enum' || def.type === 'display'">
-      <OptionBar v-if="enumBar" :model-value="enumValue" :options="enumBar" @update:model-value="emitValue" />
+      <div v-if="isPositionGrid" class="grid w-24 grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" :aria-label="label">
+        <button
+          v-for="option in def.options"
+          :key="option"
+          type="button"
+          role="radio"
+          :aria-checked="value === option"
+          :title="optionLabel(option)"
+          class="flex h-6 items-center justify-center rounded transition-colors"
+          :class="value === option ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'"
+          @click="emitValue(option)"
+        >
+          <span class="h-2 w-2 rounded-full" :class="value === option ? 'bg-theme-600' : 'bg-slate-300'"></span>
+        </button>
+      </div>
+      <OptionBar v-else-if="enumBar" :model-value="enumValue" :options="enumBar" @update:model-value="emitValue" />
       <SegmentedControl
         v-else-if="enumOptions.length <= 4 && enumOptions.every((option) => option.label.length <= 9)"
         :model-value="enumValue"
@@ -148,6 +163,7 @@ const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.
 const label = computed(() => {
   // Fields have a yes/no "link to the entry"; other elements pick a link target.
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
+  if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 
@@ -184,9 +200,15 @@ const themeColors = computed(() => {
 
 const enumBar = computed(() =>
   props.def.type === "enum"
-    ? barOptions(props.group, props.name, props.def.options ?? [], { title: optionLabel, colors: themeColors.value })
+    ? barOptions(props.group, props.name, props.def.options ?? [], {
+        title: optionLabel,
+        colors: themeColors.value,
+        theme: site.data?.theme ?? null,
+        kind: props.node.kind,
+      })
     : null,
 );
+const isPositionGrid = computed(() => (props.def.options ?? []).length === 9 && props.def.options.includes("top-left"));
 const numberOptions = computed(() => numberBar(props.def.min ?? 0, props.def.max ?? 0));
 const setOptions = computed(() =>
   (props.def.options ?? []).map((option) => ({

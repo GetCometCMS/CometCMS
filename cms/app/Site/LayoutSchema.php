@@ -64,6 +64,9 @@ final class LayoutSchema
 
     public const MAX_NODES = 1500;
 
+    /** Focal points for background images and cropped images. */
+    public const POSITIONS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
+
     private const SPACE = ['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home'];
@@ -80,7 +83,7 @@ final class LayoutSchema
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
             'font_family' => ['type' => 'enum', 'options' => ['', 'body', 'heading'], 'default' => ''],
-            'radius' => ['type' => 'enum', 'options' => ['', 'none', 'theme', 'full'], 'default' => ''],
+            'radius' => ['type' => 'enum', 'options' => ['', 'none', 'theme', 'sm', 'md', 'lg', 'full'], 'default' => ''],
             'shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
             'border' => ['type' => 'enum', 'options' => ['', 'none', 'all', 'top', 'bottom'], 'default' => ''],
             'max_width' => ['type' => 'enum', 'options' => ['', 'narrow', 'prose'], 'default' => ''],
@@ -105,6 +108,7 @@ final class LayoutSchema
     {
         $ratio = ['type' => 'enum', 'options' => ['', '1:1', '4:3', '3:2', '16:9', '21:9', '3:4'], 'default' => ''];
         $fit = ['type' => 'enum', 'options' => ['cover', 'contain'], 'default' => 'cover'];
+        $position = ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'center'];
 
         return match ($kind) {
             'section' => [
@@ -112,6 +116,9 @@ final class LayoutSchema
                 'min_height' => ['type' => 'enum', 'options' => ['', 'half', 'screen'], 'default' => ''],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
                 'background_image' => ['type' => 'media', 'default' => ''],
+                'background_size' => ['type' => 'enum', 'options' => ['cover', 'contain', 'original'], 'default' => 'cover'],
+                'background_position' => $position,
+                'background_repeat' => ['type' => 'bool', 'default' => false],
                 'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
                 'sticky' => ['type' => 'bool', 'default' => false],
             ],
@@ -135,6 +142,7 @@ final class LayoutSchema
                 'date_format' => ['type' => 'enum', 'options' => ['date', 'long', 'datetime', 'time'], 'default' => 'date'],
                 'ratio' => $ratio,
                 'fit' => $fit,
+                'position' => $position,
                 'columns' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 1],
                 'prefix' => ['type' => 'string', 'max' => 60, 'default' => ''],
                 'suffix' => ['type' => 'string', 'max' => 60, 'default' => ''],
@@ -155,6 +163,7 @@ final class LayoutSchema
                 'caption' => ['type' => 'string', 'max' => 300, 'default' => ''],
                 'ratio' => $ratio,
                 'fit' => $fit,
+                'position' => $position,
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'button' => [

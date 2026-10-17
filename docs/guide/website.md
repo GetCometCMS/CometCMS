@@ -55,7 +55,13 @@ The header and footer are shown on every page and are edited in the same builder
 
 ## Theme
 
-The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts, sizes, spacing, corner radius and content width, with a live preview. Fonts are local font stacks; nothing is loaded from third-party font services.
+The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Fonts are local font stacks; nothing is loaded from third-party font services.
+
+The theme also defines the **tokens** the builder offers, so one change reshapes the whole site:
+
+- **Spacing scale** — the pixel values behind XS to 2XL for padding, space below and spacers (Compact / Normal / Relaxed fill them in).
+- **Corners** — the S, M and L radii, and the default corner used by buttons, images, cards and “Theme default”. “Round” turns buttons into pills while images and cards use L.
+- **Widths** — the maximum content width of “Contained” and “Narrow” sections.
 
 Administrators can add **custom CSS**. Every class the website uses starts with `c-`, e.g. `.c-site-name` or `.c-button-primary`. Elements also accept extra CSS classes in the builder.
 

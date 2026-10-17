@@ -100,6 +100,9 @@ final class NodeRenderer
         if ($background !== null && str_starts_with((string) $background['mime'], 'image/')) {
             $classes[] = 'c-has-bg-image';
             $style = 'background-image:url(\'' . $this->imageSource($background, 1920) . '\')';
+            $classes[] = 'c-bg-size-' . $props['background_size'];
+            $classes[] = 'c-bg-pos-' . $props['background_position'];
+            $classes[] = $props['background_repeat'] ? 'c-bg-repeat' : 'c-bg-no-repeat';
             if ($props['overlay'] !== 'none') {
                 $classes[] = 'c-overlay-' . $props['overlay'];
             }
@@ -739,6 +742,8 @@ final class NodeRenderer
         $ratio = $props['ratio'] ?? '';
         if ($ratio !== '') {
             $fit = ($props['fit'] ?? 'cover') === 'contain' ? ' c-fit-contain' : '';
+            $position = $props['position'] ?? 'center';
+            $fit .= $position !== 'center' && in_array($position, LayoutSchema::POSITIONS, true) ? ' c-obj-pos-' . $position : '';
 
             return '<div class="c-ratio c-ratio-' . str_replace(':', '-', $ratio) . $fit . '">' . $img . '</div>';
         }

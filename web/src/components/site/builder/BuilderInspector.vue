@@ -1,9 +1,9 @@
 <template>
   <div v-if="node" class="flex h-full flex-col">
     <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
-      <Icon :icon="KIND_ICONS[node.kind] ?? 'mdi:shape-outline'" class="h-5 w-5 shrink-0 text-theme-600" />
+      <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
-        <p class="text-sm font-semibold text-slate-900">{{ builder.kindLabel(node.kind) }}</p>
+        <p class="text-sm font-semibold text-slate-900">{{ builder.nodeLabel(node) }}</p>
         <p class="min-h-[1rem] truncate text-xs text-slate-500">{{ builder.nodeSummary(node) }}</p>
       </div>
       <button type="button" class="inspector-action" :title="t('site.builder.selectParent')" :disabled="!hasParent" @click="builder.selectParent()">
@@ -14,6 +14,9 @@
       </button>
       <button type="button" class="inspector-action hover:!text-red-600" :title="t('common.delete')" @click="builder.remove(node.id)">
         <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
+      </button>
+      <button type="button" class="inspector-action" :title="t('site.menu.more')" @click="openMenu">
+        <Icon icon="mdi:dots-horizontal" class="h-4 w-4" />
       </button>
     </div>
 
@@ -88,7 +91,7 @@ import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
-import { KIND_ICONS } from "./kindIcons.js";
+import { nodeIcon } from "./kindIcons.js";
 import { findNode, locate } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -144,6 +147,7 @@ const visibleProps = computed(() => {
       truncate: ["text", "textarea"].includes(type) || (["markdown", "html"].includes(type) && display === "excerpt"),
       date_format: ["date", "datetime"].includes(type),
       ratio: type === "media" && display !== "files",
+      position: type === "media" && display !== "files" && !!props.ratio,
       fit: type === "media" && display !== "files" && !!props.ratio,
       columns: (type === "media" && display === "gallery") || (type === "relation" && display === "cards") || type === "repeater",
       prefix: ["number", "range", "select"].includes(type),
@@ -155,7 +159,11 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "section") {
-    return keys.filter((key) => key !== "overlay" || props.background_image);
+    const imageOptions = ["background_size", "background_position", "background_repeat", "overlay"];
+    return keys.filter((key) =>
+      (!imageOptions.includes(key) || props.background_image)
+      && (key !== "background_repeat" || props.background_size !== "cover"),
+    );
   }
 
   if (current.kind === "collection") {
@@ -163,11 +171,16 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "image") {
-    return keys.filter((key) => key !== "fit" || props.ratio);
+    return keys.filter((key) => !["fit", "position"].includes(key) || props.ratio);
   }
 
   return keys;
 });
+
+function openMenu(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  builder.openContextMenu(node.value.id, rect.right - 288, rect.bottom + 6);
+}
 
 function updateProp(key, value) {
   if (key !== "field") {

@@ -15,3 +15,13 @@ export const KIND_ICONS = {
   site_title: 'mdi:home-variant-outline',
   language_switcher: 'mdi:translate',
 }
+
+/** Column sets arranged underneath each other read as rows. */
+export const STACKED_ICONS = {
+  row: 'mdi:view-agenda-outline',
+  column: 'mdi:view-split-horizontal',
+}
+
+export function nodeIcon(node, stacked = false) {
+  return (stacked && STACKED_ICONS[node?.kind]) || KIND_ICONS[node?.kind] || 'mdi:shape-outline'
+}
