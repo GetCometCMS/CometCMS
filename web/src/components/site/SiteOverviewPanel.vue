@@ -1,30 +1,6 @@
 <template>
   <div class="space-y-6">
 
-    <!-- Identity -->
-    <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.identity") }}</h2>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label class="form-label" for="site-title">{{ t("site.overview.siteTitle") }}</label>
-          <input id="site-title" v-model="settings.title" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="site.data.workspace_label" />
-        </div>
-        <div>
-          <label class="form-label" for="site-tagline">{{ t("site.overview.tagline") }}</label>
-          <input id="site-tagline" v-model="settings.tagline" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.overview.taglinePlaceholder')" />
-        </div>
-        <div>
-          <span class="form-label">{{ t("site.overview.logo") }}</span>
-          <MediaSelect v-model="settings.logo" name="site-logo" />
-        </div>
-        <div>
-          <span class="form-label">{{ t("site.overview.favicon") }}</span>
-          <MediaSelect v-model="settings.favicon" name="site-favicon" />
-          <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.faviconHint") }}</p>
-        </div>
-      </div>
-    </section>
-
     <!-- Homepage -->
     <section class="card space-y-4 p-6">
       <div>
@@ -105,7 +81,6 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import MediaSelect from "./MediaSelect.vue";
 import SearchableSelect from "../SearchableSelect.vue";
 import { api } from "../../api/index.js";
 import { localeLabel } from "../../composables/localeOptions.js";
