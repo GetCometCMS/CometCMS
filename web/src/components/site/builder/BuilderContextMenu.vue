@@ -27,6 +27,7 @@
           :group="group"
           :def="definition(group, key)"
           :value="valueOf(group, key)"
+          :devices="[spanDevice]"
           @update="(value) => builder.updateValue(node.id, group, key, value)"
         />
       </div>
@@ -65,12 +66,19 @@ import { useI18n } from "../../../i18n/index.js";
 const QUICK = {
   section: [["props", "width"]],
   row: [],
-  column: [["props", "vertical_align"]],
+  column: [["props", "span"], ["props", "vertical_align"]],
+  // Only column components have a width of their own.
+  [COMPONENT]: [["props", "span"]],
   heading: [["props", "level"], ["style", "align"]],
   button: [["props", "variant"], ["style", "align"]],
   collection: [["props", "display"]],
   menu: [["props", "orientation"]],
 };
+
+const props = defineProps({
+  /** Device the canvas previews ("full" is a desktop width). */
+  device: { type: String, default: "desktop" },
+});
 
 const builder = useSiteBuilder();
 const { t } = useI18n();
@@ -80,12 +88,15 @@ const position = ref({ x: 0, y: 0 });
 const menu = computed(() => builder.contextMenu.value);
 const node = computed(() => (menu.value ? findNode(builder.nodes.value, menu.value.id) : null));
 const where = computed(() => (node.value ? locate(builder.nodes.value, node.value.id) : null));
-const showColumns = computed(() => isStructure(node.value?.kind));
+// A column sets its own width instead; sections and column sets pick a preset.
+const showColumns = computed(() => isStructure(node.value?.kind) && node.value.kind !== "column");
+const spanDevice = computed(() => (props.device === "full" ? "desktop" : props.device));
 
 const quick = computed(() => {
   const kind = node.value?.kind;
   if (!kind) return [];
   const allowedStyle = builder.spec.value?.kinds?.[kind]?.style ?? [];
+  if (kind === COMPONENT && node.value.props?.root !== "column") return [];
   const list = QUICK[kind] ?? (allowedStyle.includes("align") ? [["style", "align"]] : []);
   return list.filter(([group, key]) => (group === "style" ? allowedStyle.includes(key) : key in (builder.spec.value?.kinds?.[kind]?.props ?? {})));
 });

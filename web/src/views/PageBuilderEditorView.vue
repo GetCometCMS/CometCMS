@@ -170,7 +170,7 @@
       </ResizableSidebar>
     </div>
 
-    <BuilderContextMenu />
+    <BuilderContextMenu :device="device" />
 
     <ComponentNameModal
       :model-value="builder.componentDialog.value !== null"

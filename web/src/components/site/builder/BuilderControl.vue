@@ -104,7 +104,7 @@
     <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
 
     <div v-else-if="def.type === 'spans'" class="space-y-1.5">
-      <div v-for="device in ['desktop', 'tablet', 'mobile']" :key="device" class="flex items-center gap-1.5">
+      <div v-for="device in devices" :key="device" class="flex items-center gap-1.5">
         <Icon :icon="DEVICE_ICONS[device]" class="h-4 w-4 shrink-0 text-slate-400" :title="t(`site.device.${device}`)" />
         <div class="flex h-6 flex-1 gap-px overflow-hidden rounded-md bg-slate-200 p-px" role="radiogroup" :aria-label="t(`site.device.${device}`)">
           <button
@@ -183,6 +183,8 @@ const props = defineProps({
   def: { type: Object, required: true },
   value: { default: null },
   group: { type: String, default: "props" },
+  /** Devices a column width control shows, e.g. only the one previewed. */
+  devices: { type: Array, default: () => ["desktop", "tablet", "mobile"] },
 });
 
 const emit = defineEmits(["update"]);
