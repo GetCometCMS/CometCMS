@@ -723,6 +723,36 @@ test('background blur renders a separate decorative layer for public images only
     }
 });
 
+test('image elements are rendered within their width bounds', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
+    $render = static function (array $props, array $style = []): string {
+        $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+            LayoutSchema::node('column', [], [], [LayoutSchema::node('image', ['media' => 'photo.svg', ...$props], $style)]),
+        ])])]);
+
+        return (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    };
+
+    $html = $render([]);
+    assert_false(str_contains($html, 'c-img-sized'), 'Images without bounds keep their natural size.');
+    assert_false(str_contains($html, '--c-img-'));
+
+    $html = $render(['min_width' => 200, 'max_width' => 480], ['background_image' => 'photo.svg']);
+    assert_true(str_contains($html, 'c-img-sized'));
+    assert_true(str_contains($html, '--c-img-min:200px;--c-img-max:480px'));
+    assert_true(str_contains($html, 'background-image:'), 'Width bounds join the element\'s other inline styles.');
+
+    assert_true(str_contains($render(['min_width' => 900, 'max_width' => 300]), '--c-img-min:300px;--c-img-max:300px'), 'A minimum above the maximum gives one exact width.');
+    assert_true(str_contains($render(['min_width' => 320]), 'style="--c-img-min:320px"'));
+
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', [], [], [LayoutSchema::node('image', ['min_width' => -5, 'max_width' => 999999])]),
+    ])])]);
+    $props = $nodes[0]['children'][0]['children'][0]['children'][0]['props'];
+    assert_same([0, LayoutSchema::MAX_IMAGE_WIDTH], [$props['min_width'], $props['max_width']]);
+});
+
 test('rows, columns and elements take a background image over their background color', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/texture.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');

@@ -120,6 +120,7 @@
         class="border-r border-slate-200"
       >
         <SiteDesignPanel v-if="leftPanel === 'design'" @close="leftPanel = null" />
+        <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
         <template v-else>
           <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
             <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
@@ -231,6 +232,7 @@ import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
+import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
@@ -272,21 +274,28 @@ const builder = createSiteBuilder({
 watch(() => site.draft?.theme, () => builder.linkedChanged({ record: !site.saving && !site.loading }), { deep: true, flush: "sync" });
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
+/** The pending design edits include the custom stylesheet, or are only that. */
+const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_css ?? "") !== (site.data?.theme?.custom_css ?? ""));
+const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
   (to) => builder.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
 );
 
 const RAIL_WIDTH = 48;
 const DESIGN_MIN_WIDTH = 320;
-/** The open left panel: "add", "outline", "design", "history", or null when collapsed. */
-const leftPanel = ref(route.query.settings === "design" ? "design" : "add");
+/** Code reads better wide, so the stylesheet panel may grow further. */
+const CSS_MIN_WIDTH = 360;
+const CSS_MAX_WIDTH = 720;
+/** The open left panel: "add", "outline", "design", "css", "history", or null when collapsed. */
+const leftPanel = ref(["design", "css"].includes(route.query.settings) ? route.query.settings : "add");
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
 const panels = computed(() => [
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
-  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
+  { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
 ]);
 const activePanel = computed(() => panels.value.find((panel) => panel.value === leftPanel.value));
@@ -295,10 +304,10 @@ const builderAreaRef = ref(null);
 const builderWidth = ref(window.innerWidth);
 const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
 const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
-const leftMinWidth = computed(() => (leftPanel.value === "design" ? DESIGN_MIN_WIDTH : 224));
+const leftMinWidth = computed(() => ({ design: DESIGN_MIN_WIDTH, css: CSS_MIN_WIDTH })[leftPanel.value] ?? 224);
 /** Width the left panel takes from the canvas: nothing while collapsed. */
 const leftSpace = computed(() => RAIL_WIDTH + (leftPanel.value ? leftWidth.value : 0));
-const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
+const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(leftPanel.value === "css" ? CSS_MAX_WIDTH : 480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
 const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftSpace.value - 320)));
 let builderResizeObserver = null;
 
@@ -445,7 +454,7 @@ function togglePanel(panel) {
 }
 
 watch(leftPanel, (panel) => {
-  if (panel === "design") leftWidth.value = Math.max(leftWidth.value, Math.min(DESIGN_MIN_WIDTH, leftMaxWidth.value));
+  if (panel === "design" || panel === "css") leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
 }, { immediate: true });
 
 watch(locale, (value) => { builder.locale.value = value; });

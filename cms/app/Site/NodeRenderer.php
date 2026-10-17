@@ -352,7 +352,29 @@ final class NodeRenderer
             $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($props['caption']) . '</figcaption></figure>';
         }
 
-        return $this->element($node, $html);
+        [$classes, $style] = $this->imageWidth($props);
+
+        return $this->element($node, $html, $classes, $style);
+    }
+
+    /**
+     * Width bounds of an image element, as a class and the custom properties
+     * site.css reads. A minimum above the maximum is taken as the maximum, so
+     * equal or crossed values give one exact width.
+     *
+     * @return array{0: list<string>, 1: string}
+     */
+    private function imageWidth(array $props): array
+    {
+        $max = (int) ($props['max_width'] ?? 0);
+        $min = (int) ($props['min_width'] ?? 0);
+        if ($max > 0) $min = min($min, $max);
+
+        $style = [];
+        if ($min > 0) $style[] = '--c-img-min:' . $min . 'px';
+        if ($max > 0) $style[] = '--c-img-max:' . $max . 'px';
+
+        return $style === [] ? [[], ''] : [['c-img-sized'], implode(';', $style)];
     }
 
     private function button(array $node, array $state): string
@@ -992,12 +1014,13 @@ final class NodeRenderer
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private function element(array $node, string $inner, array $extraClasses = []): string
+    private function element(array $node, string $inner, array $extraClasses = [], string $style = ''): string
     {
         $background = $this->background($node['style']);
         $classes = ['c-el', 'c-el-' . str_replace('_', '-', $node['kind']), ...$extraClasses, ...$background['classes'], ...$this->styleClasses($node['style'])];
+        $style = implode(';', array_filter([$background['style'], $style]));
 
-        return '<div' . $this->attributes($node, $classes, $background['style']) . '>' . $background['layer'] . $inner . '</div>';
+        return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';
     }
 
     /**

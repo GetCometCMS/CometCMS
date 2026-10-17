@@ -213,20 +213,6 @@
         </div>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.css" :title="t('site.theme.customCss')" content-class="mt-2 space-y-3 px-1">
-        <p class="text-xs text-slate-500">
-          {{ site.data.can_edit_css ? t("site.theme.customCssHint") : t("site.theme.customCssAdminOnly") }}
-        </p>
-        <textarea
-          v-model="theme.custom_css"
-          rows="8"
-          spellcheck="false"
-          :disabled="!site.data.can_edit_css"
-          class="form-textarea w-full rounded-lg border-slate-300 font-mono text-xs disabled:bg-slate-50 disabled:text-slate-500"
-          placeholder=".c-site-name { letter-spacing: 0.05em; }"
-        ></textarea>
-      </BuilderGroup>
-
       <button type="button" class="btn-secondary w-full justify-center" @click="resetTheme">
         <Icon icon="mdi:restore" class="h-4 w-4" />
         {{ t("site.theme.reset") }}
@@ -313,7 +299,7 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false, css: false });
+const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
 const motionPreview = ref(0);
 
 const palettes = computed(() => {

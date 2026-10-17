@@ -11,23 +11,35 @@
           {{ t("contentList.trash") }}
           <span
             class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5">{{
-            trashCount }}</span>
+              trashCount }}</span>
         </router-link>
+
         <nav v-if="canEditTemplates" class="flex flex-wrap items-center gap-1.5"
           :aria-label="t('site.collection.templates')">
-          <span class="mr-1 text-xs font-semibold text-slate-500">{{ t('site.collection.templates') }}</span>
-          <router-link v-for="template in COLLECTION_TEMPLATES" :key="template.variant"
-            :to="{ path: `/page-builder/builder/layout/${collection}/${template.variant}`, query: { back: route.fullPath } }"
-            class="btn-secondary btn-sm"
-            :title="t('site.collection.editTemplate', { template: t(`site.variant.${template.variant}`) })">
+          <span class="mr-1 text-xs font-semibold text-slate-500">
+            {{ t('site.collection.templates') }}
+          </span>
+
+          <router-link v-for="template in COLLECTION_TEMPLATES" :key="template.variant" :to="{
+            path: `/page-builder/builder/layout/${collection}/${template.variant}`,
+            query: { back: route.fullPath }
+          }" class="btn-secondary" :title="t('site.collection.editTemplate', {
+      template: t(`site.variant.${template.variant}`)
+    })">
             <Icon :icon="template.icon" class="h-4 w-4" />
             {{ t(`site.variant.${template.variant}`) }}
           </router-link>
         </nav>
+
+        <!-- Vertical separator -->
+        <div v-if="canEditTemplates && canContent('content.create', collection)"
+          class="mx-2 h-6 w-px shrink-0 bg-slate-300" aria-hidden="true"></div>
+
         <router-link v-if="canContent('content.create', collection)" :to="`/content/${collection}/new`"
           class="btn-primary">
           {{ t("contentList.newEntry") }}
         </router-link>
+
       </div>
     </div>
 
@@ -37,7 +49,7 @@
         <div class="min-w-[240px] flex-1">
           <label for="content-search" class="form-label text-xs">{{
             t("contentList.search")
-            }}</label>
+          }}</label>
           <div class="relative">
             <Icon icon="mdi:magnify"
               class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -68,8 +80,8 @@
             <label v-for="column in tableColumns" :key="column.key"
               class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
               :class="visibleColumns[column.key] && displayedColumns.length === 1
-                  ? 'opacity-40 cursor-not-allowed'
-                  : ''
+                ? 'opacity-40 cursor-not-allowed'
+                : ''
                 ">
               <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
                 :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
@@ -81,8 +93,8 @@
               <label v-for="column in postTypeFieldColumns" :key="column.key"
                 class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
                 :class="visibleColumns[column.key] && displayedColumns.length === 1
-                    ? 'opacity-40 cursor-not-allowed'
-                    : ''
+                  ? 'opacity-40 cursor-not-allowed'
+                  : ''
                   ">
                 <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
                   :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
@@ -190,8 +202,8 @@
                 <th v-if="canSelectEntries" class="w-10 px-3 py-3">
                   <input type="checkbox" :aria-label="t('contentList.selectPage')"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
-                        ? 'opacity-100'
-                        : 'sm:opacity-0 sm:group-hover/thead:opacity-100 focus-visible:opacity-100'
+                      ? 'opacity-100'
+                      : 'sm:opacity-0 sm:group-hover/thead:opacity-100 focus-visible:opacity-100'
                       " :checked="allPageSelected" :indeterminate.prop="someSelected && !allPageSelected"
                     @change="toggleAllPage" />
                 </th>
@@ -222,15 +234,15 @@
                 </td>
               </tr>
               <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer transition-colors group" :class="selectedIds.has(entry.id)
-                  ? 'bg-theme-50 hover:bg-theme-100'
-                  : 'hover:bg-slate-50'
+                ? 'bg-theme-50 hover:bg-theme-100'
+                : 'hover:bg-slate-50'
                 " @click="router.push(`/content/${collection}/${entry.id}`)">
                 <td v-if="canSelectEntries" class="w-10 px-3 py-3" @click.stop>
                   <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
-                        ? 'opacity-100'
-                        : 'sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100'
+                      ? 'opacity-100'
+                      : 'sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100'
                       " :checked="selectedIds.has(entry.id)" @change="toggleSelection(entry.id)" />
                 </td>
                 <td v-for="column in displayedColumns" :key="column.key" :class="cellClass(column)">
@@ -276,12 +288,12 @@
                             </div>
                             <span class="text-slate-700">{{
                               userMap[entry.author_id].username
-                              }}</span>
+                            }}</span>
                           </div>
                         </template>
                         <span v-else class="text-slate-400">{{
                           entry.author_id ?? "—"
-                          }}</span>
+                        }}</span>
                       </template>
                       <template v-else-if="column.key === 'created'">
                         {{ formatDate(entry.created_at) }}

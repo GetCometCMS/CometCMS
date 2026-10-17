@@ -75,6 +75,9 @@ final class LayoutSchema
 
     public const MAX_NODES = 1500;
 
+    /** Upper bound of an image element's width options, in pixels. */
+    public const MAX_IMAGE_WIDTH = 2400;
+
     /** Focal points for background images and cropped images. */
     public const POSITIONS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
 
@@ -213,6 +216,9 @@ final class LayoutSchema
                 'ratio' => $ratio,
                 'fit' => $fit,
                 'position' => $position,
+                // Rendered width bounds in pixels; 0 leaves that side to the image and its column.
+                'min_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'unit' => 'px', 'default' => 0],
+                'max_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'unit' => 'px', 'default' => 0],
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'button' => [

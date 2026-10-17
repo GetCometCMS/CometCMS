@@ -94,7 +94,7 @@ const routes = [
     redirect: '/connect/api',
   },
   {
-    path: '/page-builder/:tab(overview|components|menus)?',
+    path: '/page-builder/:tab(overview|seo|components|menus)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },

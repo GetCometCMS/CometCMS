@@ -65,6 +65,33 @@
       @update:model-value="emitValue"
     />
 
+    <!-- A size in units: slider with an exact value beside it; 0 (empty) is automatic. -->
+    <div v-else-if="def.type === 'int' && def.unit" class="flex items-center gap-2">
+      <input
+        type="range"
+        class="min-w-0 flex-1 accent-theme-600"
+        :min="def.min"
+        :max="def.max"
+        :step="SIZE_STEP"
+        :value="value ?? 0"
+        :aria-label="label"
+        @input="emitNumber($event.target.value)"
+      />
+      <span class="relative w-20 shrink-0">
+        <input
+          :id="inputId"
+          type="number"
+          :min="def.min"
+          :max="def.max"
+          :value="value || ''"
+          :placeholder="t('site.builder.spanAuto')"
+          class="form-input w-full rounded-lg border-slate-300 py-1.5 pr-7 text-xs"
+          @change="emitNumber($event.target.value || 0)"
+        />
+        <span class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-slate-400">{{ def.unit }}</span>
+      </span>
+    </div>
+
     <input
       v-else-if="def.type === 'int'"
       :id="inputId"
@@ -188,6 +215,8 @@ import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
+/** Slider step of sizes; the number field beside it takes any value. */
+const SIZE_STEP = 10;
 const SORTABLE_TYPES = ["text", "number", "range", "date", "datetime", "select", "boolean", "slug"];
 
 const props = defineProps({
