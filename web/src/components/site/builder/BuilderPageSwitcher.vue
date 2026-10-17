@@ -49,6 +49,7 @@
           >
             <Icon :icon="item.icon" class="h-4 w-4 shrink-0" :class="item.current ? 'text-theme-600' : 'text-slate-400'" aria-hidden="true" />
             <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+            <span v-if="item.isHomepage" class="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.overview.homepage") }}</span>
             <span v-if="item.isDefault" class="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.pages.default") }}</span>
             <Icon v-if="item.current" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
           </button>
@@ -99,6 +100,7 @@ const allGroups = computed(() => [
       icon: type.singleton ? "mdi:file-document-outline" : "mdi:file-multiple-outline",
       path: `/page-builder/builder/layout/${type.name}/detail`,
       current: props.target === "layout" && props.name === type.name,
+      isHomepage: site.data?.settings?.homepage?.type === type.name,
       isDefault: site.data?.layouts?.[type.name]?.detail === false,
     })),
   },
