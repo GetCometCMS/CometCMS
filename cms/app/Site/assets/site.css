@@ -118,6 +118,13 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-row > .c-col { min-width: 0; }
 .c-self-center { align-self: center; }
 .c-self-end { align-self: end; }
+/* Column spacing: sets the flow between its elements, which "space below" still overrides. */
+.c-stack-none { --flow: 0px; }
+.c-stack-xs { --flow: var(--space-xs); }
+.c-stack-sm { --flow: var(--space-sm); }
+.c-stack-md { --flow: var(--space-md); }
+.c-stack-lg { --flow: var(--space-lg); }
+.c-stack-xl { --flow: var(--space-xl); }
 .c-col-1 { grid-column: span 1; } .c-col-2 { grid-column: span 2; } .c-col-3 { grid-column: span 3; }
 .c-col-4 { grid-column: span 4; } .c-col-5 { grid-column: span 5; } .c-col-6 { grid-column: span 6; }
 .c-col-7 { grid-column: span 7; } .c-col-8 { grid-column: span 8; } .c-col-9 { grid-column: span 9; }

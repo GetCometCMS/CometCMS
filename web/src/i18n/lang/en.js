@@ -1483,6 +1483,7 @@ const messages = {
     'site.prop.width': 'Width',
     'site.prop.min_height': 'Minimum height',
     'site.prop.vertical_align': 'Vertical alignment',
+    'site.prop.spacing': 'Space between elements',
     'site.prop.sticky': 'Stick to the top when scrolling',
     'site.prop.gap': 'Gap between columns',
     'site.prop.align': 'Align columns',

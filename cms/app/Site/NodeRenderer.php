@@ -230,6 +230,9 @@ final class NodeRenderer
         if ($node['props']['vertical_align'] !== 'start') {
             $classes[] = 'c-self-' . $node['props']['vertical_align'];
         }
+        if ($node['props']['spacing'] !== '') {
+            $classes[] = 'c-stack-' . $node['props']['spacing'];
+        }
 
         $inner = $this->render($node['children'], $state);
         if ($inner === '' && $this->annotating()) {

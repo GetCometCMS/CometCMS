@@ -150,6 +150,8 @@ final class LayoutSchema
             'column' => [
                 'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
+                // Space between the column's elements; empty keeps the theme's flow.
+                'spacing' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             ],
             // Only a column component's instances use their own span.
             self::COMPONENT => [
