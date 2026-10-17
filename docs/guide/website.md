@@ -6,7 +6,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 ## Turning it on
 
-Open **Website** in the admin sidebar (administrators only, permission `site.manage`) and switch on **Publish website** in the **Overview** tab. Then turn on **On website** in the **Website** card of each content type that should become pages (**Content types → edit**), and set its URLs there:
+Open **Website** in the admin sidebar (administrators only, permission `site.manage`) and switch on **Publish website** in the **Overview** tab. Under **Content types → edit**, turn on **Show content as frontend pages** in the base settings card. The **Frontend pages** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -15,6 +15,8 @@ Open **Website** in the admin sidebar (administrators only, permission `site.man
 | List page URL | `/blog`         | Optional page listing all entries of a collection, with paging.   |
 
 `/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
+
+The **Frontend pages** column in the content types table shows whether pages are configured for each type, even when the website is off. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. Private types cannot enable public frontend pages.
 
 The homepage can be a single page, one entry, or a collection's list page. Until you choose one, CometCMS shows an automatic overview with the newest entries of every published collection.
 

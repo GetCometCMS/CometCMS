@@ -126,8 +126,40 @@
               {{ t(form.visibility === "private" ? "contentTypeEdit.privateHint" : "contentTypeEdit.publicHint") }}
             </p>
           </div>
+
+          <div v-if="websiteStatus" id="frontend-page-setting" class="col-span-1 scroll-mt-24">
+            <label for="content-type-frontend" class="form-label">{{ t("site.typeCard.title") }}</label>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <ToggleSwitch
+                id="content-type-frontend"
+                v-model="frontendPagesEnabled"
+                :disabled="!websiteStatus.can_manage || !websiteRoute || form.visibility === 'private'"
+                :aria-label="t('site.pages.showInFrontend')"
+                aria-describedby="content-type-frontend-help"
+              />
+              {{ t("site.pages.showInFrontend") }}
+            </label>
+            <p id="content-type-frontend-help" class="mt-1 text-xs text-slate-500">
+              {{ t(form.visibility === "private" ? "site.typeCard.private" : "site.pages.frontendHint") }}
+            </p>
+          </div>
         </div>
       </div>
+
+      <!-- Frontend options are relevant only when this type has pages. -->
+      <TypeWebsiteCard
+        v-if="frontendPagesEnabled"
+        v-model="websiteRoute"
+        :status="websiteStatus"
+        :name="isNew ? toSlug(form.name) : form.name"
+        :label="form.label"
+        :singleton="form.singleton"
+        :visibility="form.visibility"
+        :fields="customFields"
+        :errors="websiteErrors"
+        :is-new="isNew"
+        @touched="routeTouched = true"
+      />
 
       <!-- Localization -->
       <div class="card p-6 space-y-4">
@@ -217,21 +249,6 @@
         />
       </div>
 
-      <!-- Website -->
-      <TypeWebsiteCard
-        v-if="websiteStatus && (websiteStatus.can_manage || websiteStatus.enabled)"
-        v-model="websiteRoute"
-        :status="websiteStatus"
-        :name="isNew ? toSlug(form.name) : form.name"
-        :label="form.label"
-        :singleton="form.singleton"
-        :visibility="form.visibility"
-        :fields="customFields"
-        :errors="websiteErrors"
-        :is-new="isNew"
-        @touched="routeTouched = true"
-      />
-
       <div
         v-if="saveError"
         class="p-3 bg-red-50 text-red-700 rounded-lg text-sm"
@@ -283,6 +300,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import FieldBuilder from "../components/FieldBuilder.vue";
 import IconPickerGrid from "../components/IconPickerGrid.vue";
+import ToggleSwitch from "../components/ToggleSwitch.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import SearchableSelect from "../components/SearchableSelect.vue";
@@ -412,6 +430,15 @@ onBeforeUnmount(() => {
 const site = useSiteStore();
 const websiteStatus = ref(null);
 const websiteRoute = ref(null);
+const frontendPagesEnabled = computed({
+  get: () => form.value.visibility !== "private" && !!(
+    websiteRoute.value?.enabled ?? websiteStatus.value?.types?.[form.value.name]?.pages_enabled
+  ),
+  set: (enabled) => {
+    if (!websiteRoute.value || !websiteStatus.value?.can_manage || form.value.visibility === "private") return;
+    websiteRoute.value = { ...websiteRoute.value, enabled };
+  },
+});
 const websiteErrors = ref({});
 const routeTouched = ref(false);
 let routeClean = "null";
@@ -448,7 +475,7 @@ async function loadWebsite() {
 
   if (route.hash === "#website") {
     await nextTick();
-    document.getElementById("website")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    (document.getElementById("website") ?? document.getElementById("frontend-page-setting"))?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
@@ -464,7 +491,7 @@ async function saveWebsiteRoute(name) {
     routeClean = JSON.stringify(websiteRoute.value);
     websiteStatus.value = {
       ...websiteStatus.value,
-      types: { ...websiteStatus.value.types, [name]: { ...saved, enabled: websiteStatus.value.enabled && saved.enabled } },
+      types: { ...websiteStatus.value.types, [name]: { ...saved, pages_enabled: saved.enabled, enabled: websiteStatus.value.enabled && saved.enabled } },
     };
     return true;
   } catch (err) {

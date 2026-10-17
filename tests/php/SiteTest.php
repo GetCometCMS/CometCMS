@@ -265,6 +265,31 @@ test('saving website changes clears cached pages', function (): void {
     assert_null($cache->get($key));
 });
 
+test('website status keeps configured frontend pages separate from the global website switch', function (): void {
+    $seed = <<<'PHP'
+$users->create('editor', 'secret-password', 'editor');
+$types = new \CometCMS\Content\ContentTypeRepository();
+$types->save(['name' => 'pages']);
+$types->save(['name' => 'data-only']);
+$types->save(['name' => 'notes', 'visibility' => 'private']);
+(new \CometCMS\Site\SiteRepository())->saveSettings([
+    'enabled' => false,
+    'routes' => ['pages' => ['enabled' => true], 'notes' => ['enabled' => true]],
+]);
+PHP;
+
+    [$status, $json] = comet_admin_request('editor', $seed, 'GET', '/admin/api/site/status',
+        '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->status();');
+
+    assert_same(200, $status);
+    assert_false($json['data']['enabled']);
+    assert_false($json['data']['can_manage'], 'Editors can see the status without website management permission.');
+    assert_true($json['data']['types']['pages']['pages_enabled']);
+    assert_false($json['data']['types']['pages']['enabled'], 'Configured pages are not live while the website is off.');
+    assert_false($json['data']['types']['data-only']['pages_enabled']);
+    assert_false($json['data']['types']['notes']['pages_enabled'], 'Private types cannot enable public pages.');
+});
+
 test('layout previews annotate nodes and render unsaved changes', function (): void {
     comet_site_test_setup();
     $context = comet_site_test_context();

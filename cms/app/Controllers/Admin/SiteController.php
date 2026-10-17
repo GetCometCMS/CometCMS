@@ -66,7 +66,12 @@ final class SiteController extends BaseController
         $types = [];
 
         foreach ($settings['routes'] as $name => $route) {
-            $types[$name] = ['enabled' => $settings['enabled'] && $route['enabled'], 'pattern' => $route['pattern'], 'index_path' => $route['index_path']];
+            $types[$name] = [
+                'enabled' => $settings['enabled'] && $route['enabled'],
+                'pages_enabled' => $route['enabled'],
+                'pattern' => $route['pattern'],
+                'index_path' => $route['index_path'],
+            ];
         }
 
         $this->json(['data' => [

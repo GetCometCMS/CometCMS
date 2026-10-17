@@ -8,14 +8,10 @@
         <h2 class="text-sm font-semibold text-slate-700">{{ t("site.typeCard.title") }}</h2>
         <p class="mt-0.5 text-sm text-slate-500">{{ summary }}</p>
       </div>
-      <label v-if="editable" class="flex items-center gap-2 text-sm font-medium text-slate-700">
-        {{ t("site.pages.onWebsite") }}
-        <ToggleSwitch :model-value="!!route.enabled" @update:model-value="update({ enabled: $event })" />
-      </label>
     </div>
 
     <div
-      v-if="status && !status.enabled && (editable || route?.enabled)"
+      v-if="status && !status.enabled"
       class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
     >
       <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" />
@@ -135,12 +131,11 @@ const route = computed(() => props.modelValue ?? props.status?.types?.[props.nam
 const editable = computed(() => !!props.modelValue && !!props.status?.can_manage && props.visibility !== "private");
 const variants = computed(() => (props.singleton ? ["detail"] : ["detail", "card", "index"]));
 
-// The summary describes what is live, not unsaved edits.
-const saved = computed(() => props.status?.types?.[props.name] ?? null);
+// Follow the current route, including changes not yet saved.
 const summary = computed(() => {
   if (props.visibility === "private") return t("site.typeCard.private");
-  if (saved.value?.enabled) {
-    const where = props.singleton || !saved.value.index_path ? saved.value.pattern : `${saved.value.index_path} · ${saved.value.pattern}`;
+  if (route.value.enabled || route.value.pages_enabled) {
+    const where = props.singleton || !route.value.index_path ? route.value.pattern : `${route.value.index_path} · ${route.value.pattern}`;
     return `${t("site.typeCard.published")} ${where}`;
   }
   return t("site.typeCard.notPublished");
