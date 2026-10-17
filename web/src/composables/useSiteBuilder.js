@@ -49,7 +49,8 @@ const MAX_FALLBACK = 2000
  * with useSiteBuilder().
  *
  * `componentApi` connects reusable components: create({ name, nodes, type })
- * stores a new component, load(id) returns one with its nodes.
+ * stores a new component, load(id) returns one with its nodes, and remove(id)
+ * deletes it, detaches saved instances and returns its last definition.
  *
  * `templateApi` connects collection cards: load(type) returns the standard
  * card of a content type ({ nodes }), which a collection can take over.
@@ -72,7 +73,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
     && (settings.value?.routes?.[item.name]?.enabled || settings.value?.homepage?.type === item.name)))
   const currentAvailable = ref(true)
-  /** Reusable components ({ id, name, root, type }) offered in the palette. */
+  /** Reusable components ({ id, name, root, type }) listed in the components panel. */
   const components = ref([])
   /** Editing a component: its id and root kind; its tree holds just that one root node. */
   const componentId = ref(null)
@@ -460,6 +461,41 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return node?.kind === COMPONENT ? components.value.find((item) => item.id === node.props?.component) ?? null : null
   }
 
+  function canInsertComponent(component) {
+    const context = entryContext(selectedId.value)
+    return component.id !== componentId.value
+      && (!component.type || (context.currentAvailable && component.type === context.type?.name))
+  }
+
+  /** Detach deleted instances in the draft, clipboard and every undo/redo state. */
+  async function deleteComponent(id) {
+    const component = await componentApi.remove(id)
+    // Reuse ids across snapshots so deleting alone does not make a saved layout dirty.
+    const copies = new Map()
+    function detachInstances(tree) {
+      return tree.map((node) => {
+        if (node.kind === COMPONENT && node.props?.component === id) {
+          if (!copies.has(node.id)) copies.set(node.id, cloneWithNewIds(component.nodes[0]))
+          const copy = clone(copies.get(node.id))
+          copy.id = node.id
+          if (copy.kind === 'column') copy.props.span = clone(node.props.span ?? copy.props.span)
+          return copy
+        }
+        return { ...node, children: detachInstances(node.children ?? []) }
+      })
+    }
+    const detachSnapshot = (snapshot) => JSON.stringify(detachInstances(JSON.parse(snapshot)))
+    nodes.value = detachInstances(nodes.value)
+    savedSnapshot.value = detachSnapshot(savedSnapshot.value)
+    past.value = past.value.map((step) => ({ ...step, nodes: detachSnapshot(step.nodes) }))
+    future.value = future.value.map((step) => ({ ...step, nodes: detachSnapshot(step.nodes) }))
+    if (clipboard.value) clipboard.value = detachInstances([clipboard.value])[0]
+    components.value = components.value.filter((item) => item.id !== id)
+    drag.value = null
+    keepSelection()
+    return component
+  }
+
   /** Whether a structure node can become a component (not a component's own root). */
   function canConvert(node) {
     return !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
@@ -672,7 +708,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
-    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert,
+    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
     fieldDialog, canMakeField, convertToField,
   }

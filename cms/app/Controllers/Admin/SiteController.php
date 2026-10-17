@@ -306,13 +306,9 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireComponent($id);
-        $usages = $this->site->componentUsages($id);
-        if ($usages !== []) {
-            $this->json(['error' => ['code' => 'component_in_use', 'message' => 'This component is still used. Remove or detach it everywhere first.', 'usages' => $usages]], 409);
-        }
-        $this->site->deleteComponent($id);
+        $component = $this->site->deleteComponent($id);
         $this->logger->info('site.component_deleted', ['component' => $id]);
-        $this->json(['data' => ['deleted' => true]]);
+        $this->json(['data' => ['deleted' => true, 'component' => $component]]);
     }
 
     public function componentRevisions(string $id): never

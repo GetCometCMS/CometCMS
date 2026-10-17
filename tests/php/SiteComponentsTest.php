@@ -131,10 +131,10 @@ test('components cannot contain themselves or components of another type', funct
     $site->saveComponent($typedOuter['id'], $section([comet_component_test_instance('i5', $typed['id'], 'row')]));
 });
 
-test('components in use cannot be deleted and deleting removes their history', function (): void {
+test('deleting a component detaches all placements and removes its history', function (): void {
     $site = comet_site_test_setup();
     $component = $site->createComponent('Promo', [comet_component_test_section([['kind' => 'heading']])]);
-    $site->saveComponent($component['id'], [comet_component_test_section([['kind' => 'text']])]);
+    $component = $site->saveComponent($component['id'], [comet_component_test_section([['kind' => 'text', 'props' => ['html' => '<p>Keep this content</p>']]])]);
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id'])]);
     $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
     // A card layout from before cards lived in collections still renders as the standard card.
@@ -146,14 +146,78 @@ test('components in use cannot be deleted and deleting removes their history', f
         ['target' => 'layout', 'type' => 'blog', 'variant' => 'card'],
         ['target' => 'region', 'region' => 'footer'],
     ], $site->componentUsages($component['id']));
-    assert_throws(ValidationException::class, fn() => $site->deleteComponent($component['id']));
-
-    $site->saveRegion('footer', []);
-    $site->saveLayout('blog', 'index', []);
-    $store->delete('layouts', 'blog', 'card');
+    $cache = ApiCache::fromConfig();
+    $key = $cache->key('site|example.test|/blog', '');
+    $cache->put($key, ['status' => 200, 'body' => 'cached', 'content_type' => 'text/html']);
     $site->deleteComponent($component['id']);
     assert_null($site->component($component['id']));
+    assert_same([], $site->componentUsages($component['id']));
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('components', $component['id']));
+    assert_null($cache->get($key));
+
+    $copies = [$site->region('footer')[0], $site->layout('blog', 'index')[0], $store->read('layouts', 'blog', 'card')['nodes'][0]];
+    $childIds = [];
+    foreach ($copies as $copy) {
+        assert_same('section', $copy['kind']);
+        assert_same('<p>Keep this content</p>', $copy['children'][0]['children'][0]['children'][0]['props']['html']);
+        assert_false(in_array($copy['children'][0]['id'], $childIds, true), 'Each placement has its own node ids.');
+        assert_false($copy['children'][0]['id'] === $component['nodes'][0]['children'][0]['id']);
+        $childIds[] = $copy['children'][0]['id'];
+    }
+    assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Keep this content'));
+    assert_false(str_contains(comet_site_test_get('/blog')['body'], 'Missing component'));
+});
+
+test('deleting a nested column component preserves widths and detaches saved history', function (): void {
+    $site = comet_site_test_setup();
+    $column = $site->createComponent('Column', [['kind' => 'column', 'props' => ['span' => ['mobile' => 12, 'tablet' => 6]], 'style' => ['background' => 'primary'], 'children' => [['kind' => 'heading', 'props' => ['text' => 'Kept heading']]]]]);
+    $instance = comet_component_test_instance('placed-column', $column['id'], 'column');
+    $instance['props']['span'] = ['mobile' => 12, 'tablet' => 4, 'desktop' => 3];
+    $outer = $site->createComponent('Outer', [['kind' => 'section', 'children' => [['kind' => 'row', 'children' => [$instance, array_replace($instance, ['id' => 'second-column'])]]]]]);
+    $site->saveComponent($outer['id'], $outer['nodes']);
+    $site->saveLayout('blog', 'detail', [comet_component_test_instance('outer-placement', $outer['id'])]);
+    $site->saveLayout('about', 'detail', [['kind' => 'section', 'children' => [['kind' => 'row', 'children' => [$instance]]]]]);
+    $site->saveLayout('about', 'detail', []);
+    $site->saveRegion('header', [['kind' => 'section', 'children' => [['kind' => 'row', 'children' => [$instance]]]]]);
+    $site->saveRegion('header', []);
+
+    $site->deleteComponent($column['id']);
+
+    $detached = $site->component($outer['id'])['nodes'][0]['children'][0]['children'][0];
+    assert_same('column', $detached['kind']);
+    assert_same('placed-column', $detached['id']);
+    assert_same($instance['props']['span'], $detached['props']['span']);
+    assert_same($column['nodes'][0]['style'], $detached['style']);
+    assert_same('Kept heading', $detached['children'][0]['props']['text']);
+    assert_same([$outer['id']], LayoutSchema::componentRefs($site->layout('blog', 'detail')), 'Other component links stay intact.');
+
+    $revisions = new JsonStore(comet_test_workspace_path() . '/revisions/site');
+    foreach ([['layouts', 'about', 'detail'], ['regions', 'header'], ['components', $outer['id']]] as $path) {
+        foreach ($revisions->all(...$path) as $revision) {
+            assert_same([], LayoutSchema::componentRefs($revision['snapshot']['nodes']));
+        }
+    }
+    $savedLayout = array_values(array_filter($revisions->all('layouts', 'about', 'detail'), static fn(array $revision): bool => $revision['snapshot']['nodes'] !== [] && $revision['snapshot']['customized']))[0];
+    $restored = $site->restoreLayoutRevision('about', 'detail', $savedLayout['id']);
+    assert_same('Kept heading', $restored['nodes'][0]['children'][0]['children'][0]['children'][0]['props']['text']);
+    assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'Missing component'));
+});
+
+test('component deletion API detaches used components and returns the definition for open drafts', function (): void {
+    $seed = <<<'PHP'
+$site = new \CometCMS\Site\SiteRepository();
+$component = $site->createComponent('Shared', [['kind' => 'section', 'children' => [['kind' => 'row']]]]);
+$site->saveRegion('header', [['id' => 'placement', 'kind' => 'component', 'props' => ['component' => $component['id'], 'root' => 'section']]]);
+PHP;
+    $action = '(new \\CometCMS\\Controllers\\Admin\\SiteController(new \\CometCMS\\Core\\Http()))->deleteComponent($component[\'id\']);';
+    [$status, $json] = comet_admin_request('admin', $seed, 'DELETE', '/admin/api/site/components/shared', $action);
+    assert_same(200, $status);
+    assert_true($json['data']['deleted']);
+    assert_same('Shared', $json['data']['component']['name']);
+    assert_same('section', $json['data']['component']['nodes'][0]['kind']);
+
+    [$status] = comet_admin_request('editor', '$users->create(\'editor\', \'secret-password\', \'editor\');' . $seed, 'DELETE', '/admin/api/site/components/shared', $action);
+    assert_same(403, $status);
 });
 
 test('component instances render their component once per placement', function (): void {

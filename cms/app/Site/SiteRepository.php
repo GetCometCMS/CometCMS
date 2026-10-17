@@ -411,12 +411,36 @@ final class SiteRepository
         return $usages;
     }
 
-    /** Delete a component that nothing places any more, with its history. */
-    public function deleteComponent(string $id): void
+    /** Delete a component and its history, keeping all placements as detached copies. */
+    public function deleteComponent(string $id): array
     {
-        $this->requireComponent($id);
-        if ($this->componentUsages($id) !== []) {
-            throw new ValidationException(['component' => 'This component is still used.'], 'This component is still used.');
+        $component = $this->requireComponent($id);
+        $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGIONS);
+        foreach ($this->types() as $name => $type) {
+            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
+                $paths[] = ['layouts', (string) $name, $variant];
+            }
+        }
+        foreach ($this->components() as $other) {
+            if ($other['id'] !== $id) {
+                $paths[] = ['components', $other['id']];
+            }
+        }
+
+        foreach ($paths as $path) {
+            $stored = $this->store->read(...$path);
+            if ($this->hasComponentInstance($stored, $id)) {
+                $stored['nodes'] = $this->detachComponentInstances($stored['nodes'], $component);
+                $stored['updated_at'] = Security::now();
+                $this->store->write($stored, ...$path);
+            }
+            // Restoring an older layout must not bring back a missing component.
+            foreach ($this->revisions->all(...$path) as $revision) {
+                if ($this->hasComponentInstance($revision['snapshot'] ?? null, $id)) {
+                    $revision['snapshot']['nodes'] = $this->detachComponentInstances($revision['snapshot']['nodes'], $component);
+                    $this->revisions->write($revision, ...[...$path, $revision['id']]);
+                }
+            }
         }
 
         $this->store->delete('components', $id);
@@ -428,6 +452,32 @@ final class SiteRepository
             @rmdir($directory);
         }
         $this->clearCache();
+
+        return $component;
+    }
+
+    private function hasComponentInstance(?array $stored, string $id): bool
+    {
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
+            && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
+    }
+
+    private function detachComponentInstances(array $nodes, array $component): array
+    {
+        return array_map(function (array $node) use ($component): array {
+            if (($node['kind'] ?? '') === 'component' && ($node['props']['component'] ?? '') === $component['id']) {
+                $copy = LayoutSchema::withNewIds($component['nodes'])[0];
+                $copy['id'] = $node['id'];
+                if ($copy['kind'] === 'column') {
+                    $copy['props']['span'] = $node['props']['span'] ?? $copy['props']['span'];
+                }
+
+                return $copy;
+            }
+            $node['children'] = $this->detachComponentInstances($node['children'] ?? [], $component);
+
+            return $node;
+        }, $nodes);
     }
 
     public function componentRevisions(string $id): array

@@ -140,6 +140,7 @@
           </div>
           <div class="min-h-0 flex-1 overflow-y-auto">
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
+            <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
@@ -244,6 +245,7 @@ import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
+import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
@@ -268,6 +270,7 @@ const builder = createSiteBuilder({
   t,
   componentApi: {
     create: async (body) => (await api.site.createComponent(body)).data,
+    remove: async (id) => (await api.site.deleteComponent(id)).data.component,
     load: async (id) => {
       try {
         return (await api.site.component(id)).data.component;
@@ -323,7 +326,7 @@ const DESIGN_MIN_WIDTH = 320;
 /** Code reads better wide, so the stylesheet panel may grow further. */
 const CSS_MIN_WIDTH = 360;
 const CSS_MAX_WIDTH = 720;
-/** The open left panel: "add", "outline", "design", "css", "history", or null when collapsed. */
+/** The open left panel, or null when collapsed. */
 const leftPanel = ref(["design", "css"].includes(route.query.settings) ? route.query.settings : "add");
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
@@ -331,6 +334,7 @@ const historyVersion = ref(0);
 const panels = computed(() => [
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
+  { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
@@ -587,6 +591,14 @@ function onRevisionRestored(data) {
   customized.value = data.customized;
   if (target === "component") component.value = data.component ?? component.value;
   else site.markCustomized(target, name, variant, data.customized);
+}
+
+function onComponentDeleted(id) {
+  historyVersion.value++;
+  if (target === "component" && name === id) {
+    bypass();
+    router.push("/page-builder/components");
+  }
 }
 
 /** Turn the node waiting in the name dialog into a component instance. */

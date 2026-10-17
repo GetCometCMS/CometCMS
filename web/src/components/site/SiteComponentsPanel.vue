@@ -30,7 +30,7 @@
             {{ t("site.component.edit") }}
           </router-link>
           <button type="button" class="btn-secondary btn-sm" @click="renameTarget = component">{{ t("site.component.rename") }}</button>
-          <button type="button" class="btn-secondary btn-sm hover:!text-red-600" @click="openDelete(component)">{{ t("common.delete") }}</button>
+          <button type="button" class="btn-secondary btn-sm hover:!text-red-600" @click="deleteTarget = component">{{ t("common.delete") }}</button>
         </div>
       </li>
     </ul>
@@ -48,17 +48,12 @@
     <ConfirmModal
       :model-value="deleteTarget !== null"
       :title="t('site.component.deleteTitle', { name: deleteTarget?.name ?? '' })"
-      :message="blockedBy.length ? t('site.component.inUse') : t('site.component.deleteMessage')"
-      :confirm-label="blockedBy.length ? t('common.close') : t('common.delete')"
-      :variant="blockedBy.length ? 'warning' : 'danger'"
+      :message="t('site.component.deleteMessage')"
+      :confirm-label="t('common.delete')"
       :loading="busy"
-      @update:model-value="(open) => { if (!open) closeDelete() }"
+      @update:model-value="(open) => { if (!open) deleteTarget = null }"
       @confirm="remove"
-    >
-      <ul v-if="blockedBy.length" class="mt-2 list-disc space-y-0.5 pl-5 text-sm text-slate-700">
-        <li v-for="(usage, index) in blockedBy" :key="index">{{ usageLabel(usage) }}</li>
-      </ul>
-    </ConfirmModal>
+    />
   </div>
 </template>
 
@@ -83,8 +78,6 @@ const error = ref("");
 const busy = ref(false);
 const renameTarget = ref(null);
 const deleteTarget = ref(null);
-/** Places that still use the component the user tried to delete. */
-const blockedBy = ref([]);
 
 async function load() {
   loading.value = true;
@@ -100,12 +93,6 @@ async function load() {
 
 function typeLabel(name) {
   return site.data?.types?.find((type) => type.name === name)?.label ?? name;
-}
-
-function usageLabel(usage) {
-  if (usage.target === "layout") return `${typeLabel(usage.type)} · ${t(`site.variant.${usage.variant}`)}`;
-  if (usage.target === "region") return t(`site.region.${usage.region}`);
-  return `${t("site.kind.component")} · ${usage.name}`;
 }
 
 async function rename(name) {
@@ -124,40 +111,18 @@ async function rename(name) {
   }
 }
 
-/** A component that is still placed somewhere lists those places instead. */
-async function openDelete(component) {
-  blockedBy.value = [];
-  if (component.usages > 0) {
-    try {
-      blockedBy.value = (await api.site.component(component.id)).data.usages ?? [];
-    } catch (err) {
-      toast.error(err.message);
-      return;
-    }
-  }
-  deleteTarget.value = component;
-}
-
-function closeDelete() {
-  deleteTarget.value = null;
-  blockedBy.value = [];
-}
-
 async function remove() {
+  if (busy.value || !deleteTarget.value) return;
   const target = deleteTarget.value;
-  if (blockedBy.value.length) {
-    closeDelete();
-    return;
-  }
   busy.value = true;
   try {
     await api.site.deleteComponent(target.id);
     components.value = components.value.filter((item) => item.id !== target.id);
-    closeDelete();
+    deleteTarget.value = null;
+    await load();
     toast.success(t("site.component.deleted"));
   } catch (err) {
     toast.error(err.message);
-    if (err.code === "component_in_use") closeDelete();
   } finally {
     busy.value = false;
   }

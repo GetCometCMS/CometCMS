@@ -76,13 +76,13 @@ To use the same card in several lists, right-click it and choose **Save as compo
 
 ### Reusable components
 
-A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Components appear in the **Components** group of **Add**, where you can drag or click them into any layout, header or footer, like other elements.
+A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Open the **Components** panel using the puzzle icon in the left bar to search all components, drag or click them into the page, edit them, or delete them.
 
 A component is edited in one place. Choose **Edit component** in the inspector or the context menu, or open it from the **Components** tab of the website settings. Saving it updates every page that uses it. A placed component is one unit in the builder: its contents cannot be selected there. A column component placed in a column set keeps its own width. **Detach** replaces a placed component with an ordinary copy that you can change on its own, while the other places keep following the component.
 
-Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and it is only offered where an entry of that type is shown: that type's page layout and the cards of lists of that type. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
+Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and can only be added where an entry of that type is shown: that type's page layout and the cards of lists of that type. The Components panel lists it everywhere, with insertion disabled where it does not fit. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
 
-A component that is still placed somewhere cannot be deleted. The **Components** tab lists where it is used, so you can remove or detach it there first. Components have their own version history, like layouts.
+Deleting a component turns all its instances into independent, editable copies, preserving their content, styling and column widths. This applies to layouts, headers, footers and instances inside other components, as well as the open builder draft. Older revisions also restore detached copies. The component and its own version history are permanently removed. Deletion is available in both the builder's **Components** panel and the **Components** tab of the website settings.
 
 ### AI and MCP access
 

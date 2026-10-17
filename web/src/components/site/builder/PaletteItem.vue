@@ -1,9 +1,11 @@
 <template>
   <button
     type="button"
-    draggable="true"
+    :draggable="!disabled"
+    :disabled="disabled"
     class="flex w-full min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
-    style="cursor: grab"
+    :style="{ cursor: disabled ? 'not-allowed' : 'grab' }"
+    :class="{ 'opacity-50': disabled }"
     @click="$emit('add')"
     @dragstart="$emit('drag', $event)"
     @dragend="$emit('dragend')"
@@ -22,6 +24,7 @@ defineProps({
   label: { type: String, default: "" },
   meta: { type: String, default: "" },
   wide: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
 });
 defineEmits(["add", "drag", "dragend"]);
 </script>

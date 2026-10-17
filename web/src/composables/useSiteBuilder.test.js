@@ -178,6 +178,65 @@ describe('builder components', () => {
 
     expect(builder.insert(builder.make('text'), root.children[0].children[1].id)).toBe(true)
   })
+
+  it('keeps all components listed but only inserts compatible components outside themselves', async () => {
+    const { builder } = await componentFixture({})
+    const shared = { id: 'shared', type: '' }
+    const typed = { id: 'typed', type: 'posts' }
+    builder.components.value = [shared, typed]
+    expect(builder.canInsertComponent(shared)).toBe(true)
+    expect(builder.canInsertComponent(typed)).toBe(false)
+    builder.type.value = { name: 'posts' }
+    expect(builder.canInsertComponent(typed)).toBe(true)
+    builder.currentAvailable.value = false
+    expect(builder.canInsertComponent(typed)).toBe(false)
+    builder.componentId.value = 'shared'
+    expect(builder.canInsertComponent(shared)).toBe(false)
+    expect(builder.components.value).toHaveLength(2)
+  })
+
+  it('detaches deleted components throughout the draft, undo, redo and clipboard without losing pending edits', async () => {
+    const component = { id: 'shared', root: 'column', nodes: [{ id: 'root', kind: 'column', props: { span: { mobile: 12 } }, style: { background: 'primary' }, children: [{ id: 'heading', kind: 'text', props: { html: 'Shared content' }, style: {}, children: [] }] }] }
+    const { builder } = await componentFixture({ remove: async () => component })
+    builder.components.value = [component]
+    const instance = builder.make('component', { component: 'shared', root: 'column', span: { mobile: 12, tablet: 4, desktop: 3 } })
+    const sibling = builder.make('column', {}, {}, [builder.make('text', { html: 'Before' })])
+    builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [instance, sibling])])])
+    const textId = sibling.children[0].id
+    builder.copy(instance.id)
+    builder.select(instance.id)
+    builder.updateValue(textId, 'props', 'html', 'Pending')
+    builder.mutate((tree) => { tree[0].children[0].children[1].children[0].props.html = 'Future' })
+    builder.undo()
+
+    await builder.deleteComponent('shared')
+    const detached = builder.selected.value
+    expect(detached).toMatchObject({ id: instance.id, kind: 'column', props: { span: { mobile: 12, tablet: 4, desktop: 3 } }, style: { background: 'primary' } })
+    expect(detached.children[0].props.html).toBe('Shared content')
+    expect(detached.children[0].id).not.toBe('heading')
+    expect(builder.components.value).toEqual([])
+    expect(builder.clipboard.value.kind).toBe('column')
+    expect(builder.isDirty.value).toBe(true)
+    expect(builder.nodes.value[0].children[0].children[1].children[0].props.html).toBe('Pending')
+    builder.redo()
+    expect(builder.nodes.value[0].children[0].children[1].children[0].props.html).toBe('Future')
+    expect(builder.selected.value).toEqual(detached)
+    builder.undo()
+    builder.undo()
+    expect(builder.isDirty.value).toBe(false)
+    expect(builder.selected.value).toEqual(detached)
+  })
+
+  it('leaves the current state and history intact when deleting fails', async () => {
+    const { builder } = await componentFixture({ remove: async () => { throw new Error('Request failed') } })
+    builder.components.value = [{ id: 'shared', name: 'Shared' }]
+    builder.mutate((tree) => { tree.push(builder.make('section')) })
+    const before = JSON.stringify(builder.nodes.value)
+    await expect(builder.deleteComponent('shared')).rejects.toThrow('Request failed')
+    expect(JSON.stringify(builder.nodes.value)).toBe(before)
+    expect(builder.components.value).toHaveLength(1)
+    expect(builder.canUndo.value).toBe(true)
+  })
 })
 
 
