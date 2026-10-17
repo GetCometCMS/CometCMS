@@ -53,7 +53,11 @@ If a field is renamed or removed, elements bound to it render nothing and the bu
 
 ## Header, footer and menus
 
-The header and footer are shown on every page and are edited in the same builder (**Header & footer** tab). Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with one level of sub-items and per-language labels.
+The header and footer are shown on every page and are edited in the same builder (**Header & footer** tab). Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.
+
+The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
+
+For a section link, enter an anchor ID assigned in the page builder, such as `contact` or `#contact`. Choose **Section** to jump within the current page, or add an optional section to a page, entry or listing destination. Custom links also accept website paths, external URLs, `mailto:` and `tel:` links. Parent links and submenu disclosure buttons work independently on the published website.
 
 ## Theme
 

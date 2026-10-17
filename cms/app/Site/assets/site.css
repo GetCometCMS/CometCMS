@@ -234,18 +234,23 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-menu { position: relative; display: inline-block; }
 .c-ta-right .c-menu, .c-ta-right .c-languages { display: inline-flex; justify-content: flex-end; }
 .c-menu ul { list-style: none; margin: 0; padding: 0; }
-.c-menu a, .c-menu li > span { display: block; padding: 0.4em 0.75em; color: inherit; text-decoration: none; border-radius: calc(var(--radius) * 0.75); }
+.c-menu a, .c-menu-label > span { display: block; padding: 0.4em 0.75em; color: inherit; text-decoration: none; border-radius: calc(var(--radius) * 0.75); overflow-wrap: anywhere; }
 .c-menu a:hover { color: var(--c-primary); background: rgb(var(--c-primary-rgb) / 0.07); }
 .c-menu a[aria-current="page"] { color: var(--c-primary); font-weight: 600; }
 .c-menu-horizontal .c-menu-list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15em; }
 .c-menu-vertical .c-menu-list { display: flex; flex-direction: column; }
-.c-menu-vertical .c-submenu { padding-left: 1em; }
+.c-menu .c-submenu { padding-left: 1em; }
 .c-has-children { position: relative; }
-.c-menu-horizontal .c-submenu {
-  display: none; position: absolute; top: 100%; left: 0; min-width: 12em; z-index: 50; text-align: left;
+.c-has-children > .c-menu-label { padding-right: 2.2em; }
+.c-menu-disclosure > summary { position: absolute; top: 0; right: 0; display: flex; align-items: center; justify-content: center; width: 2.2em; min-height: 2.2em; cursor: pointer; border-radius: var(--radius); list-style: none; }
+.c-menu-disclosure > summary::-webkit-details-marker { display: none; }
+.c-menu-disclosure > summary:focus-visible { outline: 2px solid var(--c-primary); outline-offset: -2px; }
+.c-menu-disclosure[open] > summary > span { transform: rotate(180deg); }
+.c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu {
+  position: absolute; top: 100%; left: 0; width: max-content; min-width: min(12em, calc(100vw - 2rem)); max-width: min(22rem, calc(100vw - 2rem)); max-height: min(70vh, 32rem); overflow: auto; z-index: 50; text-align: left;
   background: var(--c-background); border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.35em; box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.25);
 }
-.c-menu-horizontal .c-has-children:hover > .c-submenu, .c-menu-horizontal .c-has-children:focus-within > .c-submenu { display: block; }
+.c-ta-right .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu { left: auto; right: 0; }
 .c-menu-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 .c-menu-button { display: none; }
 @media (max-width: 767px) {
@@ -256,15 +261,16 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
   .c-menu-button span { display: block; height: 2px; background: currentColor; border-radius: 2px; transition: transform .2s, opacity .2s; }
   .c-menu-toggle:focus-visible + .c-menu-button { outline: 2px solid var(--c-primary); outline-offset: 2px; }
   .c-menu-collapsible .c-menu-list {
-    display: none !important; position: absolute; right: 0; top: calc(100% + 0.5em); z-index: 60; min-width: 14em; text-align: left;
+    display: none !important; position: absolute; left: 0; top: calc(100% + 0.5em); z-index: 60; width: max-content; min-width: min(14em, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); text-align: left;
     flex-direction: column; align-items: stretch; background: var(--c-background); color: var(--c-text);
     border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.4em; box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.3);
   }
+  .c-ta-right .c-menu-collapsible .c-menu-list { left: auto; right: 0; }
   .c-menu-toggle:checked ~ .c-menu-list { display: flex !important; }
   .c-menu-toggle:checked + .c-menu-button span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
   .c-menu-toggle:checked + .c-menu-button span:nth-child(2) { opacity: 0; }
   .c-menu-toggle:checked + .c-menu-button span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-  .c-menu-collapsible .c-submenu { display: block; position: static; box-shadow: none; border: 0; padding: 0 0 0 1em; min-width: 0; }
+  .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu { position: static; width: auto; max-width: none; max-height: none; min-width: 0; overflow: visible; box-shadow: none; border: 0; padding: 0 0 0 1em; }
 }
 .c-languages ul { list-style: none; display: flex; gap: 0.35em; margin: 0; padding: 0; }
 .c-languages a { display: inline-block; padding: 0.25em 0.5em; border-radius: calc(var(--radius) * 0.75); text-decoration: none; color: inherit; font-size: var(--fs-sm); font-weight: 600; opacity: 0.7; }

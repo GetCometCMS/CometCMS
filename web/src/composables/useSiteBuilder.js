@@ -42,6 +42,7 @@ export function createSiteBuilder({ t }) {
   const type = ref(null)
   const types = ref([])
   const menus = ref([])
+  const settings = ref(null)
   const selectedId = ref(null)
   const hoverId = ref(null)
   const drag = shallowRef(null)
@@ -413,7 +414,7 @@ export function createSiteBuilder({ t }) {
   }
 
   const api = {
-    nodes, spec, type, types, menus, selectedId, selected, hoverId, drag,
+    nodes, spec, type, types, menus, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, undo, redo, select, selectParent,
     bindableFields, subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,

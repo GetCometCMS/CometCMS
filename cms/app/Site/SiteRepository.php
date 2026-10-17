@@ -27,6 +27,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
  */
 final class SiteRepository
 {
+    public const MENU_LIMITS = ['max_depth' => 5, 'max_siblings' => 60, 'max_menus' => 20];
+
     public const RESERVED_PREFIXES = ['/admin', '/api', '/mcp', '/media', '/media-thumbs', '/_site', '/site-preview'];
 
     public const RESERVED_FILES = ['/sitemap.xml', '/robots.txt', '/favicon.ico'];
@@ -173,6 +175,7 @@ final class SiteRepository
 
     public function saveMenus(array $menus): array
     {
+        $this->validateMenus($menus);
         $menus = $this->normalizeMenus($menus);
         $this->store->write(['menus' => $menus, 'updated_at' => Security::now()], 'menus');
         $this->clearCache();
@@ -562,7 +565,7 @@ final class SiteRepository
         $normalized = [];
         $names = [];
 
-        foreach (array_slice(is_array($menus) ? array_values($menus) : [], 0, 20) as $menu) {
+        foreach (array_slice(is_array($menus) ? array_values($menus) : [], 0, self::MENU_LIMITS['max_menus']) as $menu) {
             if (!is_array($menu)) {
                 continue;
             }
@@ -588,7 +591,7 @@ final class SiteRepository
     {
         $normalized = [];
 
-        foreach (array_slice(is_array($items) ? array_values($items) : [], 0, 60) as $item) {
+        foreach (array_slice(is_array($items) ? array_values($items) : [], 0, self::MENU_LIMITS['max_siblings']) as $item) {
             if (!is_array($item)) {
                 continue;
             }
@@ -606,11 +609,72 @@ final class SiteRepository
                 'label' => self::line($item['label'] ?? '', 120),
                 'labels' => $labels,
                 'link' => LayoutSchema::normalizeLink($item['link'] ?? []),
-                'children' => $depth === 0 ? $this->normalizeMenuItems($item['children'] ?? [], 1) : [],
+                'children' => $depth + 1 < self::MENU_LIMITS['max_depth'] ? $this->normalizeMenuItems($item['children'] ?? [], $depth + 1) : [],
             ];
         }
 
         return $normalized;
+    }
+
+    /** Validate submissions before normalization, which defensively bounds stored data. */
+    public function validateMenus(array $menus, bool $validateDestinations = true): void
+    {
+        $errors = [];
+        if (count($menus) > self::MENU_LIMITS['max_menus']) {
+            $errors['menus'] = 'A website can have at most ' . self::MENU_LIMITS['max_menus'] . ' menus.';
+        }
+        $visit = function (mixed $items, int $depth, string $path) use (&$visit, &$errors, $validateDestinations): void {
+            if (!is_array($items)) {
+                $errors[$path] = 'Menu items must be a list.';
+                return;
+            }
+            if ($items !== [] && $depth > self::MENU_LIMITS['max_depth']) {
+                $errors[$path] = 'Menus can have at most ' . self::MENU_LIMITS['max_depth'] . ' levels.';
+                return;
+            }
+            if (count($items) > self::MENU_LIMITS['max_siblings']) {
+                $errors[$path] = 'A level can have at most ' . self::MENU_LIMITS['max_siblings'] . ' items.';
+            }
+            foreach ($items as $index => $item) {
+                $key = $path . '.' . $index;
+                if (!is_array($item)) {
+                    $errors[$key] = 'Invalid menu item.';
+                    continue;
+                }
+                if ($validateDestinations) {
+                    $link = is_array($item['link'] ?? null) ? $item['link'] : [];
+                    $normalized = LayoutSchema::normalizeLink($link);
+                    $type = $link['type'] ?? 'none';
+                    if ($normalized['type'] !== $type || $type === 'current') {
+                        $errors[$key . '.link'] = 'Choose a menu destination.';
+                    } elseif ($type === 'none' && trim((string) ($item['label'] ?? '')) === '') {
+                        $errors[$key . '.label'] = 'Group headings need a label.';
+                    } elseif ($type === 'url' && ($normalized['url'] ?? '') === '') {
+                        $errors[$key . '.link'] = 'Enter a safe, non-empty URL.';
+                    } elseif (in_array($type, ['entry', 'index'], true) && ($normalized['collection'] ?? '') === '') {
+                        $errors[$key . '.link'] = 'Choose a content type.';
+                    } elseif ($type === 'entry' && ($normalized['entry'] ?? '') === '') {
+                        $errors[$key . '.link'] = 'Choose an entry.';
+                    }
+                    if ($type === 'anchor' || (in_array($type, ['home', 'entry', 'index'], true) && trim((string) ($link['anchor'] ?? '')) !== '')) {
+                        if (($normalized['anchor'] ?? '') === '') {
+                            $errors[$key . '.anchor'] = 'Use an anchor ID of 1–80 letters, numbers, underscores or hyphens.';
+                        }
+                    }
+                }
+                $visit($item['children'] ?? [], $depth + 1, $key . '.children');
+            }
+        };
+        foreach ($menus as $index => $menu) {
+            if (!is_array($menu)) {
+                $errors['menus.' . $index] = 'Invalid menu.';
+                continue;
+            }
+            $visit($menu['items'] ?? [], 1, 'menus.' . $index . '.items');
+        }
+        if ($errors !== []) {
+            throw new ValidationException($errors);
+        }
     }
 
     private function requireType(string $type): array

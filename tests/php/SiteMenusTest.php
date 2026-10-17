@@ -1,0 +1,141 @@
+<?php
+
+declare(strict_types=1);
+
+use CometCMS\Content\ContentRepository;
+use CometCMS\Core\ValidationException;
+use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\NodeRenderer;
+use CometCMS\Site\SiteContext;
+use CometCMS\Site\SiteRepository;
+
+function comet_menu_test_item(string $id, array $children = [], array $link = ['type' => 'home']): array
+{
+    return ['id' => $id, 'label' => $id, 'labels' => ['de' => 'DE ' . $id], 'link' => $link, 'children' => $children];
+}
+
+function comet_menu_test_chain(int $levels): array
+{
+    return comet_menu_test_item('level' . $levels, $levels > 1 ? [comet_menu_test_chain($levels - 1)] : []);
+}
+
+function comet_menu_test_render(SiteContext $context, array $state = []): string
+{
+    $menu = LayoutSchema::node('menu', ['menu' => 'main']);
+    $column = LayoutSchema::node('column', [], [], [$menu]);
+    $row = LayoutSchema::node('row', [], [], [$column]);
+    $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [$row])]);
+
+    return (new NodeRenderer($context))->render($layout, $state);
+}
+
+test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
+    $site = new SiteRepository();
+    $menus = [['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_chain(5), comet_menu_test_item('second')]]];
+    $saved = $site->saveMenus($menus);
+    assert_same($saved, (new SiteRepository())->menus());
+    assert_same(['level5', 'second'], array_column($saved[0]['items'], 'id'));
+    $node = $saved[0]['items'][0];
+    for ($level = 5; $level > 0; $level--) {
+        assert_same('level' . $level, $node['id']);
+        assert_same('DE level' . $level, $node['labels']['de']);
+        assert_same('home', $node['link']['type']);
+        if ($level > 1) $node = $node['children'][0];
+    }
+});
+
+test('menus reject excessive depth sibling counts and menu counts without changing saved data', function (): void {
+    $site = new SiteRepository();
+    $original = $site->saveMenus([['name' => 'main', 'items' => [comet_menu_test_item('original')]]]);
+    $cases = [
+        [['name' => 'main', 'items' => [comet_menu_test_chain(6)]]],
+        [['name' => 'main', 'items' => array_map(fn($i) => comet_menu_test_item('item' . $i), range(1, 61))]],
+        array_map(fn($i) => ['name' => 'menu' . $i, 'items' => []], range(1, 21)),
+    ];
+    foreach ($cases as $menus) {
+        assert_throws(ValidationException::class, fn() => $site->saveMenus($menus));
+        assert_same($original, $site->menus());
+    }
+});
+
+test('menu validation rejects incomplete links and invalid anchors but preserves missing references', function (): void {
+    $site = new SiteRepository();
+    foreach ([
+        ['type' => 'url', 'url' => 'javascript:alert(1)'],
+        ['type' => 'url', 'url' => ''],
+        ['type' => 'entry', 'collection' => 'blog'],
+        ['type' => 'index'],
+        ['type' => 'anchor', 'anchor' => 'two words'],
+        ['type' => 'home', 'anchor' => str_repeat('x', 81)],
+    ] as $link) {
+        assert_throws(ValidationException::class, fn() => $site->saveMenus([['name' => 'main', 'items' => [comet_menu_test_item('item', [], $link)]]]));
+    }
+    $missing = ['type' => 'entry', 'collection' => 'removed', 'entry' => 'old-slug'];
+    $saved = $site->saveMenus([['name' => 'main', 'items' => [comet_menu_test_item('missing', [], $missing)]]]);
+    assert_same('old-slug', $saved[0]['items'][0]['link']['entry']);
+    $incomplete = [['name' => 'main', 'items' => [['label' => '', 'link' => ['type' => 'none'], 'children' => []]]]];
+    assert_throws(ValidationException::class, fn() => $site->saveMenus($incomplete));
+    $site->validateMenus($incomplete, false); // Previews can render in-progress items.
+});
+
+test('anchors normalize like builder IDs and preserve existing URL link formats', function (): void {
+    assert_same(['type' => 'anchor', 'anchor' => 'contact', 'new_tab' => false], LayoutSchema::normalizeLink(['type' => 'anchor', 'anchor' => ' #contact ', 'new_tab' => true]));
+    foreach (['/about#team', 'https://example.test/#team', 'mailto:hello@example.test', 'tel:+43123'] as $url) {
+        assert_same($url, LayoutSchema::normalizeLink(['type' => 'url', 'url' => $url])['url']);
+    }
+    assert_same(['type' => 'home', 'new_tab' => false], LayoutSchema::normalizeLink(['type' => 'home']));
+});
+
+test('published menus render independent disclosures and localized prefixed anchor destinations', function (): void {
+    $site = comet_site_test_setup(['blog' => ['enabled' => true], 'about' => ['enabled' => true]], ['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'languages', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $site = new SiteRepository();
+    $site->saveSettings(['enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en', 'routes' => ['blog' => ['enabled' => true], 'about' => ['enabled' => true]]]);
+    $entry = ContentRepository::make()->findByIdentifier('blog', 'hello');
+    ContentRepository::make()->save('blog', ['title' => 'Future', 'slug' => 'future', 'status' => 'published', 'published_at' => gmdate('c', time() + 86400)], comet_site_test_user());
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [
+        comet_menu_test_item('home', [comet_menu_test_chain(4)], ['type' => 'home', 'anchor' => '#intro']),
+        comet_menu_test_item('entry', [], ['type' => 'entry', 'collection' => 'blog', 'entry' => $entry['uid'], 'anchor' => 'details']),
+        comet_menu_test_item('listing', [], ['type' => 'index', 'collection' => 'blog', 'anchor' => 'latest']),
+        comet_menu_test_item('section', [], ['type' => 'anchor', 'anchor' => 'contact']),
+        comet_menu_test_item('group', [comet_menu_test_item('group-child')], ['type' => 'none']),
+        comet_menu_test_item('draft', [], ['type' => 'entry', 'collection' => 'blog', 'entry' => 'secret-draft']),
+        comet_menu_test_item('scheduled', [], ['type' => 'entry', 'collection' => 'blog', 'entry' => 'future']),
+        comet_menu_test_item('external', [], ['type' => 'url', 'url' => 'https://example.org', 'new_tab' => true]),
+    ]]]);
+    $context = SiteContext::make(new SiteRepository(), '/cms', 'https://example.test');
+    $context->locale = 'de';
+    $html = comet_menu_test_render($context, ['path' => '/cms/de/blog/hello']);
+    foreach (['href="/cms/de#intro"', 'href="/cms/de/blog/hello#details"', 'href="/cms/de/blog#latest"', 'href="#contact"', '<span>DE group</span>', 'rel="noopener noreferrer"'] as $needle) {
+        assert_true(str_contains($html, $needle), $needle);
+    }
+    assert_same(5, substr_count($html, '<details class="c-menu-disclosure">'));
+    assert_true(str_contains($html, '<span>DE draft</span>'));
+    assert_false(str_contains($html, 'href="/cms/de/blog/secret-draft'));
+    assert_true(str_contains($html, '<span>DE scheduled</span>'));
+    assert_false(str_contains($html, 'href="/cms/de/blog/future'));
+    assert_false(str_contains($html, '<script'));
+    assert_true(str_contains($html, 'href="/cms/de/blog/hello#details" aria-current="page"'));
+    assert_true(str_contains($html, '</a></div><details'), 'Parent links and disclosure toggles are separate controls.');
+});
+
+test('stable menu destinations survive entry slug changes', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    $entry = $content->findByIdentifier('blog', 'hello');
+    $site->saveMenus([['name' => 'main', 'items' => [comet_menu_test_item('entry', [], ['type' => 'entry', 'collection' => 'blog', 'entry' => $entry['uid']])]]]);
+    $content->save('blog', ['title' => 'Renamed', 'slug' => 'renamed', 'status' => 'published'], comet_site_test_user(), $entry['id']);
+    assert_true(str_contains(comet_menu_test_render(comet_site_test_context(new SiteRepository())), 'href="/blog/renamed"'));
+});
+
+test('menu API exposes limits and returns field errors instead of truncating submissions', function (): void {
+    [$status, $body] = comet_admin_request('admin', '', 'GET', '/admin/api/site', '(new \\CometCMS\\Controllers\\Admin\\SiteController(new \\CometCMS\\Core\\Http()))->index();');
+    assert_same(200, $status);
+    assert_same(SiteRepository::MENU_LIMITS, $body['data']['menu_limits']);
+    [$status, $body] = comet_admin_request('admin', '', 'PUT', '/admin/api/site/menus', '(new \\CometCMS\\Controllers\\Admin\\SiteController(new \\CometCMS\\Core\\Http()))->updateMenus();', [
+        'menus' => [['name' => 'main', 'items' => [comet_menu_test_chain(6)]]],
+    ]);
+    assert_same(422, $status);
+    assert_same('validation_failed', $body['error']['code']);
+    assert_true(count($body['error']['fields']) > 0);
+});

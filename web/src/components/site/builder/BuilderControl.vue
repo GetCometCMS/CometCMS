@@ -94,7 +94,7 @@
 
     <MediaSelect v-else-if="def.type === 'media'" :model-value="value" :name="inputId" @update:model-value="emitValue" />
 
-    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" @update:model-value="emitValue" />
+    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
 
     <div v-else-if="def.type === 'spans'" class="space-y-1.5">
       <div v-for="device in ['desktop', 'tablet', 'mobile']" :key="device" class="flex items-center gap-1.5">
@@ -153,6 +153,7 @@ import { Icon } from "@iconify/vue";
 import FieldInput from "../../FieldInput.vue";
 import ToggleSwitch from "../../ToggleSwitch.vue";
 import LinkEditor from "../LinkEditor.vue";
+import { getActiveWorkspace } from "../../../api/index.js";
 import MediaSelect from "../MediaSelect.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
@@ -179,6 +180,7 @@ const props = defineProps({
 const emit = defineEmits(["update"]);
 const builder = useSiteBuilder();
 const site = useSiteStore();
+const linkSettings = computed(() => site.data?.workspace === getActiveWorkspace() && site.draft ? site.draft.settings : builder.settings.value);
 const { t } = useI18n();
 const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.name}`);
 const customClasses = computed(() => themeCssClasses(site.data?.theme?.custom_css ?? ""));

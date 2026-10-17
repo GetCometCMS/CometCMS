@@ -320,6 +320,7 @@ async function load() {
     builder.spec.value = data.spec;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
+    builder.settings.value = data.settings ?? null;
     builder.type.value = data.type ?? null;
     samples.value = data.samples ?? [];
     const requested = typeof route.query.entry === "string" ? route.query.entry : "";

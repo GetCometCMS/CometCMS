@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, getActiveWorkspace } from '../api/index.js'
+import { menuErrors } from '../composables/siteLinks.js'
+import { DEFAULT_MENU_LIMITS } from '../composables/menuTree.js'
+import { t } from '../i18n/index.js'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 
@@ -68,6 +71,12 @@ export const useSiteStore = defineStore('site', () => {
     fieldErrors.value = {}
 
     try {
+      if (dirtyParts.value.includes('menus')) {
+        const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits })
+        if (Object.keys(fields).length) {
+          throw Object.assign(new Error(t('site.saveErrors')), { fields })
+        }
+      }
       for (const part of dirtyParts.value) {
         if (part === 'settings') {
           data.value.settings = (await api.site.saveSettings(draft.value.settings)).data

@@ -301,13 +301,16 @@ final class NodeRenderer
             }
 
             $text = Security::e($label);
-            $active = $link !== null && $currentPath !== '' && $link['href'] === $currentPath;
+            $active = $link !== null && $currentPath !== '' && explode('#', $link['href'], 2)[0] === $currentPath;
             $inner = $link !== null
                 ? '<a href="' . Security::e($link['href']) . '"' . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . ($active ? ' aria-current="page"' : '') . '>' . $text . '</a>'
                 : '<span>' . $text . '</span>';
-            $children = $item['children'] !== [] ? $this->menuItems($item['children'], $state, 'c-submenu') : '';
+            $children = $item['children'] !== []
+                ? '<details class="c-menu-disclosure"><summary aria-label="' . Security::e($label) . '"><span aria-hidden="true">⌄</span></summary>'
+                    . $this->menuItems($item['children'], $state, 'c-submenu') . '</details>'
+                : '';
 
-            $html .= '<li' . ($children !== '' ? ' class="c-has-children"' : '') . '>' . $inner . $children . '</li>';
+            $html .= '<li' . ($children !== '' ? ' class="c-has-children"' : '') . '><div class="c-menu-label">' . $inner . '</div>' . $children . '</li>';
         }
 
         return '<ul class="' . $class . '">' . $html . '</ul>';
@@ -790,8 +793,13 @@ final class NodeRenderer
             'home' => $this->ctx->homeUrl(),
             'index' => $this->ctx->indexUrl((string) ($link['collection'] ?? '')),
             'entry' => $this->linkedEntryUrl((string) ($link['collection'] ?? ''), (string) ($link['entry'] ?? '')),
+            'anchor' => ($link['anchor'] ?? '') !== '' ? '#' . $link['anchor'] : null,
             default => null,
         };
+
+        if ($href !== null && $href !== '' && in_array($link['type'] ?? '', ['home', 'entry', 'index'], true) && ($link['anchor'] ?? '') !== '') {
+            $href .= '#' . $link['anchor'];
+        }
 
         return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
     }
@@ -814,6 +822,7 @@ final class NodeRenderer
             'index' => (string) ($this->ctx->route((string) ($link['collection'] ?? ''))['index_title'] ?? '') ?: (string) ($this->ctx->type((string) ($link['collection'] ?? ''))['label'] ?? ''),
             'entry' => (string) ($this->ctx->findEntry((string) ($link['collection'] ?? ''), (string) ($link['entry'] ?? ''))['title'] ?? ''),
             'url' => (string) ($link['url'] ?? ''),
+            'anchor' => '#' . ($link['anchor'] ?? ''),
             default => '',
         };
     }

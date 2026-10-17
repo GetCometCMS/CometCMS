@@ -69,7 +69,7 @@ final class LayoutSchema
 
     private const SPACE = ['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
-    private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home'];
+    private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
     public static function styleSpec(): array
     {
@@ -447,8 +447,15 @@ final class LayoutSchema
             $normalized['entry'] = self::key($link['entry'] ?? '');
         }
 
+        if (in_array($type, ['anchor', 'home', 'entry', 'index'], true)) {
+            $anchor = self::key(ltrim(trim((string) ($link['anchor'] ?? '')), '#'));
+            if ($anchor !== '' || $type === 'anchor') {
+                $normalized['anchor'] = $anchor;
+            }
+        }
+
         if ($type !== 'none') {
-            $normalized['new_tab'] = (bool) ($link['new_tab'] ?? false);
+            $normalized['new_tab'] = $type !== 'anchor' && (bool) ($link['new_tab'] ?? false);
         }
 
         return $normalized;

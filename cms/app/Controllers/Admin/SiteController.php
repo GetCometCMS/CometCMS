@@ -45,6 +45,7 @@ final class SiteController extends BaseController
             'settings' => $this->site->settings(),
             'theme' => $this->site->theme(),
             'menus' => $this->site->menus(),
+            'menu_limits' => SiteRepository::MENU_LIMITS,
             'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
             'layouts' => $layouts,
             'types' => array_values($this->site->types()),
@@ -144,7 +145,11 @@ final class SiteController extends BaseController
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
-        $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? []);
+        try {
+            $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? []);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
         $this->logger->info('site.menus_updated', ['count' => count($menus)]);
         $this->json(['data' => $menus]);
     }
@@ -293,6 +298,11 @@ final class SiteController extends BaseController
             $context->override('theme', Theme::normalize($body['theme']));
         }
         if (is_array($body['menus'] ?? null)) {
+            try {
+                $this->site->validateMenus($body['menus'], false);
+            } catch (ValidationException $e) {
+                $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+            }
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
 
@@ -380,6 +390,7 @@ final class SiteController extends BaseController
     private function builderContext(): array
     {
         return [
+            'settings' => $this->site->settings(),
             'types' => array_values($this->site->types()),
             'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
             'locales' => $this->site->settings()['locales'],
