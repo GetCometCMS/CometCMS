@@ -39,8 +39,8 @@
           type="button"
           role="menuitem"
           :disabled="action.disabled"
-          class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors disabled:cursor-default disabled:opacity-40"
-          :class="action.danger ? 'text-red-600 hover:bg-red-50 focus:bg-red-50' : 'text-slate-700 hover:bg-slate-50 focus:bg-slate-50'"
+          class="builder-menu-action flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors disabled:cursor-default disabled:opacity-40"
+          :class="action.danger ? 'builder-menu-action-danger text-red-600' : 'text-slate-700'"
           @click="run(action)"
         >
           <Icon :icon="action.icon" class="h-4 w-4 shrink-0" :class="action.danger ? '' : 'text-slate-400'" />
@@ -222,3 +222,25 @@ onBeforeUnmount(() => {
   window.removeEventListener("blur", close);
 });
 </script>
+
+<style scoped>
+.builder-menu-action:enabled:is(:hover, :focus) {
+  background-color: #f8fafc;
+}
+
+.builder-menu-action-danger:enabled:is(:hover, :focus) {
+  background-color: #fef2f2;
+}
+
+:root[data-theme="dark"] .builder-menu-action:enabled:is(:hover, :focus) {
+  background-color: #1e293b;
+}
+
+:root[data-theme="dark"] .builder-menu-action-danger:enabled:is(:hover, :focus) {
+  background-color: rgb(127 29 29 / 0.35);
+}
+
+:root[data-theme="dark"] .builder-menu-action:enabled:is(:hover, :focus) :is(svg, kbd) {
+  color: inherit;
+}
+</style>
