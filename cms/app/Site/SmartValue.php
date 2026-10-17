@@ -209,11 +209,14 @@ final class SmartValue
                 }
             }
         }
+        // An empty field that falls back is resolved; a field that does not exist never is.
         $missing = $config === null || self::empty($value);
         foreach ($ref['filters'] ?? [] as $filter) {
             if ($filter['name'] === 'fallback' && self::empty($value)) {
+                $missing = $config === null;
                 $value = $filter['value'];
-                $config = ($config['type'] ?? '') === 'media' ? $config : ['type' => 'text'];
+                // Media and rich text fall back to a value of their own kind.
+                $config = in_array($config['type'] ?? '', ['media', 'html'], true) ? $config : ['type' => 'text'];
             } elseif ($filter['name'] === 'date' && !self::empty($value) && is_scalar($value)) {
                 $value = Text::date((string) $value, $filter['value'], $this->ctx->htmlLang());
                 $config = ['type' => 'text'];

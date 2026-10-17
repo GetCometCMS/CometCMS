@@ -126,6 +126,7 @@ const actions = computed(() => {
       !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
     ],
     [
+      builder.canMakeField(current) && { key: "makeField", icon: "mdi:database-plus-outline", label: t("site.field.convert"), action: () => { builder.fieldDialog.value = { id: current.id }; } },
       builder.canConvert(current) && { key: "saveComponent", icon: "mdi:puzzle-plus-outline", label: t("site.component.save"), action: () => { builder.componentDialog.value = { id: current.id }; } },
       instance && builder.componentOf(current) && { key: "editComponent", icon: "mdi:puzzle-edit-outline", label: t("site.component.edit"), action: () => builder.editComponent(current.props.component) },
       instance && builder.componentOf(current) && { key: "detach", icon: "mdi:link-variant-off", label: t("site.component.detach"), action: () => builder.detach(current.id) },

@@ -1,4 +1,5 @@
-import { hasInvalidValues, referenceConfig, smartSummary } from './smartValues.js'
+import { hasInvalidValues, isSmartValue, reference, referenceConfig, smartSummary } from './smartValues.js'
+import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
@@ -28,6 +29,18 @@ import {
 const KEY = Symbol('site-builder')
 const HISTORY_LIMIT = 100
 
+/** The content of each element that can become a field of its own: the prop and the type of field it becomes. */
+const CONTENT_PROPS = {
+  heading: { key: 'text', field: 'text' },
+  text: { key: 'html', field: 'html' },
+  button: { key: 'label', field: 'text' },
+  image: { key: 'media', field: 'media' },
+}
+/** Field keys every content type has or keeps free. */
+const RESERVED_FIELDS = new Set(['title', 'slug', 'body', 'url', 'published_at', 'created_at', 'updated_at'])
+/** Longest literal a reference can fall back to (see SmartValue.php). */
+const MAX_FALLBACK = 2000
+
 /**
  * Editing state of the website builder: the layout tree, selection,
  * undo/redo history, drag and drop and the field context nodes bind to.
@@ -37,10 +50,14 @@ const HISTORY_LIMIT = 100
  * `componentApi` connects reusable components: create({ name, nodes, type })
  * stores a new component, load(id) returns one with its nodes.
  *
+ * `fieldApi` connects content types: can(type) tells whether the user may
+ * change a content type, create({ type, key, config }) adds a field to it
+ * and returns the type's saved schema.
+ *
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
  */
-export function createSiteBuilder({ t, componentApi = {}, linked = null }) {
+export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked = null }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
@@ -55,6 +72,8 @@ export function createSiteBuilder({ t, componentApi = {}, linked = null }) {
   const rootKind = ref(null)
   /** Node waiting for a name before it becomes a component: { id }. */
   const componentDialog = ref(null)
+  /** Element waiting for a name before its content becomes a field: { id }. */
+  const fieldDialog = ref(null)
   const locale = ref('')
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
@@ -451,6 +470,46 @@ export function createSiteBuilder({ t, componentApi = {}, linked = null }) {
     return component
   }
 
+  // ─── Content ───────────────────────────────────────────────────────────
+
+  /** The literal content of an element, which can become a field. */
+  function literalContent(node) {
+    const content = CONTENT_PROPS[node?.kind]
+    if (!content || isSmartValue(node.props?.[content.key]) || typeof (node.props?.[content.key] ?? '') !== 'string') return null
+    return { ...content, value: node.props?.[content.key] ?? '' }
+  }
+
+  /** Whether the element's content can move into a new field of the entry it shows. */
+  function canMakeField(node) {
+    return !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
+      && (fieldApi.can?.(type.value.name) ?? true) && !isInsideTemplate(nodes.value, node.id)
+  }
+
+  /**
+   * Add a field named `label` to the content type and bind the element to it.
+   * Entries without a value keep showing the current content, and new
+   * entries start with it.
+   */
+  async function convertToField(id, label) {
+    const node = findNode(nodes.value, id)
+    if (!canMakeField(node)) return null
+    const { key: prop, field, value } = literalContent(node)
+    const fields = type.value.fields ?? {}
+    const key = uniqueKey(normalizeKey(label) || node.kind, new Set(Object.keys(fields)), RESERVED_FIELDS)
+    const config = { type: field, label, required: false }
+    if (field !== 'media' && value !== '') config.default = value
+    // Text follows the type's languages; an image is usually the same in all of them.
+    if (field === 'media') config.localized = false
+    const schema = await fieldApi.create({ type: type.value.name, key, config })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: config } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+
+    const binding = reference(key)
+    if (value !== '' && value.length <= MAX_FALLBACK) binding.filters.push({ name: 'fallback', value })
+    updateValue(id, 'props', prop, binding)
+    return key
+  }
+
   /** Open a component in its own builder (the view decides how). */
   function editComponent(id) {
     componentApi.edit?.(id)
@@ -551,6 +610,7 @@ export function createSiteBuilder({ t, componentApi = {}, linked = null }) {
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert,
     replaceWithInstance, convertToComponent, detach, editComponent,
+    fieldDialog, canMakeField, convertToField,
   }
 
   provide(KEY, api)

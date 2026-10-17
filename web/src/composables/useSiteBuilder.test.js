@@ -180,3 +180,62 @@ describe('builder linked state', () => {
     expect(state.theme).toEqual({ primary: '#000000' })
   })
 })
+
+async function contentFixture(fieldApi) {
+  let builder
+  await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi }); return () => null } }))
+  builder.spec.value = { root: ['section'], item_elements: ['heading'], kinds: {
+    section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] }, column: { props: {}, children: ['heading', 'image', 'field'] },
+    heading: { props: { text: { default: '' } }, children: [] }, image: { props: { media: { default: '' } }, children: [] },
+    field: { props: { source: { default: '' } }, children: ['heading'] },
+  } }
+  builder.type.value = { name: 'posts', label: 'Posts', fields: { title: { type: 'text' }, heading: { type: 'text' } } }
+  builder.types.value = [builder.type.value, { name: 'company', singleton: true, fields: { steps: { type: 'repeater', subfields: [{ key: 'name', type: 'text' }] } } }]
+  const heading = builder.make('heading', { text: 'Our story' })
+  const image = builder.make('image', { media: 'team.jpg' })
+  const bound = builder.make('heading', { text: reference('title') })
+  const template = builder.make('field', { source: { ...reference('steps', 'single'), collection: 'company' } }, {}, [builder.make('heading', { text: 'Step' })])
+  builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [heading, image, bound, template])])])])
+  return { builder, heading, image, bound, item: template.children[0] }
+}
+
+describe('builder content fields', () => {
+  it('offers literal content for conversion, but not bound or template content', async () => {
+    const { builder, heading, image, bound, item } = await contentFixture({ create: async () => null, can: () => true })
+    expect(builder.canMakeField(heading)).toBe(true)
+    expect(builder.canMakeField(image)).toBe(true)
+    expect(builder.canMakeField(bound)).toBe(false)
+    expect(builder.canMakeField(item)).toBe(false)
+    builder.currentAvailable.value = false
+    expect(builder.canMakeField(heading)).toBe(false)
+  })
+
+  it('needs permission to change the content type', async () => {
+    const { builder, heading } = await contentFixture({ create: async () => null, can: () => false })
+    expect(builder.canMakeField(heading)).toBe(false)
+  })
+
+  it('adds a uniquely named field and binds the element with its content as fallback, in one undo step', async () => {
+    const calls = []
+    const { builder, heading, image } = await contentFixture({
+      can: () => true,
+      create: async ({ type, key, config }) => {
+        calls.push({ type, key, config })
+        return { name: type, fields: { ...builder.type.value.fields, [key]: config } }
+      },
+    })
+    expect(await builder.convertToField(heading.id, 'Heading')).toBe('heading_2')
+    expect(calls[0]).toEqual({ type: 'posts', key: 'heading_2', config: { type: 'text', label: 'Heading', required: false, default: 'Our story' } })
+    const converted = builder.nodes.value[0].children[0].children[0].children[0]
+    expect(converted.props.text).toEqual({ ...reference('heading_2'), filters: [{ name: 'fallback', value: 'Our story' }] })
+    expect(builder.type.value.fields.heading_2.type).toBe('text')
+    expect(builder.types.value[0].fields.heading_2).toBeTruthy()
+
+    expect(await builder.convertToField(image.id, 'Team photo')).toBe('team_photo')
+    expect(calls[1].config).toEqual({ type: 'media', label: 'Team photo', required: false, localized: false })
+
+    builder.undo()
+    builder.undo()
+    expect(builder.nodes.value[0].children[0].children[0].children[0].props.text).toBe('Our story')
+  })
+})

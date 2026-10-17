@@ -82,6 +82,27 @@ test('smart fallbacks preserve zero and false and do not recursively evaluate co
     assert_true($resolved['missing']);
 });
 
+test('empty fields fall back without a warning and rich text falls back to markup', function (): void {
+    comet_site_test_setup();
+    [$context, $state] = smart_test_state();
+    $state['type']['fields']['intro'] = ['type' => 'html'];
+    $state['type']['fields']['tagline'] = ['type' => 'text'];
+    $state['entry']['intro'] = '';
+    $smart = new SmartValue($context);
+
+    $ref = SmartValue::reference('tagline');
+    $ref['filters'][] = ['name' => 'fallback', 'value' => 'Our story'];
+    $resolved = $smart->resolve($ref, $state);
+    assert_same(['Our story', false], [$resolved['value'], $resolved['missing']], 'An existing empty field is resolved by its fallback.');
+
+    $ref = SmartValue::reference('intro');
+    $ref['filters'][] = ['name' => 'fallback', 'value' => '<p>We <strong>build</strong> things.</p>'];
+    $context->annotate = true;
+    $html = (new NodeRenderer($context))->render([LayoutSchema::node('text', ['html' => $ref])], $state);
+    assert_true(str_contains($html, '<strong>build</strong>'), 'Rich text keeps the markup of its fallback.');
+    assert_false(str_contains($html, 'c-placeholder-warning'));
+});
+
 test('smart rich text preserves whole values and escapes inline references', function (): void {
     comet_site_test_setup();
     [$context, $state] = smart_test_state();

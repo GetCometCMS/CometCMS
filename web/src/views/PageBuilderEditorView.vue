@@ -193,6 +193,20 @@
       @confirm="convert"
     />
 
+    <ComponentNameModal
+      :model-value="builder.fieldDialog.value !== null"
+      :title="t('site.field.convertTitle')"
+      :message="t('site.field.convertMessage', { type: builder.type.value?.label ?? builder.type.value?.name ?? '' })"
+      :confirm-label="t('site.field.create')"
+      :label="t('site.field.name')"
+      :placeholder="t('site.field.namePlaceholder')"
+      :initial="fieldDialogInitial"
+      icon="mdi:database-plus-outline"
+      :loading="creatingField"
+      @update:model-value="(open) => { if (!open) builder.fieldDialog.value = null }"
+      @confirm="convertField"
+    />
+
     <ConfirmModal
       v-model="leavePromptOpen"
       :title="t('unsaved.title')"
@@ -237,7 +251,9 @@ import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
+import { findNode } from "../composables/layoutTree.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
+import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
@@ -245,6 +261,7 @@ import { useI18n } from "../i18n/index.js";
 const route = useRoute();
 const router = useRouter();
 const site = useSiteStore();
+const auth = useAuthStore();
 const toast = useToastStore();
 const { t } = useI18n();
 const builder = createSiteBuilder({
@@ -261,6 +278,15 @@ const builder = createSiteBuilder({
     },
     // Unsaved changes are guarded like any other way out of the builder.
     edit: (id) => router.push({ path: `/page-builder/builder/component/${id}`, query: { back: route.fullPath } }),
+  },
+  fieldApi: {
+    // Only offered to those who may change the content type.
+    can: (type) => auth.can("schema.read", `schema:${type}`) && auth.can("schema.update", `schema:${type}`),
+    create: async ({ type, key, config }) => {
+      const schema = (await api.contentTypes.get(type)).data;
+      if (schema.fields?.[key]) throw new Error(t("site.field.exists", { key }));
+      return (await api.contentTypes.update(type, { ...schema, fields: { ...schema.fields, [key]: config } })).data;
+    },
   },
   // Design edits are undone and redone together with layout edits.
   linked: {
@@ -566,6 +592,29 @@ async function convert(componentName) {
     toast.error(err.message);
   } finally {
     converting.value = false;
+  }
+}
+
+const creatingField = ref(false);
+/** The element's kind as a starting name, e.g. "Heading". */
+const fieldDialogInitial = computed(() => {
+  const node = builder.fieldDialog.value ? findNode(builder.nodes.value, builder.fieldDialog.value.id) : null;
+  return node ? builder.kindLabel(node.kind) : "";
+});
+
+/** Turn the element waiting in the field dialog into a field of the content type. */
+async function convertField(label) {
+  const pending = builder.fieldDialog.value;
+  if (!pending || creatingField.value) return;
+  creatingField.value = true;
+  try {
+    const key = await builder.convertToField(pending.id, label);
+    builder.fieldDialog.value = null;
+    if (key) toast.success(t("site.field.created", { key }));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    creatingField.value = false;
   }
 }
 

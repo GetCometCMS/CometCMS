@@ -12,7 +12,7 @@
       >
         <div class="flex items-start gap-3">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-theme-50">
-            <Icon icon="mdi:puzzle-outline" class="h-5 w-5 text-theme-600" />
+            <Icon :icon="icon" class="h-5 w-5 text-theme-600" />
           </div>
           <div class="min-w-0 flex-1">
             <h3 :id="titleId" class="text-base font-semibold text-slate-900">{{ title }}</h3>
@@ -21,7 +21,7 @@
         </div>
 
         <div>
-          <label :for="inputId" class="mb-1 block text-xs font-medium text-slate-700">{{ t("site.component.name") }}</label>
+          <label :for="inputId" class="mb-1 block text-xs font-medium text-slate-700">{{ label || t("site.component.name") }}</label>
           <input
             :id="inputId"
             v-model="name"
@@ -30,7 +30,7 @@
             maxlength="120"
             required
             class="form-input w-full rounded-lg border-slate-300 text-sm"
-            :placeholder="t('site.component.namePlaceholder')"
+            :placeholder="placeholder || t('site.component.namePlaceholder')"
           />
         </div>
 
@@ -59,6 +59,9 @@ const props = defineProps({
   /** Name to start with, e.g. the current one when renaming. */
   initial: { type: String, default: "" },
   loading: { type: Boolean, default: false },
+  icon: { type: String, default: "mdi:puzzle-outline" },
+  label: { type: String, default: "" },
+  placeholder: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue", "confirm"]);
