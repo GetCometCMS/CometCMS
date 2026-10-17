@@ -51,6 +51,18 @@ Drag elements from **Add** onto the preview or into the **Outline**, or click th
 
 If a field is renamed or removed, elements bound to it render nothing and the builder marks them.
 
+### Responsive column order
+
+Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
+
+### Background image blur
+
+Select a **section**, choose a **Background image**, then set **Background blur (px)** from 0 to 40. Zero keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. Image size, focal point and repeat options continue to apply. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+### AI and MCP access
+
+The builder stores layouts as structured JSON and shares its schema with the server renderer. This is a suitable foundation for AI design tools. The current MCP endpoint exposes content, schemas and media; website design tools have not been added yet. See the [MCP website design assessment](../api/mcp#website-design-readiness) for the current capabilities and remaining integration work.
+
 ## Header, footer and menus
 
 The header and footer are shown on every page and are edited in the same builder (**Header & footer** tab). Menus are managed in the **Menus** tab and can link to the homepage, list pages, entries or any URL, with up to five levels of nested items and per-language labels. Select an item in the menu tree to edit it. Drag items before, after or inside another item, or use the move and indent/outdent buttons. Group headings can contain children without linking anywhere. Deleting a parent asks you to confirm removal of the entire branch.

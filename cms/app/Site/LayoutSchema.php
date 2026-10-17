@@ -119,6 +119,7 @@ final class LayoutSchema
                 'background_size' => ['type' => 'enum', 'options' => ['cover', 'contain', 'original'], 'default' => 'cover'],
                 'background_position' => $position,
                 'background_repeat' => ['type' => 'bool', 'default' => false],
+                'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
                 'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
                 'sticky' => ['type' => 'bool', 'default' => false],
             ],
@@ -127,6 +128,7 @@ final class LayoutSchema
                 'align' => ['type' => 'enum', 'options' => ['stretch', 'start', 'center', 'end'], 'default' => 'stretch'],
                 'justify' => ['type' => 'enum', 'options' => ['start', 'center', 'end', 'between'], 'default' => 'start'],
                 'reverse_mobile' => ['type' => 'bool', 'default' => false],
+                'reverse_tablet' => ['type' => 'bool', 'default' => false],
             ],
             'column' => [
                 'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],

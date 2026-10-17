@@ -68,6 +68,17 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-section.c-v-end > .c-container, .c-section.c-v-end { justify-content: flex-end; }
 .c-sticky { position: sticky; top: 0; z-index: 40; }
 .c-has-bg-image { color: inherit; }
+.c-has-bg-blur { isolation: isolate; }
+/* Clip only the decorative image layer, keeping menus and section content free to overflow. */
+.c-background-blur {
+  position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none;
+  border-radius: inherit; background-size: inherit; background-position: inherit; background-repeat: inherit;
+}
+.c-background-blur::before {
+  content: ""; position: absolute; inset: calc(-3 * var(--c-background-blur));
+  background-image: var(--c-background-image); background-size: inherit; background-position: inherit; background-repeat: inherit;
+  filter: blur(var(--c-background-blur));
+}
 .c-overlay-dark, .c-overlay-light { isolation: isolate; }
 .c-overlay-dark::before, .c-overlay-light::before { content: ""; position: absolute; inset: 0; z-index: -1; }
 .c-overlay-dark::before { background: rgb(0 0 0 / 0.5); }
@@ -111,8 +122,10 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-col-10 { grid-column: span 10; } .c-col-11 { grid-column: span 11; } .c-col-12 { grid-column: span 12; }
 .c-justify-between > .c-col:last-child:not(:first-child) { justify-self: stretch; }
 @media (max-width: 767px) {
-  .c-reverse-mobile > .c-col { order: 0; }
-  .c-reverse-mobile > .c-col:first-child { order: 2; }
+  .c-reverse-mobile > .c-col { order: var(--c-column-order, 0); }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .c-reverse-tablet > .c-col { order: var(--c-column-order, 0); }
 }
 @media (min-width: 768px) {
   .c-t-col-1 { grid-column: span 1; } .c-t-col-2 { grid-column: span 2; } .c-t-col-3 { grid-column: span 3; }

@@ -194,6 +194,7 @@ const label = computed(() => {
 
 const hint = computed(() => {
   if (props.name === "class") return t("site.builder.classHint");
+  if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
   return "";
 });
 

@@ -159,7 +159,7 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "section") {
-    const imageOptions = ["background_size", "background_position", "background_repeat", "overlay"];
+    const imageOptions = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
     return keys.filter((key) =>
       (!imageOptions.includes(key) || props.background_image)
       && (key !== "background_repeat" || props.background_size !== "cover"),

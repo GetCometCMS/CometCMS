@@ -558,6 +558,87 @@ test('background images and cropped images follow their size and focal point', f
     }
 });
 
+test('column reversal persists independently per device and orders every column', function (): void {
+    $site = comet_site_test_setup();
+    $columns = array_map(static fn(string $text): array => LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('heading', ['text' => $text]),
+    ]), ['First column', 'Second column', 'Third column', 'Fourth column']);
+
+    foreach ([[false, false], [true, false], [false, true], [true, true]] as [$mobile, $tablet]) {
+        $site->saveLayout('about', 'detail', [LayoutSchema::node('section', [], [], [
+            LayoutSchema::node('row', ['reverse_mobile' => $mobile, 'reverse_tablet' => $tablet], [], $columns),
+        ])]);
+        $nodes = (new SiteRepository())->layout('about', 'detail');
+        $props = $nodes[0]['children'][0]['props'];
+        assert_same([$mobile, $tablet], [$props['reverse_mobile'], $props['reverse_tablet']]);
+
+        foreach ([false, true] as $annotate) {
+            $ctx = comet_site_test_context();
+            $ctx->annotate = $annotate;
+            $html = (new NodeRenderer($ctx))->render($nodes);
+            assert_same($mobile, str_contains($html, 'c-reverse-mobile'));
+            assert_same($tablet, str_contains($html, 'c-reverse-tablet'));
+            assert_same($mobile || $tablet ? 4 : 0, substr_count($html, '--c-column-order:'));
+            if ($mobile || $tablet) {
+                foreach ([0, -1, -2, -3] as $order) {
+                    assert_true(str_contains($html, '--c-column-order:' . $order . '"'));
+                }
+            }
+            assert_true(strpos($html, 'First column') < strpos($html, 'Second column'), 'Reading order is preserved.');
+            assert_true(strpos($html, 'Second column') < strpos($html, 'Third column'));
+            assert_true(strpos($html, 'Third column') < strpos($html, 'Fourth column'));
+        }
+    }
+});
+
+test('background blur is bounded and saved with the section', function (): void {
+    $site = comet_site_test_setup();
+    foreach ([[[], 0], [['background_blur' => -5], 0], [['background_blur' => 100], 40], [['background_blur' => 12], 12]] as [$props, $expected]) {
+        $site->saveLayout('about', 'detail', [LayoutSchema::node('section', $props)]);
+        $nodes = (new SiteRepository())->layout('about', 'detail');
+        assert_same($expected, $nodes[0]['props']['background_blur']);
+    }
+});
+
+test('background blur renders a separate decorative layer for public images only', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/background.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
+    file_put_contents(comet_test_workspace_path() . '/media/document.txt', 'Not an image');
+
+    foreach (['none', 'light', 'dark'] as $overlay) {
+        foreach ([0, 8, 40] as $blur) {
+            $nodes = [LayoutSchema::node('section', [
+                'background_image' => 'background.svg', 'background_blur' => $blur,
+                'background_size' => 'contain', 'background_position' => 'top-right',
+                'background_repeat' => true, 'overlay' => $overlay,
+            ], ['radius' => 'lg'], [LayoutSchema::node('row', [], [], [
+                LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Sharp content'])]),
+            ])])];
+
+            foreach ([false, true] as $annotate) {
+                $ctx = comet_site_test_context();
+                $ctx->annotate = $annotate;
+                $html = (new NodeRenderer($ctx))->render($nodes);
+                assert_same($blur > 0, str_contains($html, 'class="c-background-blur" aria-hidden="true"'));
+                assert_same($blur > 0, str_contains($html, '--c-background-blur:' . $blur . 'px'));
+                assert_true(str_contains($html, 'c-bg-size-contain c-bg-pos-top-right c-bg-repeat'));
+                assert_same($overlay !== 'none', str_contains($html, 'c-overlay-' . $overlay));
+                assert_true(str_contains($html, 'Sharp content'));
+                assert_false(str_contains($html, 'filter:'), 'The content never receives an inline blur filter.');
+            }
+        }
+    }
+
+    (new \CometCMS\Media\MediaRepository())->updateVisibility('background.svg', 'private');
+    foreach (['', 'missing.svg', 'document.txt', 'background.svg'] as $file) {
+        $ctx = comet_site_test_context();
+        $ctx->annotate = true;
+        $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('section', ['background_image' => $file, 'background_blur' => 8])]);
+        assert_false(str_contains($html, 'c-background-blur'), 'Missing, private and non-image backgrounds have no blur layer.');
+        assert_false(str_contains($html, '--c-background-image'));
+    }
+});
+
 test('theme spacing and radius tokens drive the stylesheet', function (): void {
     $theme = Theme::normalize([
         'space' => ['xs' => 2, 'md' => 24, 'xl' => 999],

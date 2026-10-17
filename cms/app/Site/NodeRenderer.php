@@ -85,6 +85,7 @@ final class NodeRenderer
         $inCard = ($state['in_card'] ?? false) === true;
         $classes = ['c-section', 'c-section-' . $props['width']];
         $style = '';
+        $backgroundLayer = '';
 
         if ($props['min_height'] !== '') {
             $classes[] = 'c-min-h-' . $props['min_height'];
@@ -99,7 +100,13 @@ final class NodeRenderer
         $background = $props['background_image'] !== '' ? $this->ctx->mediaItem($props['background_image']) : null;
         if ($background !== null && str_starts_with((string) $background['mime'], 'image/')) {
             $classes[] = 'c-has-bg-image';
-            $style = 'background-image:url(\'' . $this->imageSource($background, 1920) . '\')';
+            $image = 'url(\'' . $this->imageSource($background, 1920) . '\')';
+            $style = 'background-image:' . $image;
+            if ($props['background_blur'] > 0) {
+                $classes[] = 'c-has-bg-blur';
+                $style = '--c-background-image:' . $image . ';--c-background-blur:' . $props['background_blur'] . 'px';
+                $backgroundLayer = '<span class="c-background-blur" aria-hidden="true"></span>';
+            }
             $classes[] = 'c-bg-size-' . $props['background_size'];
             $classes[] = 'c-bg-pos-' . $props['background_position'];
             $classes[] = $props['background_repeat'] ? 'c-bg-repeat' : 'c-bg-no-repeat';
@@ -116,7 +123,7 @@ final class NodeRenderer
         $tag = $inCard ? 'div' : 'section';
         $container = $props['width'] === 'full' ? $inner : '<div class="c-container c-container-' . $props['width'] . '">' . $inner . '</div>';
 
-        return '<' . $tag . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])], $style) . '>' . $container . '</' . $tag . '>';
+        return '<' . $tag . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])], $style) . '>' . $backgroundLayer . $container . '</' . $tag . '>';
     }
 
     private function row(array $node, array $state): string
@@ -127,8 +134,15 @@ final class NodeRenderer
         if ($props['reverse_mobile']) {
             $classes[] = 'c-reverse-mobile';
         }
+        if ($props['reverse_tablet']) {
+            $classes[] = 'c-reverse-tablet';
+        }
 
-        $inner = $this->render($node['children'], $state);
+        $reverse = $props['reverse_mobile'] || $props['reverse_tablet'];
+        $inner = '';
+        foreach ($node['children'] as $index => $column) {
+            $inner .= $this->column($column, $state, $reverse ? -$index : null);
+        }
         if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
             return '';
         }
@@ -136,7 +150,7 @@ final class NodeRenderer
         return '<div' . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])]) . '>' . $inner . '</div>';
     }
 
-    private function column(array $node, array $state): string
+    private function column(array $node, array $state, ?int $order = null): string
     {
         $span = $node['props']['span'];
         $classes = ['c-col', 'c-col-' . $span['mobile']];
@@ -156,7 +170,9 @@ final class NodeRenderer
             $inner = '<div class="c-placeholder c-placeholder-drop">Empty column</div>';
         }
 
-        return '<div' . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])]) . '>' . $inner . '</div>';
+        $style = $order !== null ? '--c-column-order:' . $order : '';
+
+        return '<div' . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])], $style) . '>' . $inner . '</div>';
     }
 
     // ─── Elements ────────────────────────────────────────────────────────────
