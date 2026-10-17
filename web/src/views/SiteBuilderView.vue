@@ -71,10 +71,6 @@
           </button>
         </div>
 
-        <button v-if="customized && target !== 'component'" type="button" class="btn-secondary btn-sm hidden sm:inline-flex" @click="resetOpen = true">
-          {{ t("site.builder.reset") }}
-        </button>
-
         <button
           type="button"
           class="topbar-action"
@@ -106,7 +102,7 @@
           :fetch-revisions="fetchRevisions"
           :restore-revision="restoreRevision"
           :dirty="builder.isDirty.value"
-          :busy="loading || saving || resetting"
+          :busy="loading || saving"
           @restored="onRevisionRestored"
         />
 
@@ -205,15 +201,6 @@
       @update:model-value="(open) => { if (!open) pendingVariant = '' }"
       @confirm="switchVariant(pendingVariant)"
     />
-    <ConfirmModal
-      v-model="resetOpen"
-      :title="t('site.builder.resetTitle')"
-      :message="t('site.builder.resetMessage')"
-      :confirm-label="t('site.builder.reset')"
-      variant="warning"
-      :loading="resetting"
-      @confirm="reset"
-    />
   </div>
 </template>
 
@@ -310,8 +297,6 @@ const loading = ref(true);
 const upgradeRequired = ref(false);
 const loadError = ref("");
 const saving = ref(false);
-const resetting = ref(false);
-const resetOpen = ref(false);
 const customized = ref(false);
 const samples = ref([]);
 const sampleId = ref("");
@@ -497,28 +482,6 @@ async function save() {
     toast.error(err.message);
   } finally {
     saving.value = false;
-  }
-}
-
-async function reset() {
-  resetting.value = true;
-
-  try {
-    const res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
-    builder.mutate((tree) => {
-      tree.splice(0, tree.length, ...res.data.nodes);
-    });
-    builder.markSaved(res.data.nodes);
-    upgradeRequired.value = false;
-    builder.select(null);
-    customized.value = false;
-    site.markCustomized(target, name, variant, false);
-    toast.success(t("site.builder.resetDone"));
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    resetting.value = false;
-    resetOpen.value = false;
   }
 }
 
