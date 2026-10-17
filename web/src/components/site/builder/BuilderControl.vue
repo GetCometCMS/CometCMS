@@ -71,7 +71,7 @@
         type="range"
         class="min-w-0 flex-1 accent-theme-600"
         :min="def.min"
-        :max="def.max"
+        :max="def.slider_max ?? def.max"
         :step="SIZE_STEP"
         :value="value ?? 0"
         :aria-label="label"

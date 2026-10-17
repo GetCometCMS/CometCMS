@@ -217,8 +217,8 @@ final class LayoutSchema
                 'fit' => $fit,
                 'position' => $position,
                 // Rendered width bounds in pixels; 0 leaves that side to the image and its column.
-                'min_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'unit' => 'px', 'default' => 0],
-                'max_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'unit' => 'px', 'default' => 0],
+                'min_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
+                'max_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'button' => [
