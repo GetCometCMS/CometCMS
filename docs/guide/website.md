@@ -6,9 +6,9 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 ## Putting it online
 
-There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with **frontend pages**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
+There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with the **Page Builder enabled**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
-Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Show content as frontend pages** in the base settings card. The **Frontend pages** card then appears with URL, search engine and layout settings:
+Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -18,13 +18,13 @@ Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose 
 
 `/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
 
-The **Frontend pages** column in the content types table shows which types publish pages. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. Private types cannot enable public frontend pages. Turning on the first frontend pages of a headless workspace puts its website online.
+The **Page Builder** column in the content types table shows which types have the Page Builder enabled. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. The Page Builder cannot be enabled for private types. Enabling it for the first content type of a headless workspace puts its website online.
 
-The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Enabled frontend pages remain accessible at their own URLs. Set the homepage to **None** and turn off all frontend pages to return to a fully headless setup.
+The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Pages for content types with the Page Builder enabled remain accessible at their own URLs. Set the homepage to **None** and disable the Page Builder for all content types to return to a fully headless setup.
 
 ## Layouts and the builder
 
-The **Content types** table shows which types have frontend pages enabled. Open a content type’s **Frontend pages** card to configure its URLs and edit its layouts. Every content type has up to three layouts:
+The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to three layouts:
 
 - **Page** — a single entry.
 - **Card** — how an entry looks inside lists, related-entry fields and entry lists elsewhere.
