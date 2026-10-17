@@ -59,7 +59,7 @@
       >
         <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
         <p class="flex-1">{{ t("site.offNotice") }}</p>
-        <router-link v-if="activeTab !== 'overview'" to="/website/overview" class="btn-secondary btn-sm shrink-0">
+        <router-link v-if="activeTab !== 'overview'" to="/page-builder/overview" class="btn-secondary btn-sm shrink-0">
           {{ t("site.chooseHomepage") }}
         </router-link>
         <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
@@ -122,16 +122,16 @@ const toast = useToastStore();
 const { t } = useI18n();
 /** The design is edited and saved in the builder; this screen owns settings and menus. */
 const PARTS = ["settings", "menus"];
-const DESIGN_PATH = "/website/builder/region/header?settings=design";
+const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
 const validTabs = new Set(["overview", "components", "menus"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
-  { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/website/overview" },
-  { value: "components", label: t("site.tab.components"), icon: "mdi:puzzle-outline", to: "/website/components" },
-  { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/website/menus" },
+  { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
+  { value: "components", label: t("site.tab.components"), icon: "mdi:puzzle-outline", to: "/page-builder/components" },
+  { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
 ]);
 
 async function save() {

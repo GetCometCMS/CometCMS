@@ -164,16 +164,6 @@
             {{ t("app.nav.media") }}
           </router-link>
 
-          <router-link
-            v-if="auth.can('site.manage')"
-            to="/website"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:web" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.website") }}
-          </router-link>
-
           <template
             v-if="contentNavTypes.length > 0 || allSidebarTypes.length === 0"
           >
@@ -213,6 +203,16 @@
           >
             {{ t("app.nav.system") }}
           </div>
+
+          <router-link
+            v-if="showPageBuilder"
+            to="/page-builder"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:web" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.website") }}
+          </router-link>
 
             <router-link
               v-if="auth.can('users.read')"
@@ -356,11 +356,12 @@
 
 <script setup>
 import { ADMIN_API_BASE, adminAsset } from "../basePath.js";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "../stores/auth.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
+import { useSiteStore } from "../stores/site.js";
 import {
   api,
   getActiveWorkspace,
@@ -375,6 +376,7 @@ import ToastStack from "./ToastStack.vue";
 const auth = useAuthStore();
 const router = useRouter();
 const typesStore = useContentTypesStore();
+const site = useSiteStore();
 const { t } = useI18n();
 const defaultCollectionIcon = "mdi:file-document-outline";
 const defaultPageIcon = "mdi:file-document-edit-outline";
@@ -441,6 +443,17 @@ const allSidebarTypes = computed(() =>
 const contentNavTypes = computed(() =>
   allSidebarTypes.value
     .filter((type) => auth.can("content.read", `content:${type.name}:*`)),
+);
+
+// Only offered once a content type has the Page Builder enabled.
+const showPageBuilder = computed(() => auth.can("site.manage") && site.pageBuilderActive);
+// Types are refetched after creating, deleting or switching workspaces.
+watch(
+  () => typesStore.list,
+  () => {
+    if (auth.can("site.manage")) site.loadStatus().catch(() => {});
+  },
+  { immediate: true },
 );
 
 function defaultContentIcon(type) {

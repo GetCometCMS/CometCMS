@@ -94,28 +94,33 @@ const routes = [
     redirect: '/connect/api',
   },
   {
+    path: '/page-builder/:tab(overview|components|menus)?',
+    component: () => import('../views/PageBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    // Full-screen editor for a content type layout, the header/footer or a component.
+    path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',
+    component: () => import('../views/PageBuilderEditorView.vue'),
+    meta: { requiresAuth: true, bare: true },
+  },
+  // Old /website URLs (bookmarks, links in notes).
+  {
     path: '/website/pages',
     redirect: '/content-types',
   },
   {
     // The design settings moved into the builder.
     path: '/website/theme',
-    redirect: '/website/builder/region/header?settings=design',
+    redirect: '/page-builder/builder/region/header?settings=design',
   },
   {
     path: '/website/header-footer',
-    redirect: '/website/builder/region/header',
+    redirect: '/page-builder/builder/region/header',
   },
   {
-    path: '/website/:tab(overview|components|menus)?',
-    component: () => import('../views/WebsiteView.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    // Full-screen builder for a content type layout, the header/footer or a component.
-    path: '/website/builder/:target(layout|region|component)/:name/:variant?',
-    component: () => import('../views/SiteBuilderView.vue'),
-    meta: { requiresAuth: true, bare: true },
+    path: '/website/:rest(.*)*',
+    redirect: (to) => ({ path: `/page-builder/${[].concat(to.params.rest ?? []).join('/')}`.replace(/\/$/, ''), query: to.query }),
   },
   {
     path: '/workspaces',

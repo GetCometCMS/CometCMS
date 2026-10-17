@@ -17,7 +17,7 @@
     >
       <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" />
       <span class="flex-1">{{ t("site.typeCard.siteOff") }}</span>
-      <router-link to="/website/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
+      <router-link to="/page-builder/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
     </div>
 
     <template v-if="editable && route.enabled">
@@ -89,7 +89,7 @@
           <router-link
             v-for="variant in variants"
             :key="variant"
-            :to="`/website/builder/layout/${name}/${variant}`"
+            :to="`/page-builder/builder/layout/${name}/${variant}`"
             class="btn-secondary btn-sm"
           >
             <Icon :icon="VARIANT_ICONS[variant]" class="h-4 w-4" />

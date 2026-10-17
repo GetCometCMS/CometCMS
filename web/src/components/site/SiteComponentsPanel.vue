@@ -25,7 +25,7 @@
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <router-link :to="`/website/builder/component/${component.id}`" class="btn-primary btn-sm">
+          <router-link :to="`/page-builder/builder/component/${component.id}`" class="btn-primary btn-sm">
             <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
             {{ t("site.component.edit") }}
           </router-link>

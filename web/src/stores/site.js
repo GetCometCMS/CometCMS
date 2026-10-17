@@ -19,6 +19,11 @@ export const useSiteStore = defineStore('site', () => {
   const error = ref('')
   const saving = ref(false)
   const fieldErrors = ref({})
+  /**
+   * Whether the Page Builder is in use (saved state): enabled for at least one
+   * content type, or the website is live through its homepage.
+   */
+  const pageBuilderActive = ref(false)
   let workspace = ''
   let inFlight = null
 
@@ -31,6 +36,19 @@ export const useSiteStore = defineStore('site', () => {
   const isDirty = computed(() => dirtyParts.value.length > 0)
   /** Whether the draft settings publish anything; the saved state is `data.settings.enabled`. */
   const live = computed(() => !!(draft.value && data.value) && isSiteLive(draft.value.settings, data.value.types))
+
+  function syncPageBuilderActive() {
+    const settings = data.value?.settings
+    pageBuilderActive.value = !!settings?.enabled || Object.values(settings?.routes ?? {}).some((route) => route?.enabled)
+  }
+
+  /** Refresh `pageBuilderActive` from the lightweight status, without loading the full site. */
+  async function loadStatus() {
+    const active = getActiveWorkspace()
+    const res = await api.site.status()
+    if (active !== getActiveWorkspace()) return
+    pageBuilderActive.value = !!res.data?.enabled || Object.values(res.data?.types ?? {}).some((type) => type.pages_enabled)
+  }
 
   function resetDraft() {
     draft.value = data.value
@@ -51,6 +69,7 @@ export const useSiteStore = defineStore('site', () => {
       .then((res) => {
         if (workspace !== getActiveWorkspace()) return data.value
         data.value = res.data
+        syncPageBuilderActive()
         resetDraft()
         return data.value
       })
@@ -86,6 +105,7 @@ export const useSiteStore = defineStore('site', () => {
       for (const part of pending) {
         if (part === 'settings') {
           data.value.settings = (await api.site.saveSettings(draft.value.settings)).data
+          syncPageBuilderActive()
         } else if (part === 'theme') {
           data.value.theme = (await api.site.saveTheme(draft.value.theme)).data
         } else {
@@ -111,6 +131,7 @@ export const useSiteStore = defineStore('site', () => {
     settings.routes = { ...settings.routes, [name]: { ...(settings.routes?.[name] ?? {}), ...route } }
     const saved = (await api.site.saveSettings(settings)).data
     data.value.settings = saved
+    syncPageBuilderActive()
     if (draft.value) draft.value.settings.routes[name] = clone(saved.routes[name])
     // New types bring new layouts and routes; refresh what the Website screen lists.
     if (!isDirty.value) await load({ force: true })
@@ -142,9 +163,10 @@ export const useSiteStore = defineStore('site', () => {
 
   function invalidate() {
     data.value = null
+    pageBuilderActive.value = false
     draft.value = null
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, load, loadStatus, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
 })

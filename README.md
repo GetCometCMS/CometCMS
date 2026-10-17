@@ -182,7 +182,7 @@ Installation replaces release-owned application files and folders while preservi
 | `/admin/connect/access-tokens` | Access tokens          |
 | `/admin/backups`              | Backup and restore     |
 | `/admin/webhooks`             | Outbound webhooks      |
-| `/admin/website`              | Website settings & builder |
+| `/admin/page-builder`         | Page Builder settings & editor |
 | `/admin/update`               | GitHub release updates |
 
 ### Roles

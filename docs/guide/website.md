@@ -8,7 +8,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with the **Page Builder enabled**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
-Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
+Open **Page Builder** under **System** in the admin sidebar (permission `site.manage`; shown once a content type has the Page Builder enabled or the website is online) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -113,7 +113,7 @@ Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a descri
 
 ## Previewing drafts
 
-The entry editor shows **Preview** for entries that have a page; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get a **Page design** section between **Core** and **Fields**, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the top bar links to the live page and back to the entry's content. Published entries also offer **View on website** in the editor header.
+People who manage the website get a **Page design** section between **Core** and **Fields** in the entry editor, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the save button's menu offers **Preview**, which opens the last saved layout with the sample entry, drafts included, for signed-in users only and marked with a preview banner. Save first to include unsaved layout changes. The same menu has **View live page** for the published page, and the top bar links back to the entry's content. Published entries also offer **View on website** in the editor header.
 
 ## Domains and workspaces
 

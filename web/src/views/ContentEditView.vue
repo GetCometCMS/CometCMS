@@ -12,17 +12,6 @@
       </h1>
       <div class="ml-auto flex items-center gap-2">
         <a
-          v-if="!isNew && siteLinks?.enabled && siteLinks.routed && siteLinks.previewable"
-          :href="api.site.entryPreviewUrl(collection, entryId, currentLocale)"
-          target="_blank"
-          rel="noopener"
-          class="btn-secondary"
-          :title="t('site.entry.previewHint')"
-        >
-          <Icon icon="mdi:eye-outline" class="h-4 w-4" />
-          <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
-        </a>
-        <a
           v-if="!isNew && siteLinks?.url"
           :href="siteLinks.url"
           target="_blank"
@@ -1020,7 +1009,7 @@ const siteLinks = ref(null);
 
 // The type's page layout in the builder, previewed with this entry.
 const designLink = computed(() => ({
-  path: `/website/builder/layout/${collection}/detail`,
+  path: `/page-builder/builder/layout/${collection}/detail`,
   query: { entry: entryId.value, back: route.fullPath },
 }));
 

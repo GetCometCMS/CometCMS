@@ -248,7 +248,7 @@ const builder = createSiteBuilder({
       }
     },
     // Unsaved changes are guarded like any other way out of the builder.
-    edit: (id) => router.push({ path: `/website/builder/component/${id}`, query: { back: route.fullPath } }),
+    edit: (id) => router.push({ path: `/page-builder/builder/component/${id}`, query: { back: route.fullPath } }),
   },
   // Design edits are undone and redone together with layout edits.
   linked: {
@@ -331,15 +331,35 @@ const liveUrl = computed(() => {
   return entryUrl.value;
 });
 const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
-const saveMenuItems = computed(() => liveUrl.value || liveHint.value ? [{
-  key: "preview",
-  label: t("site.entry.preview"),
-  icon: "mdi:open-in-new",
-  href: liveUrl.value,
-  target: "_blank",
-  disabled: !liveUrl.value,
-  title: liveUrl.value ? `${t("site.builder.viewLive")} – ${liveUrl.value}` : liveHint.value,
-}] : []);
+/** Draft preview of the sample entry with the saved layout, the same one the entry editor used to open. */
+const previewUrl = computed(() => (target === "layout" && variant === "detail" && previewEntry.value
+  ? api.site.entryPreviewUrl(name, previewEntry.value, locale.value)
+  : null));
+const saveMenuItems = computed(() => {
+  const items = [];
+  if (previewUrl.value) {
+    items.push({
+      key: "preview",
+      label: t("site.entry.preview"),
+      icon: "mdi:eye-outline",
+      href: previewUrl.value,
+      target: "_blank",
+      title: builder.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
+    });
+  }
+  if (liveUrl.value || liveHint.value) {
+    items.push({
+      key: "live",
+      label: t("site.builder.viewLive"),
+      icon: "mdi:open-in-new",
+      href: liveUrl.value,
+      target: "_blank",
+      disabled: !liveUrl.value,
+      title: liveUrl.value || liveHint.value,
+    });
+  }
+  return items;
+});
 const contentLink = computed(() => {
   if (target !== "layout" || variant === "index" || !previewEntry.value) return null;
   return builder.type.value?.singleton ? `/content/${name}` : `/content/${name}/${previewEntry.value}`;
@@ -362,9 +382,9 @@ const variants = computed(() => {
 // Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
-  if (back.startsWith("/content/") || back.startsWith("/website/")) return back;
-  if (target === "component") return "/website/components";
-  return target === "region" ? "/website/overview" : `/content-types/${name}/edit#website`;
+  if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
+  if (target === "component") return "/page-builder/components";
+  return target === "region" ? "/page-builder/overview" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => {
   if (target === "component") return component.value?.name ?? "";
@@ -392,7 +412,7 @@ const previewBody = computed(() => {
 });
 
 function isBuilderPath(path) {
-  return typeof path === "string" && path.startsWith("/website/builder/");
+  return typeof path === "string" && path.startsWith("/page-builder/builder/");
 }
 
 function toggleSettings() {
@@ -531,7 +551,7 @@ function goToVariant(next) {
 function switchVariant(next) {
   pendingVariant.value = "";
   bypass();
-  router.push({ path: `/website/builder/layout/${name}/${next}`, query: route.query });
+  router.push({ path: `/page-builder/builder/layout/${name}/${next}`, query: route.query });
 }
 
 function onKeydown(event) {

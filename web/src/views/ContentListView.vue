@@ -21,7 +21,7 @@
           <router-link
             v-for="template in COLLECTION_TEMPLATES"
             :key="template.variant"
-            :to="{ path: `/website/builder/layout/${collection}/${template.variant}`, query: { back: route.fullPath } }"
+            :to="{ path: `/page-builder/builder/layout/${collection}/${template.variant}`, query: { back: route.fullPath } }"
             class="btn-secondary btn-sm"
             :title="t('site.collection.editTemplate', { template: t(`site.variant.${template.variant}`) })"
           >
