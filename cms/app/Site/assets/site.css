@@ -125,6 +125,14 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-stack-md { --flow: var(--space-md); }
 .c-stack-lg { --flow: var(--space-lg); }
 .c-stack-xl { --flow: var(--space-xl); }
+/* Column content side by side: the spacing becomes the gap between elements. */
+.c-flow-row { display: flex; flex-wrap: wrap; gap: var(--flow); }
+.c-flow-row > :where(.c-el) { margin-bottom: 0; }
+.c-flow-row > .c-placeholder { flex: 1; }
+.c-flow-justify-start { justify-content: flex-start; } .c-flow-justify-center { justify-content: center; }
+.c-flow-justify-end { justify-content: flex-end; } .c-flow-justify-between { justify-content: space-between; }
+.c-flow-align-start { align-items: flex-start; } .c-flow-align-center { align-items: center; }
+.c-flow-align-end { align-items: flex-end; } .c-flow-align-stretch { align-items: stretch; }
 .c-col-1 { grid-column: span 1; } .c-col-2 { grid-column: span 2; } .c-col-3 { grid-column: span 3; }
 .c-col-4 { grid-column: span 4; } .c-col-5 { grid-column: span 5; } .c-col-6 { grid-column: span 6; }
 .c-col-7 { grid-column: span 7; } .c-col-8 { grid-column: span 8; } .c-col-9 { grid-column: span 9; }

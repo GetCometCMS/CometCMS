@@ -207,7 +207,8 @@ function computeTarget(event) {
   const container = isStructure(kind)
     || (kind === "field" && builder.isTemplateField(findNode(builder.nodes.value, el.dataset.node)));
   const rect = el.getBoundingClientRect();
-  const horizontal = isColumnElement(el) && isHorizontalColumn(el);
+  // Columns side by side, or elements in a column that lays them out in a row.
+  const horizontal = isColumnElement(el) ? isHorizontalColumn(el) : !!el.parentElement?.classList.contains("c-flow-row");
   const ratio = horizontal ? (event.clientX - rect.left) / rect.width : (event.clientY - rect.top) / rect.height;
   const position = container
     ? ratio < 0.2 ? "before" : ratio > 0.8 ? "after" : "inside"

@@ -468,6 +468,26 @@ test('dividers use their text color for the line and preserve the default border
     assert_true(str_contains($renderer->render([LayoutSchema::node('divider')]), '<hr class="c-divider">'));
 });
 
+test('columns lay out their elements underneath each other or side by side', function (): void {
+    $site = comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context($site));
+    $stacked = $renderer->render([LayoutSchema::node('column', [], [], [LayoutSchema::node('button')])]);
+    assert_false(str_contains($stacked, 'c-flow-row'));
+
+    $column = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', ['direction' => 'row', 'content_justify' => 'between', 'content_align' => 'end'], [], [LayoutSchema::node('button')]),
+    ])])])[0]['children'][0]['children'][0];
+    $html = $renderer->render([$column]);
+    foreach (['c-flow-row', 'c-flow-justify-between', 'c-flow-align-end'] as $class) {
+        assert_true(str_contains($html, $class));
+    }
+
+    $invalid = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', ['direction' => 'diagonal']),
+    ])])])[0]['children'][0]['children'][0];
+    assert_same('column', $invalid['props']['direction']);
+});
+
 test('deleting a content type removes its website layouts and route', function (): void {
     comet_site_test_setup();
     $site = new SiteRepository();

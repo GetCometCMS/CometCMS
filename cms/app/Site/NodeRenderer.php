@@ -233,6 +233,11 @@ final class NodeRenderer
         if ($node['props']['spacing'] !== '') {
             $classes[] = 'c-stack-' . $node['props']['spacing'];
         }
+        if ($node['props']['direction'] === 'row') {
+            $classes[] = 'c-flow-row';
+            $classes[] = 'c-flow-justify-' . $node['props']['content_justify'];
+            $classes[] = 'c-flow-align-' . $node['props']['content_align'];
+        }
 
         $inner = $this->render($node['children'], $state);
         if ($inner === '' && $this->annotating()) {

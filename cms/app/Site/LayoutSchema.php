@@ -152,6 +152,10 @@ final class LayoutSchema
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
                 // Space between the column's elements; empty keeps the theme's flow.
                 'spacing' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
+                // Elements underneath each other, or side by side (wrapping when they run out of room).
+                'direction' => ['type' => 'enum', 'options' => ['column', 'row'], 'default' => 'column'],
+                'content_justify' => ['type' => 'enum', 'options' => ['start', 'center', 'end', 'between'], 'default' => 'start'],
+                'content_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end', 'stretch'], 'default' => 'center'],
             ],
             // Only a column component's instances use their own span.
             self::COMPONENT => [

@@ -47,6 +47,8 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 | Languages    | Links to the current page in the other website languages.                     |
 | Spacer, Divider | Space and separators.                                                      |
 
+A column set (row) decides whether its columns sit side by side or underneath each other. Each column decides the same for its own elements under **Arrange elements**: underneath each other (default) or side by side, which wraps onto the next line when there is no room left. Side by side adds **Distribute elements** and **Align elements**, and **Space between elements** becomes the gap between them.
+
 Repeater fields contain an **item template**: the elements inside them are repeated for every row and bind to the repeater's sub-fields.
 
 Drag elements from **Add** onto the preview or into the **Outline**, or click them to insert next to the selection. Select an element to change its content and style in the inspector. Style options come from the theme (sizes, colors, radius, shadows), which keeps every page consistent. Shortcuts: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo, <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate, <kbd>Del</kbd> delete, <kbd>Ctrl</kbd>+<kbd>S</kbd> save.
