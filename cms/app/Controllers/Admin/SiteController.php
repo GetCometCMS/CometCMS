@@ -18,7 +18,8 @@ use CometCMS\Workspaces\WorkspaceContext;
 
 /**
  * Admin API for the optional website: settings, theme, menus, header and
- * footer, per-type layouts and the live previews used by the builder.
+ * footer, per-type layouts, reusable components and the live previews used
+ * by the builder.
  */
 final class SiteController extends BaseController
 {
@@ -231,6 +232,95 @@ final class SiteController extends BaseController
         $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
     }
 
+    /** Components with the number of places each one is used. */
+    public function components(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => array_map(fn(array $component): array => $component + [
+            'usages' => count($this->site->componentUsages($component['id'])),
+        ], $this->site->components())]);
+    }
+
+    /** Body: {name, nodes: [one section, row or column], type}. */
+    public function createComponent(): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $input = $this->requestJson();
+        $component = $this->validated(fn() => $this->site->createComponent($input['name'] ?? '', $input['nodes'] ?? [], $input['type'] ?? '', $user));
+        $this->logger->info('site.component_created', ['component' => $component['id']]);
+        $this->json(['data' => $component], 201);
+    }
+
+    public function component(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $component = $this->requireComponent($id);
+        $type = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
+        $context = $this->context();
+
+        $this->json(['data' => [
+            'component' => $component,
+            'nodes' => $component['nodes'],
+            'customized' => true,
+            'usages' => $this->site->componentUsages($id),
+            'type' => $type,
+            'samples' => $type !== null ? $this->samples((string) $type['name'], LayoutSchema::key($_GET['entry'] ?? '')) : [],
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
+            ...$this->builderContext(),
+        ]]);
+    }
+
+    public function updateComponent(string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $component = $this->validated(fn() => $this->site->saveComponent($id, $this->requestJson()['nodes'] ?? [], $user));
+        $this->logger->info('site.component_updated', ['component' => $id]);
+        $this->json(['data' => ['nodes' => $component['nodes'], 'customized' => true, 'component' => $component]]);
+    }
+
+    public function renameComponent(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $component = $this->validated(fn() => $this->site->renameComponent($id, $this->requestJson()['name'] ?? ''));
+        $this->logger->info('site.component_renamed', ['component' => $id]);
+        $this->json(['data' => $component]);
+    }
+
+    public function deleteComponent(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $usages = $this->site->componentUsages($id);
+        if ($usages !== []) {
+            $this->json(['error' => ['code' => 'component_in_use', 'message' => 'This component is still used. Remove or detach it everywhere first.', 'usages' => $usages]], 409);
+        }
+        $this->site->deleteComponent($id);
+        $this->logger->info('site.component_deleted', ['component' => $id]);
+        $this->json(['data' => ['deleted' => true]]);
+    }
+
+    public function componentRevisions(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireComponent($id);
+        $this->json(['data' => $this->site->componentRevisions($id)]);
+    }
+
+    public function restoreComponentRevision(string $id, string $revision): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $result = $this->validated(fn() => $this->site->restoreComponentRevision($id, $revision, $user));
+        $this->sendRestoredRevision($result, ['target' => 'component', 'component' => $id, 'revision' => $revision]);
+    }
+
     public function themeRevisions(): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
@@ -287,8 +377,8 @@ final class SiteController extends BaseController
     }
 
     /**
-     * Render unsaved work. Body: {target: layout|region|page, type, variant,
-     * region, nodes, entry, locale, theme, menus, path}.
+     * Render unsaved work. Body: {target: layout|region|component|page, type,
+     * variant, region, component, nodes, entry, locale, theme, menus, path}.
      */
     public function preview(): never
     {
@@ -330,6 +420,27 @@ final class SiteController extends BaseController
             $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
 
             $this->json(['data' => ['html' => $renderer->regionPreview($region)]]);
+        }
+
+        if ($target === 'component') {
+            $component = $this->requireComponent((string) ($body['component'] ?? ''));
+            if (array_key_exists('nodes', $body)) {
+                $component['nodes'] = $this->validated(static fn() => LayoutSchema::normalizeComponent($body['nodes'], $component['root']));
+            }
+            // Instances inside other components show the unsaved edit, too.
+            $context->override('component:' . $component['id'], $component);
+            $schema = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
+            $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
+            $entry = null;
+            if ($schema !== null) {
+                $identifier = LayoutSchema::key($body['entry'] ?? '');
+                $entry = $identifier !== '' ? $context->findEntry((string) $schema['name'], $identifier, true) : null;
+                if ($entry === null && !empty($schema['singleton'])) {
+                    $entry = $context->singletonEntry((string) $schema['name'], true);
+                }
+            }
+
+            $this->json(['data' => ['html' => $renderer->componentPreview($component, $schema, $entry)]]);
         }
 
         $type = (string) ($body['type'] ?? '');
@@ -409,7 +520,19 @@ final class SiteController extends BaseController
             'locales' => $this->site->settings()['locales'],
             'default_locale' => $this->site->settings()['default_locale'],
             'spec' => LayoutSchema::spec(),
+            'components' => $this->site->components(),
         ];
+    }
+
+    private function requireComponent(string $id): array
+    {
+        $component = $this->site->component($id);
+
+        if ($component === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Component not found.']], 404);
+        }
+
+        return $component;
     }
 
     /** Recent entries to preview with; `$ensure` keeps a requested entry in the list. */

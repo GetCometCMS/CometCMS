@@ -152,6 +152,36 @@ final class PageRenderer
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
     }
 
+    /**
+     * Builder preview of one component, inside the plain section and row it
+     * needs to lay out like on a page. A component of a content type shows
+     * the given (or a sample) entry of that type.
+     */
+    public function componentPreview(array $component, ?array $type, ?array $entry): string
+    {
+        if ($type !== null) {
+            $entry ??= $this->sampleEntry($type);
+            $url = $this->ctx->entryUrl((string) $type['name'], $entry) ?? $this->ctx->homeUrl();
+            $state = $this->state($entry, $type, $url, 1, []);
+        } else {
+            $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
+        }
+
+        $html = $this->nodes->render($component['nodes'], $state);
+        if ($component['root'] === 'column') {
+            $html = '<div class="c-row c-gap-md c-items-stretch c-justify-start">' . $html . '</div>';
+        }
+        if ($component['root'] !== 'section') {
+            $html = '<section class="c-section c-section-contained c-py-xl"><div class="c-container c-container-contained">' . $html . '</div></section>';
+        }
+
+        return $this->document([
+            'title' => $this->pageTitle((string) $component['name']),
+            'noindex' => true,
+            'body_class' => 'c-view-component-preview' . ($type !== null ? ' c-type-' . $type['name'] : ''),
+        ], '<div data-drop-root>' . $html . '</div>', $state, false);
+    }
+
     public function sampleEntry(array $type): array
     {
         return [

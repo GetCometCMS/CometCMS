@@ -12,11 +12,14 @@ import {
   effectiveSpan,
   findNode,
   insertNode,
+  instanceNode,
   moveNode,
+  placementKind,
   removeNode,
   resolveDrop,
   sectionPreset,
   shiftNode,
+  usesCurrentEntry,
   wrapFor,
 } from './layoutTree.js'
 
@@ -32,6 +35,7 @@ const spec = {
     field: { props: { field: { default: '' } }, children: ['field', 'heading', 'text'] },
     text: { props: {}, children: [] },
     collection: { props: {}, children: [] },
+    component: { props: { component: { default: '' }, root: { default: 'section' }, span: { default: { mobile: 12, tablet: 0, desktop: 0 } } }, children: [] },
   },
 }
 
@@ -162,5 +166,53 @@ describe('layout tree', () => {
     const copy = cloneWithNewIds(original)
     expect(copy.id).not.toBe(original.id)
     expect(countNodes([copy])).toBe(countNodes([original]))
+  })
+
+  it('places component instances like their root kind', () => {
+    const column = instanceNode(spec, { id: 'cc', root: 'column' })
+    const section = instanceNode(spec, { id: 'cs', root: 'section' })
+    expect(placementKind(column)).toBe('column')
+    expect(placementKind({ kind: 'component', props: { root: 'heading' } })).toBe('')
+    expect(column.props).toMatchObject({ component: 'cc', root: 'column', span: { mobile: 12, tablet: 0, desktop: 0 } })
+
+    // A column component dropped on the root is wrapped in a section and a row.
+    const wrapped = wrapFor(spec, 'root', column)
+    expect([wrapped.kind, wrapped.children[0].kind, wrapped.children[0].children[0].id]).toEqual(['section', 'row', column.id])
+    expect(wrapFor(spec, 'column', section)).toBeNull()
+
+    const nodes = layout()
+    expect(resolveDrop(spec, nodes, column, 'c1', 'after')).toMatchObject({ parentId: 'r1', index: 1 })
+    expect(resolveDrop(spec, nodes, section, 'h1', 'after')).toMatchObject({ parentId: null, index: 1 })
+    expect(resolveDrop(spec, nodes, instanceNode(spec, { id: 'x', root: 'column' }), 'sub1', 'after', repeaters)).toMatchObject({ parentId: 'r1' })
+  })
+
+  it('arranges column components with the columns of their row', () => {
+    const nodes = layout()
+    const row = findNode(nodes, 'r1')
+    const shared = instanceNode(spec, { id: 'cc', root: 'column' })
+    row.children.splice(1, 0, shared)
+
+    applyColumnPreset(spec, row, [4, 4, 4])
+    expect(row.children.map((column) => column.id)).toEqual(['c1', shared.id, 'c2'])
+    expect(shared.props.span).toEqual({ mobile: 12, tablet: 6, desktop: 4 })
+
+    // Surplus instances are dropped; surplus columns hand their content on.
+    applyColumnPreset(spec, row, [12])
+    expect(row.children.map((column) => column.id)).toEqual(['c1'])
+
+    const onlyInstances = { id: 'r2', kind: 'row', props: {}, style: {}, children: [shared, { id: 'c9', kind: 'column', props: {}, style: {}, children: [{ id: 'h9', kind: 'heading', props: {}, style: {}, children: [] }] }] }
+    applyColumnPreset(spec, onlyInstances, [12])
+    expect(onlyInstances.children).toHaveLength(1)
+    expect(onlyInstances.children[0].kind).toBe('column')
+    expect(onlyInstances.children[0].children.map((node) => node.id)).toEqual(['h9'])
+  })
+
+  it('detects trees that show fields of the current entry', () => {
+    const nodes = layout()
+    expect(usesCurrentEntry(nodes)).toBe(false)
+    findNode(nodes, 'h1').props.text = { type: 'template', parts: ['By ', { type: 'reference', source: 'current', path: ['author'], filters: [] }] }
+    expect(usesCurrentEntry(nodes)).toBe(true)
+    findNode(nodes, 'h1').props.text = { type: 'reference', source: 'site', path: ['title'], filters: [] }
+    expect(usesCurrentEntry(nodes)).toBe(false)
   })
 })

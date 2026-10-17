@@ -20,6 +20,7 @@ use CometCMS\Core\Security;
  *   row        current repeater row inside an item template
  *   row_fields subfield configs of that repeater, keyed by subfield key
  *   depth      nesting of card renders, to stop relation cycles
+ *   components ids of the components being rendered, to stop cycles
  *   page       current page number for paginated collections
  *   path       current URL path, for pagination and active menu items
  *   alternates locale => URL of the current page, for language switchers
@@ -28,6 +29,8 @@ use CometCMS\Core\Security;
 final class NodeRenderer
 {
     private const MAX_CARD_DEPTH = 2;
+
+    private const MAX_COMPONENT_DEPTH = 5;
 
     private int $annotationsSuspended = 0;
 
@@ -91,6 +94,7 @@ final class NodeRenderer
             'section' => $this->section($node, $state),
             'row' => $this->row($node, $state),
             'column' => $this->column($node, $state),
+            LayoutSchema::COMPONENT => $this->component($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -202,7 +206,8 @@ final class NodeRenderer
         $reverse = $props['reverse_mobile'] || $props['reverse_tablet'];
         $inner = '';
         foreach ($node['children'] as $index => $column) {
-            $inner .= $this->column($column, $state, $reverse ? -$index : null);
+            $order = $reverse ? -$index : null;
+            $inner .= $column['kind'] === LayoutSchema::COMPONENT ? $this->component($column, $state, $order) : $this->column($column, $state, $order);
         }
         if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
             return '';
@@ -235,6 +240,63 @@ final class NodeRenderer
         $style = implode(';', array_filter([$order !== null ? '--c-column-order:' . $order : '', $background['style']]));
 
         return '<div' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $style) . '>' . $background['layer'] . $inner . '</div>';
+    }
+
+    /**
+     * A placed component renders its own tree. Inside the builder the whole
+     * component is one node: its inner nodes carry no annotations, so two
+     * instances never repeat ids and clicks select the instance.
+     */
+    private function component(array $node, array $state, ?int $order = null): string
+    {
+        $id = (string) $node['props']['component'];
+        $root = (string) $node['props']['root'];
+        $stack = $state['components'] ?? [];
+        $component = $id !== '' ? $this->ctx->component($id) : null;
+        $tree = $component['nodes'][0] ?? null;
+
+        if ($tree === null || $tree['kind'] !== $root || in_array($id, $stack, true) || count($stack) >= self::MAX_COMPONENT_DEPTH) {
+            return $this->componentPlaceholder($node, $tree === null ? 'Missing component' : 'A component cannot contain itself');
+        }
+
+        if ($root === 'column') {
+            $tree['props']['span'] = $node['props']['span'];
+        }
+        $state['components'] = [...$stack, $id];
+        $annotate = $this->annotating();
+
+        $this->annotationsSuspended++;
+        try {
+            // Rows render their columns directly; a column component does too.
+            $html = $root === 'column' ? $this->column($tree, $state, $order) : $this->node($tree, $state);
+        } finally {
+            $this->annotationsSuspended--;
+        }
+
+        if (!$annotate) {
+            return $html;
+        }
+        if ($html === '') {
+            return $this->componentPlaceholder($node, 'Empty component');
+        }
+
+        return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
+    }
+
+    private function componentPlaceholder(array $node, string $message): string
+    {
+        if (!$this->annotating()) {
+            return '';
+        }
+        $classes = $node['props']['root'] === 'column' ? 'c-col c-col-12 ' : '';
+
+        return '<div class="' . $classes . 'c-placeholder c-placeholder-warning" role="status"' . $this->componentAttributes($node) . '>' . $message . '</div>';
+    }
+
+    private function componentAttributes(array $node): string
+    {
+        return ' data-node="' . Security::e($node['id']) . '" data-kind="' . LayoutSchema::COMPONENT . '"'
+            . ' data-component="' . Security::e((string) $node['props']['component']) . '" data-component-root="' . Security::e((string) $node['props']['root']) . '"';
     }
 
     // ─── Elements ────────────────────────────────────────────────────────────

@@ -98,13 +98,13 @@ const routes = [
     redirect: '/content-types',
   },
   {
-    path: '/website/:tab(overview|theme|header-footer|menus)?',
+    path: '/website/:tab(overview|theme|header-footer|components|menus)?',
     component: () => import('../views/WebsiteView.vue'),
     meta: { requiresAuth: true },
   },
   {
-    // Full-screen builder for a content type layout or the header/footer.
-    path: '/website/builder/:target(layout|region)/:name/:variant?',
+    // Full-screen builder for a content type layout, the header/footer or a component.
+    path: '/website/builder/:target(layout|region|component)/:name/:variant?',
     component: () => import('../views/SiteBuilderView.vue'),
     meta: { requiresAuth: true, bare: true },
   },

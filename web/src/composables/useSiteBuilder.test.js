@@ -66,3 +66,79 @@ describe('builder integration with smart values', () => {
     expect(builder.hasSyntaxErrors.value).toBe(true)
   })
 })
+
+async function componentFixture(componentApi) {
+  let builder
+  await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, componentApi }); return () => null } }))
+  builder.spec.value = { root: ['section'], item_elements: ['text'], kinds: {
+    section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] }, column: { props: { span: { default: { mobile: 12, tablet: 0, desktop: 0 } } }, children: ['text'] },
+    text: { props: { html: { default: '' } }, children: [] },
+    component: { props: { component: { default: '' }, root: { default: 'section' }, span: { default: { mobile: 12, tablet: 0, desktop: 0 } } }, children: [] },
+  } }
+  const column = builder.make('column', { span: { mobile: 12, tablet: 6, desktop: 0 } }, {}, [builder.make('text', { html: reference('intro') })])
+  builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [column, builder.make('column')])])])
+  return { builder, column }
+}
+
+describe('builder components', () => {
+  it('converts a column into an instance in one undo step and keeps its width', async () => {
+    const created = []
+    const { builder, column } = await componentFixture({
+      create: async (body) => {
+        created.push(body)
+        return { id: 'cabc', name: body.name, root: 'column', type: body.type, nodes: body.nodes }
+      },
+    })
+    builder.type.value = { name: 'posts' }
+
+    const component = await builder.convertToComponent(column.id, 'Intro')
+    expect(component.id).toBe('cabc')
+    expect(created[0].type).toBe('posts')
+    expect(created[0].nodes[0].id).toBe(column.id)
+    const row = builder.nodes.value[0].children[0]
+    expect(row.children[0]).toMatchObject({ kind: 'component', props: { component: 'cabc', root: 'column', span: { mobile: 12, tablet: 6, desktop: 0 } } })
+    expect(builder.selectedId.value).toBe(row.children[0].id)
+    expect(builder.components.value).toEqual([{ id: 'cabc', name: 'Intro', root: 'column', type: 'posts' }])
+    expect(builder.nodeLabel(row.children[0])).toBe('Intro')
+
+    builder.undo()
+    expect(builder.nodes.value[0].children[0].children[0].id).toBe(column.id)
+  })
+
+  it('detaches an instance into a copy with fresh ids and the instance width', async () => {
+    const stored = { id: 'cabc', root: 'column', nodes: [{ id: 'root', kind: 'column', props: { span: { mobile: 12, tablet: 0, desktop: 0 } }, style: {}, children: [{ id: 'inner', kind: 'text', props: { html: 'Hi' }, style: {}, children: [] }] }] }
+    const { builder } = await componentFixture({ load: async () => stored })
+    const instance = builder.make('component', { component: 'cabc', root: 'column', span: { mobile: 12, tablet: 4, desktop: 0 } })
+    builder.insert(instance, builder.nodes.value[0].children[0].children[1].id)
+    expect(builder.nodes.value[0].children[0].children[2].id).toBe(instance.id)
+
+    expect(await builder.detach(instance.id)).toBe(true)
+    const copy = builder.nodes.value[0].children[0].children[2]
+    expect(copy.kind).toBe('column')
+    expect(copy.id).not.toBe('root')
+    expect(copy.children[0].id).not.toBe('inner')
+    expect(copy.children[0].props.html).toBe('Hi')
+    expect(copy.props.span).toEqual({ mobile: 12, tablet: 4, desktop: 0 })
+    expect(stored.nodes[0].id).toBe('root')
+  })
+
+  it('keeps the single root of a component in place', async () => {
+    const { builder } = await componentFixture({ create: async () => ({}) })
+    builder.rootKind.value = 'section'
+    builder.componentId.value = 'cself'
+    const root = builder.nodes.value[0]
+
+    expect(builder.isLockedRoot(root.id)).toBe(true)
+    expect(builder.canConvert(root)).toBe(false)
+    expect(builder.canConvert(root.children[0])).toBe(true)
+    builder.remove(root.id)
+    builder.duplicate(root.id)
+    builder.addSectionAfter(root.id)
+    expect(builder.insert(builder.make('section'), root.id)).toBe(false)
+    expect(builder.nodes.value).toHaveLength(1)
+    expect(builder.canUndo.value).toBe(false)
+
+    expect(builder.insert(builder.make('text'), root.children[0].children[1].id)).toBe(true)
+  })
+})
+

@@ -21,6 +21,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *   menus.json                  navigation menus
  *   regions/{header,footer}.json
  *   layouts/{type}/{variant}.json
+ *   components/{id}.json        reusable blocks placed in layouts and regions
  *
  * Layouts and regions that were never customized are generated from the
  * content type on the fly, so publishing a first page works without setup.
@@ -282,6 +283,262 @@ final class SiteRepository
         $this->clearCache();
 
         return LayoutSchema::defaultLayout($schema, $variant);
+    }
+
+    // ─── Components ──────────────────────────────────────────────────────────
+
+    /**
+     * Reusable blocks: one section, column set or column with everything in
+     * it. Layouts, regions and other components place them by id, so editing
+     * a component changes every page it appears on. A component that shows
+     * fields of the page's entry ("current" references) belongs to one
+     * content type and is only offered in that type's layouts.
+     *
+     * @return list<array{id: string, name: string, root: string, type: string, created_at: string, updated_at: string}>
+     */
+    public function components(): array
+    {
+        $list = [];
+
+        foreach ($this->store->all('components') as $stored) {
+            $component = $this->readComponent($stored);
+            if ($component !== null) {
+                unset($component['nodes']);
+                $list[] = $component;
+            }
+        }
+        usort($list, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+        return $list;
+    }
+
+    public function component(string $id): ?array
+    {
+        if ($id === '' || LayoutSchema::key($id) !== $id) {
+            return null;
+        }
+
+        return $this->readComponent($this->store->read('components', $id));
+    }
+
+    /** Create a component from one structure node (and everything inside it). */
+    public function createComponent(mixed $name, mixed $nodes, mixed $type = '', array $user = []): array
+    {
+        $nodes = is_array($nodes) ? array_values($nodes) : [];
+        $root = is_array($nodes[0] ?? null) ? (string) ($nodes[0]['kind'] ?? '') : '';
+        if (count($nodes) !== 1 || !in_array($root, LayoutSchema::STRUCTURE, true)) {
+            throw new ValidationException(['nodes' => 'A component is made from one section, column set or column.']);
+        }
+
+        $now = Security::now();
+        $component = $this->validateComponent([
+            'id' => 'c' . bin2hex(random_bytes(5)),
+            'name' => $this->componentName($name),
+            'root' => $root,
+            'type' => '',
+            'created_at' => $now,
+        ], $nodes, $type);
+        $this->writeComponent($component);
+
+        return $component;
+    }
+
+    public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
+    {
+        $current = $this->requireComponent($id);
+        $component = $this->validateComponent($current, $nodes, $current['type']);
+        $this->writeRevision(['components', $id], $this->componentSnapshot($current), $user, $event);
+        $this->writeComponent($component);
+
+        return $component;
+    }
+
+    public function renameComponent(string $id, mixed $name): array
+    {
+        $component = $this->requireComponent($id);
+        $component['name'] = $this->componentName($name);
+        $this->writeComponent($component);
+
+        return $component;
+    }
+
+    /**
+     * Where a component is placed directly: stored layouts, regions and other
+     * components. Generated default layouts never contain components.
+     *
+     * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
+     */
+    public function componentUsages(string $id): array
+    {
+        $usages = [];
+        $uses = static fn(?array $stored): bool => ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
+            && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
+
+        foreach ($this->types() as $name => $type) {
+            foreach ($this->variantsFor($type) as $variant) {
+                if ($uses($this->store->read('layouts', (string) $name, $variant))) {
+                    $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
+                }
+            }
+        }
+        foreach (LayoutSchema::REGIONS as $region) {
+            if ($uses($this->store->read('regions', $region))) {
+                $usages[] = ['target' => 'region', 'region' => $region];
+            }
+        }
+        foreach ($this->store->all('components') as $stored) {
+            if (($stored['id'] ?? '') !== $id && $uses($stored)) {
+                $usages[] = ['target' => 'component', 'id' => (string) $stored['id'], 'name' => (string) ($stored['name'] ?? $stored['id'])];
+            }
+        }
+
+        return $usages;
+    }
+
+    /** Delete a component that nothing places any more, with its history. */
+    public function deleteComponent(string $id): void
+    {
+        $this->requireComponent($id);
+        if ($this->componentUsages($id) !== []) {
+            throw new ValidationException(['component' => 'This component is still used.'], 'This component is still used.');
+        }
+
+        $this->store->delete('components', $id);
+        foreach ($this->listRevisions(['components', $id]) as $revision) {
+            $this->revisions->delete('components', $id, $revision['id']);
+        }
+        $directory = $this->revisions->path('components', $id);
+        if (is_dir($directory) && (glob($directory . '/*') ?: []) === []) {
+            @rmdir($directory);
+        }
+        $this->clearCache();
+    }
+
+    public function componentRevisions(string $id): array
+    {
+        $this->requireComponent($id);
+
+        return $this->listRevisions(['components', $id]);
+    }
+
+    public function restoreComponentRevision(string $id, string $revisionId, array $user = []): ?array
+    {
+        $this->requireComponent($id);
+        $revision = $this->revisions->read('components', $id, $revisionId);
+        if (($revision['snapshot']['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($revision['snapshot']['nodes'] ?? null)) {
+            return null;
+        }
+        $component = $this->saveComponent($id, $revision['snapshot']['nodes'], $user, 'restored');
+
+        return ['nodes' => $component['nodes'], 'customized' => true, 'component' => $component];
+    }
+
+    public function requireComponent(string $id): array
+    {
+        $component = $this->component($id);
+        if ($component === null) {
+            throw new \RuntimeException('Component not found.');
+        }
+
+        return $component;
+    }
+
+    /** Normalize a stored component; null when it is unreadable. */
+    private function readComponent(?array $stored): ?array
+    {
+        if (!is_array($stored) || ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION) {
+            return null;
+        }
+        $id = LayoutSchema::key($stored['id'] ?? '');
+        $root = (string) ($stored['root'] ?? '');
+        if ($id === '' || !in_array($root, LayoutSchema::STRUCTURE, true)) {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'name' => self::line($stored['name'] ?? '', 120) ?: $id,
+            'root' => $root,
+            'type' => LayoutSchema::key($stored['type'] ?? ''),
+            'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
+            'created_at' => (string) ($stored['created_at'] ?? ''),
+            'updated_at' => (string) ($stored['updated_at'] ?? ''),
+        ];
+    }
+
+    /**
+     * Check a component's tree: one node of its root kind, a content type
+     * when it shows the page entry's fields, and no component inside that
+     * contains this one again or belongs to another type.
+     */
+    private function validateComponent(array $component, mixed $nodes, mixed $type): array
+    {
+        $nodes = LayoutSchema::normalizeComponent($nodes, $component['root']);
+        if ($nodes === []) {
+            throw new ValidationException(['nodes' => 'A component needs its ' . $component['root'] . '.']);
+        }
+
+        $type = LayoutSchema::key($type);
+        if ($type !== '' && !isset($this->types()[$type])) {
+            $type = '';
+        }
+        if ($type === '' && LayoutSchema::usesSource($nodes, 'current')) {
+            throw new ValidationException(['type' => 'This component shows fields of the page\'s entry, so it needs the content type it belongs to.']);
+        }
+
+        foreach (LayoutSchema::componentRefs($nodes) as $ref) {
+            if ($ref === $component['id'] || $this->componentReaches($ref, $component['id'])) {
+                throw new ValidationException(['nodes' => 'A component cannot contain itself.']);
+            }
+            $inner = $this->component($ref);
+            if ($inner !== null && $inner['type'] !== '' && $inner['type'] !== $type) {
+                throw new ValidationException(['nodes' => 'The component "' . $inner['name'] . '" belongs to another content type.']);
+            }
+        }
+
+        $component['nodes'] = $nodes;
+        $component['type'] = $type;
+
+        return $component;
+    }
+
+    /** Whether component $from places $target, directly or further down. */
+    private function componentReaches(string $from, string $target, array $seen = []): bool
+    {
+        if (isset($seen[$from])) {
+            return false;
+        }
+        $seen[$from] = true;
+        $stored = $this->store->read('components', $from);
+        foreach (LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []) as $ref) {
+            if ($ref === $target || $this->componentReaches($ref, $target, $seen)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function componentName(mixed $name): string
+    {
+        $name = self::line($name, 120);
+        if ($name === '') {
+            throw new ValidationException(['name' => 'Give the component a name.']);
+        }
+
+        return $name;
+    }
+
+    private function writeComponent(array $component): void
+    {
+        $component['updated_at'] = Security::now();
+        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, ...$component], 'components', $component['id']);
+        $this->clearCache();
+    }
+
+    private function componentSnapshot(array $component): array
+    {
+        return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $component['nodes'], 'customized' => true];
     }
 
     public function needsLayoutUpgrade(string $type, string $variant): bool

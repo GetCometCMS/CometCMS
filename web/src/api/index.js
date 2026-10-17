@@ -431,6 +431,14 @@ export const api = {
     resetRegion:  (region)               => request('DELETE', `/site/regions/${region}`),
     regionRevisions: (region) => request('GET', `/site/regions/${region}/revisions`),
     restoreRegionRevision: (region, id) => request('POST', `/site/regions/${region}/revisions/${encodeURIComponent(id)}/restore`),
+    components:   ()                     => request('GET',    '/site/components'),
+    component:    (id, entry = '')       => request('GET',    withQuery(`/site/components/${encodeURIComponent(id)}`, entry ? { entry } : {})),
+    createComponent: (data)              => request('POST',   '/site/components', data),
+    saveComponent: (id, nodes)           => request('PUT',    `/site/components/${encodeURIComponent(id)}`, { nodes }),
+    renameComponent: (id, name)          => request('PATCH',  `/site/components/${encodeURIComponent(id)}`, { name }),
+    deleteComponent: (id)                => request('DELETE', `/site/components/${encodeURIComponent(id)}`),
+    componentRevisions: (id) => request('GET', `/site/components/${encodeURIComponent(id)}/revisions`),
+    restoreComponentRevision: (id, revision) => request('POST', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}/restore`),
     preview:      (body)                 => request('POST',   '/site/preview', body),
     /** Full-page draft preview of an entry, opened in a new tab. */
     entryPreviewUrl: (type, id, locale = '') => {

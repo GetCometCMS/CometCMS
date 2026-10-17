@@ -92,6 +92,7 @@
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
       <SiteThemePanel v-else-if="activeTab === 'theme'" />
       <SiteRegionsPanel v-else-if="activeTab === 'header-footer'" />
+      <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <SiteMenusPanel v-else />
     </template>
 
@@ -117,6 +118,7 @@ import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteThemePanel from "../components/site/SiteThemePanel.vue";
 import SiteRegionsPanel from "../components/site/SiteRegionsPanel.vue";
+import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteHistory from "../components/site/SiteHistory.vue";
 import { api } from "../api/index.js";
@@ -132,12 +134,13 @@ const { t } = useI18n();
 const isDirty = computed(() => site.isDirty);
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "theme", "header-footer", "menus"]);
+const validTabs = new Set(["overview", "theme", "header-footer", "components", "menus"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/website/overview" },
   { value: "theme", label: t("site.tab.theme"), icon: "mdi:palette-outline", to: "/website/theme" },
   { value: "header-footer", label: t("site.tab.headerFooter"), icon: "mdi:page-layout-header-footer", to: "/website/header-footer" },
+  { value: "components", label: t("site.tab.components"), icon: "mdi:puzzle-outline", to: "/website/components" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/website/menus" },
 ]);
 

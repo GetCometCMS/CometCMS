@@ -33,6 +33,7 @@ final class SiteContext
     private array $overrides = [];
     private array $mediaItems = [];
     private array $entries = [];
+    private array $components = [];
 
     public function __construct(
         public readonly SiteRepository $site,
@@ -90,6 +91,19 @@ final class SiteContext
     public function layout(string $type, string $variant): array
     {
         return $this->overrides['layout:' . $type . ':' . $variant] ?? $this->site->layout($type, $variant);
+    }
+
+    /** A reusable component; the builder overrides the one being edited. */
+    public function component(string $id): ?array
+    {
+        if (array_key_exists('component:' . $id, $this->overrides)) {
+            return $this->overrides['component:' . $id];
+        }
+        if (!array_key_exists($id, $this->components)) {
+            $this->components[$id] = $this->site->component($id);
+        }
+
+        return $this->components[$id];
     }
 
     public function siteTitle(): string

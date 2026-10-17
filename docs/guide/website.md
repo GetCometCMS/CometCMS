@@ -65,6 +65,16 @@ Zero blur keeps the image sharp. The effect applies to a separate image layer, s
 
 Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 
+### Reusable components
+
+A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Components appear in the **Components** group of **Add**, where you can drag or click them into any layout, header or footer, like other elements.
+
+A component is edited in one place. Choose **Edit component** in the inspector or the context menu, or open it from the **Components** tab of the website settings. Saving it updates every page that uses it. A placed component is one unit in the builder: its contents cannot be selected there. A column component placed in a column set keeps its own width. **Detach** replaces a placed component with an ordinary copy that you can change on its own, while the other places keep following the component.
+
+Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and it is only offered in that type's page and card layouts. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
+
+A component that is still placed somewhere cannot be deleted. The **Components** tab lists where it is used, so you can remove or detach it there first. Components have their own version history, like layouts.
+
 ### AI and MCP access
 
 The builder stores layouts as structured JSON and shares its schema with the server renderer. This is a suitable foundation for AI design tools. The current MCP endpoint exposes content, schemas and media; website design tools have not been added yet. See the [MCP website design assessment](../api/mcp#website-design-readiness) for the current capabilities and remaining integration work.

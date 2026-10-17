@@ -14,6 +14,7 @@ export const KIND_ICONS = {
   menu: 'mdi:menu',
   site_title: 'mdi:home-variant-outline',
   language_switcher: 'mdi:translate',
+  component: 'mdi:puzzle-outline',
 }
 
 /** Column sets arranged underneath each other read as rows. */

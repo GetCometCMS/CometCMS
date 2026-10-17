@@ -44,10 +44,10 @@
         <button type="button" class="outline-action" :disabled="last" :title="t('site.builder.moveDown')" @click.stop="builder.shift(node.id, 1)">
           <Icon icon="mdi:arrow-down" class="h-3.5 w-3.5" />
         </button>
-        <button type="button" class="outline-action" :title="t('site.builder.duplicate')" @click.stop="builder.duplicate(node.id)">
+        <button type="button" class="outline-action" :disabled="locked" :title="t('site.builder.duplicate')" @click.stop="builder.duplicate(node.id)">
           <Icon icon="mdi:content-copy" class="h-3.5 w-3.5" />
         </button>
-        <button type="button" class="outline-action" :title="t('common.delete')" @click.stop="builder.remove(node.id)">
+        <button type="button" class="outline-action" :disabled="locked" :title="t('common.delete')" @click.stop="builder.remove(node.id)">
           <Icon icon="mdi:trash-can-outline" class="h-3.5 w-3.5" />
         </button>
         <button type="button" class="outline-action" :title="t('site.menu.more')" @click.stop="openMenu">
@@ -73,7 +73,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { nodeIcon } from "./kindIcons.js";
-import { contains, findNode } from "../../../composables/layoutTree.js";
+import { contains, findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -95,9 +95,8 @@ const rowRef = ref(null);
 const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
 const isHovered = computed(() => builder.hoverId.value === props.node.id);
-const isContainer = computed(() =>
-  ["section", "row", "column"].includes(props.node.kind) || builder.isTemplateField(props.node),
-);
+const isContainer = computed(() => isStructure(props.node.kind) || builder.isTemplateField(props.node));
+const locked = computed(() => builder.isLockedRoot(props.node.id));
 const icon = computed(() => {
   if (props.node.kind === "field") {
     const config = builder.fieldConfig(props.node);

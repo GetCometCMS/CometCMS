@@ -265,6 +265,14 @@ $routes = [
     ['DELETE', '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'resetRegion']],
     ['GET',    '#^/admin/api/site/regions/(' . SEG . ')/revisions$#',          [AdminSiteController::class, 'regionRevisions']],
     ['POST',   '#^/admin/api/site/regions/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreRegionRevision']],
+    ['GET',    '#^/admin/api/site/components$#',                              [AdminSiteController::class, 'components']],
+    ['POST',   '#^/admin/api/site/components$#',                              [AdminSiteController::class, 'createComponent']],
+    ['GET',    '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'component']],
+    ['PUT',    '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'updateComponent']],
+    ['PATCH',  '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'renameComponent']],
+    ['DELETE', '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'deleteComponent']],
+    ['GET',    '#^/admin/api/site/components/(' . SEG . ')/revisions$#',      [AdminSiteController::class, 'componentRevisions']],
+    ['POST',   '#^/admin/api/site/components/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreComponentRevision']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
 
     // ── Profile & avatar ──────────────────────────────────────────────────

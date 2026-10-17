@@ -12,7 +12,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from "vue";
 import SitePreviewFrame from "../SitePreviewFrame.vue";
-import { findNode } from "../../../composables/layoutTree.js";
+import { findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -34,6 +34,7 @@ let selectedFromCanvas = false;
 
 const BUILDER_CSS = `
 [data-node]{outline:1px solid transparent;outline-offset:-1px;transition:outline-color .12s}
+[data-kind="component"]{outline:1px dashed rgba(124,58,237,.45)}
 [data-builder-hover]{outline:1px dashed rgba(37,99,235,.75)!important}
 [data-builder-selected]{outline:2px solid #2563eb!important;outline-offset:-2px}
 [data-drop-root]:empty{min-height:180px;display:flex;align-items:center;justify-content:center;margin:24px;border:2px dashed #cbd5e1;border-radius:12px}
@@ -174,8 +175,13 @@ function onDragStart(event) {
   event.dataTransfer.setData("text/plain", el.dataset.node);
 }
 
+/** Columns and column components sit side by side in their row. */
+function isColumnElement(el) {
+  return el.dataset?.kind === "column" || el.dataset?.componentRoot === "column";
+}
+
 function isHorizontalColumn(el) {
-  const siblings = Array.from(el.parentElement?.children ?? []).filter((child) => child !== el && child.dataset?.kind === "column");
+  const siblings = Array.from(el.parentElement?.children ?? []).filter((child) => child !== el && isColumnElement(child));
   const top = el.getBoundingClientRect().top;
   return siblings.some((sibling) => Math.abs(sibling.getBoundingClientRect().top - top) < 4);
 }
@@ -197,10 +203,11 @@ function computeTarget(event) {
   }
 
   const kind = el.dataset.kind;
-  const container = ["section", "row", "column"].includes(kind)
+  // Component instances are one unit: drops go before or after them.
+  const container = isStructure(kind)
     || (kind === "field" && builder.isTemplateField(findNode(builder.nodes.value, el.dataset.node)));
   const rect = el.getBoundingClientRect();
-  const horizontal = kind === "column" && isHorizontalColumn(el);
+  const horizontal = isColumnElement(el) && isHorizontalColumn(el);
   const ratio = horizontal ? (event.clientX - rect.left) / rect.width : (event.clientY - rect.top) / rect.height;
   const position = container
     ? ratio < 0.2 ? "before" : ratio > 0.8 ? "after" : "inside"

@@ -38,6 +38,26 @@
       </div>
     </BuilderGroup>
 
+    <BuilderGroup
+      v-if="componentItems.length || !searchTerms.length"
+      v-model:open="expanded.components"
+      :title="t('site.component.group')"
+      content-class="mt-2 space-y-1"
+    >
+      <PaletteItem
+        v-for="component in componentItems"
+        :key="component.id"
+        wide
+        :icon="KIND_ICONS.component"
+        :label="component.name"
+        :meta="builder.kindLabel(component.root)"
+        @add="builder.insert(instance(component))"
+        @drag="start($event, () => instance(component))"
+        @dragend="end"
+      />
+      <p v-if="componentItems.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.component.paletteEmpty") }}</p>
+    </BuilderGroup>
+
     <BuilderGroup v-if="elementKinds.length" v-model:open="expanded.elements" :title="t('site.builder.elements')" content-class="mt-2 grid grid-cols-2 gap-1.5">
       <PaletteItem
         v-for="kind in elementKinds"
@@ -69,7 +89,7 @@
       />
       <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
     </BuilderGroup>
-    <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !elementKinds.length && !fields.length" role="status" class="px-1 text-sm text-slate-500">
+    <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !componentItems.length && !elementKinds.length && !fields.length" role="status" class="px-1 text-sm text-slate-500">
       {{ t("site.builder.noSearchResults") }}
     </p>
   </div>
@@ -81,7 +101,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
-import { ancestors, sectionPreset } from "../../../composables/layoutTree.js";
+import { ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -99,10 +119,10 @@ const { fieldTypeIcon } = useFieldTypeMeta();
 const search = ref("");
 const searchId = `builder-palette-search-${useId()}`;
 const searchTerms = computed(() => search.value.trim().toLowerCase().split(/\s+/).filter(Boolean));
-const expanded = ref({ layout: true, elements: true, fields: true });
+const expanded = ref({ layout: true, components: true, elements: true, fields: true });
 
 watch(searchTerms, (terms) => {
-  if (terms.length) expanded.value = { layout: true, elements: true, fields: true };
+  if (terms.length) expanded.value = { layout: true, components: true, elements: true, fields: true };
 });
 
 function matches(...values) {
@@ -117,6 +137,16 @@ const presets = computed(() => PRESETS.filter((preset) => matches(
 const layoutKinds = computed(() => ["row", "column"].filter((kind) => matches(
   t("site.builder.layout"), builder.kindLabel(kind), kind,
 )));
+
+/**
+ * Components that fit here: never the one being edited, and those showing
+ * entry fields only where an entry of their type is shown.
+ */
+const componentItems = computed(() => builder.components.value.filter((component) =>
+  component.id !== builder.componentId.value
+  && (!component.type || (builder.currentAvailable.value && component.type === builder.type.value?.name))
+  && matches(t("site.component.group"), component.name, builder.kindLabel(component.root)),
+));
 
 const elementKinds = computed(() =>
   (builder.spec.value?.elements ?? []).filter((kind) => kind !== "field" && matches(builder.kindLabel(kind), kind)),
@@ -140,6 +170,10 @@ const fields = computed(() => availableFields.value.filter((field) => matches(
 
 function create(kind) {
   return builder.make(kind);
+}
+
+function instance(component) {
+  return instanceNode(builder.spec.value, component);
 }
 
 function fieldNode(field) {

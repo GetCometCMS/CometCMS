@@ -14,6 +14,9 @@ use CometCMS\Core\HtmlSanitizer;
  * values are checked against this schema whenever a layout is saved or
  * previewed, so the renderer only ever sees known keys and values. The admin
  * builder reads the same schema (see spec()) to draw its inspector.
+ *
+ * Reusable components are stored separately (see SiteRepository); a layout
+ * only holds {kind: "component", props: {component, root, span}} instances.
  */
 final class LayoutSchema
 {
@@ -24,6 +27,12 @@ final class LayoutSchema
     public const REGIONS = ['header', 'footer'];
 
     public const STRUCTURE = ['section', 'row', 'column'];
+
+    /**
+     * A placed reusable component. It stands in for a node of its component's
+     * root kind (props.root) and is placed wherever such a node may go.
+     */
+    public const COMPONENT = 'component';
 
     public const ELEMENTS = [
         'field',
@@ -112,6 +121,7 @@ final class LayoutSchema
         return match ($kind) {
             'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'border', 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
             'row' => ['margin_bottom', 'class', 'hide_on'],
+            self::COMPONENT => [],
             'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', 'border', 'class', 'hide_on'],
             default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', 'border', 'max_width', 'class', 'anchor', 'hide_on'],
         };
@@ -140,6 +150,12 @@ final class LayoutSchema
             'column' => [
                 'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
+            ],
+            // Only a column component's instances use their own span.
+            self::COMPONENT => [
+                'component' => ['type' => 'key', 'default' => ''],
+                'root' => ['type' => 'enum', 'options' => self::STRUCTURE, 'default' => 'section'],
+                'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],
             ],
             'field' => [
                 'source' => ['type' => 'reference', 'default' => ''],
@@ -225,6 +241,10 @@ final class LayoutSchema
             'row' => ['column'],
             'column' => self::ELEMENTS,
             'field' => self::ITEM_ELEMENTS,
+            // The top of a component's own tree holds just its root kind.
+            'component:section' => ['section'],
+            'component:row' => ['row'],
+            'component:column' => ['column'],
             default => [],
         };
     }
@@ -234,7 +254,7 @@ final class LayoutSchema
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, self::COMPONENT] as $kind) {
             $props = self::propSpec($kind);
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
                 $props[$key]['binding'] = $binding;
@@ -278,6 +298,72 @@ final class LayoutSchema
         $seen = [];
 
         return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false);
+    }
+
+    /** The kind a node is placed as: a component instance counts as its root kind. */
+    public static function placementKind(array $node): string
+    {
+        $kind = (string) ($node['kind'] ?? '');
+        if ($kind !== self::COMPONENT) {
+            return $kind;
+        }
+        $root = (string) ($node['props']['root'] ?? '');
+
+        return in_array($root, self::STRUCTURE, true) ? $root : '';
+    }
+
+    /** Whether any bound value in the tree reads from $source (e.g. "current"). */
+    public static function usesSource(array $nodes, string $source): bool
+    {
+        $scan = static function (mixed $value) use (&$scan, $source): bool {
+            if (!is_array($value)) {
+                return false;
+            }
+            if (($value['type'] ?? null) === 'reference' && ($value['source'] ?? null) === $source) {
+                return true;
+            }
+            foreach ($value as $item) {
+                if ($scan($item)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        foreach ($nodes as $node) {
+            if ($scan($node['props'] ?? []) || $scan($node['style'] ?? []) || self::usesSource($node['children'] ?? [], $source)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Ids of the components placed anywhere in the tree. */
+    public static function componentRefs(array $nodes): array
+    {
+        $refs = [];
+
+        foreach ($nodes as $node) {
+            if (($node['kind'] ?? '') === self::COMPONENT && ($node['props']['component'] ?? '') !== '') {
+                $refs[(string) $node['props']['component']] = true;
+            }
+            foreach (self::componentRefs($node['children'] ?? []) as $ref) {
+                $refs[$ref] = true;
+            }
+        }
+
+        return array_keys($refs);
+    }
+
+    /** Validate a component's tree: its first node of kind $root, nothing else. */
+    public static function normalizeComponent(mixed $nodes, string $root): array
+    {
+        $count = 0;
+        $seen = [];
+        $first = array_values(array_filter(is_array($nodes) ? $nodes : [], static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === $root));
+
+        return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false);
     }
 
     public static function newId(): string
@@ -554,7 +640,8 @@ final class LayoutSchema
             }
 
             $kind = (string) ($node['kind'] ?? '');
-            if (!in_array($kind, $allowed, true)) {
+            $placed = self::placementKind($node);
+            if ($placed === '' || !in_array($placed, $allowed, true)) {
                 continue;
             }
 

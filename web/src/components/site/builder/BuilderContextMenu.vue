@@ -57,7 +57,7 @@ import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import { nodeIcon } from "./kindIcons.js";
-import { findNode, locate } from "../../../composables/layoutTree.js";
+import { COMPONENT, findNode, isStructure, locate } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -80,7 +80,7 @@ const position = ref({ x: 0, y: 0 });
 const menu = computed(() => builder.contextMenu.value);
 const node = computed(() => (menu.value ? findNode(builder.nodes.value, menu.value.id) : null));
 const where = computed(() => (node.value ? locate(builder.nodes.value, node.value.id) : null));
-const showColumns = computed(() => ["section", "row", "column"].includes(node.value?.kind));
+const showColumns = computed(() => isStructure(node.value?.kind));
 
 const quick = computed(() => {
   const kind = node.value?.kind;
@@ -96,7 +96,9 @@ const actions = computed(() => {
   const parent = where.value?.parent ?? null;
   const index = where.value?.index ?? 0;
   const siblings = where.value?.list.length ?? 0;
-  const structure = ["section", "row", "column"].includes(current.kind);
+  const structure = isStructure(current.kind);
+  const instance = current.kind === COMPONENT;
+  const locked = builder.isLockedRoot(current.id);
   const stacked = builder.isStacked(current.kind === "section" ? builder.columnRowFor(current) : current);
 
   const groups = [
@@ -106,11 +108,16 @@ const actions = computed(() => {
       { key: "down", icon: "mdi:arrow-down", label: t("site.builder.moveDown"), shortcut: "Alt+↓", disabled: index >= siblings - 1, action: () => builder.shift(current.id, 1) },
     ],
     [
-      { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
+      !locked && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
       { key: "copy", icon: "mdi:clipboard-outline", label: t("site.menu.copy"), shortcut: "Ctrl+C", action: () => builder.copy(current.id) },
       { key: "paste", icon: "mdi:content-paste", label: t("site.menu.paste"), shortcut: "Ctrl+V", disabled: !builder.clipboard.value, action: () => builder.paste(current.id) },
-      { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
-      { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
+      !instance && { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
+      !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
+    ],
+    [
+      builder.canConvert(current) && { key: "saveComponent", icon: "mdi:puzzle-plus-outline", label: t("site.component.save"), action: () => { builder.componentDialog.value = { id: current.id }; } },
+      instance && builder.componentOf(current) && { key: "editComponent", icon: "mdi:puzzle-edit-outline", label: t("site.component.edit"), action: () => builder.editComponent(current.props.component) },
+      instance && builder.componentOf(current) && { key: "detach", icon: "mdi:link-variant-off", label: t("site.component.detach"), action: () => builder.detach(current.id) },
     ],
     [
       structure && {
@@ -119,10 +126,10 @@ const actions = computed(() => {
         label: t(stacked ? "site.menu.addRow" : "site.menu.addColumn"),
         action: () => builder.addColumn(current.id),
       },
-      { key: "addSection", icon: "mdi:card-plus-outline", label: t("site.menu.addSection"), action: () => builder.addSectionAfter(current.id) },
+      !builder.rootKind.value && { key: "addSection", icon: "mdi:card-plus-outline", label: t("site.menu.addSection"), action: () => builder.addSectionAfter(current.id) },
     ],
     [
-      { key: "delete", icon: "mdi:trash-can-outline", label: t("common.delete"), shortcut: "Del", danger: true, action: () => builder.remove(current.id) },
+      !locked && { key: "delete", icon: "mdi:trash-can-outline", label: t("common.delete"), shortcut: "Del", danger: true, action: () => builder.remove(current.id) },
     ],
   ];
 

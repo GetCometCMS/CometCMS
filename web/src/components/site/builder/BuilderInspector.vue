@@ -9,10 +9,10 @@
       <button type="button" class="inspector-action" :title="t('site.builder.selectParent')" :disabled="!hasParent" @click="builder.selectParent()">
         <Icon icon="mdi:arrow-up-left" class="h-4 w-4" />
       </button>
-      <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" @click="builder.duplicate(node.id)">
+      <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" :disabled="locked" @click="builder.duplicate(node.id)">
         <Icon icon="mdi:content-copy" class="h-4 w-4" />
       </button>
-      <button type="button" class="inspector-action hover:!text-red-600" :title="t('common.delete')" @click="builder.remove(node.id)">
+      <button type="button" class="inspector-action hover:!text-red-600" :title="t('common.delete')" :disabled="locked" @click="builder.remove(node.id)">
         <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
       </button>
       <button type="button" class="inspector-action" :title="t('site.menu.more')" @click="openMenu">
@@ -20,7 +20,7 @@
       </button>
     </div>
 
-    <div class="border-b border-slate-200 px-4 py-2">
+    <div v-if="!isInstance" class="border-b border-slate-200 px-4 py-2">
       <SegmentedControl
         v-model="tab"
         :options="[
@@ -31,8 +31,32 @@
     </div>
 
     <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-      <template v-if="tab === 'content'">
-        <ColumnLayoutPicker v-if="['section', 'row', 'column'].includes(node.kind)" :node="node" />
+      <template v-if="isInstance">
+        <div class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
+          <p v-if="component">{{ t("site.component.instanceHint") }}</p>
+          <p v-else class="text-amber-800">{{ t("site.component.missingHint") }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button v-if="component" type="button" class="btn-primary btn-sm" @click="builder.editComponent(component.id)">
+              <Icon icon="mdi:puzzle-edit-outline" class="mr-1 h-4 w-4" />{{ t("site.component.edit") }}
+            </button>
+            <button v-if="component" type="button" class="btn-secondary btn-sm" :title="t('site.component.detachHint')" @click="builder.detach(node.id)">
+              <Icon icon="mdi:link-variant-off" class="mr-1 h-4 w-4" />{{ t("site.component.detach") }}
+            </button>
+          </div>
+        </div>
+        <BuilderControl
+          v-for="key in visibleProps"
+          :key="`${node.id}-p-${key}`"
+          :node="node"
+          :name="key"
+          :def="propSpec[key]"
+          :value="node.props[key]"
+          @update="(value) => updateProp(key, value)"
+        />
+      </template>
+
+      <template v-else-if="tab === 'content'">
+        <ColumnLayoutPicker v-if="isStructure(node.kind)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
         </div>
@@ -99,7 +123,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
-import { findNode, locate } from "../../../composables/layoutTree.js";
+import { COMPONENT, findNode, isStructure, locate } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -119,6 +143,9 @@ const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) =>
 const node = computed(() => builder.selected.value);
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
+const isInstance = computed(() => node.value?.kind === COMPONENT);
+const component = computed(() => builder.componentOf(node.value));
+const locked = computed(() => !!node.value && builder.isLockedRoot(node.value.id));
 const hasParent = computed(() => !!(node.value && locate(builder.nodes.value, node.value.id)?.parent));
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
 
@@ -173,6 +200,11 @@ const visibleProps = computed(() => {
       false_text: type === "boolean",
     };
     return keys.filter((key) => rules[key]);
+  }
+
+  // Only a column component's instances have something of their own: their width.
+  if (current.kind === COMPONENT) {
+    return props.root === "column" ? ["span"] : [];
   }
 
   if (current.kind === "collection") {

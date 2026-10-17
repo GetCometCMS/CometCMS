@@ -30,7 +30,7 @@
 
       <div class="ml-auto flex items-center gap-2">
         <select
-          v-if="target === 'layout' && variant !== 'index' && !builder.type.value?.singleton && samples.length"
+          v-if="showsSamples && !builder.type.value?.singleton && samples.length"
           v-model="sampleId"
           class="form-select hidden max-w-[14rem] rounded-lg border-slate-300 py-1 text-xs lg:block"
           :aria-label="t('site.builder.sampleEntry')"
@@ -71,12 +71,12 @@
           </button>
         </div>
 
-        <button v-if="customized" type="button" class="btn-secondary btn-sm hidden sm:inline-flex" @click="resetOpen = true">
+        <button v-if="customized && target !== 'component'" type="button" class="btn-secondary btn-sm hidden sm:inline-flex" @click="resetOpen = true">
           {{ t("site.builder.reset") }}
         </button>
 
         <SiteHistory
-          :title="t('site.history.layoutTitle')"
+          :title="t(target === 'component' ? 'site.history.componentTitle' : 'site.history.layoutTitle')"
           :fetch-revisions="fetchRevisions"
           :restore-revision="restoreRevision"
           :dirty="builder.isDirty.value"
@@ -149,6 +149,16 @@
 
     <BuilderContextMenu />
 
+    <ComponentNameModal
+      :model-value="builder.componentDialog.value !== null"
+      :title="t('site.component.saveTitle')"
+      :message="t('site.component.saveMessage')"
+      :confirm-label="t('site.component.create')"
+      :loading="converting"
+      @update:model-value="(open) => { if (!open) builder.componentDialog.value = null }"
+      @confirm="convert"
+    />
+
     <ConfirmModal
       v-model="leavePromptOpen"
       :title="t('unsaved.title')"
@@ -196,6 +206,7 @@ import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import SiteHistory from "../components/site/SiteHistory.vue";
+import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
@@ -208,7 +219,22 @@ const router = useRouter();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-const builder = createSiteBuilder({ t });
+const builder = createSiteBuilder({
+  t,
+  componentApi: {
+    create: async (body) => (await api.site.createComponent(body)).data,
+    load: async (id) => {
+      try {
+        return (await api.site.component(id)).data.component;
+      } catch (err) {
+        toast.error(err.message);
+        return null;
+      }
+    },
+    // Unsaved changes are guarded like any other way out of the builder.
+    edit: (id) => router.push({ path: `/website/builder/component/${id}`, query: { back: route.fullPath } }),
+  },
+});
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(builder.isDirty);
 
 const builderAreaRef = ref(null);
@@ -255,12 +281,18 @@ const canvasRef = ref(null);
 const indexUrl = ref(null);
 const homeUrl = ref(null);
 const entryUrl = ref(null);
+const component = ref(null);
+const usages = ref([]);
+const converting = ref(false);
 
 /** The entry the preview shows: the chosen sample, or the single page itself. */
-const previewEntry = computed(() => (builder.type.value?.singleton ? name : sampleId.value));
+const previewEntry = computed(() => (builder.type.value?.singleton ? builder.type.value.name : sampleId.value));
+/** Layouts of single entries and components of a content type preview an entry. */
+const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
 
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
+  if (target === "component") return null;
   if (target === "region") return homeUrl.value;
   if (variant === "index") return indexUrl.value;
   if (variant === "card") return null;
@@ -295,17 +327,31 @@ const variants = computed(() => {
   if (target !== "layout" || !builder.type.value) return [];
   return builder.type.value.singleton ? ["detail"] : ["detail", "card", "index"];
 });
-// Opened from an entry: go back there. Only internal content URLs are followed.
+// Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
-  if (back.startsWith("/content/")) return back;
+  if (back.startsWith("/content/") || back.startsWith("/website/")) return back;
+  if (target === "component") return "/website/components";
   return target === "region" ? "/website/header-footer" : `/content-types/${name}/edit#website`;
 });
-const heading = computed(() => (target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name));
-const subheading = computed(() => (target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`)));
+const heading = computed(() => {
+  if (target === "component") return component.value?.name ?? "";
+  return target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name;
+});
+const subheading = computed(() => {
+  if (target === "component") {
+    const kind = t("site.component.instanceOf", { kind: builder.kindLabel(component.value?.root ?? "section") });
+    const type = builder.type.value ? ` · ${builder.type.value.label ?? builder.type.value.name}` : "";
+    return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
+  }
+  return target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`);
+});
 
 const previewBody = computed(() => {
   if (loading.value) return null;
+  if (target === "component") {
+    return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value };
+  }
   return target === "region"
     ? { target: "region", region: name, nodes: builder.nodes.value, locale: locale.value }
     : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value };
@@ -318,16 +364,28 @@ async function load() {
   loadError.value = "";
 
   try {
+    const entry = typeof route.query.entry === "string" ? route.query.entry : "";
     const res = target === "region"
       ? await api.site.region(name)
-      : await api.site.layout(name, variant, typeof route.query.entry === "string" ? route.query.entry : "");
+      : target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
     const data = res.data;
-    builder.spec.value = data.spec;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
     builder.settings.value = data.settings ?? null;
     builder.type.value = data.type ?? null;
-    builder.currentAvailable.value = target === "layout" && variant !== "index";
+    builder.components.value = data.components ?? [];
+    if (target === "component") {
+      component.value = data.component;
+      usages.value = data.usages ?? [];
+      builder.componentId.value = data.component.id;
+      builder.rootKind.value = data.component.root;
+      // A component's tree is its one root node.
+      builder.spec.value = { ...data.spec, root: [data.component.root] };
+      builder.currentAvailable.value = !!data.type;
+    } else {
+      builder.spec.value = data.spec;
+      builder.currentAvailable.value = target === "layout" && variant !== "index";
+    }
     upgradeRequired.value = !!data.upgrade_required;
     samples.value = data.samples ?? [];
     const requested = typeof route.query.entry === "string" ? route.query.entry : "";
@@ -355,12 +413,13 @@ async function save() {
     const nodes = builder.nodes.value;
     const res = target === "region"
       ? await api.site.saveRegion(name, nodes)
-      : await api.site.saveLayout(name, variant, nodes);
+      : target === "component" ? await api.site.saveComponent(name, nodes) : await api.site.saveLayout(name, variant, nodes);
     builder.markSaved(res.data.nodes);
     upgradeRequired.value = false;
     customized.value = true;
-    site.markCustomized(target, name, variant, true);
-    toast.success(t("site.builder.saved"));
+    if (target === "component") component.value = res.data.component;
+    else site.markCustomized(target, name, variant, true);
+    toast.success(t(target === "component" ? "site.component.saved" : "site.builder.saved"));
   } catch (err) {
     toast.error(err.message);
   } finally {
@@ -391,10 +450,12 @@ async function reset() {
 }
 
 function fetchRevisions() {
+  if (target === "component") return api.site.componentRevisions(name);
   return target === "region" ? api.site.regionRevisions(name) : api.site.layoutRevisions(name, variant);
 }
 
 function restoreRevision(id) {
+  if (target === "component") return api.site.restoreComponentRevision(name, id);
   return target === "region" ? api.site.restoreRegionRevision(name, id) : api.site.restoreLayoutRevision(name, variant, id);
 }
 
@@ -402,7 +463,24 @@ function onRevisionRestored(data) {
   upgradeRequired.value = false;
   builder.load(data.nodes);
   customized.value = data.customized;
-  site.markCustomized(target, name, variant, data.customized);
+  if (target === "component") component.value = data.component ?? component.value;
+  else site.markCustomized(target, name, variant, data.customized);
+}
+
+/** Turn the node waiting in the name dialog into a component instance. */
+async function convert(componentName) {
+  const pending = builder.componentDialog.value;
+  if (!pending || converting.value) return;
+  converting.value = true;
+  try {
+    await builder.convertToComponent(pending.id, componentName);
+    builder.componentDialog.value = null;
+    toast.success(t("site.component.created"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    converting.value = false;
+  }
 }
 
 function goToVariant(next) {

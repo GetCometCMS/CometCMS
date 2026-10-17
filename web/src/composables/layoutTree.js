@@ -5,6 +5,9 @@
 // (LayoutSchema::spec()) and decides which kinds may contain which. All
 // mutating helpers change the tree in place; the builder snapshots the tree
 // for undo/redo.
+//
+// A reusable component is placed as a leaf node { kind: 'component', props:
+// { component, root, span } } that goes wherever a node of its root kind goes.
 
 export const ROOT = 'root'
 
@@ -41,6 +44,34 @@ export function createNode(spec, kind, props = {}, style = {}, children = []) {
 
 export function isStructure(kind) {
   return kind === 'section' || kind === 'row' || kind === 'column'
+}
+
+export const COMPONENT = 'component'
+
+/** The kind a node is placed as: a component instance counts as its root kind. */
+export function placementKind(node) {
+  if (node?.kind !== COMPONENT) return node?.kind
+  return isStructure(node.props?.root) ? node.props.root : ''
+}
+
+/** Whether a node is a column for its row: a column or a column component. */
+export function isColumnLike(node) {
+  return placementKind(node) === 'column'
+}
+
+/** A new instance of a component ({ id, root }). */
+export function instanceNode(spec, component, props = {}) {
+  return createNode(spec, COMPONENT, { ...props, component: component.id, root: component.root })
+}
+
+/** Whether a tree binds values of the entry the page shows ("current" references). */
+export function usesCurrentEntry(nodes) {
+  const scan = (value) => {
+    if (!value || typeof value !== 'object') return false
+    if (value.type === 'reference' && value.source === 'current') return true
+    return Object.values(value).some(scan)
+  }
+  return nodes.some((node) => scan(node.props) || scan(node.style) || usesCurrentEntry(node.children ?? []))
 }
 
 /** Kinds that may be placed inside a parent of the given kind. */
@@ -144,15 +175,16 @@ export function cloneWithNewIds(node) {
 export function wrapFor(spec, parentKind, node) {
   let current = node
   for (let i = 0; i < 4; i += 1) {
-    if (allowedChildren(spec, parentKind).includes(current.kind)) return current
-    const wrapper = isStructure(current.kind) ? WRAPPER[current.kind] : 'column'
+    const kind = placementKind(current)
+    if (allowedChildren(spec, parentKind).includes(kind)) return current
+    const wrapper = isStructure(kind) ? WRAPPER[kind] : 'column'
     if (!wrapper) return null
     if (parentKind !== ROOT && !isStructure(parentKind)) return null
     // Never wrap upwards past the parent's own level.
     if (structureLevel(wrapper) <= structureLevel(parentKind)) return null
     current = createNode(spec, wrapper, {}, {}, [current])
   }
-  return allowedChildren(spec, parentKind).includes(current.kind) ? current : null
+  return allowedChildren(spec, parentKind).includes(placementKind(current)) ? current : null
 }
 
 function structureLevel(kind) {
@@ -169,11 +201,11 @@ export function resolveDrop(spec, nodes, node, targetId, position, options = {})
   const tryPlace = (parent, index) => {
     const insideTemplate = parent ? parent.kind === 'field' || isInsideTemplate(nodes, parent.id) : false
     if (parent && parent.kind === 'field') {
-      return canContain(spec, parent, node.kind, { ...options, insideTemplate: isInsideTemplate(nodes, parent.id) })
+      return canContain(spec, parent, placementKind(node), { ...options, insideTemplate: isInsideTemplate(nodes, parent.id) })
         ? { parentId: parent.id, index, node }
         : null
     }
-    if (insideTemplate && !(spec?.item_elements ?? []).includes(node.kind)) return null
+    if (insideTemplate && !(spec?.item_elements ?? []).includes(placementKind(node))) return null
     const placed = wrapFor(spec, parent ? parent.kind : ROOT, node)
     return placed ? { parentId: parent ? parent.id : null, index, node: placed } : null
   }
@@ -276,15 +308,23 @@ export function sectionPreset(spec, spans) {
 
 /**
  * Rearrange a row into columns with the given desktop spans. Content is kept:
- * surplus columns hand their elements to the last remaining column.
+ * surplus columns hand their elements to the last remaining column. Surplus
+ * column components are just removed; their content lives in the component.
  */
 export function applyColumnPreset(spec, row, spans) {
-  const columns = (row.children ?? []).filter((child) => child.kind === 'column')
+  const columns = (row.children ?? []).filter(isColumnLike)
   while (columns.length < spans.length) columns.push(createNode(spec, 'column'))
 
   if (columns.length > spans.length) {
-    const surplus = columns.splice(spans.length)
-    columns[columns.length - 1].children.push(...surplus.flatMap((column) => column.children ?? []))
+    const moved = columns.splice(spans.length).flatMap((column) => (column.kind === 'column' ? column.children ?? [] : []))
+    if (moved.length) {
+      let target = columns.findLast((column) => column.kind === 'column')
+      if (!target) {
+        target = createNode(spec, 'column')
+        columns[columns.length - 1] = target
+      }
+      target.children.push(...moved)
+    }
   }
 
   columns.forEach((column, index) => {

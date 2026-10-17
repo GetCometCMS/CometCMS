@@ -1,6 +1,7 @@
 import { hasInvalidValues, referenceConfig, smartSummary } from './smartValues.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
+  COMPONENT,
   ancestors,
   applyColumnPreset,
   clone,
@@ -12,13 +13,16 @@ import {
   effectiveSpan,
   findNode,
   insertNode,
+  instanceNode,
   isInsideTemplate,
+  isStructure,
   locate,
   removeNode,
   resolveDrop,
   sectionPreset,
   shiftNode,
   stackColumns,
+  usesCurrentEntry,
 } from './layoutTree.js'
 
 const KEY = Symbol('site-builder')
@@ -29,8 +33,11 @@ const HISTORY_LIMIT = 100
  * undo/redo history, drag and drop and the field context nodes bind to.
  * The view creates it with createSiteBuilder(); child components read it
  * with useSiteBuilder().
+ *
+ * `componentApi` connects reusable components: create({ name, nodes, type })
+ * stores a new component, load(id) returns one with its nodes.
  */
-export function createSiteBuilder({ t }) {
+export function createSiteBuilder({ t, componentApi = {} }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
@@ -38,6 +45,13 @@ export function createSiteBuilder({ t }) {
   const menus = ref([])
   const settings = ref(null)
   const currentAvailable = ref(true)
+  /** Reusable components ({ id, name, root, type }) offered in the palette. */
+  const components = ref([])
+  /** Editing a component: its id and root kind; its tree holds just that one root node. */
+  const componentId = ref(null)
+  const rootKind = ref(null)
+  /** Node waiting for a name before it becomes a component: { id }. */
+  const componentDialog = ref(null)
   const locale = ref('')
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
@@ -166,6 +180,16 @@ export function createSiteBuilder({ t }) {
 
   const dropOptions = { isTemplateField }
 
+  /** The single root of a component's tree stays where it is. */
+  function isLockedRoot(id) {
+    return !!rootKind.value && nodes.value[0]?.id === id
+  }
+
+  /** Whether a resolved drop may happen: nothing joins a component's root. */
+  function placeable(result) {
+    return !!result && !(rootKind.value && result.parentId === null)
+  }
+
   // ─── Editing ───────────────────────────────────────────────────────────
 
   function isDefaultStyle(key, value) {
@@ -188,9 +212,9 @@ export function createSiteBuilder({ t }) {
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
     const current = targetId ? findNode(nodes.value, targetId) : null
-    const inside = current && (['section', 'row', 'column'].includes(current.kind) || isTemplateField(current))
+    const inside = current && (isStructure(current.kind) || isTemplateField(current))
     const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
-    if (!result) return false
+    if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
     selectedId.value = node.id
     return true
@@ -205,21 +229,21 @@ export function createSiteBuilder({ t }) {
     if (current.source === 'palette') {
       const node = current.create()
       const result = resolveDrop(spec.value, nodes.value, node, targetId, position, dropOptions)
-      if (!result) return false
+      if (!placeable(result)) return false
       mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
       selectedId.value = node.id
       return true
     }
 
     const node = findNode(nodes.value, current.id)
-    if (!node || targetId === current.id || (targetId && contains(node, targetId))) return false
+    if (!node || isLockedRoot(node.id) || targetId === current.id || (targetId && contains(node, targetId))) return false
 
     const before = JSON.stringify(nodes.value)
     let moved = false
     mutate((tree) => {
       removeNode(tree, current.id)
       const result = resolveDrop(spec.value, tree, node, targetId, position, dropOptions)
-      if (result) {
+      if (placeable(result)) {
         insertNode(tree, result.parentId, result.index, result.node)
         moved = true
       }
@@ -235,7 +259,7 @@ export function createSiteBuilder({ t }) {
   }
 
   function remove(id = selectedId.value) {
-    if (!id) return
+    if (!id || isLockedRoot(id)) return
     const where = locate(nodes.value, id)
     mutate((tree) => removeNode(tree, id))
     if (selectedId.value === id || !findNode(nodes.value, selectedId.value)) {
@@ -245,7 +269,7 @@ export function createSiteBuilder({ t }) {
   }
 
   function duplicate(id = selectedId.value) {
-    if (!id) return
+    if (!id || isLockedRoot(id)) return
     let copy = null
     mutate((tree) => {
       copy = duplicateNode(tree, id)
@@ -267,7 +291,7 @@ export function createSiteBuilder({ t }) {
     if (!node) return null
     if (node.kind === 'row') return node
     if (node.kind === 'section') return node.children.find((child) => child.kind === 'row') ?? null
-    if (node.kind === 'column') return locate(nodes.value, node.id)?.parent ?? null
+    if (node.kind === 'column' || (node.kind === COMPONENT && node.props?.root === 'column')) return locate(nodes.value, node.id)?.parent ?? null
     return null
   }
 
@@ -297,6 +321,7 @@ export function createSiteBuilder({ t }) {
 
   /** Insert an empty one-column section after the section that contains `id`. */
   function addSectionAfter(id) {
+    if (rootKind.value) return
     const section = id ? [...ancestors(nodes.value, id), findNode(nodes.value, id)].find((node) => node?.kind === 'section') : null
     const node = sectionPreset(spec.value, [12])
     const index = section ? locate(nodes.value, section.id).index + 1 : nodes.value.length
@@ -344,6 +369,74 @@ export function createSiteBuilder({ t }) {
     return createNode(spec.value, kind, props, style, children)
   }
 
+  // ─── Components ────────────────────────────────────────────────────────
+
+  function componentOf(node) {
+    return node?.kind === COMPONENT ? components.value.find((item) => item.id === node.props?.component) ?? null : null
+  }
+
+  /** Whether a structure node can become a component (not a component's own root). */
+  function canConvert(node) {
+    return !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
+  }
+
+  /** Swap the node `id` for an instance of `component`, as one undo step. */
+  function replaceWithInstance(id, component) {
+    let instance = null
+    mutate((tree) => {
+      const where = locate(tree, id)
+      if (!where) return
+      const original = where.list[where.index]
+      const props = component.root === 'column' ? { span: clone(original.props?.span ?? {}) } : {}
+      instance = instanceNode(spec.value, component, props)
+      where.list.splice(where.index, 1, instance)
+    })
+    if (instance) selectedId.value = instance.id
+    return instance
+  }
+
+  /**
+   * Store the node `id` (with everything in it) as a new component and put an
+   * instance in its place. Components showing the page entry's fields belong
+   * to the type being edited.
+   */
+  async function convertToComponent(id, name) {
+    const node = findNode(nodes.value, id)
+    if (!canConvert(node)) return null
+    const source = clone(node)
+    const component = await componentApi.create({ name, nodes: [source], type: usesCurrentEntry([source]) ? type.value?.name ?? '' : '' })
+    const { nodes: _tree, ...summary } = component
+    components.value = [...components.value.filter((item) => item.id !== component.id), summary]
+      .sort((a, b) => a.name.localeCompare(b.name))
+    replaceWithInstance(id, component)
+    return component
+  }
+
+  /** Open a component in its own builder (the view decides how). */
+  function editComponent(id) {
+    componentApi.edit?.(id)
+  }
+
+  /** Replace an instance with an editable copy of its component. */
+  async function detach(id) {
+    const node = findNode(nodes.value, id)
+    if (node?.kind !== COMPONENT || !componentApi.load) return false
+    const component = await componentApi.load(node.props.component)
+    const root = component?.nodes?.[0]
+    if (!root) return false
+    const copy = cloneWithNewIds(root)
+    if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(node.props.span ?? copy.props.span) }
+    let replaced = false
+    mutate((tree) => {
+      const where = locate(tree, id)
+      if (!where) return
+      where.list.splice(where.index, 1, copy)
+      replaced = true
+    })
+    if (replaced) selectedId.value = copy.id
+    return replaced
+  }
+
   // ─── Labels ────────────────────────────────────────────────────────────
 
   function kindLabel(kind) {
@@ -367,6 +460,7 @@ export function createSiteBuilder({ t }) {
   /** Name of a node as the user sees it: column sets follow their arrangement. */
   function nodeLabel(node) {
     if (!node) return ''
+    if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
     return kindLabel(node.kind)
   }
@@ -399,6 +493,8 @@ export function createSiteBuilder({ t }) {
       }
       case 'section':
         return t(`site.option.${props.width ?? 'contained'}`)
+      case COMPONENT:
+        return t('site.component.instanceOf', { kind: kindLabel(props.root) })
       default:
         return ''
     }
@@ -414,6 +510,8 @@ export function createSiteBuilder({ t }) {
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
+    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert,
+    replaceWithInstance, convertToComponent, detach, editComponent,
   }
 
   provide(KEY, api)
