@@ -22,7 +22,7 @@ The homepage can be a single page, one entry, or a collection's list page. Until
 
 ## Layouts and the builder
 
-**Website → Pages & URLs** lists every content type with its status, URLs and layouts. Every content type has up to three layouts:
+The **Content types** table shows which types have frontend pages enabled. Open a content type’s **Frontend pages** card to configure its URLs and edit its layouts. Every content type has up to three layouts:
 
 - **Page** — a single entry.
 - **Card** — how an entry looks inside lists, related-entry fields and entry lists elsewhere.

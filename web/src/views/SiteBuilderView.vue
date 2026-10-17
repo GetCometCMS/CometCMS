@@ -246,7 +246,7 @@ const variants = computed(() => {
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/")) return back;
-  return target === "region" ? "/website/header-footer" : "/website/pages";
+  return target === "region" ? "/website/header-footer" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => (target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name));
 const subheading = computed(() => (target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`)));

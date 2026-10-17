@@ -94,7 +94,11 @@ const routes = [
     redirect: '/connect/api',
   },
   {
-    path: '/website/:tab(overview|pages|theme|header-footer|menus)?',
+    path: '/website/pages',
+    redirect: '/content-types',
+  },
+  {
+    path: '/website/:tab(overview|theme|header-footer|menus)?',
     component: () => import('../views/WebsiteView.vue'),
     meta: { requiresAuth: true },
   },
