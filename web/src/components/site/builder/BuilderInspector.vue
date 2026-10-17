@@ -53,8 +53,7 @@
       </template>
 
       <template v-else-if="tab === 'content'">
-        <!-- A column shows its own options first; the picker edits the column set around it. -->
-        <ColumnLayoutPicker v-if="isStructure(node.kind) && node.kind !== 'column'" :node="node" />
+        <ColumnLayoutPicker v-if="isStructure(node.kind)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
         </div>
@@ -67,7 +66,6 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
-        <ColumnLayoutPicker v-if="node.kind === 'column'" :node="node" />
         <p v-if="visibleProps.length === 0" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
         <p v-if="node.kind === 'field' && builder.isTemplateField(node)" class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
           {{ t("site.builder.templateHint") }}
