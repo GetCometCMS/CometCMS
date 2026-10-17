@@ -112,11 +112,18 @@ export const useSiteStore = defineStore('site', () => {
     }
   }
 
+  /** Restoring the design must preserve pending settings and menu edits. */
+  function applyRestoredTheme(theme) {
+    if (!data.value || !draft.value) return;
+    data.value.theme = clone(theme);
+    draft.value.theme = clone(theme);
+  }
+
   function invalidate() {
     data.value = null
     draft.value = null
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, load, save, saveRoute, resetDraft, markCustomized, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, invalidate }
 })

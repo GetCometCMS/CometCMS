@@ -134,7 +134,7 @@ final class SiteController extends BaseController
             $input['custom_css'] = $current['custom_css'];
         }
 
-        $theme = $this->site->saveTheme($input);
+        $theme = $this->site->saveTheme($input, $user);
         $this->logger->info('site.theme_updated', ['workspace' => $this->site->workspace()->slug()]);
         $this->json(['data' => $theme]);
     }
@@ -168,20 +168,20 @@ final class SiteController extends BaseController
 
     public function updateLayout(string $type, string $variant): never
     {
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? []);
+        $nodes = $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user);
         $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
     }
 
     public function resetLayout(string $type, string $variant): never
     {
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->site->resetLayout($type, $variant);
+        $nodes = $this->site->resetLayout($type, $variant, $user);
         $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
     }
@@ -203,22 +203,77 @@ final class SiteController extends BaseController
 
     public function updateRegion(string $region): never
     {
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireRegion($region);
-        $nodes = $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? []);
+        $nodes = $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user);
         $this->logger->info('site.region_updated', ['region' => $region]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
     }
 
     public function resetRegion(string $region): never
     {
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireRegion($region);
-        $nodes = $this->site->resetRegion($region);
+        $nodes = $this->site->resetRegion($region, $user);
         $this->logger->info('site.region_reset', ['region' => $region]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
+    }
+
+    public function themeRevisions(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => $this->site->themeRevisions()]);
+    }
+
+    public function restoreThemeRevision(string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $theme = $this->site->restoreThemeRevision($id, $user, Auth::allows($user, 'admin'));
+        $this->sendRestoredRevision($theme, ['target' => 'theme', 'revision' => $id]);
+    }
+
+    public function layoutRevisions(string $type, string $variant): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, $variant);
+        $this->json(['data' => $this->site->layoutRevisions($type, $variant)]);
+    }
+
+    public function restoreLayoutRevision(string $type, string $variant, string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $result = $this->site->restoreLayoutRevision($type, $variant, $id, $user);
+        $this->sendRestoredRevision($result, ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'revision' => $id]);
+    }
+
+    public function regionRevisions(string $region): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireRegion($region);
+        $this->json(['data' => $this->site->regionRevisions($region)]);
+    }
+
+    public function restoreRegionRevision(string $region, string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireRegion($region);
+        $result = $this->site->restoreRegionRevision($region, $id, $user);
+        $this->sendRestoredRevision($result, ['target' => 'region', 'region' => $region, 'revision' => $id]);
+    }
+
+    private function sendRestoredRevision(?array $result, array $details): never
+    {
+        if ($result === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
+        }
+        $this->logger->info('site.revision_restored', $details);
+        $this->json(['data' => $result]);
     }
 
     /**

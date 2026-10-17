@@ -25,6 +25,15 @@
         <Icon icon="mdi:open-in-new" class="h-4 w-4" />
         {{ t("site.openWebsite") }}
       </a>
+      <SiteHistory
+        v-if="site.draft && activeTab === 'theme'"
+        :title="t('site.history.themeTitle')"
+        :fetch-revisions="api.site.themeRevisions"
+        :restore-revision="api.site.restoreThemeRevision"
+        :dirty="site.dirtyParts.includes('theme')"
+        :busy="site.saving || site.loading"
+        @restored="site.applyRestoredTheme"
+      />
       <button
         v-if="site.draft"
         type="button"
@@ -106,6 +115,8 @@ import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteThemePanel from "../components/site/SiteThemePanel.vue";
 import SiteRegionsPanel from "../components/site/SiteRegionsPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
+import SiteHistory from "../components/site/SiteHistory.vue";
+import { api } from "../api/index.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
@@ -142,6 +153,7 @@ function leave() {
 }
 
 function onKeydown(event) {
+  if (event.target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
   if ((event.ctrlKey || event.metaKey) && event.key === "s") {
     event.preventDefault();
     if (site.isDirty && !site.saving) save();

@@ -32,6 +32,7 @@ final class SiteRepository
     public const RESERVED_FILES = ['/sitemap.xml', '/robots.txt', '/favicon.ico'];
 
     private JsonStore $store;
+    private JsonStore $revisions;
     private WorkspaceContext $workspace;
     private ContentTypeRepository $types;
     private ?array $settingsCache = null;
@@ -42,6 +43,7 @@ final class SiteRepository
         $this->workspace = $workspace ?? WorkspaceContext::active();
         $this->types = $types ?? new ContentTypeRepository($this->workspace);
         $this->store = new JsonStore($this->workspace->path('site'));
+        $this->revisions = new JsonStore($this->workspace->path('revisions') . '/site');
     }
 
     public function workspace(): WorkspaceContext
@@ -120,9 +122,10 @@ final class SiteRepository
         return Theme::normalize($stored) + ['updated_at' => (string) ($stored['updated_at'] ?? '')];
     }
 
-    public function saveTheme(array $input): array
+    public function saveTheme(array $input, array $user = [], string $event = 'saved'): array
     {
         $theme = Theme::normalize($input);
+        $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
         $theme['updated_at'] = Security::now();
         $this->store->write($theme, 'theme');
         $this->clearCache();
@@ -194,19 +197,21 @@ final class SiteRepository
         return $this->store->read('regions', $region) !== null;
     }
 
-    public function saveRegion(string $region, mixed $nodes): array
+    public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $this->assertRegion($region);
         $nodes = LayoutSchema::normalize($nodes);
+        $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
         $this->store->write(['nodes' => $nodes, 'updated_at' => Security::now()], 'regions', $region);
         $this->clearCache();
 
         return $nodes;
     }
 
-    public function resetRegion(string $region): array
+    public function resetRegion(string $region, array $user = [], string $event = 'reset'): array
     {
         $this->assertRegion($region);
+        $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
         $this->store->delete('regions', $region);
         $this->clearCache();
 
@@ -232,21 +237,23 @@ final class SiteRepository
         return $this->store->read('layouts', $type, $variant) !== null;
     }
 
-    public function saveLayout(string $type, string $variant, mixed $nodes): array
+    public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
         $nodes = LayoutSchema::normalize($nodes);
+        $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
         $this->store->write(['nodes' => $nodes, 'updated_at' => Security::now()], 'layouts', $type, $variant);
         $this->clearCache();
 
         return $nodes;
     }
 
-    public function resetLayout(string $type, string $variant): array
+    public function resetLayout(string $type, string $variant, array $user = [], string $event = 'reset'): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
+        $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
         $this->store->delete('layouts', $type, $variant);
         $this->clearCache();
 
@@ -259,12 +266,122 @@ final class SiteRepository
         return !empty($type['singleton']) ? ['detail'] : LayoutSchema::VARIANTS;
     }
 
+    public function themeRevisions(): array
+    {
+        return $this->listRevisions(['theme']);
+    }
+
+    public function regionRevisions(string $region): array
+    {
+        $this->assertRegion($region);
+
+        return $this->listRevisions(['regions', $region]);
+    }
+
+    public function layoutRevisions(string $type, string $variant): array
+    {
+        $this->assertVariant($this->requireType($type), $variant);
+
+        return $this->listRevisions(['layouts', $type, $variant]);
+    }
+
+    public function restoreThemeRevision(string $id, array $user = [], bool $canEditCss = true): ?array
+    {
+        $revision = $this->revisions->read('theme', $id);
+        if (!is_array($revision['snapshot']['theme'] ?? null)) {
+            return null;
+        }
+        $theme = $revision['snapshot']['theme'];
+        if (!$canEditCss) {
+            $theme['custom_css'] = $this->theme()['custom_css'];
+        }
+
+        return $this->saveTheme($theme, $user, 'restored');
+    }
+
+    public function restoreRegionRevision(string $region, string $id, array $user = []): ?array
+    {
+        $this->assertRegion($region);
+        $revision = $this->revisions->read('regions', $region, $id);
+        if (!is_array($revision['snapshot']['nodes'] ?? null)) {
+            return null;
+        }
+        $customized = ($revision['snapshot']['customized'] ?? true) === true;
+        $nodes = $customized
+            ? $this->saveRegion($region, $revision['snapshot']['nodes'], $user, 'restored')
+            : $this->resetRegion($region, $user, 'restored');
+
+        return ['nodes' => $nodes, 'customized' => $customized];
+    }
+
+    public function restoreLayoutRevision(string $type, string $variant, string $id, array $user = []): ?array
+    {
+        $this->assertVariant($this->requireType($type), $variant);
+        $revision = $this->revisions->read('layouts', $type, $variant, $id);
+        if (!is_array($revision['snapshot']['nodes'] ?? null)) {
+            return null;
+        }
+        $customized = ($revision['snapshot']['customized'] ?? true) === true;
+        $nodes = $customized
+            ? $this->saveLayout($type, $variant, $revision['snapshot']['nodes'], $user, 'restored')
+            : $this->resetLayout($type, $variant, $user, 'restored');
+
+        return ['nodes' => $nodes, 'customized' => $customized];
+    }
+
+    private function regionSnapshot(string $region): array
+    {
+        return ['nodes' => $this->region($region), 'customized' => $this->regionCustomized($region)];
+    }
+
+    private function layoutSnapshot(string $type, string $variant): array
+    {
+        return ['nodes' => $this->layout($type, $variant), 'customized' => $this->layoutCustomized($type, $variant)];
+    }
+
+    private function listRevisions(array $path): array
+    {
+        $revisions = $this->revisions->all(...$path);
+        usort($revisions, static fn(array $a, array $b): int => strcmp($b['id'], $a['id']));
+        foreach ($revisions as &$revision) {
+            $revision['customized'] = $revision['snapshot']['customized'] ?? null;
+            unset($revision['snapshot']);
+        }
+
+        return $revisions;
+    }
+
+    private function writeRevision(array $path, array $snapshot, array $user, string $event): void
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $id = $now->format('YmdHisu') . '-' . bin2hex(random_bytes(4));
+        $this->revisions->write([
+            'id' => $id,
+            'created_at' => $now->format('Y-m-d\TH:i:s.v\Z'),
+            'created_by' => $user['id'] ?? null,
+            'created_by_name' => $user['username'] ?? $user['id'] ?? null,
+            'event' => $event,
+            'snapshot' => $snapshot,
+        ], ...[...$path, $id]);
+
+        $max = (int) comet_config('site.max_revisions', 50);
+        if ($max < 0) {
+            return;
+        }
+        foreach (array_slice($this->listRevisions($path), $max) as $revision) {
+            $this->revisions->delete(...[...$path, $revision['id']]);
+        }
+    }
+
     /** Remove everything the website stored for a deleted content type. */
     public function forgetType(string $type): void
     {
         Security::assertSafeName($type);
         foreach (LayoutSchema::VARIANTS as $variant) {
             $this->store->delete('layouts', $type, $variant);
+            foreach ($this->listRevisions(['layouts', $type, $variant]) as $revision) {
+                $this->revisions->delete('layouts', $type, $variant, $revision['id']);
+            }
         }
 
         $directory = $this->store->path('layouts', $type);

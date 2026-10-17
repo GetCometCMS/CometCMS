@@ -216,6 +216,7 @@ storage/
   workspaces/{workspace}/media/
   workspaces/{workspace}/media-meta/
   workspaces/{workspace}/revisions/content/
+  workspaces/{workspace}/revisions/site/ - layout, header/footer and design history
   workspaces/{workspace}/trash/
   workspaces/{workspace}/site/       - website settings, theme, menus, header/footer, layouts
   users/{username}.json              - user accounts

@@ -411,7 +411,114 @@ test('deleting a content type removes its website layouts and route', function (
 
     $store = new JsonStore(comet_test_workspace_path() . '/site');
     assert_null($store->read('layouts', 'blog', 'card'));
+    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'card'));
     assert_false(isset($store->read('settings')['routes']['blog']));
+});
+
+test('layout saves archive defaults and previous versions and restores can be reversed', function (): void {
+    $site = comet_site_test_setup();
+    $user = ['id' => 'andi', 'username' => 'Andi'];
+    assert_same([], $site->layoutRevisions('about', 'detail'));
+    $first = $site->saveLayout('about', 'detail', [LayoutSchema::node('section', [], ['background' => 'accent'])], $user);
+    $defaultRevision = $site->layoutRevisions('about', 'detail')[0];
+    assert_false($defaultRevision['customized']);
+    assert_same('Andi', $defaultRevision['created_by_name']);
+    assert_false(isset($defaultRevision['snapshot']), 'History lists contain metadata rather than every layout snapshot.');
+
+    $second = $site->saveLayout('about', 'detail', [], $user);
+    $revision = $site->layoutRevisions('about', 'detail')[0];
+    assert_same(2, count($site->layoutRevisions('about', 'detail')));
+    assert_true($revision['customized']);
+    assert_same([], $second);
+    $restored = $site->restoreLayoutRevision('about', 'detail', $revision['id'], $user);
+    assert_same($first, $restored['nodes']);
+    assert_true($restored['customized']);
+    $undoRestore = $site->layoutRevisions('about', 'detail')[0];
+    assert_same('restored', $undoRestore['event']);
+    assert_same([], $site->restoreLayoutRevision('about', 'detail', $undoRestore['id'], $user)['nodes']);
+
+    assert_false($site->restoreLayoutRevision('about', 'detail', $defaultRevision['id'], $user)['customized']);
+    assert_false($site->layoutCustomized('about', 'detail'));
+    assert_null($site->restoreLayoutRevision('about', 'detail', 'missing', $user));
+    assert_same([], $site->layoutRevisions('blog', 'card'), 'History is scoped to the content type and variant.');
+    assert_null($site->restoreLayoutRevision('blog', 'card', $revision['id'], $user));
+    assert_throws(InvalidArgumentException::class, fn() => $site->restoreLayoutRevision('about', 'detail', '../theme', $user));
+});
+
+test('layout and region resets preserve the customized version for restoration', function (): void {
+    $site = comet_site_test_setup();
+    $layout = $site->saveLayout('about', 'detail', [], ['id' => 'andi']);
+    $site->resetLayout('about', 'detail', ['id' => 'andi']);
+    $revision = $site->layoutRevisions('about', 'detail')[0];
+    assert_same('reset', $revision['event']);
+    assert_same($layout, $site->restoreLayoutRevision('about', 'detail', $revision['id'])['nodes']);
+    assert_true($site->layoutCustomized('about', 'detail'));
+
+    $header = $site->saveRegion('header', [LayoutSchema::node('section')], ['id' => 'andi']);
+    $defaultRevision = $site->regionRevisions('header')[0];
+    $site->resetRegion('header', ['id' => 'andi']);
+    $revision = $site->regionRevisions('header')[0];
+    assert_same('reset', $revision['event']);
+    assert_same($header, $site->restoreRegionRevision('header', $revision['id'])['nodes']);
+    assert_true($site->regionCustomized('header'));
+    assert_false($site->restoreRegionRevision('header', $defaultRevision['id'])['customized']);
+    assert_false($site->regionCustomized('header'));
+    assert_same([], $site->regionRevisions('footer'));
+    assert_null($site->restoreRegionRevision('footer', $revision['id']));
+});
+
+test('theme revisions restore colors and css while preserving current css for non-admin restores', function (): void {
+    $site = comet_site_test_setup();
+    assert_same([], $site->themeRevisions());
+    $first = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.old {color:red}'], ['id' => 'andi']);
+    $site->saveTheme(['colors' => ['primary' => '#abcdef'], 'custom_css' => '.new {color:blue}']);
+    $revision = $site->themeRevisions()[0];
+    $theme = $site->restoreThemeRevision($revision['id'], ['id' => 'designer'], false);
+    assert_same('#123456', $theme['colors']['primary']);
+    assert_same('.new {color:blue}', $theme['custom_css']);
+    $theme = $site->restoreThemeRevision($revision['id'], ['id' => 'andi'], true);
+    assert_same($first['custom_css'], $theme['custom_css']);
+    assert_same('restored', $site->themeRevisions()[0]['event']);
+    $count = count($site->themeRevisions());
+    assert_null($site->restoreThemeRevision('missing'));
+    assert_same($count, count($site->themeRevisions()), 'Missing revisions must not change saved data or history.');
+});
+
+test('website revisions have configurable retention and survive reopening the repository', function (): void {
+    global $cometConfig;
+    $old = $cometConfig['site']['max_revisions'];
+    $site = comet_site_test_setup();
+    try {
+        $cometConfig['site']['max_revisions'] = 2;
+        $site->saveTheme(['base_size' => 14]);
+        $site->saveTheme(['base_size' => 15]);
+        $site->saveTheme(['base_size' => 16]);
+        $reopened = new SiteRepository();
+        $revisions = $reopened->themeRevisions();
+        assert_same(2, count($revisions));
+        $cometConfig['site']['max_revisions'] = -1;
+        assert_same(15, $reopened->restoreThemeRevision($revisions[0]['id'])['base_size']);
+        assert_same(14, $reopened->restoreThemeRevision($revisions[1]['id'])['base_size']);
+        assert_same(4, count($reopened->themeRevisions()));
+        $reopened->saveTheme(['base_size' => 17]);
+        assert_same(5, count($reopened->themeRevisions()));
+        $cometConfig['site']['max_revisions'] = 0;
+        $reopened->saveTheme(['base_size' => 18]);
+        assert_same([], $reopened->themeRevisions());
+    } finally {
+        $cometConfig['site']['max_revisions'] = $old;
+    }
+});
+
+test('website revision history is isolated by workspace', function (): void {
+    $one = comet_site_test_setup();
+    $one->saveTheme(['base_size' => 15]);
+    $revision = $one->themeRevisions()[0];
+    $workspace = new \CometCMS\Workspaces\WorkspaceContext('other-site');
+    $other = new SiteRepository($workspace);
+    assert_same([], $other->themeRevisions());
+    assert_null($other->restoreThemeRevision($revision['id']));
+    assert_same(15, $one->theme()['base_size']);
 });
 
 test('the locked admin role always holds new built-in permissions', function (): void {

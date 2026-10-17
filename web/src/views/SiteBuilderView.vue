@@ -89,6 +89,15 @@
           {{ t("site.builder.reset") }}
         </button>
 
+        <SiteHistory
+          :title="t('site.history.layoutTitle')"
+          :fetch-revisions="fetchRevisions"
+          :restore-revision="restoreRevision"
+          :dirty="builder.isDirty.value"
+          :busy="loading || saving || resetting"
+          @restored="onRevisionRestored"
+        />
+
         <button type="button" class="btn-primary relative" :disabled="saving || loading || !builder.isDirty.value" @click="save">
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <span v-if="builder.isDirty.value && !saving" class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
@@ -175,6 +184,7 @@ import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vu
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
+import SiteHistory from "../components/site/SiteHistory.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
@@ -330,6 +340,20 @@ async function reset() {
   }
 }
 
+function fetchRevisions() {
+  return target === "region" ? api.site.regionRevisions(name) : api.site.layoutRevisions(name, variant);
+}
+
+function restoreRevision(id) {
+  return target === "region" ? api.site.restoreRegionRevision(name, id) : api.site.restoreLayoutRevision(name, variant, id);
+}
+
+function onRevisionRestored(data) {
+  builder.load(data.nodes);
+  customized.value = data.customized;
+  site.markCustomized(target, name, variant, data.customized);
+}
+
 function goToVariant(next) {
   if (next === variant) return;
   if (builder.isDirty.value) {
@@ -346,6 +370,7 @@ function switchVariant(next) {
 }
 
 function onKeydown(event) {
+  if (event.target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
   const element = event.target;
   const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(element?.tagName) || element?.isContentEditable;
   const modifier = event.ctrlKey || event.metaKey;
