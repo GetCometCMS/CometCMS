@@ -185,6 +185,7 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-prose ul, .c-prose ol { padding-left: 1.4em; margin: 0 0 1em; }
 .c-prose li + li { margin-top: 0.25em; }
 .c-prose blockquote { margin: 0 0 1em; padding: 0.25em 0 0.25em 1em; border-left: 3px solid var(--c-primary); color: var(--c-muted); }
+.c-prose mark { background: color-mix(in srgb, var(--c-primary) 22%, transparent); color: inherit; padding: 0 0.15em; border-radius: 0.2em; }
 .c-prose img { border-radius: var(--radius-box); margin: 1em 0; }
 .c-prose pre, .c-code { background: var(--c-surface); padding: 1em; border-radius: var(--radius-box); overflow-x: auto; margin: 0 0 1em; }
 .c-prose table { width: 100%; border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }

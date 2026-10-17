@@ -12,7 +12,10 @@
     },
     "dependencies": {
         "@iconify/vue": "^5.0.0",
+        "@tiptap/extension-highlight": "^3.22.5",
         "@tiptap/extension-placeholder": "^3.22.5",
+        "@tiptap/extension-subscript": "^3.22.5",
+        "@tiptap/extension-superscript": "^3.22.5",
         "@tiptap/starter-kit": "^3.22.5",
         "@tiptap/vue-3": "^3.22.5",
         "flag-icons": "^7.5.0",

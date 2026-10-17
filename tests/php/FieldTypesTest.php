@@ -181,6 +181,16 @@ test('html fields sanitize unsafe markup', function (): void {
     assert_true(str_contains($html, 'rel="noopener noreferrer"'));
 });
 
+test('html fields keep editor formatting marks but drop inline styles', function (): void {
+    $field = new HtmlFieldType();
+    $html = $field->normalize(
+        '<p style="text-align: right">A <mark>hit</mark>, H<sub>2</sub>O and x<sup>2</sup></p>',
+        []
+    );
+
+    assert_same('<p>A <mark>hit</mark>, H<sub>2</sub>O and x<sup>2</sup></p>', $html);
+});
+
 test('relation fields validate target collection lookup', function (): void {
     $field = new RelationFieldType();
     $store = new JsonStore(WorkspaceContext::active()->path('content'));

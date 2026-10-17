@@ -11,9 +11,7 @@
       <textarea :id="syntaxId" :value="raw" rows="4" class="form-textarea w-full rounded-lg border-slate-300 font-mono text-xs" :aria-invalid="!!syntaxError" @input="updateSyntax($event.target.value)"></textarea>
     </template>
     <template v-else-if="textual">
-      <div v-if="target === 'html'" class="flex gap-1">
-        <button v-for="mark in ['bold', 'italic', 'bulletList', 'orderedList']" :key="mark" type="button" class="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100" :aria-label="t(`site.binding.${mark}`)" :aria-pressed="editor?.isActive(mark)" @click="format(mark)">{{ { bold: 'B', italic: 'I', bulletList: '•', orderedList: '1.' }[mark] }}</button>
-      </div>
+      <RichTextToolbar v-if="target === 'html'" ref="toolbar" :editor="editor" />
       <EditorContent :editor="editor" class="smart-editor rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs" />
     </template>
     <button v-else-if="isReference(content)" type="button" class="flex w-full items-center gap-2 rounded-lg border border-theme-200 bg-theme-50 px-2.5 py-2 text-left text-xs text-theme-800" @click="openPicker(content)"><Icon icon="mdi:database-outline" class="h-4 w-4 shrink-0" /><span class="break-words">{{ smartSummary(content) }}</span></button>
@@ -31,6 +29,8 @@ import { EditorContent, Node, mergeAttributes, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '@iconify/vue'
 import SmartReferencePicker from './SmartReferencePicker.vue'
+import RichTextToolbar from './RichTextToolbar.vue'
+import { richTextExtensions } from '../../../composables/richTextEditor.js'
 import { useSiteBuilder } from '../../../composables/useSiteBuilder.js'
 import { useI18n } from '../../../i18n/index.js'
 import { compatibleField, isReference, isSmartValue, parseReference, parseSmartValue, referenceSyntax, referenceConfig, serializeSmartValue, smartSummary } from '../../../composables/smartValues.js'
@@ -48,6 +48,7 @@ const syntaxId = `binding-syntax-${useId()}`
 const pickerOpen = ref(false)
 const pickerTrigger = ref(null)
 const pickerKey = ref(0)
+const toolbar = ref(null)
 const editing = ref(null)
 let editPosition = null
 let insertion = null
@@ -97,12 +98,18 @@ function output(value) {
   else emit('update:modelValue', value)
 }
 const editor = useEditor({
-  extensions: [StarterKit, ReferenceNode], content: editorHtml(content.value?.type === 'invalid' ? '' : content.value),
+  extensions: [...(props.target === 'html' ? richTextExtensions() : [StarterKit]), ReferenceNode], content: editorHtml(content.value?.type === 'invalid' ? '' : content.value),
   editorProps: {
-    attributes: { 'aria-label': props.label || t('site.binding.content'), class: 'outline-none min-h-[2rem]' },
+    attributes: { 'aria-label': props.label || t('site.binding.content'), class: props.target === 'html' ? 'outline-none min-h-[12rem]' : 'outline-none min-h-[2rem]' },
     handleClickOn(_view, _pos, node, nodePos) {
       if (node.type.name !== 'smartReference') return false
       openPicker(node.attrs.reference, nodePos)
+      return true
+    },
+    handleKeyDown(_view, event) {
+      if (props.target !== 'html' || event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return false
+      event.preventDefault()
+      toolbar.value?.openLink()
       return true
     },
     handleDOMEvents: { keydown(view, event) {
@@ -166,7 +173,6 @@ function clear() {
   if (props.target === 'link') emit('update:modelValue', { type: 'none' })
   else emit('update:modelValue', props.target === 'html' ? '<p></p>' : '')
 }
-function format(mark) { const command = { bold: 'toggleBold', italic: 'toggleItalic', bulletList: 'toggleBulletList', orderedList: 'toggleOrderedList' }[mark]; editor.value?.chain().focus()[command]().run() }
 </script>
 
 <style scoped>
@@ -175,4 +181,20 @@ function format(mark) { const command = { bold: 'toggleBold', italic: 'toggleIta
 .smart-editor :deep(p + p) { margin-top: 0.5rem; }
 .smart-editor :deep(ul) { list-style: disc; padding-left: 1rem; }
 .smart-editor :deep(ol) { list-style: decimal; padding-left: 1rem; }
+.smart-editor :deep(li > p) { margin: 0; }
+.smart-editor :deep(:is(h1, h2, h3, h4)) { font-weight: 600; line-height: 1.25; margin: 0.75rem 0 0.25rem; }
+.smart-editor :deep(:is(h1, h2, h3, h4):first-child) { margin-top: 0; }
+.smart-editor :deep(h1) { font-size: 1.25rem; }
+.smart-editor :deep(h2) { font-size: 1.1rem; }
+.smart-editor :deep(h3) { font-size: 0.95rem; }
+.smart-editor :deep(h4) { font-size: 0.85rem; }
+.smart-editor :deep(:is(p, h1, h2, h3, h4, ul, ol, blockquote, pre, hr) + :is(ul, ol, blockquote, pre, hr)) { margin-top: 0.5rem; }
+.smart-editor :deep(blockquote) { border-left: 3px solid rgb(148 163 184); padding-left: 0.6rem; color: rgb(100 116 139); }
+.smart-editor :deep(code) { border-radius: 0.2rem; background: rgb(148 163 184 / 0.2); padding: 0.05rem 0.25rem; font-family: ui-monospace, monospace; font-size: 0.9em; }
+.smart-editor :deep(pre) { border-radius: 0.375rem; background: rgb(15 23 42); color: rgb(226 232 240); padding: 0.5rem 0.6rem; overflow-x: auto; }
+.smart-editor :deep(pre code) { background: none; padding: 0; }
+.smart-editor :deep(hr) { border: 0; border-top: 1px solid rgb(148 163 184 / 0.6); margin: 0.75rem 0; }
+.smart-editor :deep(mark) { background: rgb(253 224 71 / 0.6); color: inherit; border-radius: 0.15rem; padding: 0 0.1rem; }
+.smart-editor :deep(a) { color: rgb(79 70 229); text-decoration: underline; text-underline-offset: 2px; }
+.smart-editor :deep(.ProseMirror) { max-height: 36rem; overflow-y: auto; resize: vertical; }
 </style>
