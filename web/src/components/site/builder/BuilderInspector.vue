@@ -55,18 +55,31 @@
       </template>
 
       <template v-else>
-        <section v-for="group in styleGroups" :key="group.key" class="space-y-3">
-          <h4 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ t(`site.styleGroup.${group.key}`) }}</h4>
-          <BuilderControl
-            v-for="key in group.keys"
-            :key="`${node.id}-s-${key}`"
-            :node="node"
-            :name="key"
-            group="style"
-            :def="styleSpec[key]"
-            :value="node.style?.[key] ?? styleSpec[key].default"
-            @update="(value) => builder.updateValue(node.id, 'style', key, value)"
-          />
+        <section v-for="group in styleGroups" :key="group.key" class="group">
+          <h4>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-2 rounded px-1 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
+              :aria-expanded="expandedStyleGroups[group.key]"
+              :aria-controls="`${styleGroupId}-${group.key}`"
+              @click="expandedStyleGroups[group.key] = !expandedStyleGroups[group.key]"
+            >
+              {{ t(`site.styleGroup.${group.key}`) }}
+              <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expandedStyleGroups[group.key] }" aria-hidden="true" />
+            </button>
+          </h4>
+          <div v-show="expandedStyleGroups[group.key]" :id="`${styleGroupId}-${group.key}`" class="mt-3 space-y-3">
+            <BuilderControl
+              v-for="key in group.keys"
+              :key="`${node.id}-s-${key}`"
+              :node="node"
+              :name="key"
+              group="style"
+              :def="styleSpec[key]"
+              :value="node.style?.[key] ?? styleSpec[key].default"
+              @update="(value) => builder.updateValue(node.id, 'style', key, value)"
+            />
+          </div>
         </section>
       </template>
     </div>
@@ -86,7 +99,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
@@ -107,6 +120,8 @@ const STYLE_GROUPS = [
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const tab = ref("content");
+const styleGroupId = `builder-style-${useId()}`;
+const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, true])));
 
 const node = computed(() => builder.selected.value);
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});

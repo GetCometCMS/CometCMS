@@ -13,11 +13,11 @@
     </div>
     <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
 
-    <section v-if="presets.length || layoutKinds.length">
+    <section v-if="presets.length || layoutKinds.length" class="group">
       <h3 class="mb-2">
         <button type="button" class="category-toggle" :aria-expanded="expanded.layout" :aria-controls="`${searchId}-layout`" @click="expanded.layout = !expanded.layout">
           {{ t("site.builder.layout") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.layout }" aria-hidden="true" />
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.layout }" aria-hidden="true" />
         </button>
       </h3>
       <div v-show="expanded.layout" :id="`${searchId}-layout`">
@@ -46,11 +46,11 @@
       </div>
     </section>
 
-    <section v-if="elementKinds.length">
+    <section v-if="elementKinds.length" class="group">
       <h3 class="mb-2">
         <button type="button" class="category-toggle" :aria-expanded="expanded.elements" :aria-controls="`${searchId}-elements`" @click="expanded.elements = !expanded.elements">
           {{ t("site.builder.elements") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.elements }" aria-hidden="true" />
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.elements }" aria-hidden="true" />
         </button>
       </h3>
       <div v-show="expanded.elements" :id="`${searchId}-elements`" class="grid grid-cols-2 gap-1.5">
@@ -66,11 +66,11 @@
       </div>
     </section>
 
-    <section v-if="showFields && (fields.length || !searchTerms.length)">
+    <section v-if="showFields && (fields.length || !searchTerms.length)" class="group">
       <h3 class="mb-2">
         <button type="button" class="category-toggle" :aria-expanded="expanded.fields" :aria-controls="`${searchId}-fields`" @click="expanded.fields = !expanded.fields">
           {{ templateOwner ? t("site.builder.itemFields", { field: templateOwnerLabel }) : t("site.builder.fields") }}
-          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.fields }" aria-hidden="true" />
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 opacity-0 transition-[opacity,transform] group-hover:opacity-100 group-focus-within:opacity-100" :class="{ 'rotate-90': expanded.fields }" aria-hidden="true" />
         </button>
       </h3>
       <div v-show="expanded.fields" :id="`${searchId}-fields`" class="space-y-1">
