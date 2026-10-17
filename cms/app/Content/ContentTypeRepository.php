@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Content;
 
 use CometCMS\Core\Security;
+use CometCMS\Site\SiteRepository;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -144,6 +145,7 @@ final class ContentTypeRepository
         $this->deleteDirectory($this->workspace->path('content') . '/' . $name);
         $this->deleteDirectory($this->workspace->path('trash') . '/content/' . $name);
         $this->deleteDirectory($this->workspace->path('revisions') . '/content/' . $name);
+        (new SiteRepository($this->workspace, $this))->forgetType($name);
     }
 
     private function deleteDirectory(string $path): void

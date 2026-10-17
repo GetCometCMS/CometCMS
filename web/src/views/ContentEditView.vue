@@ -11,6 +11,28 @@
         {{ editorTitle }}
       </h1>
       <div class="ml-auto flex items-center gap-2">
+        <a
+          v-if="!isNew && siteLinks?.enabled && siteLinks.routed && siteLinks.previewable"
+          :href="api.site.entryPreviewUrl(collection, entryId, currentLocale)"
+          target="_blank"
+          rel="noopener"
+          class="btn-secondary"
+          :title="t('site.entry.previewHint')"
+        >
+          <Icon icon="mdi:eye-outline" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
+        </a>
+        <a
+          v-if="!isNew && siteLinks?.url"
+          :href="siteLinks.url"
+          target="_blank"
+          rel="noopener"
+          class="btn-secondary"
+          :title="siteLinks.url"
+        >
+          <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.view") }}</span>
+        </a>
         <button
           v-if="!isNew"
           @click="openRevisions"
@@ -961,6 +983,28 @@ const previewingRevision = ref(null);
 
 const hasCustomFields = computed(
   () => Object.keys(customSchema.value).length > 0,
+);
+
+// Website preview and live links; absent when the website is off.
+const siteLinks = ref(null);
+
+async function loadSiteLinks() {
+  if (isNew.value || !entryId.value) {
+    siteLinks.value = null;
+    return;
+  }
+
+  try {
+    const res = await api.site.links(collection, entryId.value, currentLocale.value ? { locale: currentLocale.value } : {});
+    siteLinks.value = res.data;
+  } catch {
+    siteLinks.value = null;
+  }
+}
+
+watch(
+  () => [entryId.value, currentLocale.value, fullEntry.value?.status, fullEntry.value?.updated_at],
+  loadSiteLinks,
 );
 
 onMounted(async () => {

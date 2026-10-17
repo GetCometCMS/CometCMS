@@ -18,6 +18,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **No Composer.** Nothing to install on the server.
 - **No build step to deploy.** Run `make build` locally once, upload the `dist/` folder, done.
 - **Headless & API-first.** Use any consumer — Next.js, Astro, SvelteKit, a mobile app, plain `fetch`, anything.
+- **Optional website.** Turn any workspace into a server-rendered website: a layout per content type built in a visual builder, a theme, header, footer and menus. Still no Node and no build step.
 - **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
 - **Built-in localization.** Content types support multiple locales; the API resolves translations with a single `?locale=` parameter.
@@ -94,6 +95,12 @@ Content-Type: application/json
 ```
 
 The embedded MCP uses the same access tokens and permission grants as the REST API. It exposes content type, content entry, and media management tools directly from PHP, so hosted installs do not need Node, Composer, SSH, or the standalone MCP package. Media uploads are intentionally omitted from the embedded MCP; use the admin UI or REST API upload endpoint for files.
+
+## Website
+
+Each workspace can also publish its content as a website, rendered by PHP on the same server. Open **Website** in the admin, switch it on, choose which content types become pages and at which URLs (e.g. `/blog/{slug}`), and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; drafts can be previewed by signed-in editors.
+
+Pages are cached, set no cookies, ship no JavaScript and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
 
 ### Filtering, Sorting, and Pagination
 
@@ -175,6 +182,7 @@ Installation replaces release-owned application files and folders while preservi
 | `/admin/connect/access-tokens` | Access tokens          |
 | `/admin/backups`              | Backup and restore     |
 | `/admin/webhooks`             | Outbound webhooks      |
+| `/admin/website`              | Website settings & builder |
 | `/admin/update`               | GitHub release updates |
 
 ### Roles
@@ -209,6 +217,7 @@ storage/
   workspaces/{workspace}/media-meta/
   workspaces/{workspace}/revisions/content/
   workspaces/{workspace}/trash/
+  workspaces/{workspace}/site/       - website settings, theme, menus, header/footer, layouts
   users/{username}.json              - user accounts
   roles/{name}.json                  - customized role definitions
   backups/                           - saved backup ZIP files

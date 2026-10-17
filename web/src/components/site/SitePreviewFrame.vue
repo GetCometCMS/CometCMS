@@ -1,0 +1,144 @@
+<template>
+  <div ref="containerRef" class="relative h-full w-full overflow-hidden">
+    <div
+      class="mx-auto origin-top-left overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 transition-[width] duration-200"
+      :class="device === 'desktop' ? 'rounded-none' : 'rounded-xl'"
+      :style="frameBoxStyle"
+    >
+      <iframe
+        ref="iframeRef"
+        class="block border-0 bg-white"
+        :style="iframeStyle"
+        :title="title"
+        :srcdoc="srcdoc"
+        @load="onLoad"
+      ></iframe>
+    </div>
+
+    <div
+      v-if="loading"
+      class="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-medium text-white"
+    >
+      <span class="h-2 w-2 animate-pulse rounded-full bg-theme-400"></span>
+      {{ t("site.preview.updating") }}
+    </div>
+
+    <div
+      v-if="error"
+      class="absolute inset-x-3 bottom-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200"
+    >
+      {{ error }}
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { api } from "../../api/index.js";
+import { useI18n } from "../../i18n/index.js";
+
+const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
+
+const props = defineProps({
+  /** Body for POST /site/preview; null renders nothing. */
+  body: { type: Object, default: null },
+  device: { type: String, default: "desktop" },
+  delay: { type: Number, default: 250 },
+  title: { type: String, default: "Website preview" },
+  /** Let the parent handle link clicks (the builder selects nodes instead). */
+  interactive: { type: Boolean, default: false },
+});
+
+const emit = defineEmits(["ready", "rendered"]);
+const { t } = useI18n();
+const containerRef = ref(null);
+const iframeRef = ref(null);
+const srcdoc = ref("");
+const loading = ref(false);
+const error = ref("");
+const containerWidth = ref(0);
+const containerHeight = ref(0);
+let timer = null;
+let sequence = 0;
+let pendingScroll = 0;
+let resizeObserver = null;
+
+const deviceWidth = computed(() => DEVICE_WIDTHS[props.device] ?? DEVICE_WIDTHS.desktop);
+const scale = computed(() =>
+  containerWidth.value > 0 ? Math.min(1, containerWidth.value / deviceWidth.value) : 1,
+);
+const iframeStyle = computed(() => ({
+  width: `${deviceWidth.value}px`,
+  height: `${Math.max(320, containerHeight.value / scale.value)}px`,
+  transform: scale.value < 1 ? `scale(${scale.value})` : undefined,
+  transformOrigin: "top left",
+}));
+const frameBoxStyle = computed(() => ({
+  width: `${deviceWidth.value * scale.value}px`,
+  height: `${Math.max(320, containerHeight.value)}px`,
+}));
+
+async function render() {
+  if (!props.body) return;
+  const current = ++sequence;
+  loading.value = true;
+
+  try {
+    const res = await api.site.preview(props.body);
+    if (current !== sequence) return;
+    pendingScroll = iframeRef.value?.contentWindow?.scrollY ?? 0;
+    srcdoc.value = res.data?.html ?? "";
+    error.value = "";
+    emit("rendered");
+  } catch (err) {
+    if (current === sequence) error.value = err.message;
+  } finally {
+    if (current === sequence) loading.value = false;
+  }
+}
+
+function schedule(immediate = false) {
+  clearTimeout(timer);
+  timer = setTimeout(render, immediate ? 0 : props.delay);
+}
+
+function onLoad() {
+  const doc = iframeRef.value?.contentDocument;
+  if (!doc || !srcdoc.value) return;
+
+  if (pendingScroll > 0) {
+    iframeRef.value.contentWindow.scrollTo(0, pendingScroll);
+  }
+
+  if (!props.interactive) {
+    // Previews are for looking: following links would leave the preview.
+    doc.addEventListener("click", (event) => {
+      if (event.target.closest?.("a, label, input")) event.preventDefault();
+    }, true);
+  }
+
+  emit("ready", doc);
+}
+
+watch(() => props.body, () => schedule(), { deep: true });
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(([entry]) => {
+    containerWidth.value = entry.contentRect.width;
+    containerHeight.value = entry.contentRect.height;
+  });
+  if (containerRef.value) resizeObserver.observe(containerRef.value);
+  schedule(true);
+});
+
+onBeforeUnmount(() => {
+  clearTimeout(timer);
+  resizeObserver?.disconnect();
+});
+
+defineExpose({
+  refresh: () => schedule(true),
+  document: () => iframeRef.value?.contentDocument ?? null,
+  window: () => iframeRef.value?.contentWindow ?? null,
+});
+</script>

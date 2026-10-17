@@ -693,6 +693,7 @@ function stateKey(area, parsed) {
         : "media:*")
     );
   if (area === "users") return "users:*";
+  if (area === "site") return "site:*";
   return parsed.systemResource || "*";
 }
 
@@ -707,7 +708,7 @@ function resourceForCurrentSelection() {
     resource = selectedMediaCategory.value
       ? `media:category:${selectedMediaCategory.value}`
       : "media:*";
-  else if (selectedArea.value === "users") resource = "*";
+  else if (selectedArea.value === "users" || selectedArea.value === "site") resource = "*";
   else resource = selectedSystemResource.value || "*";
 
   return selectedWorkspace.value &&
@@ -738,6 +739,7 @@ function inferArea(actions, resource) {
     )
   )
     return "users";
+  if (actions.some((action) => action.startsWith("site."))) return "site";
   if (
     actions.some((action) =>
       [

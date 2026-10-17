@@ -94,6 +94,17 @@ const routes = [
     redirect: '/connect/api',
   },
   {
+    path: '/website/:tab(overview|pages|theme|header-footer|menus)?',
+    component: () => import('../views/WebsiteView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    // Full-screen builder for a content type layout or the header/footer.
+    path: '/website/builder/:target(layout|region)/:name/:variant?',
+    component: () => import('../views/SiteBuilderView.vue'),
+    meta: { requiresAuth: true, bare: true },
+  },
+  {
     path: '/workspaces',
     component: () => import('../views/WorkspacesView.vue'),
     meta: { requiresAuth: true },

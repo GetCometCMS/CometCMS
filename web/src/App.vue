@@ -1,5 +1,10 @@
 <template>
-  <AppLayout v-if="$route.meta.requiresAuth">
+  <div v-if="$route.meta.requiresAuth && $route.meta.bare" class="app-shell min-h-screen">
+    <router-view :key="$route.path" />
+    <ToastStack />
+  </div>
+
+  <AppLayout v-else-if="$route.meta.requiresAuth">
     <router-view v-slot="{ Component }">
       <transition name="page" mode="out-in">
         <component :is="Component" :key="$route.path" />
@@ -18,6 +23,7 @@
 import { onBeforeUnmount, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppLayout from "./components/AppLayout.vue";
+import ToastStack from "./components/ToastStack.vue";
 import { useAuthStore } from "./stores/auth.js";
 
 const auth = useAuthStore();

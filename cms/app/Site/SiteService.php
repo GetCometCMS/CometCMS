@@ -1,0 +1,244 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CometCMS\Site;
+
+use CometCMS\Core\Security;
+use CometCMS\Workspaces\WorkspaceContext;
+use CometCMS\Workspaces\WorkspaceRepository;
+
+/**
+ * Maps a request path to a website response.
+ *
+ * Matching order: robots.txt / sitemap.xml, an optional locale prefix, the
+ * homepage, fixed URLs (single pages and list pages), then collection
+ * patterns with a {slug}. Anything else renders the site's 404 page.
+ */
+final class SiteService
+{
+    public function __construct(private readonly SiteContext $ctx) {}
+
+    /**
+     * The workspace whose website answers for $host: a workspace that lists
+     * the host among its domains, otherwise the default workspace when its
+     * website is enabled and not limited to other domains.
+     */
+    public static function workspaceForHost(string $host): ?WorkspaceContext
+    {
+        $host = strtolower((string) preg_replace('/:\d+$/', '', trim($host)));
+        $registry = new WorkspaceRepository();
+        $default = $registry->getDefault();
+        $fallback = null;
+
+        foreach ($registry->all() as $workspace) {
+            $slug = (string) ($workspace['slug'] ?? '');
+            if ($slug === '' || !empty($workspace['archived'])) {
+                continue;
+            }
+
+            $context = new WorkspaceContext($slug);
+            if (!is_file($context->path('site') . '/settings.json')) {
+                continue;
+            }
+
+            $settings = (new SiteRepository($context))->settings();
+            if (!$settings['enabled']) {
+                continue;
+            }
+
+            if ($host !== '' && in_array($host, $settings['domains'], true)) {
+                return $context;
+            }
+
+            if ($slug === $default && $settings['domains'] === []) {
+                $fallback = $context;
+            }
+        }
+
+        return $fallback;
+    }
+
+    /** @return array{status: int, body: string, content_type: string, cacheable: bool} */
+    public function respond(string $path, array $query): array
+    {
+        $path = '/' . trim($path, '/');
+
+        if ($path === '/robots.txt') {
+            return $this->response(200, $this->robots(), 'text/plain; charset=utf-8');
+        }
+
+        if ($path === '/sitemap.xml') {
+            return $this->response(200, $this->sitemap(), 'application/xml; charset=utf-8');
+        }
+
+        [$locale, $path] = $this->splitLocale($path);
+        $this->ctx->locale = $locale;
+        $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
+        $renderer = new PageRenderer($this->ctx);
+
+        if ($path === '/') {
+            return $this->home($renderer, $page);
+        }
+
+        foreach ($this->ctx->site->types() as $name => $type) {
+            $route = $this->ctx->route($name);
+            if ($route === null) {
+                continue;
+            }
+
+            if (!empty($type['singleton']) && $route['pattern'] === $path) {
+                $entry = $this->ctx->singletonEntry($name);
+
+                return $entry === null ? $this->notFound($renderer, $path) : $this->html($renderer->entryPage($type, $entry, $page));
+            }
+
+            if (empty($type['singleton']) && $route['index_path'] !== '' && $route['index_path'] === $path) {
+                return $this->html($renderer->indexPage($type, $page));
+            }
+        }
+
+        foreach ($this->ctx->site->types() as $name => $type) {
+            $route = $this->ctx->route($name);
+            if ($route === null || !empty($type['singleton'])) {
+                continue;
+            }
+
+            $regex = '#^' . str_replace(preg_quote('{slug}', '#'), '([A-Za-z0-9_-]+)', preg_quote($route['pattern'], '#')) . '$#';
+            if (preg_match($regex, $path, $match)) {
+                $entry = $this->ctx->findEntry($name, $match[1]);
+                if ($entry !== null && ($entry['slug'] ?? '') === $match[1]) {
+                    return $this->html($renderer->entryPage($type, $entry, $page));
+                }
+            }
+        }
+
+        return $this->notFound($renderer, $path);
+    }
+
+    /** Draft preview of one entry for signed-in editors. */
+    public function previewEntry(string $type, string $identifier, string $locale = ''): ?string
+    {
+        $schema = $this->ctx->type($type);
+        $this->ctx->preview = true;
+        $this->ctx->previewBanner = true;
+
+        if ($schema === null || !$this->ctx->isPublicType($type)) {
+            return null;
+        }
+
+        if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
+            $this->ctx->locale = $locale;
+        }
+
+        $entry = $this->ctx->findEntry($type, $identifier, true);
+
+        return $entry === null ? null : (new PageRenderer($this->ctx))->entryPage($schema, $entry);
+    }
+
+    private function home(PageRenderer $renderer, int $page): array
+    {
+        $home = $this->ctx->settings()['homepage'];
+        $type = $home['type'] !== '' && $this->ctx->isPublicType($home['type']) ? $this->ctx->type($home['type']) : null;
+
+        if ($type === null) {
+            return $this->html($renderer->autoHome());
+        }
+
+        if (!empty($type['singleton'])) {
+            $entry = $this->ctx->singletonEntry($home['type']);
+
+            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
+        }
+
+        if ($home['entry'] !== '') {
+            $entry = $this->ctx->findEntry($home['type'], $home['entry']);
+
+            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
+        }
+
+        return $this->html($renderer->indexPage($type, $page));
+    }
+
+    /** @return array{0: string, 1: string} locale ('' for the default) and the remaining path */
+    private function splitLocale(string $path): array
+    {
+        $segments = explode('/', trim($path, '/'), 2);
+        $first = $segments[0] ?? '';
+
+        if ($first !== '' && $first !== $this->ctx->defaultLocale() && in_array($first, $this->ctx->locales(), true)) {
+            return [$first, '/' . ($segments[1] ?? '')];
+        }
+
+        return [$this->ctx->defaultLocale(), $path];
+    }
+
+    private function robots(): string
+    {
+        if (!empty($this->ctx->settings()['noindex'])) {
+            return "User-agent: *\nDisallow: /\n";
+        }
+
+        return "User-agent: *\nAllow: /\nDisallow: " . $this->ctx->basePath . "/admin\n\nSitemap: " . $this->ctx->absolute($this->ctx->basePath . '/sitemap.xml') . "\n";
+    }
+
+    private function sitemap(): string
+    {
+        $locales = $this->ctx->locales() ?: [''];
+        $urls = [];
+
+        foreach ($locales as $locale) {
+            $this->ctx->locale = $locale;
+            $urls[$this->ctx->homeUrl($locale)] = null;
+
+            foreach ($this->ctx->site->types() as $name => $type) {
+                $route = $this->ctx->route($name);
+                if ($route === null || !$route['sitemap']) {
+                    continue;
+                }
+
+                $typeLocales = (array) ($type['locales'] ?? []);
+                if ($locale !== '' && $typeLocales !== [] && !in_array($locale, $typeLocales, true)) {
+                    continue;
+                }
+
+                $index = $this->ctx->indexUrl($name, $locale);
+                if ($index !== null) {
+                    $urls[$index] ??= null;
+                }
+
+                foreach ($this->ctx->content->query($name, [], false)['data'] as $entry) {
+                    $url = $this->ctx->entryUrl($name, $entry, $locale);
+                    if ($url !== null) {
+                        $urls[$url] = (string) ($entry['updated_at'] ?? '');
+                    }
+                }
+            }
+        }
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+
+        foreach ($urls as $url => $modified) {
+            $xml .= '  <url><loc>' . Security::e($this->ctx->absolute($url)) . '</loc>'
+                . ($modified ? '<lastmod>' . Security::e(substr($modified, 0, 10)) . '</lastmod>' : '')
+                . '</url>' . "\n";
+        }
+
+        return $xml . '</urlset>' . "\n";
+    }
+
+    private function notFound(PageRenderer $renderer, string $path): array
+    {
+        return $this->response(404, $renderer->notFound($this->ctx->path($path)), 'text/html; charset=utf-8');
+    }
+
+    private function html(string $body): array
+    {
+        return $this->response(200, $body, 'text/html; charset=utf-8');
+    }
+
+    private function response(int $status, string $body, string $contentType): array
+    {
+        return ['status' => $status, 'body' => $body, 'content_type' => $contentType, 'cacheable' => !$this->ctx->preview];
+    }
+}

@@ -217,6 +217,36 @@
         />
       </div>
 
+      <!-- Website -->
+      <div
+        v-if="!isNew && websiteStatus && (websiteStatus.enabled || websiteStatus.can_manage)"
+        class="card flex flex-wrap items-center gap-3 p-6"
+      >
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600">
+          <Icon icon="mdi:web" class="h-5 w-5" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-slate-700">{{ t("site.typeCard.title") }}</h2>
+          <p class="mt-0.5 text-sm text-slate-500">
+            <template v-if="!websiteStatus.enabled">{{ t("site.typeCard.off") }}</template>
+            <template v-else-if="websiteRoute?.enabled">
+              {{ t("site.typeCard.published") }}
+              <code class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{{ websiteRoute.pattern }}</code>
+            </template>
+            <template v-else>{{ t("site.typeCard.notPublished") }}</template>
+          </p>
+        </div>
+        <template v-if="websiteStatus.can_manage">
+          <router-link :to="`/website/builder/layout/${form.name}/detail`" class="btn-secondary btn-sm">
+            <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
+            {{ t("site.typeCard.editLayout") }}
+          </router-link>
+          <router-link to="/website/pages" class="btn-secondary btn-sm">
+            {{ t("site.typeCard.settings") }}
+          </router-link>
+        </template>
+      </div>
+
       <div
         v-if="saveError"
         class="p-3 bg-red-50 text-red-700 rounded-lg text-sm"
@@ -388,6 +418,16 @@ watch(
 
 onBeforeUnmount(() => {
   apiEndpointStore.clearEndpoint(apiEndpointOwner);
+});
+
+// Whether (and where) this type is published on the website.
+const websiteStatus = ref(null);
+const websiteRoute = computed(() => websiteStatus.value?.types?.[form.value.name] ?? null);
+
+onMounted(() => {
+  api.site.status().then((res) => {
+    websiteStatus.value = res.data;
+  }).catch(() => {});
 });
 
 onMounted(async () => {

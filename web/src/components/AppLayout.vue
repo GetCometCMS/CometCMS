@@ -164,6 +164,16 @@
             {{ t("app.nav.media") }}
           </router-link>
 
+          <router-link
+            v-if="auth.can('site.manage')"
+            to="/website"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:web" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.website") }}
+          </router-link>
+
           <template
             v-if="contentNavTypes.length > 0 || allSidebarTypes.length === 0"
           >
@@ -332,33 +342,7 @@
         <img :src="logoSrc" alt="CometCMS" class="brand-logo h-7 w-auto" />
       </header>
 
-      <!-- Toast notifications -->
-      <div class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
-        <transition-group name="toast">
-          <div
-            v-for="toast in toastStore.toasts"
-            :key="toast.id"
-            :role="toast.type === 'error' ? 'alert' : 'status'"
-            :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
-            class="pointer-events-auto flex max-w-sm items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
-            :class="
-              toast.type === 'error'
-                ? 'bg-red-600 text-white'
-                : 'bg-slate-900 text-white'
-            "
-          >
-            <span class="min-w-0 flex-1">{{ toast.message }}</span>
-            <button
-              type="button"
-              class="-mr-1 shrink-0 rounded-md p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
-              :aria-label="t('common.dismiss')"
-              @click="toastStore.remove(toast.id)"
-            >
-              <Icon icon="mdi:close" class="h-4 w-4" />
-            </button>
-          </div>
-        </transition-group>
-      </div>
+      <ToastStack />
 
       <main class="flex-1 overflow-y-auto">
         <div class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-8 sm:py-8">
@@ -376,7 +360,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "../stores/auth.js";
-import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import {
   api,
@@ -387,10 +370,10 @@ import {
 import { logoForTheme } from "../theme.js";
 import { useI18n } from "../i18n/index.js";
 import ApiEndpointFooter from "./ApiEndpointFooter.vue";
+import ToastStack from "./ToastStack.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
-const toastStore = useToastStore();
 const typesStore = useContentTypesStore();
 const { t } = useI18n();
 const defaultCollectionIcon = "mdi:file-document-outline";
@@ -529,17 +512,6 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.toast-enter-active,
-.toast-leave-active {
-  transition: all 0.25s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
 /* Sidebar slide animation (mobile) */
 .sidebar-enter-active,
 .sidebar-leave-active {

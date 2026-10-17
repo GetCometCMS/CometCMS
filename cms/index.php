@@ -97,13 +97,14 @@ use CometCMS\Controllers\Admin\{
     DashboardController,
     MediaController,
     RolesController,
+    SiteController as AdminSiteController,
     TokensController,
     TrashController,
     UsersController,
     WebhooksController,
     WorkspacesController,
 };
-use CometCMS\Controllers\{AdminController, ApiController};
+use CometCMS\Controllers\{AdminController, ApiController, SiteController};
 use CometCMS\Core\Http;
 use CometCMS\Logging\Logger;
 use CometCMS\Mcp\McpController;
@@ -136,9 +137,6 @@ const SEG = '[A-Za-z0-9_-]+';
  * Patterns are matched against $path; named groups become positional args.
  */
 $routes = [
-    // Root redirect
-    ['GET', '#^/$#', static fn() => $http->redirect($http->url('/admin'))],
-
     // ── Auth ──────────────────────────────────────────────────────────────
     ['GET',  '#^/admin/api/me$#',     [AuthController::class, 'me']],
     ['POST', '#^/admin/api/login$#',  [AuthController::class, 'login']],
@@ -241,6 +239,22 @@ $routes = [
     ['PUT',  '#^/admin/api/webhooks$#',         [WebhooksController::class, 'update']],
     ['POST', '#^/admin/api/webhooks/run$#',     [WebhooksController::class, 'run']],
 
+    // ── Website ───────────────────────────────────────────────────────────
+    ['GET',    '#^/admin/api/site$#',                                         [AdminSiteController::class, 'index']],
+    ['GET',    '#^/admin/api/site/status$#',                                  [AdminSiteController::class, 'status']],
+    ['GET',    '#^/admin/api/site/links/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'links']],
+    ['PUT',    '#^/admin/api/site/settings$#',                                [AdminSiteController::class, 'updateSettings']],
+    ['PUT',    '#^/admin/api/site/theme$#',                                   [AdminSiteController::class, 'updateTheme']],
+    ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
+    ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
+    ['GET',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'layout']],
+    ['PUT',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'updateLayout']],
+    ['DELETE', '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'resetLayout']],
+    ['GET',    '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'region']],
+    ['PUT',    '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'updateRegion']],
+    ['DELETE', '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'resetRegion']],
+    ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
+
     // ── Profile & avatar ──────────────────────────────────────────────────
     ['POST',   '#^/admin/api/profile/avatar$#', [UsersController::class, 'avatarUpload']],
     ['DELETE', '#^/admin/api/profile/avatar$#', [UsersController::class, 'avatarDelete']],
@@ -332,6 +346,20 @@ try {
     if (preg_match('#^/media/(' . SEG . ')/(.+)$#', $path, $m) && $method === 'GET') {
         $api->useWorkspace($m[1], true);
         $api->mediaShow($m[2]);
+    }
+
+    // ── Website (opt-in per workspace) ────────────────────────────────────
+    if (preg_match('#^/_site/(' . SEG . ')/style\.css$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->stylesheet($m[1]);
+    }
+
+    if (in_array($method, ['GET', 'HEAD'], true) && SiteController::handles($path)) {
+        // Returns when no workspace publishes a website for this host.
+        (new SiteController($http))->page($path);
+    }
+
+    if ($path === '/') {
+        $http->redirect($http->url('/admin'));
     }
 
     $http->notFound();

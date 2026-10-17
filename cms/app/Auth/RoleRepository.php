@@ -33,6 +33,7 @@ final class RoleRepository
                     'webhooks.manage',
                     'workspaces.read',
                     'workspaces.manage',
+                    'site.manage',
                 ], 'resources' => ['*']],
                 ['effect' => 'allow', 'actions' => [
                     'schema.read',
@@ -312,7 +313,9 @@ final class RoleRepository
             'label' => $label !== '' ? $label : ucfirst($id),
             'system' => (bool) ($default['system'] ?? $role['system'] ?? false),
             'locked' => $id === 'admin' || (bool) ($default['locked'] ?? $role['locked'] ?? false),
-            'permissions' => $this->normalizePermissions($role['permissions'] ?? $default['permissions'] ?? []),
+            // The locked admin role always holds every built-in permission, so
+            // permissions added by updates reach installs seeded earlier.
+            'permissions' => $this->normalizePermissions($id === 'admin' ? $default['permissions'] : ($role['permissions'] ?? $default['permissions'] ?? [])),
             'created_at' => $role['created_at'] ?? null,
             'updated_at' => $role['updated_at'] ?? null,
         ], static fn(mixed $value): bool => $value !== null);

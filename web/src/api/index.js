@@ -1,4 +1,4 @@
-import { ADMIN_API_BASE } from '../basePath.js'
+import { ADMIN_API_BASE, ADMIN_BASE } from '../basePath.js'
 import { t } from '../i18n/index.js'
 
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
@@ -409,6 +409,29 @@ export const api = {
     get:    ()        => request('GET', '/webhooks'),
     update: (data)    => request('PUT', '/webhooks', data),
     run:    (webhook) => request('POST', '/webhooks/run', { webhook }),
+  },
+
+  // Website
+  site: {
+    get:          ()                     => request('GET',    '/site'),
+    status:       ()                     => request('GET',    '/site/status'),
+    links:        (type, id, params = {}) => request('GET',   withQuery(`/site/links/${type}/${encodeURIComponent(id)}`, params)),
+    saveSettings: (data)                 => request('PUT',    '/site/settings', data),
+    saveTheme:    (data)                 => request('PUT',    '/site/theme', data),
+    saveMenus:    (menus)                => request('PUT',    '/site/menus', { menus }),
+    layout:       (type, variant)        => request('GET',    `/site/layouts/${type}/${variant}`),
+    saveLayout:   (type, variant, nodes) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes }),
+    resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),
+    region:       (region)               => request('GET',    `/site/regions/${region}`),
+    saveRegion:   (region, nodes)        => request('PUT',    `/site/regions/${region}`, { nodes }),
+    resetRegion:  (region)               => request('DELETE', `/site/regions/${region}`),
+    preview:      (body)                 => request('POST',   '/site/preview', body),
+    /** Full-page draft preview of an entry, opened in a new tab. */
+    entryPreviewUrl: (type, id, locale = '') => {
+      const params = new URLSearchParams({ workspace: getActiveWorkspace() })
+      if (locale) params.set('locale', locale)
+      return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
+    },
   },
 
   // Profile (current user)
