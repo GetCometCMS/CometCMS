@@ -27,7 +27,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  */
 final class SiteRepository
 {
-    public const RESERVED_PREFIXES = ['/admin', '/api', '/mcp', '/media', '/media-thumbs', '/_site'];
+    public const RESERVED_PREFIXES = ['/admin', '/api', '/mcp', '/media', '/media-thumbs', '/_site', '/site-preview'];
 
     public const RESERVED_FILES = ['/sitemap.xml', '/robots.txt', '/favicon.ico'];
 

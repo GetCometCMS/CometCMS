@@ -47,6 +47,8 @@ export default defineConfig(({ command }) => ({
     // Proxy API calls to the PHP dev server during development.
     proxy: {
       '/admin/api': 'http://localhost:8000',
+      '/admin/site-preview': 'http://localhost:8000',
+      '/site-preview': 'http://localhost:8000',
       '/api': 'http://localhost:8000',
       '/media': 'http://localhost:8000',
     },

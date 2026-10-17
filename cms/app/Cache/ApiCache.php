@@ -48,7 +48,7 @@ final class ApiCache
 
         $payload = json_decode((string) file_get_contents($file), true);
 
-        if (!is_array($payload) || (int) ($payload['expires_at'] ?? 0) < time()) {
+        if (!is_array($payload) || (int) ($payload['expires_at'] ?? 0) <= time()) {
             @unlink($file);
 
             return null;
@@ -57,7 +57,8 @@ final class ApiCache
         return is_array($payload['body'] ?? null) ? $payload['body'] : null;
     }
 
-    public function put(string $key, array $body): void
+    /** An optional Unix timestamp can shorten the configured cache lifetime. */
+    public function put(string $key, array $body, ?int $expiresAt = null): void
     {
         if (!$this->enabled) {
             return;
@@ -68,7 +69,7 @@ final class ApiCache
         }
 
         file_put_contents($this->file($key), json_encode([
-            'expires_at' => time() + $this->ttl,
+            'expires_at' => min(time() + $this->ttl, $expiresAt ?? PHP_INT_MAX),
             'body' => $body,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL, LOCK_EX);
     }

@@ -14,7 +14,7 @@ Open **Website** in the admin sidebar (administrators only, permission `site.man
 | Page URL      | `/about`        | The fixed address of a single page.                               |
 | List page URL | `/blog`         | Optional page listing all entries of a collection, with paging.   |
 
-`/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs` and `/_site` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
+`/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
 
 The homepage can be a single page, one entry, or a collection's list page. Until you choose one, CometCMS shows an automatic overview with the newest entries of every published collection.
 
@@ -75,7 +75,7 @@ Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a descri
 
 ## Previewing drafts
 
-The entry editor shows **Preview** when the website is on; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get **Edit design**: it opens the content type's page layout in the builder with that entry as the preview. In the builder, the top bar links to the live page and back to the entry's content. Everyone else sees **View on website** instead.
+The entry editor shows **Preview** when the website is on; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get a **Page design** section between **Core** and **Fields**, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the top bar links to the live page and back to the entry's content. Published entries also offer **View on website** in the editor header.
 
 ## Domains and workspaces
 
@@ -83,7 +83,8 @@ The default workspace's website answers on the server's own address. To serve an
 
 ## Performance and security
 
-- Pages are cached like public API responses and the cache is cleared whenever content, media, a layout, the theme or a menu changes.
+- Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
+- Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
 - Pages are sent with a `Content-Security-Policy` that forbids scripts. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.

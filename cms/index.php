@@ -240,6 +240,12 @@ $routes = [
     ['POST', '#^/admin/api/webhooks/run$#',     [WebhooksController::class, 'run']],
 
     // ── Website ───────────────────────────────────────────────────────────
+    // Keep preview links without the admin prefix working. Redirect into the
+    // admin area so bootstrap starts the editor's session before rendering.
+    ['GET', '#^/site-preview/(' . SEG . ')/(' . SEG . ')$#', static function (string $type, string $id) use ($http): never {
+        $query = http_build_query($_GET);
+        $http->redirect($http->url('/admin/site-preview/' . $type . '/' . $id) . ($query !== '' ? '?' . $query : ''));
+    }],
     ['GET',    '#^/admin/api/site$#',                                         [AdminSiteController::class, 'index']],
     ['GET',    '#^/admin/api/site/status$#',                                  [AdminSiteController::class, 'status']],
     ['GET',    '#^/admin/api/site/links/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'links']],

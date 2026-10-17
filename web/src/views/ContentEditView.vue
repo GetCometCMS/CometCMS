@@ -22,17 +22,8 @@
           <Icon icon="mdi:eye-outline" class="h-4 w-4" />
           <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
         </a>
-        <router-link
-          v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
-          :to="designLink"
-          class="btn-secondary"
-          :title="t('site.entry.editDesignHint')"
-        >
-          <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
-          <span class="hidden sm:inline">{{ t("site.entry.editDesign") }}</span>
-        </router-link>
         <a
-          v-else-if="!isNew && siteLinks?.url"
+          v-if="!isNew && siteLinks?.url"
           :href="siteLinks.url"
           target="_blank"
           rel="noopener"
@@ -310,6 +301,29 @@
           </div>
         </div>
       </div>
+
+      <!-- The shared page layout is edited in the full-screen builder. -->
+      <section
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        class="card flex h-96 flex-col items-center justify-center gap-4 p-6 text-center"
+        aria-labelledby="page-design-heading"
+      >
+        <Icon icon="mdi:pencil-ruler" class="h-8 w-8 text-slate-400" />
+        <h2 id="page-design-heading" class="text-sm font-semibold text-slate-700">
+          {{ t("site.entry.pageDesign") }}
+        </h2>
+        <p id="page-design-hint" class="max-w-md text-sm text-slate-500">
+          {{ t("site.entry.editDesignHint") }}
+        </p>
+        <router-link
+          :to="designLink"
+          class="btn-primary"
+          aria-describedby="page-design-hint"
+        >
+          <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
+          {{ t("site.entry.editDesign") }}
+        </router-link>
+      </section>
 
       <!-- Custom fields -->
       <div v-if="hasCustomFields" class="card p-6 space-y-4">

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace CometCMS\Controllers;
 
-use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Http;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -50,25 +49,9 @@ final class SiteController
         }
 
         WorkspaceContext::setActive($workspace->slug());
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $cache = ApiCache::fromConfig($workspace);
-        // Only "page" changes the output; other query strings must not be able
-        // to fill the cache with copies of the same page.
-        $key = $cache->key('site|' . strtolower($host) . '|' . $path, $page > 1 ? 'page=' . $page : '');
-        $cached = $cache->get($key);
-
-        if ($cached !== null && isset($cached['status'], $cached['body'], $cached['content_type'])) {
-            $this->send($cached, 'HIT');
-        }
-
         $context = SiteContext::make(new SiteRepository($workspace), rtrim($this->http->url('/'), '/'), $this->origin());
-        $response = (new SiteService($context))->respond($path, ['page' => $page]);
-
-        if ($response['cacheable']) {
-            $cache->put($key, $response);
-        }
-
-        $this->send($response, 'MISS');
+        $response = (new SiteService($context))->respondCached($path, $_GET);
+        $this->send($response, $response['cache_status']);
     }
 
     public function stylesheet(string $workspace): never

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Workspaces;
 
+use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Storage\SettingsStore;
 
@@ -174,6 +175,8 @@ final class WorkspaceRepository
 
         $context = new WorkspaceContext($slug);
         $context->ensure();
+        // The workspace label is the website title until a title is configured.
+        ApiCache::fromConfig($context)->clear();
 
         return $this->find($slug, true) ?? $this->normalize(['slug' => $slug]);
     }

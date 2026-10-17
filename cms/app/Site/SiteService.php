@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Site;
 
+use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -18,6 +19,62 @@ use CometCMS\Workspaces\WorkspaceRepository;
 final class SiteService
 {
     public function __construct(private readonly SiteContext $ctx) {}
+
+    /** Public pages, including 404s, share the workspace's invalidation lifecycle. */
+    public function respondCached(string $path, array $query): array
+    {
+        $path = '/' . trim($path, '/');
+        $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
+        $cache = ApiCache::fromConfig($this->ctx->site->workspace());
+        // Only pagination changes the output. Include every URL component
+        // used by links and canonical URLs, even for subdirectory installs.
+        $key = $cache->key('site|' . json_encode([
+            $this->ctx->origin, $this->ctx->basePath, $path,
+        ]), $page > 1 ? 'page=' . $page : '');
+        $cached = $this->ctx->preview ? null : $cache->get($key);
+
+        if ($cached !== null && isset($cached['status'], $cached['body'], $cached['content_type'])) {
+            return $cached + ['cache_status' => 'HIT'];
+        }
+
+        $startedAt = time();
+        $response = $this->respond($path, ['page' => $page]);
+
+        if ($response['cacheable']) {
+            $cache->put($key, $response, $this->nextPublicationAt($startedAt));
+        }
+
+        return $response + ['cache_status' => $this->ctx->preview ? 'BYPASS' : 'MISS'];
+    }
+
+    /**
+     * A scheduled entry can affect any page through lists, menus or relations,
+     * including entries of types without their own website route. End the
+     * cache lifetime at the first publication, rather than waiting for TTL.
+     */
+    private function nextPublicationAt(int $after): ?int
+    {
+        $next = null;
+
+        foreach ($this->ctx->site->types() as $name => $type) {
+            if (!$this->ctx->isPublicType($name)) {
+                continue;
+            }
+
+            foreach ($this->ctx->content->all($name) as $entry) {
+                if (($entry['status'] ?? '') !== 'published') {
+                    continue;
+                }
+
+                $at = strtotime((string) ($entry['published_at'] ?? ''));
+                if ($at !== false && $at > $after && ($next === null || $at < $next)) {
+                    $next = $at;
+                }
+            }
+        }
+
+        return $next;
+    }
 
     /**
      * The workspace whose website answers for $host: a workspace that lists

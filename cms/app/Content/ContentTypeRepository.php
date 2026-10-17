@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Content;
 
+use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Storage\JsonStore;
@@ -101,6 +102,7 @@ final class ContentTypeRepository
         $schema = $this->normalize($name, $schema);
         $this->store->write($schema, $name);
         $this->ensureInOrder($name);
+        ApiCache::fromConfig($this->workspace)->clear();
     }
 
     public function reorder(array $names): array
@@ -130,6 +132,7 @@ final class ContentTypeRepository
         }
 
         $this->saveContentTypeOrder($orderedNames);
+        ApiCache::fromConfig($this->workspace)->clear();
 
         return $this->all();
     }
