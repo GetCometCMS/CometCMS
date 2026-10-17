@@ -421,6 +421,7 @@ export const api = {
     themeRevisions: () => request('GET', '/site/theme/revisions'),
     restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
     saveMenus:    (menus)                => request('PUT',    '/site/menus', { menus }),
+    cardTemplate: (type) => request('GET', `/site/card-template/${type}`),
     layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
     saveLayout:   (type, variant, nodes) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes }),
     resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),

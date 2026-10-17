@@ -9,7 +9,7 @@
       <button type="button" class="inspector-action" :title="t('site.builder.selectParent')" :disabled="!hasParent" @click="builder.selectParent()">
         <Icon icon="mdi:arrow-up-left" class="h-4 w-4" />
       </button>
-      <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" :disabled="locked" @click="builder.duplicate(node.id)">
+      <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" :disabled="locked || builder.isCard(node)" @click="builder.duplicate(node.id)">
         <Icon icon="mdi:content-copy" class="h-4 w-4" />
       </button>
       <button type="button" class="inspector-action hover:!text-red-600" :title="t('common.delete')" :disabled="locked" @click="builder.remove(node.id)">
@@ -53,7 +53,7 @@
       </template>
 
       <template v-else-if="tab === 'content'">
-        <ColumnLayoutPicker v-if="isStructure(node.kind)" :node="node" />
+        <ColumnLayoutPicker v-if="isStructure(node.kind) && !builder.isCard(node)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
         </div>
@@ -66,6 +66,23 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
+        <div v-if="node.kind === 'collection' && node.props.display === 'cards'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
+          <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
+          <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button v-if="!hasCard" type="button" class="btn-primary btn-sm" :disabled="!node.props.type || cardBusy" @click="customizeCard">
+              <Icon icon="mdi:card-text-outline" class="mr-1 h-4 w-4" />{{ t("site.card.customize") }}
+            </button>
+            <template v-else>
+              <button type="button" class="btn-primary btn-sm" @click="builder.select(node.children[0].id)">
+                <Icon icon="mdi:pencil-outline" class="mr-1 h-4 w-4" />{{ t("site.card.edit") }}
+              </button>
+              <button type="button" class="btn-secondary btn-sm" @click="builder.resetCard(node.id)">
+                <Icon icon="mdi:restore" class="mr-1 h-4 w-4" />{{ t("site.card.reset") }}
+              </button>
+            </template>
+          </div>
+        </div>
         <p v-if="visibleProps.length === 0" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
         <p v-if="node.kind === 'field' && builder.isTemplateField(node)" class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
           {{ t("site.builder.templateHint") }}
@@ -148,6 +165,17 @@ const component = computed(() => builder.componentOf(node.value));
 const locked = computed(() => !!node.value && builder.isLockedRoot(node.value.id));
 const hasParent = computed(() => !!(node.value && locate(builder.nodes.value, node.value.id)?.parent));
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
+const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
+const cardBusy = ref(false);
+
+async function customizeCard() {
+  cardBusy.value = true;
+  try {
+    await builder.customizeCard(node.value.id);
+  } finally {
+    cardBusy.value = false;
+  }
+}
 
 const fieldWarning = computed(() => {
   if (node.value?.kind !== "field") return "";
@@ -221,8 +249,9 @@ const visibleProps = computed(() => {
     return keys.filter((key) => !["fit", "position"].includes(key) || props.ratio);
   }
 
-  if (current.kind === "column" && props.direction !== "row") {
-    return keys.filter((key) => !["content_justify", "content_align"].includes(key));
+  if (current.kind === "column") {
+    // A card fills its place in the collection's grid; it has no width of its own.
+    return keys.filter((key) => (props.direction === "row" || !["content_justify", "content_align"].includes(key)) && (key !== "span" || !builder.isCard(current)));
   }
 
   if (current.kind === "menu" && props.always_button) {

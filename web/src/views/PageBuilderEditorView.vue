@@ -279,6 +279,16 @@ const builder = createSiteBuilder({
     // Unsaved changes are guarded like any other way out of the builder.
     edit: (id) => router.push({ path: `/page-builder/builder/component/${id}`, query: { back: route.fullPath } }),
   },
+  templateApi: {
+    load: async (type) => {
+      try {
+        return (await api.site.cardTemplate(type)).data;
+      } catch (err) {
+        toast.error(err.message);
+        return null;
+      }
+    },
+  },
   fieldApi: {
     // Only offered to those who may change the content type.
     can: (type) => auth.can("schema.read", `schema:${type}`) && auth.can("schema.update", `schema:${type}`),
@@ -388,7 +398,6 @@ const liveUrl = computed(() => {
   if (target === "component") return null;
   if (target === "region") return homeUrl.value;
   if (variant === "index") return indexUrl.value;
-  if (variant === "card") return null;
   return entryUrl.value;
 });
 const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
@@ -438,7 +447,7 @@ watch(previewEntry, async (entry) => {
 
 const variants = computed(() => {
   if (target !== "layout" || !builder.type.value) return [];
-  return builder.type.value.singleton ? ["detail"] : ["detail", "card", "index"];
+  return builder.type.value.singleton ? ["detail"] : ["detail", "index"];
 });
 // Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {

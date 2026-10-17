@@ -24,15 +24,16 @@ The homepage can be a single page, one entry, or a collection's list page, or **
 
 ## Layouts and the builder
 
-The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to three layouts:
+The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to two layouts:
 
 - **Page** — a single entry.
-- **Card** — how an entry looks inside lists, related-entry fields and entry lists elsewhere.
 - **List page** — the page at the list URL.
+
+How entries look inside an entry list is designed in that list itself (see [Entry cards](#entry-cards)).
 
 Layouts are generated from the content type's fields until you change them, so a new type looks reasonable immediately.
 
-The builder shows a live preview rendered by the same code as the real site. Layouts are built from **sections → rows → columns → elements**:
+The builder shows a live preview rendered by the same code as the real site. Layouts are built from **sections → rows → columns → elements**. A column can also hold column sets of its own (up to three levels deep), for example a card with an image beside its text. Columns of such a nested set switch between stacked and side by side by the width of the column they sit in, not by the screen width:
 
 | Element      | Shows                                                                         |
 | ------------ | ----------------------------------------------------------------------------- |
@@ -67,13 +68,19 @@ Zero blur keeps the image sharp. The effect applies to a separate image layer, s
 
 Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 
+### Entry cards
+
+An **Entry list** shown as cards repeats one card for each entry. At first that is the content type's **standard card**, generated from its fields. Choose **Customize card** in the inspector to give the list a card of its own: the first card in the preview becomes editable and every other entry follows it. A card is a column, so it can have a background, border, corners, shadow and padding, and it can hold elements and column sets. Inside a card, **Entry of this card** (`current`) is the entry the card shows, and the **Add** panel offers that content type's fields. **Use standard card** goes back to the standard card.
+
+To use the same card in several lists, right-click it and choose **Save as component…**, then place that component in another list. Related-entry fields shown as cards use the standard card of the related type. Card layouts from earlier versions keep showing as the standard card of their type.
+
 ### Reusable components
 
 A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Components appear in the **Components** group of **Add**, where you can drag or click them into any layout, header or footer, like other elements.
 
 A component is edited in one place. Choose **Edit component** in the inspector or the context menu, or open it from the **Components** tab of the website settings. Saving it updates every page that uses it. A placed component is one unit in the builder: its contents cannot be selected there. A column component placed in a column set keeps its own width. **Detach** replaces a placed component with an ordinary copy that you can change on its own, while the other places keep following the component.
 
-Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and it is only offered in that type's page and card layouts. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
+Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and it is only offered where an entry of that type is shown: that type's page layout and the cards of lists of that type. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
 
 A component that is still placed somewhere cannot be deleted. The **Components** tab lists where it is used, so you can remove or detach it there first. Components have their own version history, like layouts.
 
@@ -149,7 +156,7 @@ The picker offers these sources:
 | Specific entry | `{{ entry.services["stable_uid"].description }}` |
 | Site information | `{{ site.title }}`, `{{ site.tagline }}`, `{{ site.year }}` |
 
-A single-entry relation can be followed, such as `{{ current.author.bio }}`. Entry sources expose `url`, including `{{ current.author.url }}`. Specific entries use stable UIDs so slug changes do not break references. Inside a repeater, Current item means its row and Current entry means the containing entry. In a card layout, Current entry is that card's entry. Current entry is unavailable in shared header/footer and list-page editors; use a singleton or a specific entry there.
+A single-entry relation can be followed, such as `{{ current.author.bio }}`. Entry sources expose `url`, including `{{ current.author.url }}`. Specific entries use stable UIDs so slug changes do not break references. Inside a repeater, Current item means its row and Current entry means the containing entry. Inside an entry list's card, Current entry is that card's entry. Current entry is unavailable in shared header/footer and list-page editors; use a singleton or a specific entry there.
 
 Text can combine references with manual content, such as `Meet {{ current.author.title }}.` Images and link destinations require a complete reference of a compatible type. Multiple values need a specialized list/gallery/repeater display; a scalar element never silently selects the first value. Rich text and Markdown render their formatting when bound as the entire Text content. References embedded within other text become escaped plain text. Tags cannot be inserted into HTML attributes; use the dedicated image and link properties.
 

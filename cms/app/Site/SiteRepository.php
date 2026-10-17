@@ -285,6 +285,21 @@ final class SiteRepository
         return LayoutSchema::defaultLayout($schema, $variant);
     }
 
+    /**
+     * The standard card a collection shows for entries of $type when it has
+     * no card of its own: the type's card layout from before cards lived in
+     * collections, or one generated from the type's fields.
+     */
+    public function cardTemplate(string $type): array
+    {
+        $schema = $this->requireType($type);
+        $stored = $this->store->read('layouts', $type, 'card');
+
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
+            ? LayoutSchema::cardTemplate(LayoutSchema::normalize($stored['nodes'] ?? []))
+            : LayoutSchema::defaultCardTemplate($schema);
+    }
+
     // ─── Components ──────────────────────────────────────────────────────────
 
     /**
@@ -375,7 +390,8 @@ final class SiteRepository
             && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
 
         foreach ($this->types() as $name => $type) {
-            foreach ($this->variantsFor($type) as $variant) {
+            // Old card layouts still render as their type's standard card.
+            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
                 if ($uses($this->store->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
@@ -556,7 +572,7 @@ final class SiteRepository
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
-    /** Variants a content type can have: single pages have no card or index. */
+    /** Variants a content type can have: single pages have no index. */
     public function variantsFor(array $type): array
     {
         return !empty($type['singleton']) ? ['detail'] : LayoutSchema::VARIANTS;
@@ -676,7 +692,8 @@ final class SiteRepository
     public function forgetType(string $type): void
     {
         Security::assertSafeName($type);
-        foreach (LayoutSchema::VARIANTS as $variant) {
+        // Including card layouts from before cards lived in collections.
+        foreach ([...LayoutSchema::VARIANTS, 'card'] as $variant) {
             $this->store->delete('layouts', $type, $variant);
             foreach ($this->listRevisions(['layouts', $type, $variant]) as $revision) {
                 $this->revisions->delete('layouts', $type, $variant, $revision['id']);

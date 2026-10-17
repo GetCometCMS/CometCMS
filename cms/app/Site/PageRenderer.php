@@ -92,24 +92,11 @@ final class PageRenderer
      * Builder preview of one layout. Only the edited layout carries node
      * annotations; header and footer are shown for context.
      */
-    public function layoutPreview(array $type, string $variant, ?array $entry, array $samples = []): string
+    public function layoutPreview(array $type, string $variant, ?array $entry): string
     {
         $name = (string) $type['name'];
         $entry ??= $this->sampleEntry($type);
         $layout = $this->ctx->layout($name, $variant);
-
-        if ($variant === 'card') {
-            $state = $this->state(null, $type, $this->ctx->homeUrl(), 1, []) + ['depth' => 1, 'in_card' => true, 'sizes' => '(min-width: 1024px) 33vw, 100vw'];
-            $cards = '<article class="c-card" data-drop-root>' . $this->nodes->render($layout, ['entry' => $entry] + $state) . '</article>';
-            foreach (array_slice($samples, 0, 2) as $sample) {
-                $cards .= '<article class="c-card">' . $this->nodes->renderPlain($layout, ['entry' => $sample] + $state) . '</article>';
-            }
-
-            $main = '<section class="c-section c-section-contained c-py-xl c-bg-surface"><div class="c-container c-container-contained">'
-                . '<div class="c-grid c-cols-3">' . $cards . '</div></div></section>';
-
-            return $this->document(['title' => $this->pageTitle((string) $type['label']), 'noindex' => true, 'body_class' => 'c-view-card-preview'], $main, $state, false);
-        }
 
         if ($variant === 'index') {
             $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();

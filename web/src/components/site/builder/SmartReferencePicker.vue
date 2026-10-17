@@ -7,7 +7,7 @@
     <label class="block text-xs text-slate-600">
       {{ t('site.binding.source') }}
       <select ref="sourceSelect" :aria-label="t('site.binding.source')" v-model="source" class="form-select mt-1 w-full rounded-lg border-slate-300 text-xs" @change="resetSource">
-        <option v-if="builder.currentAvailable.value" value="current">{{ t('site.binding.current') }}</option>
+        <option v-if="context.currentAvailable" value="current">{{ context.collection ? t('site.binding.cardEntry') : t('site.binding.current') }}</option>
         <option v-if="owner" value="item">{{ t('site.binding.item') }}</option>
         <option value="single">{{ t('site.binding.single') }}</option>
         <option value="entry">{{ t('site.binding.entry') }}</option>
@@ -64,7 +64,8 @@ const emit = defineEmits(['select', 'close'])
 const builder = useSiteBuilder()
 const { t } = useI18n()
 const owner = computed(() => builder.isTemplateField(props.node) ? null : builder.templateOwner(props.node.id))
-const source = ref(props.initial?.source ?? (owner.value ? 'item' : builder.currentAvailable.value ? 'current' : 'single'))
+const context = computed(() => builder.entryContext(props.node.id))
+const source = ref(props.initial?.source ?? (owner.value ? 'item' : context.value.currentAvailable ? 'current' : 'single'))
 const collection = ref(props.initial?.collection ?? '')
 const entry = ref(props.initial?.entry ?? '')
 const missingUid = ref(false)
@@ -83,7 +84,7 @@ watch([source, collection, entry], () => { chosen.value = null; });
 const typeByName = (name) => builder.types.value.find((type) => type.name === name && type.visibility !== 'private')
 const canFollow = (config) => config.type === 'relation' && !config.multiple && path.value.length < 5 && !!typeByName(config.target)
 const shownFields = computed(() => {
-  let schema = source.value === 'current' ? builder.type.value : typeByName(collection.value)
+  let schema = source.value === 'current' ? context.value.type : typeByName(collection.value)
   let fields = source.value === 'item' ? builder.subfieldsOf(owner.value).map((field) => ({ key: field.key, label: field.label, config: field.config })) : null
   if (source.value === 'site') fields = ['title', 'tagline', 'year'].map((key) => ({ key, label: t(`site.binding.site.${key}`), config: { type: 'text' } }))
   for (const key of path.value) {

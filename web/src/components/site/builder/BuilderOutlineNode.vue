@@ -73,7 +73,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { nodeIcon } from "./kindIcons.js";
-import { contains, findNode, isStructure } from "../../../composables/layoutTree.js";
+import { contains, findNode } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -95,7 +95,7 @@ const rowRef = ref(null);
 const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
 const isHovered = computed(() => builder.hoverId.value === props.node.id);
-const isContainer = computed(() => isStructure(props.node.kind) || builder.isTemplateField(props.node));
+const isContainer = computed(() => builder.isDropContainer(props.node));
 const locked = computed(() => builder.isLockedRoot(props.node.id));
 const icon = computed(() => {
   if (props.node.kind === "field") {

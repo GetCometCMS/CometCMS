@@ -255,6 +255,7 @@ $routes = [
     ['POST',   '#^/admin/api/site/theme/revisions/(' . SEG . ')/restore$#',    [AdminSiteController::class, 'restoreThemeRevision']],
     ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
     ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
+    ['GET',    '#^/admin/api/site/card-template/(' . SEG . ')$#',             [AdminSiteController::class, 'cardTemplate']],
     ['GET',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'layout']],
     ['PUT',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'updateLayout']],
     ['DELETE', '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'resetLayout']],

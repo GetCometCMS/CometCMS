@@ -23,6 +23,7 @@ import {
   sectionPreset,
   shiftNode,
   stackColumns,
+  templateCollection,
   usesCurrentEntry,
 } from './layoutTree.js'
 
@@ -50,6 +51,9 @@ const MAX_FALLBACK = 2000
  * `componentApi` connects reusable components: create({ name, nodes, type })
  * stores a new component, load(id) returns one with its nodes.
  *
+ * `templateApi` connects collection cards: load(type) returns the standard
+ * card of a content type ({ nodes }), which a collection can take over.
+ *
  * `fieldApi` connects content types: can(type) tells whether the user may
  * change a content type, create({ type, key, config }) adds a field to it
  * and returns the type's saved schema.
@@ -57,7 +61,7 @@ const MAX_FALLBACK = 2000
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
  */
-export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked = null }) {
+export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
@@ -184,14 +188,26 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
 
   // ─── Field context ─────────────────────────────────────────────────────
 
-  function typeFields() {
-    const fields = type.value?.fields ?? {}
-    const slugField = type.value?.slug_field ?? 'slug'
+  /**
+   * The entry that "current" means at `id`: inside a collection's card it is
+   * the card's entry (of the collection's type), elsewhere the entry the
+   * edited layout shows.
+   */
+  function entryContext(id) {
+    const collection = id ? templateCollection(nodes.value, id) : null
+    if (collection) return { type: types.value.find((item) => item.name === collection.props?.type) ?? null, currentAvailable: true, collection }
+    return { type: type.value, currentAvailable: currentAvailable.value, collection: null }
+  }
+
+  function typeFields(id = null) {
+    const schema = entryContext(id).type
+    const fields = schema?.fields ?? {}
+    const slugField = schema?.slug_field ?? 'slug'
     const list = [
       { key: 'title', label: t('site.systemField.title'), type: 'text', config: { type: 'text' }, system: true },
     ]
 
-    if (!type.value?.singleton) {
+    if (!schema?.singleton) {
       list.push({ key: 'published_at', label: t('site.systemField.published_at'), type: 'datetime', config: { type: 'datetime' }, system: true })
     }
 
@@ -226,7 +242,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
     if (!node || node.kind !== 'field') return null
     const owner = templateOwner(node.id)
     return referenceConfig(node.props?.source, {
-      type: type.value,
+      type: entryContext(node.id).type,
       types: types.value,
       itemFields: owner ? subfieldsOf(owner) : [],
     })
@@ -237,6 +253,11 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
   }
 
   const dropOptions = { isTemplateField }
+
+  /** Whether drops can go inside a node: structure, item templates and lists without a card yet. */
+  function isDropContainer(node) {
+    return !!node && (isStructure(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+  }
 
   /** The single root of a component's tree stays where it is. */
   function isLockedRoot(id) {
@@ -270,7 +291,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
     const current = targetId ? findNode(nodes.value, targetId) : null
-    const inside = current && (isStructure(current.kind) || isTemplateField(current))
+    const inside = isDropContainer(current)
     const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
     if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
@@ -327,7 +348,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
   }
 
   function duplicate(id = selectedId.value) {
-    if (!id || isLockedRoot(id)) return
+    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id))) return
     let copy = null
     mutate((tree) => {
       copy = duplicateNode(tree, id)
@@ -349,7 +370,10 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
     if (!node) return null
     if (node.kind === 'row') return node
     if (node.kind === 'section') return node.children.find((child) => child.kind === 'row') ?? null
-    if (node.kind === 'column' || (node.kind === COMPONENT && node.props?.root === 'column')) return locate(nodes.value, node.id)?.parent ?? null
+    if (node.kind === 'column' || (node.kind === COMPONENT && node.props?.root === 'column')) {
+      const parent = locate(nodes.value, node.id)?.parent
+      return parent?.kind === 'row' ? parent : null
+    }
     return null
   }
 
@@ -462,7 +486,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
     const node = findNode(nodes.value, id)
     if (!canConvert(node)) return null
     const source = clone(node)
-    const component = await componentApi.create({ name, nodes: [source], type: usesCurrentEntry([source]) ? type.value?.name ?? '' : '' })
+    const component = await componentApi.create({ name, nodes: [source], type: usesCurrentEntry([source]) ? entryContext(id).type?.name ?? '' : '' })
     const { nodes: _tree, ...summary } = component
     components.value = [...components.value.filter((item) => item.id !== component.id), summary]
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -482,7 +506,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
   /** Whether the element's content can move into a new field of the entry it shows. */
   function canMakeField(node) {
     return !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
-      && (fieldApi.can?.(type.value.name) ?? true) && !isInsideTemplate(nodes.value, node.id)
+      && (fieldApi.can?.(type.value.name) ?? true) && !isInsideTemplate(nodes.value, node.id) && !entryContext(node.id).collection
   }
 
   /**
@@ -508,6 +532,41 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
     if (value !== '' && value.length <= MAX_FALLBACK) binding.filters.push({ name: 'fallback', value })
     updateValue(id, 'props', prop, binding)
     return key
+  }
+
+  // ─── Collection cards ──────────────────────────────────────────────────
+
+  /** Give the collection `id` a card of its own, starting from its type's standard card. */
+  async function customizeCard(id) {
+    const node = findNode(nodes.value, id)
+    if (node?.kind !== 'collection' || !node.props?.type || node.children?.length || !templateApi.load) return null
+    const card = (await templateApi.load(node.props.type))?.nodes?.[0]
+    if (!card) return null
+    const copy = cloneWithNewIds(card)
+    let placed = false
+    mutate((tree) => {
+      const target = findNode(tree, id)
+      if (target?.kind !== 'collection' || target.children?.length) return
+      target.children = [copy]
+      placed = true
+    })
+    if (!placed) return null
+    selectedId.value = copy.id
+    return copy
+  }
+
+  /** Go back to the type's standard card. */
+  function resetCard(id) {
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (node?.kind === 'collection') node.children = []
+    })
+    selectedId.value = id
+    keepSelection()
+  }
+
+  function isCard(node) {
+    return !!node && locate(nodes.value, node.id)?.parent?.kind === 'collection'
   }
 
   /** Open a component in its own builder (the view decides how). */
@@ -559,6 +618,7 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
   function nodeLabel(node) {
     if (!node) return ''
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
+    if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
     return kindLabel(node.kind)
   }
@@ -603,7 +663,8 @@ export function createSiteBuilder({ t, componentApi = {}, fieldApi = {}, linked 
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, linkedChanged, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,
-    subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
+    subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
+    customizeCard, resetCard, isCard,
     updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,

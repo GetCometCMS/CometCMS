@@ -14,6 +14,7 @@ use CometCMS\Site\PageRenderer;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteService;
+use CometCMS\Site\SmartValue;
 use CometCMS\Site\Theme;
 use CometCMS\Storage\JsonStore;
 
@@ -86,7 +87,7 @@ test('layout schema drops unknown kinds, misplaced nodes and unsafe values', fun
                 ['kind' => 'column', 'props' => ['span' => ['mobile' => 40, 'tablet' => 6]], 'children' => [
                     ['kind' => 'text', 'props' => ['html' => '<p onclick="x()">Hi<script>alert(1)</script></p>']],
                     ['kind' => 'button', 'props' => ['link' => ['type' => 'url', 'url' => 'javascript:alert(1)']]],
-                    ['kind' => 'row'],
+                    ['kind' => 'section'],
                     ['kind' => 'marquee'],
                     ['kind' => 'field', 'props' => ['field' => 'steps'], 'children' => [
                         ['kind' => 'field', 'props' => ['field' => 'heading'], 'children' => [['kind' => 'text']]],
@@ -116,6 +117,67 @@ test('layout schema drops unknown kinds, misplaced nodes and unsafe values', fun
     assert_same([], $template[0]['children'], 'Item templates cannot nest.');
 });
 
+test('rows nest inside columns up to a depth and collections repeat one card', function (): void {
+    $nest = static function (int $depth) use (&$nest): array {
+        return LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], $depth > 1 ? [$nest($depth - 1)] : [])]);
+    };
+    $column = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', [], [], [
+            $nest(LayoutSchema::MAX_ROW_DEPTH + 2),
+            LayoutSchema::node('collection', ['type' => 'blog'], [], [LayoutSchema::node('column'), LayoutSchema::node('column'), LayoutSchema::node('heading')]),
+        ]),
+    ])])])[0]['children'][0]['children'][0];
+
+    $depth = 0;
+    for ($node = $column['children'][0]; $node !== null; $node = $node['children'][0]['children'][0] ?? null) {
+        $depth++;
+    }
+    assert_same(LayoutSchema::MAX_ROW_DEPTH, $depth, 'Rows deeper than the limit are dropped.');
+    assert_same(['column'], array_column($column['children'][1]['children'], 'kind'), 'A collection keeps one card.');
+});
+
+test('collections render their own card for every entry', function (): void {
+    $site = comet_site_test_setup();
+    ContentRepository::make()->save('blog', ['title' => 'Second post', 'slug' => 'second', 'status' => 'published'], comet_site_test_user());
+    $card = LayoutSchema::node('column', [], ['shadow' => 'md'], [
+        LayoutSchema::node('text', ['html' => ['type' => 'template', 'parts' => ['<p>Card for ', SmartValue::reference('title'), '</p>']]]),
+        LayoutSchema::node('row', [], [], [
+            LayoutSchema::node('column', ['span' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 6]], [], [LayoutSchema::node('text', ['html' => '<p>Left</p>'])]),
+            LayoutSchema::node('column', ['span' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 6]], [], [LayoutSchema::node('text', ['html' => '<p>Right</p>'])]),
+        ]),
+    ]);
+    $site->saveLayout('blog', 'index', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', ['span' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 6]], [], [
+            LayoutSchema::node('collection', ['type' => 'blog'], [], [$card]),
+        ]),
+    ])])]);
+
+    $html = comet_site_test_get('/blog')['body'];
+    assert_true(str_contains($html, 'Card for Second post') && str_contains($html, 'Card for Hello &lt;script&gt;'), 'Current entry is the entry of each card.');
+    assert_same(2, substr_count($html, 'c-row-nested'), 'Rows inside the card are nested rows.');
+    assert_same(4, substr_count($html, 'c-cd-col-6'), 'Nested columns switch by their row width.');
+    assert_true(str_contains($html, 'c-d-col-6'), 'Top-level columns keep switching by the screen width.');
+});
+
+test('collections without a card of their own show the standard card', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveLayout('blog', 'index', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [
+        LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['type' => 'blog'])]),
+    ])])]);
+    assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Hello &lt;script&gt;'), 'The generated card shows the title.');
+
+    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [
+        LayoutSchema::node('section', [], ['background' => 'accent', 'padding_y' => 'xl'], [LayoutSchema::node('row', [], [], [
+            LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Legacy card</p>'])]),
+        ])]),
+    ]], 'layouts', 'blog', 'card');
+    $template = $site->cardTemplate('blog');
+    assert_same(['column'], array_column($template, 'kind'));
+    assert_same(['padding_y' => 'xl', 'background' => 'accent'], $template[0]['style'], 'The card keeps the section look columns support.');
+    assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'An old card layout keeps rendering.');
+});
+
 test('default layouts are generated from the content type fields', function (): void {
     comet_site_test_setup();
     $site = new SiteRepository();
@@ -127,7 +189,8 @@ test('default layouts are generated from the content type fields', function (): 
 
     assert_true(str_contains(json_encode($site->layout('blog', 'index')), '"collection"'));
     assert_false($site->layoutCustomized('blog', 'detail'));
-    assert_throws(InvalidArgumentException::class, fn() => $site->layout('about', 'card'));
+    assert_throws(InvalidArgumentException::class, fn() => $site->layout('about', 'index'));
+    assert_throws(InvalidArgumentException::class, fn() => $site->layout('blog', 'card'), 'Cards live in collections now.');
 });
 
 test('website settings reject reserved, malformed and duplicate URLs', function (): void {
@@ -491,14 +554,16 @@ test('columns lay out their elements underneath each other or side by side', fun
 test('deleting a content type removes its website layouts and route', function (): void {
     comet_site_test_setup();
     $site = new SiteRepository();
-    $site->saveLayout('blog', 'card', []);
-    assert_true($site->layoutCustomized('blog', 'card'));
+    $site->saveLayout('blog', 'index', []);
+    assert_true($site->layoutCustomized('blog', 'index'));
+    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
 
     (new ContentTypeRepository())->delete('blog');
 
-    $store = new JsonStore(comet_test_workspace_path() . '/site');
-    assert_null($store->read('layouts', 'blog', 'card'));
-    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'card'));
+    assert_null($store->read('layouts', 'blog', 'index'));
+    assert_null($store->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
+    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });
 
@@ -527,8 +592,8 @@ test('layout saves archive defaults and previous versions and restores can be re
     assert_false($site->restoreLayoutRevision('about', 'detail', $defaultRevision['id'], $user)['customized']);
     assert_false($site->layoutCustomized('about', 'detail'));
     assert_null($site->restoreLayoutRevision('about', 'detail', 'missing', $user));
-    assert_same([], $site->layoutRevisions('blog', 'card'), 'History is scoped to the content type and variant.');
-    assert_null($site->restoreLayoutRevision('blog', 'card', $revision['id'], $user));
+    assert_same([], $site->layoutRevisions('blog', 'index'), 'History is scoped to the content type and variant.');
+    assert_null($site->restoreLayoutRevision('blog', 'index', $revision['id'], $user));
     assert_throws(InvalidArgumentException::class, fn() => $site->restoreLayoutRevision('about', 'detail', '../theme', $user));
 });
 

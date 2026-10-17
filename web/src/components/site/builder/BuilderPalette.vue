@@ -73,7 +73,7 @@
     <BuilderGroup
       v-if="showFields && (fields.length || !searchTerms.length)"
       v-model:open="expanded.fields"
-      :title="templateOwner ? t('site.builder.itemFields', { field: templateOwnerLabel }) : t('site.builder.fields')"
+      :title="templateOwner ? t('site.builder.itemFields', { field: templateOwnerLabel }) : context.collection ? t('site.builder.cardFields', { type: context.type?.label ?? context.type?.name ?? '' }) : t('site.builder.fields')"
       content-class="mt-2 space-y-1"
     >
       <PaletteItem
@@ -144,7 +144,7 @@ const layoutKinds = computed(() => ["row", "column"].filter((kind) => matches(
  */
 const componentItems = computed(() => builder.components.value.filter((component) =>
   component.id !== builder.componentId.value
-  && (!component.type || (builder.currentAvailable.value && component.type === builder.type.value?.name))
+  && (!component.type || (context.value.currentAvailable && component.type === context.value.type?.name))
   && matches(t("site.component.group"), component.name, builder.kindLabel(component.root)),
 ));
 
@@ -160,9 +160,15 @@ const templateOwner = computed(() => {
   return [...ancestors(builder.nodes.value, node.id)].reverse().find((item) => item.kind === "field") ?? null;
 });
 const templateOwnerLabel = computed(() => (templateOwner.value ? builder.nodeSummary(templateOwner.value) : ""));
-const showFields = computed(() => props.withFields || templateOwner.value !== null);
+/** What "current" means at the selection: inside a collection's card, the card's entry. */
+const context = computed(() => builder.entryContext(builder.selectedId.value));
+const showFields = computed(() => props.withFields || templateOwner.value !== null || context.value.collection !== null);
 const availableFields = computed(() =>
-  templateOwner.value ? builder.subfieldsOf(templateOwner.value) : props.withFields ? builder.typeFields() : [],
+  templateOwner.value
+    ? builder.subfieldsOf(templateOwner.value)
+    : props.withFields || context.value.collection
+      ? builder.typeFields(builder.selectedId.value)
+      : [],
 );
 const fields = computed(() => availableFields.value.filter((field) => matches(
   field.label, field.key, field.type, field.system ? t("site.builder.system") : "",

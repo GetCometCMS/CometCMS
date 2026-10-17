@@ -238,4 +238,36 @@ describe('builder content fields', () => {
     builder.undo()
     expect(builder.nodes.value[0].children[0].children[0].children[0].props.text).toBe('Our story')
   })
+
+  it('designs collection cards in place with the fields of the listed type', async () => {
+    let builder
+    const card = { id: 'std', kind: 'column', props: {}, style: { shadow: 'md' }, children: [{ id: 'std-t', kind: 'text', props: { html: reference('title') }, style: {}, children: [] }] }
+    const templateApi = { load: async (type) => (type === 'posts' ? { nodes: [card] } : null) }
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, templateApi }); return () => null } }))
+    builder.spec.value = { root: ['section'], item_elements: [], kinds: {
+      section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] }, column: { props: {}, children: ['text', 'collection', 'row'] },
+      text: { props: { html: { default: '' } }, children: [] }, collection: { props: { type: { default: '' } }, children: ['column'] },
+    } }
+    builder.type.value = { name: 'pages', fields: {} }
+    builder.currentAvailable.value = false
+    builder.types.value = [builder.type.value, { name: 'posts', fields: { intro: { type: 'text' } } }]
+    const list = builder.make('collection', { type: 'posts' })
+    builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [list])])])])
+
+    const copy = await builder.customizeCard(list.id)
+    expect(copy.id).not.toBe('std')
+    expect(copy.children[0].id).not.toBe('std-t')
+    expect(builder.selectedId.value).toBe(copy.id)
+    expect(builder.nodeLabel(copy)).toBe('site.kind.card')
+    expect(builder.entryContext(copy.children[0].id)).toMatchObject({ type: { name: 'posts' }, currentAvailable: true })
+    expect(builder.entryContext(list.id)).toMatchObject({ type: { name: 'pages' }, currentAvailable: false })
+    expect(builder.typeFields(copy.id).map((field) => field.key)).toContain('intro')
+    builder.duplicate(copy.id)
+    expect(builder.nodes.value[0].children[0].children[0].children[0].children).toHaveLength(1)
+
+    builder.resetCard(list.id)
+    expect(builder.nodes.value[0].children[0].children[0].children[0].children).toEqual([])
+    builder.undo()
+    expect(builder.nodes.value[0].children[0].children[0].children[0].children).toHaveLength(1)
+  })
 })

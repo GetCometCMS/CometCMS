@@ -158,6 +158,15 @@ final class SiteController extends BaseController
         $this->json(['data' => $menus]);
     }
 
+    /** The standard card of a type, for a collection that gets a card of its own. */
+    public function cardTemplate(string $type): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, 'detail');
+
+        $this->json(['data' => ['nodes' => LayoutSchema::withNewIds($this->site->cardTemplate($type))]]);
+    }
+
     public function layout(string $type, string $variant): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
@@ -462,16 +471,7 @@ final class SiteController extends BaseController
             $entry = $context->singletonEntry($type, true);
         }
 
-        $samples = [];
-        if ($variant === 'card') {
-            foreach ($context->query($type, ['limit' => 3, 'sort' => '-published_at'])['data'] as $sample) {
-                if (($sample['slug'] ?? '') !== ($entry['slug'] ?? null)) {
-                    $samples[] = $context->localize($type, $sample);
-                }
-            }
-        }
-
-        $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry, $samples)]]);
+        $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry)]]);
     }
 
     /** Full-page draft preview of one entry, opened from the entry editor. */

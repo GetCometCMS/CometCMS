@@ -108,7 +108,7 @@ import { Icon } from "@iconify/vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useI18n } from "../../i18n/index.js";
 
-const VARIANT_ICONS = { detail: "mdi:file-document-outline", card: "mdi:card-text-outline", index: "mdi:view-grid-outline" };
+const VARIANT_ICONS = { detail: "mdi:file-document-outline", index: "mdi:view-grid-outline" };
 
 const props = defineProps({
   /** Website settings of this type, or null when they cannot be edited. */
@@ -130,7 +130,7 @@ const { t } = useI18n();
 
 const route = computed(() => props.modelValue ?? props.status?.types?.[props.name] ?? {});
 const editable = computed(() => !!props.modelValue && !!props.status?.can_manage && props.visibility !== "private");
-const variants = computed(() => (props.singleton ? ["detail"] : ["detail", "card", "index"]));
+const variants = computed(() => (props.singleton ? ["detail"] : ["detail", "index"]));
 
 // Follow the current route, including changes not yet saved.
 const summary = computed(() => {

@@ -56,7 +56,7 @@ let syncing = false
 const incompatible = computed(() => {
   const refs = isReference(content.value) ? [content.value] : content.value?.parts?.filter(isReference) ?? []
   const owner = builder.templateOwner(props.node.id)
-  return refs.some((value) => !compatibleField(referenceConfig(value, { type: builder.type.value, types: builder.types.value, itemFields: owner ? builder.subfieldsOf(owner) : [] }), props.target))
+  return refs.some((value) => !compatibleField(referenceConfig(value, { type: builder.entryContext(props.node.id).type, types: builder.types.value, itemFields: owner ? builder.subfieldsOf(owner) : [] }), props.target))
 })
 const ReferenceNode = Node.create({
   name: 'smartReference', group: 'inline', inline: true, atom: true, selectable: true,

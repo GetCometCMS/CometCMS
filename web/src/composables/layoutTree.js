@@ -1,7 +1,9 @@
 // Pure helpers for website layout trees.
 //
 // A layout is a list of nodes shaped { id, kind, props, style, children }:
-// section > row > column > element. The schema ("spec") comes from the server
+// section > row > column > element. Columns may hold rows of their own (up to
+// spec.max_row_depth deep), and a collection holds one column: the card it
+// repeats for each entry. The schema ("spec") comes from the server
 // (LayoutSchema::spec()) and decides which kinds may contain which. All
 // mutating helpers change the tree in place; the builder snapshots the tree
 // for undo/redo.
@@ -90,7 +92,21 @@ export function canContain(spec, parent, kind, { isTemplateField = () => false, 
   if (parent.kind === 'field') {
     return !insideTemplate && isTemplateField(parent) && (spec?.item_elements ?? []).includes(kind)
   }
+  // A collection repeats a single card.
+  if (parent.kind === 'collection' && (parent.children?.length ?? 0) > 0) return false
   return allowedChildren(spec, parent.kind).includes(kind)
+}
+
+/** How many rows a node at `parentId` would sit in (the parent itself included). */
+export function rowDepth(nodes, parentId) {
+  if (parentId === null) return 0
+  const parent = findNode(nodes, parentId)
+  return [...ancestors(nodes, parentId), parent].filter((node) => placementKind(node) === 'row').length
+}
+
+/** The collection whose card contains `id`, if any. */
+export function templateCollection(nodes, id) {
+  return ancestors(nodes, id).findLast((node) => node.kind === 'collection') ?? null
 }
 
 export function walk(nodes, visit, parent = null, depth = 0) {
@@ -207,6 +223,7 @@ export function resolveDrop(spec, nodes, node, targetId, position, options = {})
     }
     if (insideTemplate && !(spec?.item_elements ?? []).includes(placementKind(node))) return null
     const placed = wrapFor(spec, parent ? parent.kind : ROOT, node)
+    if (placed && parent && placementKind(placed) === 'row' && rowDepth(nodes, parent.id) > (spec?.max_row_depth ?? 0)) return null
     return placed ? { parentId: parent ? parent.id : null, index, node: placed } : null
   }
 

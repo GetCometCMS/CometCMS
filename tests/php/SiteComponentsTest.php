@@ -136,16 +136,21 @@ test('components in use cannot be deleted and deleting removes their history', f
     $component = $site->createComponent('Promo', [comet_component_test_section([['kind' => 'heading']])]);
     $site->saveComponent($component['id'], [comet_component_test_section([['kind' => 'text']])]);
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id'])]);
-    $site->saveLayout('blog', 'card', [comet_component_test_instance('i2', $component['id'])]);
+    $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
+    // A card layout from before cards lived in collections still renders as the standard card.
+    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [comet_component_test_instance('i3', $component['id'])]], 'layouts', 'blog', 'card');
 
     assert_same([
+        ['target' => 'layout', 'type' => 'blog', 'variant' => 'index'],
         ['target' => 'layout', 'type' => 'blog', 'variant' => 'card'],
         ['target' => 'region', 'region' => 'footer'],
     ], $site->componentUsages($component['id']));
     assert_throws(ValidationException::class, fn() => $site->deleteComponent($component['id']));
 
     $site->saveRegion('footer', []);
-    $site->saveLayout('blog', 'card', []);
+    $site->saveLayout('blog', 'index', []);
+    $store->delete('layouts', 'blog', 'card');
     $site->deleteComponent($component['id']);
     assert_null($site->component($component['id']));
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('components', $component['id']));

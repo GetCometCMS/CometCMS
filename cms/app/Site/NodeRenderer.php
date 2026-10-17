@@ -20,6 +20,8 @@ use CometCMS\Core\Security;
  *   row        current repeater row inside an item template
  *   row_fields subfield configs of that repeater, keyed by subfield key
  *   depth      nesting of card renders, to stop relation cycles
+ *   nested     inside a column: rows here size their columns by the column's width
+ *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
  *   page       current page number for paginated collections
  *   path       current URL path, for pagination and active menu items
@@ -167,7 +169,6 @@ final class NodeRenderer
     private function section(array $node, array $state): string
     {
         $props = $node['props'];
-        $inCard = ($state['in_card'] ?? false) === true;
         $classes = ['c-section', 'c-section-' . $props['width']];
 
         if ($props['min_height'] !== '') {
@@ -176,27 +177,31 @@ final class NodeRenderer
         if ($props['vertical_align'] !== 'start') {
             $classes[] = 'c-v-' . $props['vertical_align'];
         }
-        if ($props['sticky'] && !$inCard) {
+        if ($props['sticky']) {
             $classes[] = 'c-sticky';
         }
 
         $background = $this->background($node['style']);
 
-        $inner = $this->render($node['children'], $state);
+        $inner = $this->render($node['children'], ['nested' => false] + $state);
         if ($inner === '' && !$this->annotating()) {
             return '';
         }
 
-        $tag = $inCard ? 'div' : 'section';
         $container = $props['width'] === 'full' ? $inner : '<div class="c-container c-container-' . $props['width'] . '">' . $inner . '</div>';
 
-        return '<' . $tag . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $container . '</' . $tag . '>';
+        return '<section' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $container . '</section>';
     }
 
     private function row(array $node, array $state): string
     {
         $props = $node['props'];
+        $nested = ($state['nested'] ?? false) === true;
         $classes = ['c-row', 'c-gap-' . $props['gap'], 'c-items-' . $props['align'], 'c-justify-' . $props['justify']];
+
+        if ($nested) {
+            $classes[] = 'c-row-nested';
+        }
 
         if ($props['reverse_mobile']) {
             $classes[] = 'c-reverse-mobile';
@@ -206,10 +211,11 @@ final class NodeRenderer
         }
 
         $reverse = $props['reverse_mobile'] || $props['reverse_tablet'];
+        $columnState = ['nested_cols' => $nested] + $state;
         $inner = '';
         foreach ($node['children'] as $index => $column) {
             $order = $reverse ? -$index : null;
-            $inner .= $this->node($column, $state, $order);
+            $inner .= $this->node($column, $columnState, $order);
         }
         if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
             return '';
@@ -224,12 +230,14 @@ final class NodeRenderer
     {
         $span = $node['props']['span'];
         $classes = ['c-col', 'c-col-' . $span['mobile']];
+        // Columns of a nested row switch by the width of their row, not of the screen.
+        $prefix = ($state['nested_cols'] ?? false) === true ? 'c-c' : 'c-';
 
         if ($span['tablet'] > 0) {
-            $classes[] = 'c-t-col-' . $span['tablet'];
+            $classes[] = $prefix . 't-col-' . $span['tablet'];
         }
         if ($span['desktop'] > 0) {
-            $classes[] = 'c-d-col-' . $span['desktop'];
+            $classes[] = $prefix . 'd-col-' . $span['desktop'];
         }
         if ($node['props']['vertical_align'] !== 'start') {
             $classes[] = 'c-self-' . $node['props']['vertical_align'];
@@ -243,7 +251,7 @@ final class NodeRenderer
             $classes[] = 'c-flow-align-' . $node['props']['content_align'];
         }
 
-        $inner = $this->render($node['children'], $state);
+        $inner = $this->render($node['children'], ['nested' => true, 'nested_cols' => false] + $state);
         if ($inner === '' && $this->annotating()) {
             $inner = '<div class="c-placeholder c-placeholder-drop">Empty column</div>';
         }
@@ -534,7 +542,7 @@ final class NodeRenderer
 
         $html = $props['display'] === 'list'
             ? $this->entryList($type, $result['data'], $state)
-            : $this->cardGrid($type, $result['data'], $props['columns'], $state);
+            : $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
 
         if ($props['paginate'] && $result['total'] > $props['limit']) {
             $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), $state);
@@ -543,20 +551,28 @@ final class NodeRenderer
         return $this->element($node, $html);
     }
 
-    private function cardGrid(string $type, array $entries, int $columns, array $state): string
+    /**
+     * Cards for $entries: the collection's own card ($template), or the
+     * type's standard card. Only the first card of an own template carries
+     * builder annotations, so it is the one edited in place.
+     */
+    private function cardGrid(string $type, array $entries, int $columns, array $state, array $template = []): string
     {
-        $layout = $this->ctx->layout($type, 'card');
+        $editable = $template !== [];
+        $template = $editable ? $template : $this->ctx->cardTemplate($type);
         $items = '';
         $childState = [
             'type' => $this->ctx->type($type),
             'depth' => ($state['depth'] ?? 0) + 1,
-            'in_card' => true,
             'path' => $state['path'] ?? '',
+            'components' => $state['components'] ?? [],
             'sizes' => $columns > 1 ? '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) 50vw, 100vw' : '100vw',
         ];
 
-        foreach ($entries as $entry) {
-            $items .= '<article class="c-card">' . $this->renderPlain($layout, ['entry' => $this->ctx->localize($type, $entry)] + $childState) . '</article>';
+        foreach (array_values($entries) as $index => $entry) {
+            $entryState = ['entry' => $this->ctx->localize($type, $entry)] + $childState;
+            $inner = $editable && $index === 0 ? $this->render($template, $entryState) : $this->renderPlain($template, $entryState);
+            $items .= '<article class="c-card">' . $inner . '</article>';
         }
 
         return '<div class="c-grid c-cols-' . max(1, min(6, $columns)) . '">' . $items . '</div>';

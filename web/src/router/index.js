@@ -98,6 +98,11 @@ const routes = [
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },
+  // Cards are designed in the collection element now; the list page shows them.
+  {
+    path: '/page-builder/builder/layout/:name/card',
+    redirect: (to) => ({ path: `/page-builder/builder/layout/${to.params.name}/index`, query: to.query }),
+  },
   {
     // Full-screen editor for a content type layout, the header/footer or a component.
     path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',

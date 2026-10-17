@@ -17,8 +17,10 @@ import {
   placementKind,
   removeNode,
   resolveDrop,
+  rowDepth,
   sectionPreset,
   shiftNode,
+  templateCollection,
   usesCurrentEntry,
   wrapFor,
 } from './layoutTree.js'
@@ -214,5 +216,30 @@ describe('layout tree', () => {
     expect(usesCurrentEntry(nodes)).toBe(true)
     findNode(nodes, 'h1').props.text = { type: 'reference', source: 'site', path: ['title'], filters: [] }
     expect(usesCurrentEntry(nodes)).toBe(false)
+  })
+
+  it('nests rows in columns up to the depth limit and gives a collection one card', () => {
+    const nested = {
+      ...spec,
+      max_row_depth: 1,
+      kinds: { ...spec.kinds, column: { ...spec.kinds.column, children: [...ELEMENTS, 'row'] }, collection: { props: {}, children: ['column'] } },
+    }
+    const node = (id, kind, children = []) => ({ id, kind, props: {}, style: {}, children })
+    const tree = [node('s', 'section', [node('r', 'row', [node('c', 'column', [
+      node('r2', 'row', [node('c2', 'column', [node('list', 'collection')])]),
+    ])])])]
+
+    expect(rowDepth(tree, 'c2')).toBe(2)
+    expect(resolveDrop(nested, tree, node('new', 'row'), 'c', 'inside')).toMatchObject({ parentId: 'c' })
+    // Inside two rows already: the new row climbs out to the outer column instead.
+    expect(resolveDrop(nested, tree, node('deep', 'row'), 'c2', 'inside')).toMatchObject({ parentId: 'c' })
+
+    const list = findNode(tree, 'list')
+    expect(canContain(nested, list, 'column')).toBe(true)
+    expect(canContain(nested, list, 'heading')).toBe(false)
+    list.children.push(node('card', 'column', [node('t', 'text')]))
+    expect(canContain(nested, list, 'column')).toBe(false)
+    expect(templateCollection(tree, 't').id).toBe('list')
+    expect(templateCollection(tree, 'c2')).toBeNull()
   })
 })

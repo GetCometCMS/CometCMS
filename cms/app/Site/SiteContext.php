@@ -34,6 +34,7 @@ final class SiteContext
     private array $mediaItems = [];
     private array $entries = [];
     private array $components = [];
+    private array $cardTemplates = [];
 
     public function __construct(
         public readonly SiteRepository $site,
@@ -91,6 +92,12 @@ final class SiteContext
     public function layout(string $type, string $variant): array
     {
         return $this->overrides['layout:' . $type . ':' . $variant] ?? $this->site->layout($type, $variant);
+    }
+
+    /** The standard card of a content type (see SiteRepository::cardTemplate()). */
+    public function cardTemplate(string $type): array
+    {
+        return $this->cardTemplates[$type] ??= $this->site->cardTemplate($type);
     }
 
     /** A reusable component; the builder overrides the one being edited. */

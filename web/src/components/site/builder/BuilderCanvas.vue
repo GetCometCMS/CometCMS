@@ -283,8 +283,7 @@ function computeTarget(event) {
 
   const kind = el.dataset.kind;
   // Component instances are one unit: drops go before or after them.
-  const container = isStructure(kind)
-    || (kind === "field" && builder.isTemplateField(findNode(builder.nodes.value, el.dataset.node)));
+  const container = isStructure(kind) || builder.isDropContainer(findNode(builder.nodes.value, el.dataset.node));
   const rect = el.getBoundingClientRect();
   // Columns side by side, or elements in a column that lays them out in a row.
   const horizontal = isColumnElement(el) ? isHorizontalColumn(el) : !!el.parentElement?.classList.contains("c-flow-row");

@@ -9,7 +9,9 @@ use CometCMS\Core\HtmlSanitizer;
 /**
  * The vocabulary of website layouts.
  *
- * A layout is a tree of nodes: section > row > column > element. Every node
+ * A layout is a tree of nodes: section > row > column > element. Columns
+ * may hold rows of their own (up to MAX_ROW_DEPTH deep), and a collection
+ * holds one column as the card it repeats for each entry. Every node
  * has the same shape ({id, kind, props, style, children}); props and style
  * values are checked against this schema whenever a layout is saved or
  * previewed, so the renderer only ever sees known keys and values. The admin
@@ -22,7 +24,7 @@ final class LayoutSchema
 {
     public const FORMAT_VERSION = 2;
 
-    public const VARIANTS = ['detail', 'card', 'index'];
+    public const VARIANTS = ['detail', 'index'];
 
     public const REGIONS = ['header', 'footer'];
 
@@ -74,6 +76,9 @@ final class LayoutSchema
     ];
 
     public const MAX_NODES = 1500;
+
+    /** How deep rows may nest inside columns (a section's own rows count as 0). */
+    public const MAX_ROW_DEPTH = 3;
 
     /** Upper bound of an image element's width options, in pixels. */
     public const MAX_IMAGE_WIDTH = 2400;
@@ -268,8 +273,10 @@ final class LayoutSchema
             'root' => ['section'],
             'section' => ['row'],
             'row' => ['column'],
-            'column' => self::ELEMENTS,
+            'column' => [...self::ELEMENTS, 'row'],
             'field' => self::ITEM_ELEMENTS,
+            // The card a collection repeats for each entry.
+            'collection' => ['column'],
             // The top of a component's own tree holds just its root kind.
             'component:section' => ['section'],
             'component:row' => ['row'],
@@ -311,6 +318,7 @@ final class LayoutSchema
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
             'variants' => self::VARIANTS,
+            'max_row_depth' => self::MAX_ROW_DEPTH,
             'regions' => self::REGIONS,
             'link_types' => self::LINK_TYPES,
         ];
@@ -395,6 +403,12 @@ final class LayoutSchema
         return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false);
     }
 
+    /** A copy of $nodes with fresh ids throughout. */
+    public static function withNewIds(array $nodes): array
+    {
+        return array_map(static fn(array $node): array => ['id' => self::newId(), 'children' => self::withNewIds($node['children'] ?? [])] + $node, $nodes);
+    }
+
     public static function newId(): string
     {
         return 'n' . bin2hex(random_bytes(5));
@@ -429,9 +443,35 @@ final class LayoutSchema
     /** A sensible starting layout built from a content type's fields. */
     public static function defaultLayout(array $type, string $variant): array
     {
+        return self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), self::defaultFields($type));
+    }
+
+    /** The standard card of a content type: one column, as a collection repeats it. */
+    public static function defaultCardTemplate(array $type): array
+    {
+        return self::bindDefaultNodes(self::buildDefaultLayout($type, 'card'), self::defaultFields($type));
+    }
+
+    /**
+     * Turn a card layout from before cards lived in collections (sections of
+     * rows) into a card template: one column holding all the rows, styled
+     * like the first section as far as columns allow.
+     */
+    public static function cardTemplate(array $layout): array
+    {
+        $sections = array_values(array_filter($layout, static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === 'section'));
+        $style = array_intersect_key($sections[0]['style'] ?? [], array_flip(self::styleKeys('column')));
+        $rows = array_merge(...array_map(static fn(array $section): array => $section['children'] ?? [], $sections ?: [[]]));
+
+        return [self::node('column', [], $style, $rows)];
+    }
+
+    private static function defaultFields(array $type): array
+    {
         $fields = ($type['fields'] ?? []) + array_fill_keys(self::SYSTEM_FIELDS, ['type' => 'datetime']);
         $fields['title'] = ['type' => 'text'];
-        return self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), $fields);
+
+        return $fields;
     }
 
     private static function buildDefaultLayout(array $type, string $variant): array
@@ -486,7 +526,7 @@ final class LayoutSchema
             ]);
 
             return [
-                self::node('section', ['width' => 'full'], ['border' => ['left', 'top', 'right', 'bottom'], 'radius' => 'theme', 'background' => 'background'], $top),
+                self::node('column', [], ['border' => ['left', 'top', 'right', 'bottom'], 'radius' => 'theme', 'background' => 'background'], $top),
             ];
         }
 
@@ -658,7 +698,8 @@ final class LayoutSchema
         return preg_match('/^[A-Za-z0-9_-]{1,80}$/', $value) ? $value : '';
     }
 
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem): array
+    /** $rows counts the rows around $nodes, to bound how deep rows nest in columns. */
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0): array
     {
         $allowed = self::allowedChildren($parent);
         $normalized = [];
@@ -670,7 +711,7 @@ final class LayoutSchema
 
             $kind = (string) ($node['kind'] ?? '');
             $placed = self::placementKind($node);
-            if ($placed === '' || !in_array($placed, $allowed, true)) {
+            if ($placed === '' || !in_array($placed, $allowed, true) || ($placed === 'row' && $rows > self::MAX_ROW_DEPTH)) {
                 continue;
             }
 
@@ -683,9 +724,13 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            $children = in_array($kind, [...self::STRUCTURE, 'field'], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field')
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection'], true) && is_array($node['children'] ?? null)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $rows + ($kind === 'row' ? 1 : 0))
                 : [];
+            // A collection repeats a single card.
+            if ($kind === 'collection') {
+                $children = array_slice($children, 0, 1);
+            }
 
             [$props, $style] = self::liftBackgroundImage(
                 is_array($node['props'] ?? null) ? $node['props'] : [],
