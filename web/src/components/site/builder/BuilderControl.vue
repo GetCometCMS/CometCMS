@@ -12,6 +12,26 @@
       </template>
     </SmartValueEditor>
 
+    <!-- Language switcher flags, each choice drawn as it will look -->
+    <div v-else-if="isFlagChoice" class="grid grid-cols-3 gap-1.5" role="radiogroup" :aria-label="label">
+      <button
+        v-for="option in def.options"
+        :key="option"
+        type="button"
+        role="radio"
+        :aria-checked="value === option"
+        class="flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1 py-2 transition-colors"
+        :class="value === option ? 'border-theme-300 bg-theme-50 text-theme-800 ring-1 ring-theme-300' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'"
+        @click="emitValue(option)"
+      >
+        <span class="flex h-5 items-center gap-1 text-xs font-semibold">
+          <span v-if="option !== 'none' && flagSample.country" :class="['fi', `fi-${flagSample.country}`]" class="rounded-[2px] shadow-[0_0_0_1px_rgb(0_0_0_/_0.12)]" aria-hidden="true"></span>
+          <span v-if="option !== 'only' || !flagSample.country" class="max-w-[4.5rem] truncate">{{ flagSample.text }}</span>
+        </span>
+        <span class="w-full truncate text-center text-[10px] font-medium">{{ t(`site.flag.${option}`) }}</span>
+      </button>
+    </div>
+
     <!-- enum -->
     <ThemeColorPicker
       v-else-if="def.type === 'color'"
@@ -211,6 +231,7 @@ import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
+import { localeFlagCountry } from "../../../composables/localeOptions.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -252,6 +273,24 @@ const hint = computed(() => {
   if (props.node.kind === "section" && props.name === "sticky" && props.value !== "none") return t("site.builder.stickyHint");
   if (props.node.kind === "section" && props.name === "overlap" && props.value) return t("site.builder.overlapHint");
   return "";
+});
+
+const isFlagChoice = computed(() => props.node.kind === "language_switcher" && props.name === "flag");
+
+/** The site's main language as the switcher would show it, for the flag previews. */
+const flagSample = computed(() => {
+  const settings = builder.settings.value ?? {};
+  const locale = settings.default_locale || settings.locales?.[0] || "en";
+  let text = locale.toUpperCase();
+  if (props.node.props?.format === "names") {
+    try {
+      const name = new Intl.DisplayNames([locale], { type: "language" }).of(locale);
+      if (name) text = name.charAt(0).toUpperCase() + name.slice(1);
+    } catch {
+      // Unknown to the browser: keep the code.
+    }
+  }
+  return { country: localeFlagCountry(locale), text };
 });
 
 function optionLabel(option) {

@@ -270,6 +270,8 @@ final class LayoutSchema
                 'show_tagline' => ['type' => 'bool', 'default' => false],
             ],
             'language_switcher' => [
+                // Flags beside the text, or instead of it.
+                'flag' => ['type' => 'enum', 'options' => ['none', 'with_text', 'only'], 'default' => 'none'],
                 'format' => ['type' => 'enum', 'options' => ['codes', 'names'], 'default' => 'codes'],
             ],
             default => [],

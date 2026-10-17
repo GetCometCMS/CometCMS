@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Controllers;
 
 use CometCMS\Core\Http;
+use CometCMS\Site\Flags;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -78,6 +79,22 @@ final class SiteController
         }
 
         echo $css;
+        exit;
+    }
+
+    /** A language flag of the language switcher; the same for every workspace. */
+    public function flag(string $country): never
+    {
+        $file = Flags::file($country);
+        if ($file === null) {
+            $this->http->notFound();
+        }
+
+        header('Content-Type: image/svg+xml');
+        header('X-Content-Type-Options: nosniff');
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'");
+        header('Cache-Control: public, max-age=604800');
+        readfile($file);
         exit;
     }
 

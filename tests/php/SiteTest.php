@@ -8,6 +8,7 @@ use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\ValidationException;
+use CometCMS\Site\Flags;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\NodeRenderer;
 use CometCMS\Site\PageRenderer;
@@ -304,6 +305,39 @@ test('website routes localized entries under a locale prefix', function (): void
     assert_true(str_contains($german['body'], '<html lang="de">'));
     assert_true(str_contains($german['body'], 'hreflang="en" href="https://example.test/pages/welcome"'));
     assert_true(str_contains($german['body'], 'hreflang="de" href="https://example.test/de/pages/welcome"'));
+});
+
+test('language flags follow the admin mapping, regional codes and only known files', function (): void {
+    assert_same('gb', Flags::country('en'));
+    assert_same('br', Flags::country('pt-BR'));
+    assert_same('at', Flags::country('de-at'));
+    assert_same('de', Flags::country('de-xx'), 'An unknown region falls back to the language.');
+    assert_same('gb-wls', Flags::country('cy'));
+    assert_same('', Flags::country('tlh'));
+    assert_true(Flags::file('gb-wls') !== null);
+    foreach (['../site', 'de/../de', 'zz', 'DE', 'de.svg', ''] as $country) {
+        assert_null(Flags::file($country));
+    }
+});
+
+test('language switcher shows flags beside or instead of the text and keeps every link named', function (): void {
+    (new ContentTypeRepository())->save(['name' => 'pages', 'locales' => ['en', 'de-at', 'tlh'], 'default_locale' => 'en', 'fields' => []]);
+    $site = new SiteRepository();
+    $site->saveSettings(['enabled' => true, 'locales' => ['en', 'de-at', 'tlh'], 'default_locale' => 'en', 'routes' => ['pages' => ['enabled' => true]]]);
+
+    foreach (['none' => 0, 'with_text' => 2, 'only' => 2] as $flag => $flags) {
+        $switcher = LayoutSchema::node('language_switcher', ['flag' => $flag]);
+        $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$switcher])])])]);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+
+        assert_same($flags, substr_count($html, 'class="c-flag"'));
+        assert_same($flags > 0, str_contains($html, 'src="/_site/flags/at.svg"'));
+        assert_same($flag === 'only', str_contains($html, 'c-languages-flags'));
+        // Named by an aria-label when the flag stands alone, by its text otherwise.
+        assert_same($flag === 'only' ? 2 : 0, substr_count($html, 'aria-label="') - 1);
+        assert_same($flag === 'only' ? 1 : 3, substr_count($html, '<span>'), 'A language without a flag keeps its text.');
+        assert_true(str_contains($html, '<span>TLH</span>'));
+    }
 });
 
 test('website sitemap and robots list only public pages', function (): void {

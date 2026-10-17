@@ -374,6 +374,10 @@ try {
         (new SiteController($http))->stylesheet($m[1]);
     }
 
+    if (preg_match('#^/_site/flags/([a-z]{2}(?:-[a-z]{3})?)\.svg$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->flag($m[1]);
+    }
+
     if (in_array($method, ['GET', 'HEAD'], true) && SiteController::handles($path)) {
         // Returns when no workspace publishes a website for this host.
         (new SiteController($http))->page($path);

@@ -276,6 +276,38 @@ describe('builder linked state', () => {
     builder.undo()
     expect(state.theme).toEqual({ primary: '#000000' })
   })
+
+  it('keeps a restored linked state through undo and redo of earlier tree edits', async () => {
+    let builder
+    const state = { theme: null }
+    await renderToString(createSSRApp({ setup() {
+      builder = createSiteBuilder({ t: (key) => key, linked: { get: () => state.theme, set: (theme) => { state.theme = theme } } })
+      return () => null
+    } }))
+    builder.spec.value = { root: ['section'], kinds: { section: { props: {}, children: [] } } }
+    builder.load([])
+    state.theme = { primary: '#000000' }
+    builder.linkedChanged()
+
+    builder.mutate((tree) => { tree.push(builder.make('section')) })
+    state.theme = { primary: '#ff0000' }
+    builder.linkedChanged()
+    builder.mutate((tree) => { tree.push(builder.make('section')) })
+    builder.undo()
+
+    state.theme = { primary: '#00ff00' }
+    builder.rebaseLinked()
+
+    // The theme-only step is gone; the layout steps remain and keep the restored theme.
+    builder.undo()
+    expect(builder.nodes.value).toHaveLength(0)
+    expect(state.theme).toEqual({ primary: '#00ff00' })
+    expect(builder.canUndo.value).toBe(false)
+    builder.redo()
+    builder.redo()
+    expect(builder.nodes.value).toHaveLength(2)
+    expect(state.theme).toEqual({ primary: '#00ff00' })
+  })
 })
 
 async function contentFixture(fieldApi) {

@@ -428,6 +428,13 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-languages ul { list-style: none; display: flex; gap: 0.35em; margin: 0; padding: 0; }
 .c-languages a { display: inline-block; padding: 0.25em 0.5em; border-radius: calc(var(--radius) * 0.75); text-decoration: none; color: inherit; font-size: var(--fs-sm); font-weight: 600; opacity: 0.7; }
 .c-languages a[aria-current] { opacity: 1; background: rgb(var(--c-primary-rgb) / 0.1); color: var(--c-primary); }
+.c-languages a:has(.c-flag) { display: inline-flex; align-items: center; gap: 0.45em; }
+.c-languages a:hover { opacity: 1; }
+.c-flag { display: block; width: 1.33em; height: 1em; flex: none; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12); }
+/* Flags alone: the current one stands out by its ring, the others are dimmed. */
+.c-languages-flags a { padding: 0.35em; }
+.c-languages-flags .c-flag { width: 1.6em; height: 1.2em; }
+.c-languages-flags a[aria-current] .c-flag { box-shadow: 0 0 0 2px var(--c-primary); }
 
 /* Items (repeater) */
 .c-items { gap: var(--space-md); }

@@ -45,7 +45,7 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 | Entry list   | Entries of any public collection, filtered, sorted and optionally paged.     |
 | Menu         | One of the menus from the **Menus** tab.                                      |
 | Site title   | Logo, title and tagline from the website settings.                            |
-| Languages    | Links to the current page in the other website languages.                     |
+| Languages    | Links to the current page in the other website languages, as codes or names, with a flag beside each, or as flags alone. |
 | Spacer, Divider | Space and separators.                                                      |
 
 A column set (row) decides whether its columns sit side by side or underneath each other. Each column decides the same for its own elements under **Arrange elements**: underneath each other (default) or side by side, which wraps onto the next line when there is no room left. Side by side adds **Distribute elements** and **Align elements**, and **Space between elements** becomes the gap between them.
@@ -127,6 +127,8 @@ Administrators can add **custom CSS**. Every class the website uses starts with 
 ## Languages
 
 Content types with locales can be published in several languages. Choose the website languages in **Overview**: the default language lives at the root (`/blog/hello`), others under their code (`/de/blog/hello`). Pages link their translations with `hreflang`.
+
+The **Languages** element links each page to its translations. **Flags** shows the text only, a flag beside the text, or the flag alone; a flag on its own is named for screen readers and shows the language name on hover. Flags stand for languages, so they follow a convention: English shows the British flag and regional codes use their region (`de-at` shows Austria's flag, `pt-br` Brazil's). A language without a flag keeps its text.
 
 ## Search engines
 

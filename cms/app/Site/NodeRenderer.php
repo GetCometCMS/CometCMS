@@ -448,17 +448,24 @@ final class NodeRenderer
         }
 
         $alternates = is_array($state['alternates'] ?? null) ? $state['alternates'] : [];
+        $flag = $node['props']['flag'];
         $items = '';
 
         foreach ($locales as $locale) {
             $url = $alternates[$locale] ?? $this->ctx->homeUrl($locale);
-            $label = $node['props']['format'] === 'names' ? $this->localeName($locale) : strtoupper($locale);
+            $name = $this->localeName($locale);
+            $label = $node['props']['format'] === 'names' ? $name : strtoupper($locale);
             $current = $locale === ($this->ctx->locale !== '' ? $this->ctx->locale : $this->ctx->defaultLocale());
+            $src = $flag !== 'none' ? $this->ctx->flagUrl($locale) : null;
+            $image = $src !== null ? '<img class="c-flag" src="' . Security::e($src) . '" alt="" width="20" height="15">' : '';
+            // A flag on its own is named for screen readers and on hover; a language without a flag keeps its text.
+            $named = $flag === 'only' && $image !== '';
             $items .= '<li><a href="' . Security::e($url) . '" hreflang="' . Security::e($locale) . '" lang="' . Security::e($locale) . '"'
-                . ($current ? ' aria-current="true"' : '') . '>' . Security::e($label) . '</a></li>';
+                . ($named ? ' aria-label="' . Security::e($name) . '" title="' . Security::e($name) . '"' : '')
+                . ($current ? ' aria-current="true"' : '') . '>' . $image . ($named ? '' : '<span>' . Security::e($label) . '</span>') . '</a></li>';
         }
 
-        return $this->element($node, '<nav class="c-languages" aria-label="Language"><ul>' . $items . '</ul></nav>');
+        return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="Language"><ul>' . $items . '</ul></nav>');
     }
 
     private function menu(array $node, array $state): string

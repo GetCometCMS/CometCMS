@@ -140,6 +140,29 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (recordStep && previous !== 'null') record('linked', previous)
   }
 
+  /**
+   * Make the current linked state the one every undo and redo step keeps,
+   * e.g. after a restored version replaced it: undoing a layout edit must not
+   * bring back the state it replaced. Steps that only changed it drop out.
+   */
+  function rebaseLinked() {
+    linkedSnapshot = readLinked()
+    const keepChanges = (steps, from) => {
+      const kept = []
+      let next = from
+      for (let index = steps.length - 1; index >= 0; index--) {
+        if (steps[index].nodes === next) continue
+        next = steps[index].nodes
+        kept.unshift({ nodes: next, linked: linkedSnapshot })
+      }
+      return kept
+    }
+    const current = JSON.stringify(nodes.value)
+    past.value = keepChanges(past.value, current)
+    future.value = keepChanges(future.value, current)
+    lastCoalesce = ''
+  }
+
   function record(coalesce, linkedState) {
     const now = Date.now()
     if (!coalesce || coalesce !== lastCoalesce || now - lastChange > 1000) {
@@ -700,7 +723,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const api = {
     nodes, spec, type, types, pageTypes, menus, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
-    load, markSaved, mutate, linkedChanged, undo, redo, select, selectParent,
+    load, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,

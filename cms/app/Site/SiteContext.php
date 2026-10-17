@@ -245,6 +245,14 @@ final class SiteContext
         return $query === [] ? $url : $url . '?' . http_build_query($query);
     }
 
+    /** The flag image of a language, or null when there is no flag for it. */
+    public function flagUrl(string $locale): ?string
+    {
+        $country = Flags::country($locale);
+
+        return $country !== '' ? $this->basePath . '/_site/flags/' . $country . '.svg' : null;
+    }
+
     public function stylesheetUrl(): string
     {
         return $this->basePath . '/_site/' . rawurlencode($this->site->workspace()->slug()) . '/style.css?v=' . $this->site->stylesheetVersion();

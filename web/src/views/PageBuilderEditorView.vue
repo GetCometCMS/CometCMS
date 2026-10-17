@@ -149,7 +149,7 @@
               :restore-revision="api.site.restoreThemeRevision"
               :dirty="themeDirty"
               :busy="saving || site.saving || site.loading"
-              @restored="site.applyRestoredTheme"
+              @restored="onThemeRestored"
             />
             <BuilderHistory
               v-else
@@ -309,8 +309,25 @@ const builder = createSiteBuilder({
     },
   },
 });
-// Synchronous, so the store's own replacements while saving or loading are told apart from edits.
-watch(() => site.draft?.theme, () => builder.linkedChanged({ record: !site.saving && !site.loading }), { deep: true, flush: "sync" });
+// Synchronous, so the store's own replacements while saving, loading or restoring are told apart from edits.
+let restoringTheme = false;
+watch(() => site.draft?.theme, () => {
+  if (restoringTheme) builder.rebaseLinked();
+  else builder.linkedChanged({ record: !site.saving && !site.loading });
+}, { deep: true, flush: "sync" });
+
+/**
+ * A restored design is already saved. Undo must not bring back the design it
+ * replaced, which the next save would then write over the restored one.
+ */
+function onThemeRestored(theme) {
+  restoringTheme = true;
+  try {
+    site.applyRestoredTheme(theme);
+  } finally {
+    restoringTheme = false;
+  }
+}
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
 /** The pending design edits include the custom stylesheet, or are only that. */
@@ -475,8 +492,8 @@ const subheading = computed(() => {
 
 const previewBody = computed(() => {
   if (loading.value) return null;
-  // Unsaved design edits render live on the canvas.
-  const theme = themeDirty.value ? { theme: site.draft.theme } : {};
+  // The canvas always shows the draft design: unsaved edits, and a restored version as soon as it arrives.
+  const theme = site.draft?.theme ? { theme: site.draft.theme } : {};
   if (target === "component") {
     return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }

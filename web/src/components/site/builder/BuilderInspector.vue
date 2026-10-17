@@ -254,6 +254,11 @@ const visibleProps = computed(() => {
     return keys.filter((key) => (props.direction === "row" || !["content_justify", "content_align"].includes(key)) && (key !== "span" || !builder.isCard(current)));
   }
 
+  if (current.kind === "language_switcher") {
+    // Flags on their own leave no text to format.
+    return keys.filter((key) => key !== "format" || props.flag !== "only");
+  }
+
   if (current.kind === "section") {
     // Scroll effects show on a section that stays in view while scrolling.
     return keys.filter((key) => key !== "scroll_effect" || (props.sticky ?? "none") !== "none" || props.overlap);
