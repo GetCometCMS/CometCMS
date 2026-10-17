@@ -273,7 +273,7 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: true, colors: true, typography: false, headings: false, layout: false, spacing: false, corners: false, css: false });
+const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, css: false });
 
 const palettes = computed(() => {
   if (theme.value.mode === "dark") return [{ key: "dark_colors" }];
