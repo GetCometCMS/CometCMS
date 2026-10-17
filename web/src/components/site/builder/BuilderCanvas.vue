@@ -32,17 +32,95 @@ let badge = null;
 let dropTargetState = null;
 let selectedFromCanvas = false;
 
+
 const BUILDER_CSS = `
-[data-node]{outline:1px solid transparent;outline-offset:-1px;transition:outline-color .12s}
-[data-kind="component"]{outline:1px dashed rgba(124,58,237,.45)}
-[data-builder-hover]{outline:1px dashed rgba(37,99,235,.75)!important}
-[data-builder-selected]{outline:2px solid #2563eb!important;outline-offset:-2px}
-[data-drop-root]:empty{min-height:180px;display:flex;align-items:center;justify-content:center;margin:24px;border:2px dashed #cbd5e1;border-radius:12px}
-[data-drop-root]:empty::before{content:attr(data-empty-label);font:500 13px/1.4 system-ui,sans-serif;color:#64748b}
-.cometcms-drop{position:absolute;z-index:2147483646;pointer-events:none;background:#2563eb;border-radius:3px;box-shadow:0 0 0 2px rgba(255,255,255,.85)}
-.cometcms-drop.is-box{background:rgba(37,99,235,.08);border:2px dashed #2563eb;box-shadow:none;border-radius:6px}
-.cometcms-badge{position:absolute;z-index:2147483647;cursor:pointer;transform:translateY(-100%);background:#2563eb;color:#fff;font:600 11px/1 system-ui,sans-serif;padding:4px 7px;border-radius:4px 4px 0 0;white-space:nowrap}
+[data-node]{
+  --builder-color:#5875c9;
+  outline:1px solid transparent;
+  outline-offset:-1px;
+  transition:outline-color .12s;
+}
+
+/* Node colors */
+[data-kind="section"]{
+  --builder-color:#5875c9;
+}
+
+[data-kind="row"]{
+  --builder-color:#238d85;
+}
+
+
+[data-kind="component"]{
+  --builder-color:#9464b5;
+  outline:1px dashed color-mix(in srgb,var(--builder-color) 45%,transparent);
+}
+
+[data-kind="column"]{
+  --builder-color:#e07868;
+}
+
+/* Hover and selection */
+[data-builder-hover]{
+  outline:1px dashed var(--builder-color)!important;
+}
+
+[data-builder-selected]{
+  outline:2px solid var(--builder-color)!important;
+  outline-offset:-2px;
+}
+
+/* Empty drop area */
+[data-drop-root]:empty{
+  min-height:180px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:24px;
+  border:2px dashed #cbd5e1;
+  border-radius:12px;
+  background:rgba(148,163,184,.035);
+}
+
+[data-drop-root]:empty::before{
+  content:attr(data-empty-label);
+  font:500 13px/1.4 system-ui,sans-serif;
+  color:#64748b;
+}
+
+/* Drag and drop indicators */
+.cometcms-drop{
+  position:absolute;
+  z-index:2147483646;
+  pointer-events:none;
+  background:var(--builder-color,#5875c9);
+  border-radius:3px;
+  box-shadow:0 0 0 2px rgba(255,255,255,.85);
+}
+
+.cometcms-drop.is-box{
+  background:color-mix(in srgb,var(--builder-color,#5875c9) 7%,transparent);
+  border:2px dashed var(--builder-color,#5875c9);
+  box-shadow:none;
+  border-radius:6px;
+}
+
+/* Node badges */
+.cometcms-badge{
+  position:absolute;
+  z-index:2147483647;
+  cursor:pointer;
+  transform:translateY(-100%);
+  background:color-mix(in srgb,var(--builder-color,#5875c9) 85%,#111827);
+  color:#fff;
+  font:600 11px/1 system-ui,sans-serif;
+  padding:5px 8px;
+  border-radius:5px 5px 0 0;
+  white-space:nowrap;
+  box-shadow:0 -1px 3px rgba(0,0,0,.06);
+}
 `;
+
 
 function attach(document) {
   doc = document;
@@ -105,6 +183,7 @@ function applySelection(scroll) {
   const win = doc.defaultView;
   badge.textContent = `${builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node))}  ⋯`;
   badge.title = t("site.menu.more");
+  badge.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
   badge.style.left = `${rect.left + win.scrollX}px`;
   badge.style.top = `${Math.max(16, rect.top + win.scrollY)}px`;
   badge.hidden = false;
@@ -225,6 +304,8 @@ function showIndicator(target) {
 
   const win = doc.defaultView;
   const { rect, position, horizontal } = target;
+  const el = element(target.id);
+  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#2563eb");
   const x = rect.left + win.scrollX;
   const y = rect.top + win.scrollY;
   indicator.classList.toggle("is-box", position === "inside");
