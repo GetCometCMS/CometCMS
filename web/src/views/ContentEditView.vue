@@ -22,8 +22,17 @@
           <Icon icon="mdi:eye-outline" class="h-4 w-4" />
           <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
         </a>
+        <router-link
+          v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+          :to="designLink"
+          class="btn-secondary"
+          :title="t('site.entry.editDesignHint')"
+        >
+          <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.editDesign") }}</span>
+        </router-link>
         <a
-          v-if="!isNew && siteLinks?.url"
+          v-else-if="!isNew && siteLinks?.url"
           :href="siteLinks.url"
           target="_blank"
           rel="noopener"
@@ -987,6 +996,12 @@ const hasCustomFields = computed(
 
 // Website preview and live links; absent when the website is off.
 const siteLinks = ref(null);
+
+// The type's page layout in the builder, previewed with this entry.
+const designLink = computed(() => ({
+  path: `/website/builder/layout/${collection}/detail`,
+  query: { entry: entryId.value, back: route.fullPath },
+}));
 
 async function loadSiteLinks() {
   if (isNew.value || !entryId.value) {

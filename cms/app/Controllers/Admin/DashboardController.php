@@ -108,6 +108,7 @@ final class DashboardController extends BaseController
             'auth'    => ['login', 'logout', 'failed login'],
             'schema'  => ['content_type.'],
             'system'  => ['backup', 'update', 'webhook'],
+            'site'    => ['site.'],
         ];
 
         $lines = [];

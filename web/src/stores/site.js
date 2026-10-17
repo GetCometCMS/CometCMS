@@ -86,6 +86,22 @@ export const useSiteStore = defineStore('site', () => {
     }
   }
 
+  /**
+   * Save the website settings of one content type (from its editor). Other
+   * pending edits on the Website screen stay untouched.
+   */
+  async function saveRoute(name, route) {
+    await load()
+    const settings = clone(data.value.settings)
+    settings.routes = { ...settings.routes, [name]: { ...(settings.routes?.[name] ?? {}), ...route } }
+    const saved = (await api.site.saveSettings(settings)).data
+    data.value.settings = saved
+    if (draft.value) draft.value.settings.routes[name] = clone(saved.routes[name])
+    // New types bring new layouts and routes; refresh what the Website screen lists.
+    if (!isDirty.value) await load({ force: true })
+    return saved.routes[name]
+  }
+
   /** Mark a layout or region as customized/default after the builder saved it. */
   function markCustomized(target, name, variant, customized) {
     if (!data.value) return
@@ -102,5 +118,5 @@ export const useSiteStore = defineStore('site', () => {
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, load, save, resetDraft, markCustomized, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, load, save, saveRoute, resetDraft, markCustomized, invalidate }
 })

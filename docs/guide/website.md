@@ -6,7 +6,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 ## Turning it on
 
-Open **Website** in the admin sidebar (administrators only, permission `site.manage`) and switch on **Publish website** in the **Overview** tab. Then choose which content types become pages in **Pages & URLs**:
+Open **Website** in the admin sidebar (administrators only, permission `site.manage`) and switch on **Publish website** in the **Overview** tab. Then turn on **On website** in the **Website** card of each content type that should become pages (**Content types → edit**), and set its URLs there:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -20,7 +20,7 @@ The homepage can be a single page, one entry, or a collection's list page. Until
 
 ## Layouts and the builder
 
-Every content type has up to three layouts, opened from **Pages & URLs**:
+**Website → Pages & URLs** lists every content type with its status, URLs and layouts. Every content type has up to three layouts:
 
 - **Page** — a single entry.
 - **Card** — how an entry looks inside lists, related-entry fields and entry lists elsewhere.
@@ -75,7 +75,7 @@ Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a descri
 
 ## Previewing drafts
 
-Editors see **Preview** and **View on website** buttons in the entry editor when the website is on. Preview shows the last saved version of an entry, drafts included, to signed-in users only.
+The entry editor shows **Preview** when the website is on; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get **Edit design**: it opens the content type's page layout in the builder with that entry as the preview. In the builder, the top bar links to the live page and back to the entry's content. Everyone else sees **View on website** instead.
 
 ## Domains and workspaces
 

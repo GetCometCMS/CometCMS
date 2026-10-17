@@ -419,7 +419,7 @@ export const api = {
     saveSettings: (data)                 => request('PUT',    '/site/settings', data),
     saveTheme:    (data)                 => request('PUT',    '/site/theme', data),
     saveMenus:    (menus)                => request('PUT',    '/site/menus', { menus }),
-    layout:       (type, variant)        => request('GET',    `/site/layouts/${type}/${variant}`),
+    layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
     saveLayout:   (type, variant, nodes) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes }),
     resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),
     region:       (region)               => request('GET',    `/site/regions/${region}`),

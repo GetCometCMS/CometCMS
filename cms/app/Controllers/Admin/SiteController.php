@@ -80,7 +80,7 @@ final class SiteController extends BaseController
     /** Live URL and draft preview URL for one entry. */
     public function links(string $type, string $id): never
     {
-        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
+        $user = $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
         $settings = $this->site->settings();
         $context = $this->context();
         $entry = $context->content->findByIdentifier($type, $id);
@@ -88,8 +88,7 @@ final class SiteController extends BaseController
 
         if ($settings['enabled'] && $entry !== null && $context->content->isPubliclyVisible($entry)) {
             $locale = (string) ($_GET['locale'] ?? '');
-            $path = $context->entryUrl($type, $entry, in_array($locale, $context->locales(), true) ? $locale : null);
-            $url = $path !== null ? $this->siteUrl() . substr($path, strlen($context->basePath)) : null;
+            $url = $this->liveUrl($context->entryUrl($type, $entry, in_array($locale, $context->locales(), true) ? $locale : null), $context);
         }
 
         $routed = $context->route($type) !== null || ($settings['homepage']['type'] ?? '') === $type;
@@ -99,6 +98,7 @@ final class SiteController extends BaseController
             'routed' => $routed,
             'url' => $url,
             'previewable' => $entry !== null && $context->isPublicType($type),
+            'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
         ]]);
     }
 
@@ -139,6 +139,7 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? []);
+        $this->logger->info('site.menus_updated', ['count' => count($menus)]);
         $this->json(['data' => $menus]);
     }
 
@@ -147,11 +148,15 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $schema = $this->requireType($type, $variant);
 
+        $context = $this->context();
+
         $this->json(['data' => [
             'nodes' => $this->site->layout($type, $variant),
             'customized' => $this->site->layoutCustomized($type, $variant),
             'type' => $schema,
-            'samples' => $this->samples($type),
+            'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
+            'index_url' => $this->liveUrl($context->indexUrl($type), $context),
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
     }
@@ -171,7 +176,9 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $this->json(['data' => ['nodes' => $this->site->resetLayout($type, $variant), 'customized' => false]]);
+        $nodes = $this->site->resetLayout($type, $variant);
+        $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
     }
 
     public function region(string $region): never
@@ -179,9 +186,12 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->requireRegion($region);
 
+        $context = $this->context();
+
         $this->json(['data' => [
             'nodes' => $this->site->region($region),
             'customized' => $this->site->regionCustomized($region),
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
     }
@@ -201,7 +211,9 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireRegion($region);
-        $this->json(['data' => ['nodes' => $this->site->resetRegion($region), 'customized' => false]]);
+        $nodes = $this->site->resetRegion($region);
+        $this->logger->info('site.region_reset', ['region' => $region]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
     }
 
     /**
@@ -315,9 +327,18 @@ final class SiteController extends BaseController
         ];
     }
 
-    private function samples(string $type): array
+    /** Recent entries to preview with; `$ensure` keeps a requested entry in the list. */
+    private function samples(string $type, string $ensure = ''): array
     {
-        $entries = ContentRepository::make($this->site->workspace())->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
+        $content = ContentRepository::make($this->site->workspace());
+        $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
+
+        if ($ensure !== '' && !in_array($ensure, array_map(static fn(array $entry): string => (string) ($entry['slug'] ?? $entry['id'] ?? ''), $entries), true)) {
+            $requested = $content->findByIdentifier($type, $ensure);
+            if ($requested !== null) {
+                array_unshift($entries, $requested);
+            }
+        }
 
         return array_map(static fn(array $entry): array => [
             'id' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
@@ -346,6 +367,16 @@ final class SiteController extends BaseController
         if (!in_array($region, LayoutSchema::REGIONS, true)) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Unknown region.']], 404);
         }
+    }
+
+    /** Absolute live URL for a site path, or null while the website is off. */
+    private function liveUrl(?string $path, SiteContext $context): ?string
+    {
+        if ($path === null || !$this->site->settings()['enabled']) {
+            return null;
+        }
+
+        return $this->siteUrl() . substr($path, strlen($context->basePath));
     }
 
     /** Public address of the website: its first domain, or this server. */

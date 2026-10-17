@@ -50,6 +50,30 @@
           <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
         </select>
 
+        <router-link
+          v-if="contentLink"
+          :to="contentLink"
+          class="topbar-action"
+          :title="t('site.builder.editContent')"
+        >
+          <Icon icon="mdi:file-document-edit-outline" class="h-5 w-5" />
+          <span class="sr-only">{{ t("site.builder.editContent") }}</span>
+        </router-link>
+        <a
+          v-if="liveUrl"
+          :href="liveUrl"
+          target="_blank"
+          rel="noopener"
+          class="topbar-action"
+          :title="`${t('site.builder.viewLive')} – ${liveUrl}`"
+        >
+          <Icon icon="mdi:open-in-new" class="h-5 w-5" />
+          <span class="sr-only">{{ t("site.builder.viewLive") }}</span>
+        </a>
+        <span v-else-if="liveHint" class="topbar-action cursor-default opacity-35" :title="liveHint">
+          <Icon icon="mdi:open-in-new" class="h-5 w-5" />
+        </span>
+
         <DeviceToggle v-model="device" />
 
         <div class="flex items-center">
@@ -139,7 +163,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -184,12 +208,46 @@ const device = ref("desktop");
 const leftTab = ref("add");
 const pendingVariant = ref("");
 const canvasRef = ref(null);
+const indexUrl = ref(null);
+const homeUrl = ref(null);
+const entryUrl = ref(null);
+
+/** The entry the preview shows: the chosen sample, or the single page itself. */
+const previewEntry = computed(() => (builder.type.value?.singleton ? name : sampleId.value));
+
+/** The live page of what is being edited, when there is one. */
+const liveUrl = computed(() => {
+  if (target === "region") return homeUrl.value;
+  if (variant === "index") return indexUrl.value;
+  if (variant === "card") return null;
+  return entryUrl.value;
+});
+const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
+const contentLink = computed(() => {
+  if (target !== "layout" || variant === "index" || !previewEntry.value) return null;
+  return builder.type.value?.singleton ? `/content/${name}` : `/content/${name}/${previewEntry.value}`;
+});
+
+watch(previewEntry, async (entry) => {
+  entryUrl.value = null;
+  if (target !== "layout" || !entry) return;
+  try {
+    entryUrl.value = (await api.site.links(name, entry)).data?.url ?? null;
+  } catch {
+    entryUrl.value = null;
+  }
+});
 
 const variants = computed(() => {
   if (target !== "layout" || !builder.type.value) return [];
   return builder.type.value.singleton ? ["detail"] : ["detail", "card", "index"];
 });
-const backTo = computed(() => (target === "region" ? "/website/header-footer" : "/website/pages"));
+// Opened from an entry: go back there. Only internal content URLs are followed.
+const backTo = computed(() => {
+  const back = typeof route.query.back === "string" ? route.query.back : "";
+  if (back.startsWith("/content/")) return back;
+  return target === "region" ? "/website/header-footer" : "/website/pages";
+});
 const heading = computed(() => (target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name));
 const subheading = computed(() => (target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`)));
 
@@ -205,14 +263,21 @@ async function load() {
   loadError.value = "";
 
   try {
-    const res = target === "region" ? await api.site.region(name) : await api.site.layout(name, variant);
+    const res = target === "region"
+      ? await api.site.region(name)
+      : await api.site.layout(name, variant, typeof route.query.entry === "string" ? route.query.entry : "");
     const data = res.data;
     builder.spec.value = data.spec;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
     builder.type.value = data.type ?? null;
     samples.value = data.samples ?? [];
-    sampleId.value = samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
+    const requested = typeof route.query.entry === "string" ? route.query.entry : "";
+    sampleId.value = samples.value.some((sample) => sample.id === requested)
+      ? requested
+      : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
+    indexUrl.value = data.index_url ?? null;
+    homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
     locale.value = data.default_locale ?? "";
     customized.value = !!data.customized;
@@ -277,7 +342,7 @@ function goToVariant(next) {
 function switchVariant(next) {
   pendingVariant.value = "";
   bypass();
-  router.push(`/website/builder/layout/${name}/${next}`);
+  router.push({ path: `/website/builder/layout/${name}/${next}`, query: route.query });
 }
 
 function onKeydown(event) {

@@ -218,34 +218,19 @@
       </div>
 
       <!-- Website -->
-      <div
-        v-if="!isNew && websiteStatus && (websiteStatus.enabled || websiteStatus.can_manage)"
-        class="card flex flex-wrap items-center gap-3 p-6"
-      >
-        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600">
-          <Icon icon="mdi:web" class="h-5 w-5" />
-        </div>
-        <div class="min-w-0 flex-1">
-          <h2 class="text-sm font-semibold text-slate-700">{{ t("site.typeCard.title") }}</h2>
-          <p class="mt-0.5 text-sm text-slate-500">
-            <template v-if="!websiteStatus.enabled">{{ t("site.typeCard.off") }}</template>
-            <template v-else-if="websiteRoute?.enabled">
-              {{ t("site.typeCard.published") }}
-              <code class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{{ websiteRoute.pattern }}</code>
-            </template>
-            <template v-else>{{ t("site.typeCard.notPublished") }}</template>
-          </p>
-        </div>
-        <template v-if="websiteStatus.can_manage">
-          <router-link :to="`/website/builder/layout/${form.name}/detail`" class="btn-secondary btn-sm">
-            <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
-            {{ t("site.typeCard.editLayout") }}
-          </router-link>
-          <router-link to="/website/pages" class="btn-secondary btn-sm">
-            {{ t("site.typeCard.settings") }}
-          </router-link>
-        </template>
-      </div>
+      <TypeWebsiteCard
+        v-if="websiteStatus && (websiteStatus.can_manage || websiteStatus.enabled)"
+        v-model="websiteRoute"
+        :status="websiteStatus"
+        :name="isNew ? toSlug(form.name) : form.name"
+        :label="form.label"
+        :singleton="form.singleton"
+        :visibility="form.visibility"
+        :fields="customFields"
+        :errors="websiteErrors"
+        :is-new="isNew"
+        @touched="routeTouched = true"
+      />
 
       <div
         v-if="saveError"
@@ -308,6 +293,8 @@ import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
+import { useSiteStore } from "../stores/site.js";
+import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
@@ -420,15 +407,91 @@ onBeforeUnmount(() => {
   apiEndpointStore.clearEndpoint(apiEndpointOwner);
 });
 
-// Whether (and where) this type is published on the website.
+// Website settings of this type. Users who manage the website edit them here;
+// they are saved together with the content type.
+const site = useSiteStore();
 const websiteStatus = ref(null);
-const websiteRoute = computed(() => websiteStatus.value?.types?.[form.value.name] ?? null);
+const websiteRoute = ref(null);
+const websiteErrors = ref({});
+const routeTouched = ref(false);
+let routeClean = "null";
 
-onMounted(() => {
-  api.site.status().then((res) => {
-    websiteStatus.value = res.data;
-  }).catch(() => {});
-});
+function defaultRoute(name, singleton) {
+  return {
+    enabled: false,
+    pattern: singleton ? `/${name}` : `/${name}/{slug}`,
+    index_path: singleton ? "" : `/${name}`,
+    index_title: "",
+    seo_description_field: "",
+    seo_image_field: "",
+    sitemap: true,
+  };
+}
+
+function routeDirty() {
+  return websiteRoute.value !== null && JSON.stringify(websiteRoute.value) !== routeClean;
+}
+
+async function loadWebsite() {
+  try {
+    websiteStatus.value = (await api.site.status()).data;
+    if (websiteStatus.value.can_manage) {
+      await site.load();
+      const stored = isNew.value ? null : site.data?.settings?.routes?.[route.params.name];
+      const name = isNew.value ? toSlug(form.value.name) || "new" : route.params.name;
+      websiteRoute.value = JSON.parse(JSON.stringify(stored ?? defaultRoute(name, form.value.singleton)));
+      routeClean = JSON.stringify(websiteRoute.value);
+    }
+  } catch {
+    // The card is optional; the editor works without it.
+  }
+
+  if (route.hash === "#website") {
+    await nextTick();
+    document.getElementById("website")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+/** Save this type's website settings; returns false when they were rejected. */
+async function saveWebsiteRoute(name) {
+  if (!websiteRoute.value || !websiteStatus.value?.can_manage) return true;
+  if (isNew.value ? !websiteRoute.value.enabled : !routeDirty()) return true;
+
+  websiteErrors.value = {};
+  try {
+    const saved = await site.saveRoute(name, websiteRoute.value);
+    websiteRoute.value = JSON.parse(JSON.stringify(saved));
+    routeClean = JSON.stringify(websiteRoute.value);
+    websiteStatus.value = {
+      ...websiteStatus.value,
+      types: { ...websiteStatus.value.types, [name]: { ...saved, enabled: websiteStatus.value.enabled && saved.enabled } },
+    };
+    return true;
+  } catch (err) {
+    const prefix = `routes.${name}.`;
+    websiteErrors.value = Object.fromEntries(
+      Object.entries(err.fields ?? {})
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([key, message]) => [key.slice(prefix.length), message]),
+    );
+    toast.error(t("site.typeCard.saveFailed", { message: Object.values(websiteErrors.value)[0] ?? err.message }));
+    return false;
+  }
+}
+
+// New types suggest URLs from their name until the URLs are edited by hand.
+watch(
+  () => [form.value.name, form.value.singleton],
+  () => {
+    if (!isNew.value || routeTouched.value || !websiteRoute.value) return;
+    const next = defaultRoute(toSlug(form.value.name) || "new", form.value.singleton);
+    websiteRoute.value = { ...websiteRoute.value, pattern: next.pattern, index_path: next.index_path };
+  },
+);
+
+watch(websiteRoute, () => updateDirtyState(), { deep: true });
+
+onMounted(loadWebsite);
 
 onMounted(async () => {
   try {
@@ -511,10 +574,13 @@ async function handleSave() {
     };
 
     if (isNew.value) {
-      await api.contentTypes.create(payload);
+      const res = await api.contentTypes.create(payload);
+      const name = res.data?.name ?? toSlug(form.value.name);
       toast.success(t("contentTypeEdit.saved"));
+      const websiteSaved = await saveWebsiteRoute(name);
       bypassLeaveGuard();
-      router.push("/content-types");
+      // If the website settings were rejected, continue on the new type to fix them.
+      router.push(websiteSaved ? "/content-types" : `/content-types/${name}/edit#website`);
     } else {
       await api.contentTypes.update(route.params.name, payload);
       toast.success(t("contentTypeEdit.updated"));
@@ -522,6 +588,7 @@ async function handleSave() {
         locales: [...form.value.locales],
         default_locale: form.value.default_locale,
       };
+      await saveWebsiteRoute(route.params.name);
     }
 
     markClean();
@@ -598,11 +665,11 @@ function hasNameConflict() {
 
 function markClean() {
   cleanState.value = currentState();
-  isDirty.value = false;
+  isDirty.value = routeDirty();
 }
 
 function updateDirtyState() {
-  isDirty.value = currentState() !== cleanState.value;
+  isDirty.value = currentState() !== cleanState.value || routeDirty();
 }
 
 function currentState() {
