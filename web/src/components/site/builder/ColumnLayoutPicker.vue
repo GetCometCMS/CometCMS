@@ -12,7 +12,7 @@
         :key="option.value"
         type="button"
         class="flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors"
-        :class="direction === option.value ? 'border-theme-400 bg-white text-theme-700 shadow-sm' : 'border-slate-200 bg-white/60 text-slate-600 hover:border-slate-300'"
+        :class="direction === option.value ? 'border-theme-400 bg-white text-theme-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'"
         :aria-pressed="direction === option.value"
         @click="setDirection(option.value)"
       >
