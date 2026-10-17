@@ -77,8 +77,8 @@ final class LayoutSchema
             'padding_y' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
-            'background' => ['type' => 'enum', 'options' => ['', 'background', 'surface', 'primary', 'secondary', 'accent'], 'default' => ''],
-            'text_color' => ['type' => 'enum', 'options' => ['', 'text', 'muted', 'primary', 'secondary', 'accent', 'inverse'], 'default' => ''],
+            'background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+            'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
             'align' => ['type' => 'enum', 'options' => ['', 'left', 'center', 'right'], 'default' => ''],
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
@@ -536,6 +536,7 @@ final class LayoutSchema
         $default = $spec['default'];
 
         return match ($spec['type']) {
+            'color' => is_string($value) && (in_array($value, $spec['options'], true) || Theme::isCustomColorKey($value)) ? $value : $default,
             'enum' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
             'set' => array_values(array_intersect($spec['options'], array_map('strval', is_array($value) ? $value : []))),
             'bool' => is_bool($value) ? $value : (bool) $default,

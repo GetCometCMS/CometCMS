@@ -68,6 +68,34 @@
             </label>
           </div>
         </div>
+
+        <div class="space-y-3 border-t border-slate-100 pt-4">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-xs font-semibold text-slate-700">{{ t('site.theme.customColors') }}</h3>
+            <button type="button" class="btn-secondary btn-sm" :disabled="Object.keys(theme.custom_colors ?? {}).length >= MAX_CUSTOM_COLORS" @click="addCustomColor">
+              <Icon icon="mdi:plus" class="h-4 w-4" />
+              {{ t('site.theme.addColor') }}
+            </button>
+          </div>
+          <p class="text-xs text-slate-500">{{ t('site.theme.customColorsHint') }}</p>
+          <div v-for="(color, key) in theme.custom_colors" :key="key" class="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div class="flex items-center gap-2">
+              <input v-model="color.label" type="text" maxlength="80" :aria-label="t('site.theme.colorName')" class="form-input min-w-0 flex-1 rounded-lg border-slate-300 py-1 text-xs" />
+              <button type="button" class="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" :aria-label="t('select.remove', { name: color.label })" @click="delete theme.custom_colors[key]">
+                <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-4">
+              <label v-for="palette in palettes" :key="palette.key" class="flex min-w-0 flex-1 items-center gap-2">
+                <input type="color" class="h-9 w-9 shrink-0 cursor-pointer rounded-md border border-slate-300 bg-white p-0.5" :aria-label="`${color.label} (${t(`site.theme.palette.${palette.key}`)})`" :value="color[palette.key === 'dark_colors' ? 'dark_color' : 'color']" @input="color[palette.key === 'dark_colors' ? 'dark_color' : 'color'] = $event.target.value" />
+                <span class="min-w-0">
+                  <span class="block text-[10px] text-slate-500">{{ t(`site.theme.palette.${palette.key}`) }}</span>
+                  <input type="text" maxlength="7" class="w-full border-0 bg-transparent p-0 font-mono text-xs text-slate-500 focus:ring-0" :aria-label="`${color.label} (${t(`site.theme.palette.${palette.key}`)})`" :value="color[palette.key === 'dark_colors' ? 'dark_color' : 'color']" @change="setCustomHex(key, palette.key, $event.target.value)" />
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Typography -->
@@ -216,6 +244,8 @@ import TokenInput from "./TokenInput.vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
+import { MAX_CUSTOM_COLORS } from "../../composables/themeColors.js";
+import { newId } from "../../composables/layoutTree.js";
 
 const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
 const RADIUS_TOKENS = ["sm", "md", "lg"];
@@ -322,6 +352,7 @@ function applyPreset(preset) {
     radii: { ...defaults.radii, ...(preset.theme.radii ?? {}) },
     space: scaledSpace(spacingFactor),
     custom_css: theme.value.custom_css,
+    custom_colors: theme.value.custom_colors ?? {},
   };
   site.draft.theme = { ...theme.value, ...next };
 }
@@ -343,7 +374,22 @@ function applySpacingPreset(key) {
 }
 
 function resetTheme() {
-  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, updated_at: theme.value.updated_at };
+  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, custom_colors: theme.value.custom_colors ?? {}, updated_at: theme.value.updated_at };
+}
+
+function addCustomColor() {
+  const colors = theme.value.custom_colors ?? {};
+  if (Object.keys(colors).length >= MAX_CUSTOM_COLORS) return;
+  const key = `custom-${newId()}`;
+  theme.value.custom_colors = {
+    ...colors,
+    [key]: { label: t('site.theme.customColorName', { count: Object.keys(colors).length + 1 }), color: '#2563eb', dark_color: '#60a5fa' },
+  };
+}
+
+function setCustomHex(key, palette, value) {
+  const hex = String(value).trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(hex)) theme.value.custom_colors[key][palette === 'dark_colors' ? 'dark_color' : 'color'] = hex;
 }
 
 function setHex(palette, key, value) {

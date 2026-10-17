@@ -27,9 +27,7 @@ describe('builder option bars', () => {
     expect(barOptions('props', 'size', ['sm', 'md', 'lg'], { title, theme, kind: 'button' })[1].title).toBe('md')
   })
 
-  it('uses theme swatches for colors and falls back when a bar would not fit', () => {
-    const colors = barOptions('style', 'background', ['', 'primary'], { title, colors: { primary: '#2563eb' } })
-    expect(colors[1].swatch).toBe('#2563eb')
+  it('falls back when a bar would not fit', () => {
     expect(barOptions('props', 'tag', ['', 'p', 'h1', 'span', 'div'], { title })).toBeNull()
     expect(numberBar(1, 6)).toHaveLength(6)
     expect(numberBar(1, 100)).toBeNull()

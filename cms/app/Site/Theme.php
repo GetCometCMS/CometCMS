@@ -32,6 +32,8 @@ final class Theme
 
     public const MAX_CUSTOM_CSS = 100000;
 
+    public const MAX_CUSTOM_COLORS = 64;
+
     /**
      * Local font stacks only: nothing is fetched from third-party font CDNs,
      * so visitors' IP addresses never leave the site.
@@ -73,6 +75,7 @@ final class Theme
                 'muted' => '#94a3b8',
                 'border' => '#1e293b',
             ],
+            'custom_colors' => [],
             'fonts' => [
                 'body' => 'system',
                 'heading' => 'system',
@@ -99,6 +102,7 @@ final class Theme
             'mode' => self::oneOf($theme['mode'] ?? null, self::MODES, $defaults['mode']),
             'colors' => self::colors($theme['colors'] ?? [], $defaults['colors']),
             'dark_colors' => self::colors($theme['dark_colors'] ?? [], $defaults['dark_colors']),
+            'custom_colors' => self::customColors($theme['custom_colors'] ?? []),
             'fonts' => [
                 'body' => self::oneOf($theme['fonts']['body'] ?? null, array_keys(self::FONT_STACKS), $defaults['fonts']['body']),
                 'heading' => self::oneOf($theme['fonts']['heading'] ?? null, array_keys(self::FONT_STACKS), $defaults['fonts']['heading']),
@@ -161,6 +165,12 @@ final class Theme
 
         $light = self::colorVariables($theme['colors']);
         $dark = self::colorVariables($theme['dark_colors']);
+        foreach ($theme['custom_colors'] as $key => $color) {
+            $light['--c-' . $key] = $color['color'];
+            $light['--c-on-' . $key] = self::contrastColor($color['color']);
+            $dark['--c-' . $key] = $color['dark_color'];
+            $dark['--c-on-' . $key] = self::contrastColor($color['dark_color']);
+        }
         $css = ':root{' . self::declarations($root) . '}';
 
         if ($theme['mode'] === 'dark') {
@@ -174,6 +184,12 @@ final class Theme
         }
 
         $css .= "\n" . self::baseStylesheet();
+
+        foreach ($theme['custom_colors'] as $key => $_color) {
+            $css .= "\n.c-bg-" . $key . '{background-color:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
+            $css .= '.c-fg-' . $key . '{color:var(--c-' . $key . ');}';
+            $css .= '.c-bg-' . $key . ' a:not(.c-button){color:inherit;}';
+        }
 
         if ($theme['custom_css'] !== '') {
             $css .= "\n/* Custom CSS */\n" . $theme['custom_css'] . "\n";
@@ -210,7 +226,7 @@ final class Theme
             $variables['--c-' . $key] = $colors[$key];
         }
 
-        foreach (['primary', 'secondary', 'accent'] as $key) {
+        foreach (self::COLOR_KEYS as $key) {
             $variables['--c-on-' . $key] = self::contrastColor($colors[$key]);
             [$r, $g, $b] = self::rgb($colors[$key]);
             $variables['--c-' . $key . '-rgb'] = $r . ' ' . $g . ' ' . $b;
@@ -236,16 +252,51 @@ final class Theme
         $normalized = [];
 
         foreach (self::COLOR_KEYS as $key) {
-            $value = strtolower(trim((string) ($colors[$key] ?? '')));
-
-            if (preg_match('/^#([0-9a-f]{3})$/', $value, $match)) {
-                $value = '#' . $match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2];
-            }
-
-            $normalized[$key] = preg_match('/^#[0-9a-f]{6}$/', $value) ? $value : $defaults[$key];
+            $normalized[$key] = self::hexColor($colors[$key] ?? null) ?? $defaults[$key];
         }
 
         return $normalized;
+    }
+
+    /** Stable tokens let color names and values change without rewriting layouts. */
+    public static function isCustomColorKey(mixed $key): bool
+    {
+        return is_string($key) && preg_match('/^custom-[a-z0-9][a-z0-9-]{0,47}$/', $key) === 1;
+    }
+
+    private static function customColors(mixed $colors): array
+    {
+        $normalized = [];
+        foreach (is_array($colors) ? $colors : [] as $key => $color) {
+            if (count($normalized) >= self::MAX_CUSTOM_COLORS) {
+                break;
+            }
+            if (!self::isCustomColorKey($key) || !is_array($color)) {
+                continue;
+            }
+            $value = self::hexColor($color['color'] ?? null);
+            if ($value === null) {
+                continue;
+            }
+            $label = is_string($color['label'] ?? null) ? trim(strip_tags($color['label'])) : '';
+            $normalized[$key] = [
+                'label' => Text::limit($label !== '' ? $label : $key, 80),
+                'color' => $value,
+                'dark_color' => self::hexColor($color['dark_color'] ?? null) ?? $value,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private static function hexColor(mixed $value): ?string
+    {
+        $value = is_string($value) ? strtolower(trim($value)) : '';
+        if (preg_match('/^#([0-9a-f]{3})$/', $value, $match)) {
+            $value = '#' . $match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2];
+        }
+
+        return preg_match('/^#[0-9a-f]{6}$/', $value) ? $value : null;
     }
 
     /** @return array{0:int,1:int,2:int} */

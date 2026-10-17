@@ -68,7 +68,7 @@ final class NodeRenderer
             'image' => $this->image($node, $state),
             'button' => $this->button($node, $state),
             'spacer' => $this->element($node, '', ['c-spacer', 'c-spacer-' . $node['props']['size']]),
-            'divider' => $this->element($node, '<hr class="c-divider">'),
+            'divider' => $this->element($node, '<hr class="c-divider' . (!empty($node['style']['text_color']) ? ' c-divider-colored' : '') . '">'),
             'collection' => $this->collection($node, $state),
             'menu' => $this->menu($node, $state),
             'site_title' => $this->siteTitle($node, $state),

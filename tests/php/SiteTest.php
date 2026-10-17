@@ -9,6 +9,7 @@ use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\ValidationException;
 use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\NodeRenderer;
 use CometCMS\Site\PageRenderer;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -334,6 +335,70 @@ test('theme normalizes values and keeps custom css inside its style element', fu
     assert_true(str_contains($css, '--c-on-primary:'));
     assert_false(stripos($css, '</style') !== false);
     assert_true(str_contains($css, 'body{color:red}'));
+});
+
+test('custom theme colors validate tokens and values and generate both palettes', function (): void {
+    $theme = Theme::normalize([
+        'mode' => 'auto',
+        'custom_colors' => [
+            'custom-brand' => ['label' => ' Brand ', 'color' => '#ABC', 'dark_color' => '#123456'],
+            'custom-fallback' => ['label' => '<b>Fallback</b>', 'color' => '#ff0000', 'dark_color' => 'invalid'],
+            'custom-invalid' => ['label' => 'Bad', 'color' => 'red; background:url(x)'],
+            'custom-array' => ['color' => ['#ffffff']],
+            'custom-</style><script>' => ['color' => '#ffffff'],
+            'primary' => ['color' => '#ffffff'],
+        ],
+    ]);
+    assert_same(['custom-brand', 'custom-fallback'], array_keys($theme['custom_colors']));
+    assert_same(['label' => 'Brand', 'color' => '#aabbcc', 'dark_color' => '#123456'], $theme['custom_colors']['custom-brand']);
+    assert_same('Fallback', $theme['custom_colors']['custom-fallback']['label']);
+    assert_same('#ff0000', $theme['custom_colors']['custom-fallback']['dark_color']);
+    assert_same([], Theme::normalize([])['custom_colors']);
+
+    $css = Theme::stylesheet($theme);
+    assert_true(str_contains($css, '--c-custom-brand:#aabbcc;'));
+    assert_true(str_contains($css, '@media (prefers-color-scheme: dark){:root{'));
+    assert_true(str_contains($css, '--c-custom-brand:#123456;'));
+    assert_true(str_contains($css, '.c-bg-custom-brand{background-color:var(--c-custom-brand);color:var(--c-on-custom-brand);}'));
+    assert_true(str_contains($css, '.c-fg-custom-brand{color:var(--c-custom-brand);}'));
+    assert_false(str_contains($css, '</style>'));
+    assert_false(str_contains($css, 'background:url(x)'));
+    assert_true(str_contains(Theme::stylesheet([...$theme, 'mode' => 'dark']), ':root{color-scheme:dark;'));
+
+    $colors = [];
+    for ($index = 0; $index < 70; $index++) {
+        $colors['custom-color-' . $index] = ['label' => 'Color', 'color' => '#abcdef'];
+    }
+    assert_same(Theme::MAX_CUSTOM_COLORS, count(Theme::normalize(['custom_colors' => $colors])['custom_colors']));
+});
+
+test('saved custom colors keep their layout references when renamed or recolored', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveTheme(['custom_colors' => ['custom-brand' => ['label' => 'Brand', 'color' => '#abcdef']]]);
+    $layout = $site->saveLayout('about', 'detail', [LayoutSchema::node('section', [], ['background' => 'custom-brand', 'text_color' => 'border'])]);
+    assert_same('custom-brand', $layout[0]['style']['background']);
+    assert_same('border', $layout[0]['style']['text_color']);
+
+    $site->saveTheme(['custom_colors' => ['custom-brand' => ['label' => 'Renamed', 'color' => '#fedcba']]]);
+    $reloaded = new SiteRepository();
+    assert_same('Renamed', $reloaded->theme()['custom_colors']['custom-brand']['label']);
+    assert_same('custom-brand', $reloaded->layout('about', 'detail')[0]['style']['background']);
+    assert_true(str_contains(Theme::stylesheet($reloaded->theme()), '--c-custom-brand:#fedcba;'));
+
+    $invalid = LayoutSchema::normalize([LayoutSchema::node('section', [], ['background' => 'custom-evil; color:red', 'text_color' => ['primary']])])[0];
+    assert_same([], $invalid['style']);
+});
+
+test('dividers use their text color for the line and preserve the default border color', function (): void {
+    $site = comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context($site));
+    foreach (['accent', 'custom-brand'] as $color) {
+        $node = LayoutSchema::node('divider', [], ['text_color' => $color]);
+        $html = $renderer->render([$node]);
+        assert_true(str_contains($html, 'c-fg-' . $color));
+        assert_true(str_contains($html, '<hr class="c-divider c-divider-colored">'));
+    }
+    assert_true(str_contains($renderer->render([LayoutSchema::node('divider')]), '<hr class="c-divider">'));
 });
 
 test('deleting a content type removes its website layouts and route', function (): void {

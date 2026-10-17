@@ -6,7 +6,16 @@
     </div>
 
     <!-- enum -->
-    <template v-if="def.type === 'enum' || def.type === 'display'">
+    <ThemeColorPicker
+      v-if="def.type === 'color'"
+      :id="inputId"
+      :label="label"
+      :model-value="value ?? ''"
+      :options="colorOptions"
+      @update:model-value="emitValue"
+    />
+
+    <template v-else-if="def.type === 'enum' || def.type === 'display'">
       <div v-if="isPositionGrid" class="grid w-24 grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" :aria-label="label">
         <button
           v-for="option in def.options"
@@ -148,7 +157,9 @@ import MediaSelect from "../MediaSelect.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
 import CssClassInput from "./CssClassInput.vue";
+import ThemeColorPicker from "./ThemeColorPicker.vue";
 import { themeCssClasses } from "../../../composables/cssClasses.js";
+import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { useSiteStore } from "../../../stores/site.js";
@@ -175,6 +186,7 @@ const label = computed(() => {
   // Fields have a yes/no "link to the entry"; other elements pick a link target.
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
+  if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 
@@ -202,18 +214,12 @@ const enumOptions = computed(() => {
   return (props.def.options ?? []).map((option) => ({ value: option, label: optionLabel(option) }));
 });
 
-/** Theme colors for swatches, matching what the site shows. */
-const themeColors = computed(() => {
-  const theme = site.data?.theme;
-  if (!theme) return null;
-  return theme.mode === "dark" ? theme.dark_colors : theme.colors;
-});
+const colorOptions = computed(() => themeColorOptions(site.data?.theme, props.def.options ?? [], optionLabel));
 
 const enumBar = computed(() =>
   props.def.type === "enum"
     ? barOptions(props.group, props.name, props.def.options ?? [], {
         title: optionLabel,
-        colors: themeColors.value,
         theme: site.data?.theme ?? null,
         kind: props.node.kind,
       })

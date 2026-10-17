@@ -1,5 +1,5 @@
 <template>
-  <div ref="container" @focusout="onFocusOut">
+  <div ref="container" class="relative" @focusout="onFocusOut">
     <div class="flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500" @click="input?.focus()">
       <span v-for="name in selected" :key="name" class="inline-flex max-w-full items-center gap-1 rounded bg-theme-100 px-1.5 py-0.5 font-mono text-xs text-theme-700">
         <span class="break-all">{{ name }}</span>
@@ -29,7 +29,7 @@
     <p :id="`${id}-hint`" class="mt-1 text-[10px] text-slate-400">
       {{ t(selected.length >= MAX_CSS_CLASSES ? 'site.builder.classLimit' : 'site.builder.classInputHint', { count: MAX_CSS_CLASSES }) }}
     </p>
-    <ul v-if="open" :id="`${id}-options`" role="listbox" :aria-label="t('site.style.class')" class="mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-sm">
+    <ul v-if="open" :id="`${id}-options`" role="listbox" :aria-label="t('site.style.class')" class="absolute bottom-full left-0 z-50 mb-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
       <li
         v-for="(name, index) in filtered"
         :id="`${id}-option-${index}`"

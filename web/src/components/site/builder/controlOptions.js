@@ -1,5 +1,5 @@
 // How builder options are presented: icon bars for directions and edges,
-// compact size scales, theme color swatches. Anything not covered here falls
+// compact size scales. Anything not covered here falls
 // back to a segmented control or a select.
 
 /** "Use the default" — shared by every bar that has an empty option. */
@@ -25,8 +25,6 @@ const SCALE = { '': '–', none: '0', xs: 'XS', sm: 'S', md: 'M', lg: 'L', xl: '
 
 const WEIGHTS = { normal: 400, medium: 500, semibold: 600, bold: 700 }
 
-const COLOR_KEYS = new Set(['style.background', 'style.text_color'])
-
 /** Options whose values are theme spacing tokens. */
 const SPACE_KEYS = new Set(['style.padding_y', 'style.padding_x', 'style.margin_bottom'])
 
@@ -50,18 +48,12 @@ export const DEVICE_ICONS = { mobile: 'mdi:cellphone', tablet: 'mdi:tablet', des
  * Bar options for an enum, or null when a bar would not fit.
  * `title(value)` returns the translated name of an option.
  */
-export function barOptions(group, name, values, { title, colors = null, theme = null, kind = '' }) {
+export function barOptions(group, name, values, { title, theme = null, kind = '' }) {
   const key = `${group}.${name}`
   const describe = (value) => ({
     value,
     title: [title(value), tokenHint(key, value, kind, theme)].filter(Boolean).join(' · '),
   })
-
-  if (COLOR_KEYS.has(key) && colors) {
-    return values.map((value) => (value === ''
-      ? { ...describe(value), icon: DEFAULT_ICON }
-      : { ...describe(value), swatch: colors[value === 'inverse' ? 'background' : value] ?? '#ccc' }))
-  }
 
   // Icons where they say more than a word; size tokens keep their short label.
   if (ICONS[key] && values.every((value) => value === '' || ICONS[key][value] || value in SCALE)) {
