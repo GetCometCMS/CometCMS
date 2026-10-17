@@ -79,7 +79,7 @@ final class SiteService
     /**
      * The workspace whose website answers for $host: a workspace that lists
      * the host among its domains, otherwise the default workspace when its
-     * website is enabled and not limited to other domains.
+     * website is live and not limited to other domains.
      */
     public static function workspaceForHost(string $host): ?WorkspaceContext
     {

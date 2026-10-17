@@ -30,6 +30,16 @@ final class Theme
 
     public const TYPE_SCALES = ['1.125', '1.2', '1.25', '1.333'];
 
+    /** Heading levels and the type scale step each one uses by default. */
+    public const HEADING_LEVELS = ['h1' => 5, 'h2' => 4, 'h3' => 3, 'h4' => 2, 'h5' => 1, 'h6' => 0];
+
+    public const TEXT_TRANSFORMS = ['', 'uppercase', 'lowercase', 'capitalize'];
+
+    /** Custom heading sizes from this many px shrink on phones (see MOBILE_HEADING_FACTOR). */
+    private const MOBILE_HEADING_FROM = 32;
+
+    private const MOBILE_HEADING_FACTOR = 0.8;
+
     public const MAX_CUSTOM_CSS = 100000;
 
     public const MAX_CUSTOM_COLORS = 64;
@@ -84,6 +94,8 @@ final class Theme
             'line_height' => 1.65,
             'type_scale' => '1.25',
             'heading_weight' => 700,
+            // Per-level overrides; '' and null inherit the values above.
+            'headings' => array_fill_keys(array_keys(self::HEADING_LEVELS), self::headingDefaults()),
             'radius' => 'md',
             'radii' => ['sm' => 4, 'md' => 8, 'lg' => 14],
             'container_width' => 1200,
@@ -111,6 +123,7 @@ final class Theme
             'line_height' => round(self::clampFloat($theme['line_height'] ?? null, 1.1, 2.2, $defaults['line_height']), 2),
             'type_scale' => self::oneOf(isset($theme['type_scale']) ? (string) $theme['type_scale'] : null, self::TYPE_SCALES, $defaults['type_scale']),
             'heading_weight' => self::clampInt($theme['heading_weight'] ?? null, 300, 900, $defaults['heading_weight'], 100),
+            'headings' => self::headings($theme['headings'] ?? []),
             // "xl" was a fixed size before radius tokens existed.
             'radius' => self::oneOf(($theme['radius'] ?? null) === 'xl' ? 'lg' : ($theme['radius'] ?? null), self::RADII, $defaults['radius']),
             'radii' => self::radii($theme, $defaults['radii']),
@@ -184,6 +197,7 @@ final class Theme
         }
 
         $css .= "\n" . self::baseStylesheet();
+        $css .= self::headingStyles($theme['headings']);
 
         foreach ($theme['custom_colors'] as $key => $_color) {
             $css .= "\n.c-bg-" . $key . '{background-color:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
@@ -196,6 +210,48 @@ final class Theme
         }
 
         return $css;
+    }
+
+    /** @return array{font: string, size: ?int, weight: ?int, line_height: ?float, letter_spacing: ?float, transform: string} */
+    public static function headingDefaults(): array
+    {
+        return ['font' => '', 'size' => null, 'weight' => null, 'line_height' => null, 'letter_spacing' => null, 'transform' => ''];
+    }
+
+    /**
+     * Rules for customized heading levels. They follow the base stylesheet so
+     * they replace its defaults, while builder style classes (font size,
+     * weight, family) still win through their higher specificity.
+     */
+    private static function headingStyles(array $headings): string
+    {
+        $css = '';
+        $mobile = '';
+
+        foreach ($headings as $level => $heading) {
+            $declarations = array_filter([
+                'font-family' => $heading['font'] !== '' ? self::FONT_STACKS[$heading['font']] : null,
+                'font-size' => $heading['size'] !== null ? $heading['size'] . 'px' : null,
+                'font-weight' => $heading['weight'] !== null ? (string) $heading['weight'] : null,
+                'line-height' => $heading['line_height'] !== null ? self::number($heading['line_height']) : null,
+                'letter-spacing' => $heading['letter_spacing'] !== null ? self::number($heading['letter_spacing']) . 'em' : null,
+                'text-transform' => $heading['transform'] !== '' ? $heading['transform'] : null,
+            ], static fn(?string $value): bool => $value !== null);
+
+            if ($declarations !== []) {
+                $css .= $level . '{' . self::declarations($declarations) . '}';
+            }
+
+            if ($heading['size'] !== null && $heading['size'] >= self::MOBILE_HEADING_FROM) {
+                $mobile .= $level . '{font-size:' . (int) round($heading['size'] * self::MOBILE_HEADING_FACTOR) . 'px;}';
+            }
+        }
+
+        if ($mobile !== '') {
+            $css .= '@media (max-width: 767px){' . $mobile . '}';
+        }
+
+        return $css === '' ? '' : "\n/* Headings */\n" . $css;
     }
 
     public static function baseStylesheet(): string
@@ -314,6 +370,37 @@ final class Theme
         // The stylesheet is also inlined into <style> for previews; a closing
         // tag sequence must never be able to end that element early.
         return trim(str_ireplace(['</style', '<style', '<!--', '-->'], '', $css));
+    }
+
+    private static function headings(mixed $headings): array
+    {
+        $headings = is_array($headings) ? $headings : [];
+        $normalized = [];
+
+        foreach (array_keys(self::HEADING_LEVELS) as $level) {
+            $heading = is_array($headings[$level] ?? null) ? $headings[$level] : [];
+            $normalized[$level] = [
+                'font' => self::oneOf($heading['font'] ?? null, ['', ...array_keys(self::FONT_STACKS)], ''),
+                'size' => self::optionalInt($heading['size'] ?? null, 10, 160),
+                'weight' => self::optionalInt($heading['weight'] ?? null, 100, 900, 100),
+                'line_height' => self::optionalFloat($heading['line_height'] ?? null, 0.8, 2.2, 2),
+                'letter_spacing' => self::optionalFloat($heading['letter_spacing'] ?? null, -0.1, 0.5, 3),
+                'transform' => self::oneOf($heading['transform'] ?? null, self::TEXT_TRANSFORMS, ''),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /** Null (inherit) unless a number is given; empty input means inherit too. */
+    private static function optionalInt(mixed $value, int $min, int $max, int $step = 1): ?int
+    {
+        return is_numeric($value) ? self::clampInt($value, $min, $max, $min, $step) : null;
+    }
+
+    private static function optionalFloat(mixed $value, float $min, float $max, int $precision): ?float
+    {
+        return is_numeric($value) ? round(self::clampFloat($value, $min, $max, $min), $precision) : null;
     }
 
     private static function radii(array $theme, array $defaults): array

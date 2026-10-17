@@ -138,6 +138,8 @@
         </label>
       </section>
 
+      <ThemeHeadingsCard />
+
       <!-- Layout -->
       <section class="card space-y-4 p-5">
         <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.layout") }}</h2>
@@ -240,6 +242,7 @@ import DeviceToggle from "./DeviceToggle.vue";
 import RangeRow from "./RangeRow.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import SitePreviewFrame from "./SitePreviewFrame.vue";
+import ThemeHeadingsCard from "./ThemeHeadingsCard.vue";
 import TokenInput from "./TokenInput.vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useSiteStore } from "../../stores/site.js";

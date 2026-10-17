@@ -108,6 +108,10 @@ test('smart schema rejects malformed envelopes attribute interpolation and unsup
     assert_false(str_contains(json_encode($value), '<script'));
     assert_same('text', LayoutSchema::spec()['kinds']['heading']['props']['text']['binding']);
     assert_false(isset(LayoutSchema::spec()['style']['background']['binding']));
+    assert_same('media', LayoutSchema::spec()['style']['background_image']['binding']);
+    $bound = LayoutSchema::normalize([LayoutSchema::node('section', [], ['background_image' => SmartValue::reference('photo')])]);
+    assert_same(SmartValue::reference('photo'), $bound[0]['style']['background_image']);
+    assert_throws(ValidationException::class, fn() => LayoutSchema::normalize([LayoutSchema::node('section', [], ['background_image' => ['type' => 'reference', 'source' => 'query', 'path' => ['photo']]])]));
 });
 
 test('smart renderer shares previews lists repeaters and live resolution', function (): void {
@@ -163,8 +167,9 @@ test('smart media and links preserve types and reject unsafe or ambiguous values
     $state['type']['fields']['photo']['multiple'] = true;
     assert_false(str_contains($renderer->render([LayoutSchema::node('image', ['media' => $ref])], $state), '<img'));
     $state['type']['fields']['photo']['multiple'] = false;
-    $nodes = [LayoutSchema::node('section', ['background_image' => $ref], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => 'Body'])])])])];
+    $nodes = [LayoutSchema::node('section', [], ['background_image' => $ref], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => 'Body'])])])])];
     assert_true(str_contains($renderer->render($nodes, $state), 'background-image:'));
+    assert_true(str_contains($renderer->render([LayoutSchema::node('text', ['html' => 'Body'], ['background_image' => $ref])], $state), 'background-image:'), 'Elements resolve bound backgrounds too.');
     (new \CometCMS\Media\MediaRepository())->updateVisibility('photo.svg', 'private');
     assert_false(str_contains((new NodeRenderer(comet_site_test_context()))->render([LayoutSchema::node('image', ['media' => $ref])], $state), '<img'));
     $link = ['type' => 'dynamic', 'value' => SmartValue::reference('url'), 'new_tab' => true];

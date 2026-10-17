@@ -17,7 +17,7 @@ const ICONS = {
   'props.sort_order': { desc: 'mdi:sort-descending', asc: 'mdi:sort-ascending' },
   'props.display': { cards: 'mdi:view-grid-outline', list: 'mdi:format-list-bulleted' },
   'props.fit': { cover: 'mdi:crop', contain: 'mdi:fit-to-screen-outline' },
-  'props.overlay': { none: 'mdi:image-outline', light: 'mdi:brightness-5', dark: 'mdi:brightness-3' },
+  'style.overlay': { none: 'mdi:image-outline', light: 'mdi:brightness-5', dark: 'mdi:brightness-3' },
 }
 
 /** Size scales read best as short labels: – 0 XS S M L XL 2XL. */

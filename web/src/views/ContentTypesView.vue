@@ -134,9 +134,6 @@
                     {{ websiteStatus.types[type.name].pages_enabled ? t("contentTypes.frontendEnabled") : t("contentTypes.frontendDisabled") }}
                   </span>
                 </div>
-                <p v-if="websiteStatus.types[type.name].pages_enabled && !websiteStatus.enabled" class="text-xs text-slate-500">
-                  {{ t("contentTypes.websiteOff") }}
-                </p>
               </div>
               <span v-else class="text-slate-400" :title="t('contentTypes.frontendUnavailable')">—</span>
             </td>

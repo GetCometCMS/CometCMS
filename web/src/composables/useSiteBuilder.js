@@ -168,12 +168,18 @@ export function createSiteBuilder({ t }) {
 
   // ─── Editing ───────────────────────────────────────────────────────────
 
+  function isDefaultStyle(key, value) {
+    const fallback = spec.value?.style?.[key]?.default ?? ''
+    return Array.isArray(value) ? value.length === 0 : value === fallback
+  }
+
   function updateValue(id, group, key, value) {
     mutate((tree) => {
       const node = findNode(tree, id)
       if (!node) return
       node[group] = { ...(node[group] ?? {}), [key]: value }
-      if (group === 'style' && (value === '' || (Array.isArray(value) && value.length === 0))) {
+      // Like the server, style keeps only values that differ from their default.
+      if (group === 'style' && isDefaultStyle(key, value)) {
         delete node.style[key]
       }
     }, { coalesce: `${id}:${group}:${key}` })

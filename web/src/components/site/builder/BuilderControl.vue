@@ -7,7 +7,7 @@
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
       <template v-if="def.binding === 'media' || def.binding === 'link'" #literal>
-        <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" @update:model-value="emitValue" />
+        <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" :compact="group === 'style'" @update:model-value="emitValue" />
         <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
       </template>
     </SmartValueEditor>

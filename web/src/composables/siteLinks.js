@@ -1,5 +1,15 @@
 import { DEFAULT_MENU_LIMITS } from './menuTree.js'
 
+/**
+ * Mirrors SiteRepository::isLive(): the website is live while a public homepage
+ * or at least one public content type with frontend pages exists.
+ */
+export function isSiteLive(settings, types) {
+  const isPublic = (name) => types.some((type) => type.name === name && type.visibility !== 'private')
+  if (settings?.homepage?.type && isPublic(settings.homepage.type)) return true
+  return Object.entries(settings?.routes ?? {}).some(([name, route]) => route?.enabled && isPublic(name))
+}
+
 export function eligibleTypes(types, settings, kind) {
   return types.filter((type) => {
     if (type.visibility === 'private') return false

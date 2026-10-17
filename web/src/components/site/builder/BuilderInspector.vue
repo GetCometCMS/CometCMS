@@ -111,8 +111,8 @@ import { useI18n } from "../../../i18n/index.js";
 
 const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
-  { key: "colors", keys: ["background", "text_color"] },
-  { key: "text", keys: ["align", "font_size", "font_weight", "font_family"] },
+  { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
+  { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family"] },
   { key: "shape", keys: ["radius", "shadow", "border", "max_width"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
@@ -135,10 +135,19 @@ const fieldWarning = computed(() => {
   return fieldConfig.value ? "" : t("site.builder.missingFieldHint", { field: builder.nodeSummary(node.value) });
 });
 
+/** Image options only apply once there is an image; covering images never repeat. */
+const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
+
+function styleVisible(key) {
+  const style = node.value?.style ?? {};
+  if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
+  return key !== "background_repeat" || (style.background_size ?? styleSpec.value.background_size?.default) !== "cover";
+}
+
 const styleGroups = computed(() => {
   const allowed = builder.spec.value?.kinds?.[node.value?.kind]?.style ?? [];
   return STYLE_GROUPS
-    .map((group) => ({ ...group, keys: group.keys.filter((key) => allowed.includes(key)) }))
+    .map((group) => ({ ...group, keys: group.keys.filter((key) => allowed.includes(key) && styleVisible(key)) }))
     .filter((group) => group.keys.length > 0);
 });
 
@@ -171,14 +180,6 @@ const visibleProps = computed(() => {
       false_text: type === "boolean",
     };
     return keys.filter((key) => rules[key]);
-  }
-
-  if (current.kind === "section") {
-    const imageOptions = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
-    return keys.filter((key) =>
-      (!imageOptions.includes(key) || props.background_image)
-      && (key !== "background_repeat" || props.background_size !== "cover"),
-    );
   }
 
   if (current.kind === "collection") {

@@ -18,9 +18,10 @@ final class SmartValue
         'text' => ['html' => 'html'],
         'image' => ['media' => 'media', 'alt' => 'text', 'caption' => 'text', 'link' => 'link'],
         'button' => ['label' => 'text', 'link' => 'link'],
-        'section' => ['background_image' => 'media'],
         'field' => ['source' => 'value'],
     ];
+    /** Style keys that accept a binding, on every kind that offers them. */
+    public const STYLE_PROPERTIES = ['background_image' => 'media'];
 
     public function __construct(private readonly SiteContext $ctx) {}
 

@@ -239,7 +239,7 @@ test('website sitemap and robots list only public pages', function (): void {
 });
 
 test('website answers for its domains or as the default workspace', function (): void {
-    assert_null(SiteService::workspaceForHost('example.test'), 'No website until one is enabled.');
+    assert_null(SiteService::workspaceForHost('example.test'), 'No website until it has something to show.');
 
     comet_site_test_setup();
     assert_same('default', SiteService::workspaceForHost('anything.test')?->slug());
@@ -266,7 +266,7 @@ test('saving website changes clears cached pages', function (): void {
     assert_null($cache->get($key));
 });
 
-test('website status keeps configured frontend pages separate from the global website switch', function (): void {
+test('website status reports frontend pages and the derived live state', function (): void {
     $seed = <<<'PHP'
 $users->create('editor', 'secret-password', 'editor');
 $types = new \CometCMS\Content\ContentTypeRepository();
@@ -275,7 +275,6 @@ $types->save(['name' => 'data-only']);
 $types->save(['name' => 'homepage-only']);
 $types->save(['name' => 'notes', 'visibility' => 'private']);
 (new \CometCMS\Site\SiteRepository())->saveSettings([
-    'enabled' => false,
     'homepage' => ['type' => 'homepage-only'],
     'routes' => ['pages' => ['enabled' => true], 'notes' => ['enabled' => true]],
 ]);
@@ -285,16 +284,37 @@ PHP;
         '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->status();');
 
     assert_same(200, $status);
-    assert_false($json['data']['enabled']);
+    assert_true($json['data']['enabled']);
     assert_false($json['data']['can_manage'], 'Editors can see the status without website management permission.');
     assert_true($json['data']['types']['pages']['pages_enabled']);
+    assert_true($json['data']['types']['pages']['enabled']);
     assert_true($json['data']['types']['pages']['routed']);
     assert_true($json['data']['types']['homepage-only']['routed'], 'Homepage templates remain editable without enabling a separate URL.');
     assert_false($json['data']['types']['homepage-only']['pages_enabled']);
-    assert_false($json['data']['types']['pages']['enabled'], 'Configured pages are not live while the website is off.');
     assert_false($json['data']['types']['data-only']['pages_enabled']);
     assert_false($json['data']['types']['data-only']['routed']);
     assert_false($json['data']['types']['notes']['pages_enabled'], 'Private types cannot enable public pages.');
+});
+
+test('the website is live only while it has a homepage or frontend pages', function (): void {
+    $types = new ContentTypeRepository();
+    $types->save(['name' => 'pages']);
+    $types->save(['name' => 'notes', 'visibility' => 'private']);
+    $site = new SiteRepository();
+    $live = static fn(array $settings): bool => (new SiteRepository())->saveSettings($settings)['enabled'];
+
+    assert_false($site->settings()['enabled'], 'A new workspace is headless.');
+    assert_false($live(['enabled' => true]), 'The former switch alone no longer publishes anything.');
+    assert_null(SiteService::workspaceForHost('example.test'));
+    assert_false($live(['routes' => ['notes' => ['enabled' => true]]]), 'Private types never make the website live.');
+
+    assert_true($live(['homepage' => ['type' => 'pages']]), 'A homepage alone publishes the website.');
+    assert_same('default', SiteService::workspaceForHost('example.test')?->slug());
+    assert_true($live(['routes' => ['pages' => ['enabled' => true]]]), 'Frontend pages alone publish the website.');
+
+    assert_false($live([]), 'Unsetting both returns to a fully headless setup.');
+    assert_null(SiteService::workspaceForHost('example.test'));
+    assert_false(array_key_exists('enabled', (new JsonStore(comet_test_workspace_path() . '/site'))->read('settings') ?? []), 'The derived state is never stored.');
 });
 
 test('layout previews annotate nodes and render unsaved changes', function (): void {
@@ -341,6 +361,30 @@ test('theme normalizes values and keeps custom css inside its style element', fu
     assert_true(str_contains($css, '--c-on-primary:'));
     assert_false(stripos($css, '</style') !== false);
     assert_true(str_contains($css, 'body{color:red}'));
+});
+
+test('heading levels normalize their overrides and only customized levels get rules', function (): void {
+    $theme = Theme::normalize(['headings' => [
+        'h1' => ['font' => 'comic', 'size' => '999', 'weight' => 450, 'line_height' => 5, 'letter_spacing' => -1, 'transform' => 'blink'],
+        'h2' => ['font' => 'neo-grotesque', 'size' => 48, 'weight' => '800', 'line_height' => '1.05', 'letter_spacing' => 0.02, 'transform' => 'uppercase'],
+        'h3' => ['size' => '', 'weight' => null, 'font' => '"x;}body{'],
+        'h7' => ['size' => 20],
+    ]]);
+
+    assert_same(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], array_keys($theme['headings']));
+    assert_same(['font' => '', 'size' => 160, 'weight' => 500, 'line_height' => 2.2, 'letter_spacing' => -0.1, 'transform' => ''], $theme['headings']['h1']);
+    assert_same(['font' => 'neo-grotesque', 'size' => 48, 'weight' => 800, 'line_height' => 1.05, 'letter_spacing' => 0.02, 'transform' => 'uppercase'], $theme['headings']['h2']);
+    assert_same(Theme::headingDefaults(), $theme['headings']['h3'], 'Empty and invalid values inherit.');
+    assert_same(Theme::defaults()['headings'], Theme::normalize(['headings' => 'invalid'])['headings']);
+
+    $css = Theme::stylesheet(['custom_css' => '.after { color: red; }'] + $theme);
+    $h2 = 'h2{font-family:' . Theme::FONT_STACKS['neo-grotesque'] . ';font-size:48px;font-weight:800;line-height:1.05;letter-spacing:0.02em;text-transform:uppercase;}';
+    assert_true(str_contains($css, $h2));
+    assert_true(str_contains($css, '@media (max-width: 767px){h1{font-size:128px;}h2{font-size:38px;}}'), 'Large custom sizes shrink on phones.');
+    assert_false((bool) preg_match('/(^|})h3\{/', substr($css, strpos($css, '/* Headings */'))), 'Inheriting levels get no rule.');
+    assert_true(strpos($css, Theme::baseStylesheet()) < strpos($css, $h2), 'Heading rules replace the base defaults.');
+    assert_true(strpos($css, $h2) < strpos($css, '/* Custom CSS */'), 'Custom CSS can still override heading rules.');
+    assert_false(str_contains(Theme::stylesheet([]), '/* Headings */'), 'Default themes add no heading rules.');
 });
 
 test('custom theme colors validate tokens and values and generate both palettes', function (): void {
@@ -537,6 +581,7 @@ test('the locked admin role always holds new built-in permissions', function ():
 });
 
 test('background images and cropped images follow their size and focal point', function (): void {
+    // Sections stored background images as props before they became a style.
     $nodes = LayoutSchema::normalize([
         ['kind' => 'section', 'props' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
             ['kind' => 'row', 'children' => [['kind' => 'column', 'children' => [
@@ -546,8 +591,9 @@ test('background images and cropped images follow their size and focal point', f
         ]],
     ]);
 
-    $section = $nodes[0]['props'];
-    assert_same(['contain', 'top-right', true], [$section['background_size'], $section['background_position'], $section['background_repeat']]);
+    $section = $nodes[0]['style'];
+    assert_same(['x.jpg', 'contain', 'top-right', true], [$section['background_image'], $section['background_size'], $section['background_position'], $section['background_repeat']]);
+    assert_same([], array_intersect(array_keys($nodes[0]['props']), ['background_image', 'background_size', 'background_position', 'background_repeat']));
     $images = $nodes[0]['children'][0]['children'][0]['children'];
     assert_same('bottom-left', $images[0]['props']['position']);
     assert_same('center', $images[1]['props']['position'], 'Unknown focal points fall back to the center.');
@@ -591,12 +637,13 @@ test('column reversal persists independently per device and orders every column'
     }
 });
 
-test('background blur is bounded and saved with the section', function (): void {
+test('background blur is bounded and saved with the section style', function (): void {
     $site = comet_site_test_setup();
-    foreach ([[[], 0], [['background_blur' => -5], 0], [['background_blur' => 100], 40], [['background_blur' => 12], 12]] as [$props, $expected]) {
-        $site->saveLayout('about', 'detail', [LayoutSchema::node('section', $props)]);
+    foreach ([[[], 0], [['background_blur' => -5], 0], [['background_blur' => 100], 40], [['background_blur' => 12], 12]] as [$style, $expected]) {
+        $site->saveLayout('about', 'detail', [LayoutSchema::node('section', [], $style)]);
         $nodes = (new SiteRepository())->layout('about', 'detail');
-        assert_same($expected, $nodes[0]['props']['background_blur']);
+        assert_same($expected, $nodes[0]['style']['background_blur'] ?? 0);
+        assert_same($expected === 0, !array_key_exists('background_blur', $nodes[0]['style']), 'Defaults are not stored.');
     }
 });
 
@@ -607,11 +654,11 @@ test('background blur renders a separate decorative layer for public images only
 
     foreach (['none', 'light', 'dark'] as $overlay) {
         foreach ([0, 8, 40] as $blur) {
-            $nodes = [LayoutSchema::node('section', [
+            $nodes = [LayoutSchema::node('section', [], [
                 'background_image' => 'background.svg', 'background_blur' => $blur,
                 'background_size' => 'contain', 'background_position' => 'top-right',
-                'background_repeat' => true, 'overlay' => $overlay,
-            ], ['radius' => 'lg'], [LayoutSchema::node('row', [], [], [
+                'background_repeat' => true, 'overlay' => $overlay, 'radius' => 'lg',
+            ], [LayoutSchema::node('row', [], [], [
                 LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Sharp content'])]),
             ])])];
 
@@ -633,10 +680,33 @@ test('background blur renders a separate decorative layer for public images only
     foreach (['', 'missing.svg', 'document.txt', 'background.svg'] as $file) {
         $ctx = comet_site_test_context();
         $ctx->annotate = true;
-        $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('section', ['background_image' => $file, 'background_blur' => 8])]);
+        $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('section', [], ['background_image' => $file, 'background_blur' => 8])]);
         assert_false(str_contains($html, 'c-background-blur'), 'Missing, private and non-image backgrounds have no blur layer.');
         assert_false(str_contains($html, '--c-background-image'));
     }
+});
+
+test('columns and elements take a background image over their background color', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/texture.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
+    $background = ['background' => 'surface', 'background_image' => 'texture.svg', 'overlay' => 'dark', 'background_blur' => 4];
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg'], [
+        LayoutSchema::node('column', [], $background, [LayoutSchema::node('heading', ['text' => 'Column'])]),
+        LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Element</p>'], $background)]),
+    ])])]);
+
+    assert_same([], $nodes[0]['children'][0]['style'], 'Rows offer no background.');
+    $columnStyle = $nodes[0]['children'][0]['children'][0]['style'];
+    ksort($columnStyle);
+    ksort($background);
+    assert_same($background, $columnStyle);
+
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_same(2, substr_count($html, 'class="c-background-blur" aria-hidden="true"'));
+    assert_same(2, substr_count($html, 'c-has-bg-image'));
+    assert_true((bool) preg_match('/class="c-col c-col-12 c-has-bg-image[^"]*c-overlay-dark[^"]*c-bg-surface"/', $html), 'Columns keep their color under the image.');
+    assert_true((bool) preg_match('/class="c-el c-el-text c-has-bg-image[^"]*c-bg-surface"/', $html));
+    assert_true(str_contains(Theme::stylesheet([]), ':where(.c-has-bg-image) { position: relative; }'), 'Overlay and blur layers are anchored outside sections too.');
 });
 
 test('theme spacing and radius tokens drive the stylesheet', function (): void {

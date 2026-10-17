@@ -13,8 +13,9 @@ use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
 /**
- * Public website. Only answers when a workspace has its website enabled;
- * otherwise the request falls through to the headless behaviour.
+ * Public website. Only answers when a workspace's website is live (it has a
+ * homepage or frontend pages); otherwise the request falls through to the
+ * headless behaviour.
  */
 final class SiteController
 {

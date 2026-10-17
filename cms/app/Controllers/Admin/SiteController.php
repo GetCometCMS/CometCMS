@@ -51,6 +51,7 @@ final class SiteController extends BaseController
             'types' => array_values($this->site->types()),
             'available_locales' => $this->site->availableLocales(),
             'fonts' => array_keys(Theme::FONT_STACKS),
+            'font_stacks' => Theme::FONT_STACKS,
             'theme_defaults' => Theme::defaults(),
             'site_url' => $this->siteUrl(),
             'workspace' => $this->site->workspace()->slug(),
@@ -59,7 +60,7 @@ final class SiteController extends BaseController
         ]]);
     }
 
-    /** Lightweight summary for editors: is the website on, which types are published. */
+    /** Lightweight summary for editors: is the website live, which types are published. */
     public function status(): never
     {
         $user = $this->requireUser();
@@ -68,7 +69,8 @@ final class SiteController extends BaseController
 
         foreach ($settings['routes'] as $name => $route) {
             $types[$name] = [
-                'enabled' => $settings['enabled'] && $route['enabled'],
+                // A type with frontend pages always makes the website live.
+                'enabled' => $route['enabled'],
                 'pages_enabled' => $route['enabled'],
                 'routed' => $route['enabled'] || ($settings['homepage']['type'] ?? '') === $name,
                 'pattern' => $route['pattern'],
@@ -452,7 +454,7 @@ final class SiteController extends BaseController
         }
     }
 
-    /** Absolute live URL for a site path, or null while the website is off. */
+    /** Absolute live URL for a site path, or null while the website is headless. */
     private function liveUrl(?string $path, SiteContext $context): ?string
     {
         if ($path === null || !$this->site->settings()['enabled']) {

@@ -1,19 +1,32 @@
 <template>
   <div class="space-y-6">
-    <!-- Publishing -->
+    <!-- Status: live while there is a homepage or frontend pages -->
     <section class="card p-6">
       <div class="flex items-start gap-4">
         <div class="min-w-0 flex-1">
           <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.publishing") }}</h2>
-          <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.publishingHint") }}</p>
-          <p v-if="settings.enabled" class="mt-3 text-sm">
+          <p class="mt-1 text-sm text-slate-500">{{ site.live ? t("site.overview.liveHint") : t("site.overview.headlessHint") }}</p>
+          <p v-if="site.live" class="mt-3 text-sm">
             <span class="text-slate-500">{{ t("site.overview.address") }}</span>
             <a :href="site.data.site_url + '/'" target="_blank" rel="noopener" class="ml-1 font-mono text-theme-700 hover:underline">
               {{ site.data.site_url }}/
             </a>
           </p>
+          <div v-if="pageTypes.length > 0" class="mt-3 flex flex-wrap items-center gap-1.5 text-sm">
+            <span class="text-slate-500">{{ t("site.overview.pagesFrom") }}</span>
+            <router-link
+              v-for="type in pageTypes"
+              :key="type.name"
+              :to="`/content-types/${type.name}/edit#website`"
+              class="badge bg-slate-100 text-slate-700 hover:bg-theme-50 hover:text-theme-700"
+            >
+              {{ type.label }}
+            </router-link>
+          </div>
         </div>
-        <ToggleSwitch v-model="settings.enabled" :aria-label="t('site.overview.enable')" />
+        <span class="badge shrink-0" :class="site.live ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'">
+          {{ site.live ? t("site.status.live") : t("site.status.off") }}
+        </span>
       </div>
     </section>
 
@@ -51,7 +64,7 @@
         <div>
           <label class="form-label" for="site-home-type">{{ t("site.overview.homepageType") }}</label>
           <select id="site-home-type" v-model="settings.homepage.type" class="form-select w-full rounded-lg border-slate-300 text-sm" @change="settings.homepage.entry = ''">
-            <option value="">{{ t("site.overview.homepageAuto") }}</option>
+            <option value="">{{ t("site.overview.homepageNone") }}</option>
             <option v-for="type in publicTypes" :key="type.name" :value="type.name">{{ type.label }}</option>
           </select>
         </div>
@@ -163,6 +176,7 @@ const homeEntries = ref([]);
 const loadingEntries = ref(false);
 
 const publicTypes = computed(() => site.data.types.filter((type) => type.visibility !== "private"));
+const pageTypes = computed(() => publicTypes.value.filter((type) => settings.value.routes[type.name]?.enabled));
 const homeType = computed(() => publicTypes.value.find((type) => type.name === settings.value.homepage.type) ?? null);
 const homeEntryOptions = computed(() => [
   { value: "", label: t("site.overview.homepageList") },

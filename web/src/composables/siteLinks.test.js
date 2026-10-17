@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { destinationAvailable, eligibleTypes, entryIdentifier, entryTitle, linkIssue, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
+import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
 const types = [
   { name: 'about', singleton: true, label: 'About' },
   { name: 'home', singleton: true },
@@ -10,6 +10,17 @@ const settings = { homepage: { type: 'home', entry: '' }, routes: {
   about: { enabled: true }, blog: { enabled: true, index_path: '/blog' },
   portfolio: { enabled: false }, private: { enabled: true },
 } }
+
+describe('website live state', () => {
+  it('is live with a public homepage or public frontend pages, and headless otherwise', () => {
+    const off = { homepage: { type: '', entry: '' }, routes: { blog: { enabled: false } } }
+    expect(isSiteLive(off, types)).toBe(false)
+    expect(isSiteLive({ ...off, homepage: { type: 'about', entry: '' } }, types)).toBe(true)
+    expect(isSiteLive({ ...off, routes: { blog: { enabled: true } } }, types)).toBe(true)
+    expect(isSiteLive({ ...off, homepage: { type: 'private', entry: '' }, routes: { private: { enabled: true } } }, types)).toBe(false)
+    expect(isSiteLive(null, types)).toBe(false)
+  })
+})
 
 describe('website destinations', () => {
   it('separates routable pages, content and listings, retaining homepage exceptions', () => {

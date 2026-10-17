@@ -59,14 +59,17 @@
 
     <template v-else-if="site.draft">
       <div
-        v-if="!site.draft.settings.enabled"
+        v-if="!site.live"
         class="mb-6 flex flex-col gap-3 rounded-xl border border-theme-200 bg-theme-50 px-4 py-3 text-sm text-theme-900 sm:flex-row sm:items-center"
       >
         <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
         <p class="flex-1">{{ t("site.offNotice") }}</p>
-        <button type="button" class="btn-secondary btn-sm shrink-0" @click="site.draft.settings.enabled = true">
-          {{ t("site.turnOn") }}
-        </button>
+        <router-link v-if="activeTab !== 'overview'" to="/website/overview" class="btn-secondary btn-sm shrink-0">
+          {{ t("site.chooseHomepage") }}
+        </router-link>
+        <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
+          {{ t("site.enablePages") }}
+        </router-link>
       </div>
 
       <div

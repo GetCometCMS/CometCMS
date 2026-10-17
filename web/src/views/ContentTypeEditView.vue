@@ -491,7 +491,8 @@ async function saveWebsiteRoute(name) {
     routeClean = JSON.stringify(websiteRoute.value);
     websiteStatus.value = {
       ...websiteStatus.value,
-      types: { ...websiteStatus.value.types, [name]: { ...saved, pages_enabled: saved.enabled, enabled: websiteStatus.value.enabled && saved.enabled } },
+      enabled: !!site.data?.settings?.enabled,
+      types: { ...websiteStatus.value.types, [name]: { ...saved, pages_enabled: saved.enabled, enabled: saved.enabled } },
     };
     return true;
   } catch (err) {

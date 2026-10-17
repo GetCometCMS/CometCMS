@@ -73,6 +73,9 @@ final class LayoutSchema
 
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
+    /** Background image options; older layouts stored them as section props. */
+    private const BACKGROUND_IMAGE_KEYS = ['background_image', 'background_size', 'background_position', 'background_repeat', 'background_blur', 'overlay'];
+
     public static function styleSpec(): array
     {
         return [
@@ -80,6 +83,14 @@ final class LayoutSchema
             'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+            // An image is layered over the background color, which shows
+            // through transparent images and while the image loads.
+            'background_image' => ['type' => 'media', 'default' => ''],
+            'background_size' => ['type' => 'enum', 'options' => ['cover', 'contain', 'original'], 'default' => 'cover'],
+            'background_position' => ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'center'],
+            'background_repeat' => ['type' => 'bool', 'default' => false],
+            'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
+            'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
             'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
             'align' => ['type' => 'enum', 'options' => ['', 'left', 'center', 'right'], 'default' => ''],
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
@@ -99,10 +110,10 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', 'text_color', 'align', 'border', 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
+            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'border', 'radius', 'shadow', 'class', 'anchor', 'hide_on'],
             'row' => ['margin_bottom', 'class', 'hide_on'],
-            'column' => ['padding_y', 'padding_x', 'background', 'text_color', 'align', 'radius', 'shadow', 'border', 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', 'border', 'max_width', 'class', 'anchor', 'hide_on'],
+            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', 'border', 'class', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', 'border', 'max_width', 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -117,12 +128,6 @@ final class LayoutSchema
                 'width' => ['type' => 'enum', 'options' => ['contained', 'narrow', 'full'], 'default' => 'contained'],
                 'min_height' => ['type' => 'enum', 'options' => ['', 'half', 'screen'], 'default' => ''],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
-                'background_image' => ['type' => 'media', 'default' => ''],
-                'background_size' => ['type' => 'enum', 'options' => ['cover', 'contain', 'original'], 'default' => 'cover'],
-                'background_position' => $position,
-                'background_repeat' => ['type' => 'bool', 'default' => false],
-                'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
-                'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
                 'sticky' => ['type' => 'bool', 'default' => false],
             ],
             'row' => [
@@ -241,12 +246,17 @@ final class LayoutSchema
             ];
         }
 
+        $style = self::styleSpec();
+        foreach (SmartValue::STYLE_PROPERTIES as $key => $binding) {
+            $style[$key]['binding'] = $binding;
+        }
+
         return [
             'format_version' => self::FORMAT_VERSION,
-            'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES],
+            'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES, 'style_properties' => SmartValue::STYLE_PROPERTIES],
             'kinds' => $kinds,
             'root' => self::allowedChildren('root'),
-            'style' => self::styleSpec(),
+            'style' => $style,
             'elements' => self::ELEMENTS,
             'item_elements' => self::ITEM_ELEMENTS,
             'field_displays' => self::FIELD_DISPLAYS,
@@ -561,11 +571,16 @@ final class LayoutSchema
                 ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field')
                 : [];
 
+            [$props, $style] = self::liftBackgroundImage(
+                is_array($node['props'] ?? null) ? $node['props'] : [],
+                is_array($node['style'] ?? null) ? $node['style'] : [],
+            );
+
             $normalized[] = [
                 'id' => $id,
                 'kind' => $kind,
-                'props' => self::normalizeProps($kind, is_array($node['props'] ?? null) ? $node['props'] : []),
-                'style' => self::normalizeStyle($kind, is_array($node['style'] ?? null) ? $node['style'] : []),
+                'props' => self::normalizeProps($kind, $props),
+                'style' => self::normalizeStyle($kind, $style),
                 'children' => $children,
             ];
         }
@@ -588,6 +603,7 @@ final class LayoutSchema
         return $normalized;
     }
 
+    /** Only values that differ from their default are kept. */
     private static function normalizeStyle(string $kind, array $style): array
     {
         $specs = self::styleSpec();
@@ -598,13 +614,29 @@ final class LayoutSchema
                 continue;
             }
 
-            $value = self::normalizeValue($specs[$key], $style[$key]);
-            if ($value !== '' && $value !== []) {
+            $binding = SmartValue::STYLE_PROPERTIES[$key] ?? null;
+            $value = $binding !== null && SmartValue::isDynamic($style[$key])
+                ? SmartValue::normalize($style[$key], $binding)
+                : self::normalizeValue($specs[$key], $style[$key]);
+            if ($value !== $specs[$key]['default']) {
                 $normalized[$key] = $value;
             }
         }
 
         return $normalized;
+    }
+
+    /** Move background image props of older sections into their style. */
+    private static function liftBackgroundImage(array $props, array $style): array
+    {
+        foreach (self::BACKGROUND_IMAGE_KEYS as $key) {
+            if (array_key_exists($key, $props)) {
+                $style[$key] ??= $props[$key];
+                unset($props[$key]);
+            }
+        }
+
+        return [$props, $style];
     }
 
     private static function normalizeValue(array $spec, mixed $value): mixed

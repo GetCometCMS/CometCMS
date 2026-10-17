@@ -115,7 +115,7 @@ The `initialize` response advertises the server identity:
 | `SiteContext` and `PageRenderer` | Unsaved layout, region, theme and menu overrides can be rendered using the same code as published pages. Builder annotations associate rendered elements with node IDs. |
 | Existing MCP server | Bearer authentication, permission checks, tool schemas, annotations and recoverable tool errors already exist. |
 
-The new controls also belong to the shared schema: rows have independent boolean `reverse_mobile` and `reverse_tablet` properties; sections have integer `background_blur` (0–40 pixels). A future design tool can discover and edit these properties through the same contract as the inspector.
+The new controls also belong to the shared schema: rows have independent boolean `reverse_mobile` and `reverse_tablet` properties; sections, columns and elements have a `background_image` style (bindable like image sources) with size, position, repeat, overlay and integer `background_blur` (0–40 pixels) options. A future design tool can discover and edit these properties through the same contract as the inspector.
 
 ### Gaps to address before enabling AI writes
 

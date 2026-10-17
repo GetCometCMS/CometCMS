@@ -10,13 +10,14 @@
       </div>
     </div>
 
+    <!-- The first frontend pages take a headless workspace online. -->
     <div
-      v-if="status && !status.enabled"
+      v-if="editable && route.enabled && !status.enabled"
       class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
     >
       <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" />
       <span class="flex-1">{{ t("site.typeCard.siteOff") }}</span>
-      <router-link v-if="status.can_manage" to="/website/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
+      <router-link to="/website/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
     </div>
 
     <template v-if="editable && route.enabled">
@@ -112,7 +113,7 @@ const VARIANT_ICONS = { detail: "mdi:file-document-outline", card: "mdi:card-tex
 const props = defineProps({
   /** Website settings of this type, or null when they cannot be edited. */
   modelValue: { type: Object, default: null },
-  /** Website status: { enabled, can_manage, types }. */
+  /** Website status: { enabled (live), can_manage, types }. */
   status: { type: Object, default: null },
   name: { type: String, default: "" },
   label: { type: String, default: "" },

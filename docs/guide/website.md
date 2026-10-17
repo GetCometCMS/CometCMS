@@ -1,12 +1,14 @@
 # Website
 
-CometCMS is headless first, but each workspace can also publish its content as a website. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. The API keeps working whether the website is on or off.
+CometCMS is headless first, but each workspace can also publish its content as a website. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. The API keeps working whether the website is online or not.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
-## Turning it on
+## Putting it online
 
-Open **Website** in the admin sidebar (administrators only, permission `site.manage`) and switch on **Publish website** in the **Overview** tab. Under **Content types → edit**, turn on **Show content as frontend pages** in the base settings card. The **Frontend pages** card then appears with URL, search engine and layout settings:
+There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with **frontend pages**. With neither, the workspace stays fully headless and the root URL falls through to the default CometCMS behaviour.
+
+Open **Page Builder** in the admin sidebar (permission `site.manage`) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Show content as frontend pages** in the base settings card. The **Frontend pages** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -16,9 +18,9 @@ Open **Website** in the admin sidebar (administrators only, permission `site.man
 
 `/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
 
-The **Frontend pages** column in the content types table shows whether pages are configured for each type, even when the website is off. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. Private types cannot enable public frontend pages.
+The **Frontend pages** column in the content types table shows which types publish pages. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. Private types cannot enable public frontend pages. Turning on the first frontend pages of a headless workspace puts its website online.
 
-The homepage can be a single page, one entry, or a collection's list page. Until you choose one, CometCMS shows an automatic overview with the newest entries of every published collection.
+The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage but with frontend pages, the site root shows an automatic overview with the newest entries of every published collection. Set the homepage to **None** and turn off all frontend pages to return to a fully headless setup.
 
 ## Layouts and the builder
 
@@ -55,9 +57,13 @@ If a field is renamed or removed, elements bound to it render nothing and the bu
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
 
-### Background image blur
+### Background images
 
-Select a **section**, choose a **Background image**, then set **Background blur (px)** from 0 to 40. Zero keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. Image size, focal point and repeat options continue to apply. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, and **Background blur (px)** from 0 to 40. Like other images, it can be bound to a media field of the entry.
+
+Zero blur keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 
 ### AI and MCP access
 
@@ -74,6 +80,8 @@ For a section link, enter an anchor ID assigned in the page builder, such as `co
 ## Theme
 
 The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Fonts are local font stacks; nothing is loaded from third-party font services.
+
+**Heading levels** fine-tune H1 to H6 one by one: font, size, weight, line height, letter spacing and capitalization. Empty values follow the general typography settings, so a level only needs the values that should differ. Custom sizes from 32 px shrink by 20 % on phones. Font, size and weight chosen for a single element in the builder still take precedence.
 
 The theme also defines the **tokens** the builder offers, so one change reshapes the whole site:
 
@@ -93,7 +101,7 @@ Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a descri
 
 ## Previewing drafts
 
-The entry editor shows **Preview** when the website is on; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get a **Page design** section between **Core** and **Fields**, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the top bar links to the live page and back to the entry's content. Published entries also offer **View on website** in the editor header.
+The entry editor shows **Preview** for entries that have a page; it opens the last saved version of the entry, drafts included, for signed-in users only. People who manage the website also get a **Page design** section between **Core** and **Fields**, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the top bar links to the live page and back to the entry's content. Published entries also offer **View on website** in the editor header.
 
 ## Domains and workspaces
 
@@ -115,7 +123,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image source/alt/caption, button label, section background image, and element link destinations. Layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image source/alt/caption, button label, background images, and element link destinations. Other layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

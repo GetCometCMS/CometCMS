@@ -73,20 +73,18 @@ final class NodeRenderer
                 continue;
             }
             if (!SmartValue::isDynamic($binding) || $key === 'source') continue;
+            $resolved = $this->resolveBinding($binding, $target, $state);
+            $node['props'][$key] = $resolved['value'];
             if (in_array($target, ['text', 'html'], true)) {
-                $resolved = $this->smart->text($binding, $state, $target === 'html');
-                $node['props'][$key] = $resolved['value'];
                 $node['_resolved'][$key] = true;
-            } else {
-                $resolved = $this->smart->resolve($binding, $state);
-                $value = $resolved['value'];
-                if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($resolved['missing'] && array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback'))) { $value = ''; $resolved['missing'] = true; }
-                if ($target === 'media' && is_array($value) && empty($resolved['config']['multiple']) && count($value) <= 1) $value = $value[0] ?? '';
-                if (is_array($value)) $resolved['missing'] = true;
-                $node['props'][$key] = $target === 'link'
-                    ? ['type' => 'url', 'url' => is_scalar($value) ? (string) $value : '', 'new_tab' => false]
-                    : (is_scalar($value) ? (string) $value : '');
             }
+            $warnings = $warnings || $resolved['missing'];
+        }
+        foreach (SmartValue::STYLE_PROPERTIES as $key => $target) {
+            $binding = $node['style'][$key] ?? null;
+            if (!SmartValue::isDynamic($binding)) continue;
+            $resolved = $this->resolveBinding($binding, $target, $state);
+            $node['style'][$key] = $resolved['value'];
             $warnings = $warnings || $resolved['missing'];
         }
         $html = match ($node['kind'] ?? '') {
@@ -111,6 +109,41 @@ final class NodeRenderer
             : $html;
     }
 
+    /**
+     * The value of a bound property or style: text and HTML are rendered,
+     * media must come from a media field, links become URLs.
+     *
+     * @return array{value: mixed, missing: bool}
+     */
+    private function resolveBinding(array $binding, string $target, array $state): array
+    {
+        if (in_array($target, ['text', 'html'], true)) {
+            return $this->smart->text($binding, $state, $target === 'html');
+        }
+
+        $resolved = $this->smart->resolve($binding, $state);
+        $value = $resolved['value'];
+        $missing = $resolved['missing'];
+        $fallback = array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback') !== [];
+        if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($missing && $fallback)) {
+            $value = '';
+            $missing = true;
+        }
+        if ($target === 'media' && is_array($value) && empty($resolved['config']['multiple']) && count($value) <= 1) {
+            $value = $value[0] ?? '';
+        }
+        if (is_array($value)) {
+            $missing = true;
+        }
+
+        return [
+            'value' => $target === 'link'
+                ? ['type' => 'url', 'url' => is_scalar($value) ? (string) $value : '', 'new_tab' => false]
+                : (is_scalar($value) ? (string) $value : ''),
+            'missing' => $missing,
+        ];
+    }
+
     // ─── Structure ───────────────────────────────────────────────────────────
 
     private function section(array $node, array $state): string
@@ -118,8 +151,6 @@ final class NodeRenderer
         $props = $node['props'];
         $inCard = ($state['in_card'] ?? false) === true;
         $classes = ['c-section', 'c-section-' . $props['width']];
-        $style = '';
-        $backgroundLayer = '';
 
         if ($props['min_height'] !== '') {
             $classes[] = 'c-min-h-' . $props['min_height'];
@@ -131,23 +162,7 @@ final class NodeRenderer
             $classes[] = 'c-sticky';
         }
 
-        $background = $props['background_image'] !== '' ? $this->ctx->mediaItem($props['background_image']) : null;
-        if ($background !== null && str_starts_with((string) $background['mime'], 'image/')) {
-            $classes[] = 'c-has-bg-image';
-            $image = 'url(\'' . $this->imageSource($background, 1920) . '\')';
-            $style = 'background-image:' . $image;
-            if ($props['background_blur'] > 0) {
-                $classes[] = 'c-has-bg-blur';
-                $style = '--c-background-image:' . $image . ';--c-background-blur:' . $props['background_blur'] . 'px';
-                $backgroundLayer = '<span class="c-background-blur" aria-hidden="true"></span>';
-            }
-            $classes[] = 'c-bg-size-' . $props['background_size'];
-            $classes[] = 'c-bg-pos-' . $props['background_position'];
-            $classes[] = $props['background_repeat'] ? 'c-bg-repeat' : 'c-bg-no-repeat';
-            if ($props['overlay'] !== 'none') {
-                $classes[] = 'c-overlay-' . $props['overlay'];
-            }
-        }
+        $background = $this->background($node['style']);
 
         $inner = $this->render($node['children'], $state);
         if ($inner === '' && !$this->annotating()) {
@@ -157,7 +172,7 @@ final class NodeRenderer
         $tag = $inCard ? 'div' : 'section';
         $container = $props['width'] === 'full' ? $inner : '<div class="c-container c-container-' . $props['width'] . '">' . $inner . '</div>';
 
-        return '<' . $tag . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])], $style) . '>' . $backgroundLayer . $container . '</' . $tag . '>';
+        return '<' . $tag . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $container . '</' . $tag . '>';
     }
 
     private function row(array $node, array $state): string
@@ -204,9 +219,10 @@ final class NodeRenderer
             $inner = '<div class="c-placeholder c-placeholder-drop">Empty column</div>';
         }
 
-        $style = $order !== null ? '--c-column-order:' . $order : '';
+        $background = $this->background($node['style']);
+        $style = implode(';', array_filter([$order !== null ? '--c-column-order:' . $order : '', $background['style']]));
 
-        return '<div' . $this->attributes($node, [...$classes, ...$this->styleClasses($node['style'])], $style) . '>' . $inner . '</div>';
+        return '<div' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $style) . '>' . $background['layer'] . $inner . '</div>';
     }
 
     // ─── Elements ────────────────────────────────────────────────────────────
@@ -896,9 +912,53 @@ final class NodeRenderer
 
     private function element(array $node, string $inner, array $extraClasses = []): string
     {
-        $classes = ['c-el', 'c-el-' . str_replace('_', '-', $node['kind']), ...$extraClasses, ...$this->styleClasses($node['style'])];
+        $background = $this->background($node['style']);
+        $classes = ['c-el', 'c-el-' . str_replace('_', '-', $node['kind']), ...$extraClasses, ...$background['classes'], ...$this->styleClasses($node['style'])];
 
-        return '<div' . $this->attributes($node, $classes) . '>' . $inner . '</div>';
+        return '<div' . $this->attributes($node, $classes, $background['style']) . '>' . $background['layer'] . $inner . '</div>';
+    }
+
+    /**
+     * Classes, inline style and decorative blur layer for a background image.
+     * Only public images are used; anything else renders no background.
+     *
+     * @return array{classes: list<string>, style: string, layer: string}
+     */
+    private function background(array $style): array
+    {
+        $file = (string) ($style['background_image'] ?? '');
+        $item = $file !== '' ? $this->ctx->mediaItem($file) : null;
+
+        if ($item === null || !str_starts_with((string) $item['mime'], 'image/')) {
+            return ['classes' => [], 'style' => '', 'layer' => ''];
+        }
+
+        $spec = LayoutSchema::styleSpec();
+        $option = static fn(string $key): mixed => $style[$key] ?? $spec[$key]['default'];
+        $image = 'url(\'' . $this->imageSource($item, 1920) . '\')';
+        $blur = (int) $option('background_blur');
+        $classes = [
+            'c-has-bg-image',
+            'c-bg-size-' . $option('background_size'),
+            'c-bg-pos-' . $option('background_position'),
+            $option('background_repeat') ? 'c-bg-repeat' : 'c-bg-no-repeat',
+        ];
+
+        if ($option('overlay') !== 'none') {
+            $classes[] = 'c-overlay-' . $option('overlay');
+        }
+
+        if ($blur === 0) {
+            return ['classes' => $classes, 'style' => 'background-image:' . $image, 'layer' => ''];
+        }
+
+        $classes[] = 'c-has-bg-blur';
+
+        return [
+            'classes' => $classes,
+            'style' => '--c-background-image:' . $image . ';--c-background-blur:' . $blur . 'px',
+            'layer' => '<span class="c-background-blur" aria-hidden="true"></span>',
+        ];
     }
 
     private function attributes(array $node, array $classes, string $style = ''): string

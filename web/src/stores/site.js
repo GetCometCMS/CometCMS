@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, getActiveWorkspace } from '../api/index.js'
-import { menuErrors } from '../composables/siteLinks.js'
+import { isSiteLive, menuErrors } from '../composables/siteLinks.js'
 import { DEFAULT_MENU_LIMITS } from '../composables/menuTree.js'
 import { t } from '../i18n/index.js'
 
@@ -29,6 +29,8 @@ export const useSiteStore = defineStore('site', () => {
     )
   })
   const isDirty = computed(() => dirtyParts.value.length > 0)
+  /** Whether the draft settings publish anything; the saved state is `data.settings.enabled`. */
+  const live = computed(() => !!(draft.value && data.value) && isSiteLive(draft.value.settings, data.value.types))
 
   function resetDraft() {
     draft.value = data.value
@@ -134,5 +136,5 @@ export const useSiteStore = defineStore('site', () => {
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, invalidate }
 })

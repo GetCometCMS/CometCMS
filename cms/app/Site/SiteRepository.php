@@ -16,14 +16,18 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * Website configuration of one workspace, stored under
  * storage/workspaces/{workspace}/site/:
  *
- *   settings.json               enabled, homepage, URL patterns, SEO defaults
+ *   settings.json               homepage, URL patterns, SEO defaults
  *   theme.json                  design tokens and custom CSS
  *   menus.json                  navigation menus
  *   regions/{header,footer}.json
  *   layouts/{type}/{variant}.json
  *
  * Layouts and regions that were never customized are generated from the
- * content type on the fly, so enabling the website works without setup.
+ * content type on the fly, so publishing a first page works without setup.
+ *
+ * There is no on/off switch: the website is live while it has something to
+ * show, i.e. a homepage or at least one content type with frontend pages
+ * (see isLive()). Without either, the workspace stays purely headless.
  */
 final class SiteRepository
 {
@@ -78,11 +82,28 @@ final class SiteRepository
         $settings = $this->normalizeSettings($input);
         $this->validateSettings($settings);
         $settings['updated_at'] = Security::now();
-        $this->store->write($settings, 'settings');
+        // "enabled" is derived on every read and never stored.
+        $this->store->write(array_diff_key($settings, ['enabled' => true]), 'settings');
         $this->settingsCache = $settings;
         $this->clearCache();
 
         return $settings;
+    }
+
+    /** Whether normalized settings publish anything: a homepage or frontend pages. */
+    private static function isLive(array $settings): bool
+    {
+        if (($settings['homepage']['type'] ?? '') !== '') {
+            return true;
+        }
+
+        foreach ($settings['routes'] ?? [] as $route) {
+            if (!empty($route['enabled'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function defaultRoute(array $type): array
@@ -469,17 +490,25 @@ final class SiteRepository
 
         $homepage = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
         $homeType = LayoutSchema::key($homepage['type'] ?? '');
+        $homeType = isset($types[$homeType]) ? $homeType : '';
+        $homepage = [
+            'type' => $homeType,
+            'entry' => $homeType !== '' ? LayoutSchema::key($homepage['entry'] ?? '') : '',
+        ];
 
         return [
-            'enabled' => (bool) ($input['enabled'] ?? false),
+            // Read-only: derived from the homepage and routes (see isLive()).
+            // A stored private homepage is rejected on save, but must not make
+            // the website live in the meantime.
+            'enabled' => self::isLive([
+                'homepage' => ($types[$homeType]['visibility'] ?? 'public') === 'private' ? [] : $homepage,
+                'routes' => $routes,
+            ]),
             'title' => self::line($input['title'] ?? '', 120),
             'tagline' => self::line($input['tagline'] ?? '', 200),
             'logo' => self::media($input['logo'] ?? ''),
             'favicon' => self::media($input['favicon'] ?? ''),
-            'homepage' => [
-                'type' => isset($types[$homeType]) ? $homeType : '',
-                'entry' => isset($types[$homeType]) ? LayoutSchema::key($homepage['entry'] ?? '') : '',
-            ],
+            'homepage' => $homepage,
             'locales' => $locales,
             'default_locale' => $defaultLocale,
             'domains' => self::domains($input['domains'] ?? []),

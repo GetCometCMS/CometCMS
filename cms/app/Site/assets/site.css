@@ -68,6 +68,8 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-section.c-v-end > .c-container, .c-section.c-v-end { justify-content: flex-end; }
 .c-sticky { position: sticky; top: 0; z-index: 40; }
 .c-has-bg-image { color: inherit; }
+/* Columns and elements anchor overlay and blur layers; sections stay sticky when asked. */
+:where(.c-has-bg-image) { position: relative; }
 .c-has-bg-blur { isolation: isolate; }
 /* Clip only the decorative image layer, keeping menus and section content free to overflow. */
 .c-background-blur {
@@ -87,7 +89,7 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-overlay-light { color: #0f172a; }
 .c-region .c-section:not(.c-py-none):not([class*="c-py-"]) { padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
 
-/* Background images and focal points */
+/* Background images (sections, columns and elements) and focal points */
 .c-bg-size-cover { background-size: cover; }
 .c-bg-size-contain { background-size: contain; }
 .c-bg-size-original { background-size: auto; }

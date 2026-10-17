@@ -1,0 +1,167 @@
+<template>
+  <section class="card space-y-4 p-5">
+    <div>
+      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.headings") }}</h2>
+      <p class="mt-1 text-xs text-slate-500">{{ t("site.theme.headingsHint") }}</p>
+    </div>
+
+    <div class="flex w-full rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="radiogroup" :aria-label="t('site.theme.headingLevel')">
+      <button
+        v-for="option in LEVELS"
+        :key="option"
+        type="button"
+        role="radio"
+        :aria-checked="level === option"
+        :title="isCustomized(option) ? `${option.toUpperCase()} · ${t('site.theme.headingCustomized')}` : option.toUpperCase()"
+        class="relative flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-1 text-xs font-semibold transition-colors"
+        :class="level === option ? 'bg-white text-theme-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'"
+        @click="level = option"
+      >
+        {{ option.toUpperCase() }}
+        <span v-if="isCustomized(option)" class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-theme-500" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <p class="truncate text-slate-900" :style="specimenStyle">{{ t("site.theme.headingSample") }}</p>
+      <p class="mt-1 font-mono text-[10px] text-slate-400">{{ summary }}</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="form-label" :for="`${id}-font`">{{ t("site.theme.headingLevelFont") }}</label>
+        <select :id="`${id}-font`" v-model="heading.font" class="form-select w-full rounded-lg border-slate-300 text-sm">
+          <option value="">{{ t("site.theme.inherit", { value: t(`site.font.${theme.fonts.heading}`) }) }}</option>
+          <option v-for="font in fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" :for="`${id}-weight`">{{ t("site.theme.headingLevelWeight") }}</label>
+        <select
+          :id="`${id}-weight`"
+          :value="heading.weight ?? ''"
+          class="form-select w-full rounded-lg border-slate-300 text-sm"
+          @change="heading.weight = $event.target.value === '' ? null : Number($event.target.value)"
+        >
+          <option value="">{{ t("site.theme.inherit", { value: theme.heading_weight }) }}</option>
+          <option v-for="weight in WEIGHTS" :key="weight" :value="weight">{{ weight }}</option>
+        </select>
+      </div>
+      <label v-for="field in NUMBER_FIELDS" :key="field.key" class="block">
+        <span class="form-label">{{ t(field.label) }}</span>
+        <span class="flex items-center rounded-lg border border-slate-300 bg-white focus-within:border-theme-500 focus-within:ring-1 focus-within:ring-theme-500">
+          <input
+            type="number"
+            :min="field.min"
+            :max="field.max"
+            :step="field.step"
+            :value="heading[field.key] ?? ''"
+            :placeholder="String(inherited[field.key])"
+            class="w-full min-w-0 border-0 bg-transparent px-2 py-1.5 text-sm focus:ring-0"
+            @input="setNumber(field, $event.target.value)"
+            @change="setNumber(field, $event.target.value, true)"
+          />
+          <span v-if="field.unit" class="pr-2 text-xs text-slate-400">{{ field.unit }}</span>
+        </span>
+      </label>
+      <div>
+        <span class="form-label">{{ t("site.theme.textTransform") }}</span>
+        <SegmentedControl
+          v-model="heading.transform"
+          :options="TRANSFORMS.map(({ value, label }) => ({ value, label, title: t(`site.theme.transform.${value || 'none'}`) }))"
+        />
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs text-slate-500">{{ t("site.theme.headingMobileHint") }}</p>
+      <button v-if="isCustomized(level)" type="button" class="btn-secondary btn-sm shrink-0" @click="resetLevel">
+        <Icon icon="mdi:restore" class="h-4 w-4" />
+        {{ t("site.theme.resetHeading", { level: level.toUpperCase() }) }}
+      </button>
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { computed, ref, useId } from "vue";
+import { Icon } from "@iconify/vue";
+import SegmentedControl from "./SegmentedControl.vue";
+import { useSiteStore } from "../../stores/site.js";
+import { useI18n } from "../../i18n/index.js";
+
+/** Type scale step of each level, as in Theme::HEADING_LEVELS. */
+const LEVELS = ["h1", "h2", "h3", "h4", "h5", "h6"];
+const SCALE_STEPS = { h1: 5, h2: 4, h3: 3, h4: 2, h5: 1, h6: 0 };
+const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+/** Values of the base stylesheet that apply until a level overrides them. */
+const BASE = { line_height: 1.2, letter_spacing: -0.01 };
+const NUMBER_FIELDS = [
+  { key: "size", label: "site.theme.headingLevelSize", min: 10, max: 160, step: 1, unit: "px" },
+  { key: "line_height", label: "site.theme.lineHeight", min: 0.8, max: 2.2, step: 0.05, unit: "" },
+  { key: "letter_spacing", label: "site.theme.letterSpacing", min: -0.1, max: 0.5, step: 0.01, unit: "em" },
+];
+const TRANSFORMS = [
+  { value: "", label: "—" },
+  { value: "uppercase", label: "AB" },
+  { value: "lowercase", label: "ab" },
+  { value: "capitalize", label: "Ab" },
+];
+
+const site = useSiteStore();
+const { t } = useI18n();
+const id = `theme-heading-${useId()}`;
+const level = ref("h1");
+const theme = computed(() => site.draft.theme);
+const fonts = computed(() => site.data.fonts);
+/** One level's values when nothing is overridden (Theme::headingDefaults()). */
+const defaults = computed(() => site.data.theme_defaults.headings.h1);
+const heading = computed(() => theme.value.headings[level.value]);
+
+const inherited = computed(() => ({
+  size: Math.round(theme.value.base_size * Number(theme.value.type_scale) ** SCALE_STEPS[level.value]),
+  ...BASE,
+}));
+
+const effective = computed(() => ({
+  font: heading.value.font || theme.value.fonts.heading,
+  size: heading.value.size ?? inherited.value.size,
+  weight: heading.value.weight ?? theme.value.heading_weight,
+  line_height: heading.value.line_height ?? BASE.line_height,
+  letter_spacing: heading.value.letter_spacing ?? BASE.letter_spacing,
+}));
+
+// Capped so very large sizes still show a readable sample; the summary has the real value.
+const specimenStyle = computed(() => ({
+  fontFamily: site.data.font_stacks[effective.value.font] ?? "inherit",
+  fontSize: `${Math.min(effective.value.size, 56)}px`,
+  fontWeight: effective.value.weight,
+  lineHeight: effective.value.line_height,
+  letterSpacing: `${effective.value.letter_spacing}em`,
+  textTransform: heading.value.transform || "none",
+}));
+
+const summary = computed(() =>
+  [`${effective.value.size}px`, effective.value.weight, `${t("site.theme.lineHeight")} ${effective.value.line_height}`, `${effective.value.letter_spacing}em`].join(" · "),
+);
+
+function isCustomized(name) {
+  const values = theme.value.headings[name];
+  return Object.keys(defaults.value).some((key) => values[key] !== defaults.value[key]);
+}
+
+/** Empty inputs inherit; values are clamped once the input is committed. */
+function setNumber(field, raw, commit = false) {
+  if (raw === "") {
+    heading.value[field.key] = null;
+    return;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return;
+  heading.value[field.key] = commit ? Math.min(field.max, Math.max(field.min, value)) : value;
+}
+
+function resetLevel() {
+  theme.value.headings[level.value] = { ...defaults.value };
+}
+</script>
