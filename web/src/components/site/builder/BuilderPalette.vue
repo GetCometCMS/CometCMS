@@ -14,34 +14,46 @@
     <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
 
     <section v-if="presets.length || layoutKinds.length">
-      <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ t("site.builder.layout") }}</h3>
-      <div class="grid grid-cols-3 gap-1.5">
-        <button
-          v-for="preset in presets"
-          :key="preset.join('-')"
-          type="button"
-          draggable="true"
-          class="flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
-          style="cursor: grab"
-          :title="t('site.builder.columns', { count: preset.length })"
-          @click="builder.insert(sectionPreset(builder.spec.value, preset))"
-          @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
-          @dragend="end"
-        >
-          <span class="flex h-4 w-full gap-0.5">
-            <span v-for="(span, index) in preset" :key="index" class="rounded-sm bg-theme-200" :style="{ flex: span }"></span>
-          </span>
-          <span class="text-[10px]">{{ preset.join("·") }}</span>
+      <h3 class="mb-2">
+        <button type="button" class="category-toggle" :aria-expanded="expanded.layout" :aria-controls="`${searchId}-layout`" @click="expanded.layout = !expanded.layout">
+          {{ t("site.builder.layout") }}
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.layout }" aria-hidden="true" />
         </button>
-      </div>
-      <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+      </h3>
+      <div v-show="expanded.layout" :id="`${searchId}-layout`">
+        <div class="grid grid-cols-3 gap-1.5">
+          <button
+            v-for="preset in presets"
+            :key="preset.join('-')"
+            type="button"
+            draggable="true"
+            class="flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
+            style="cursor: grab"
+            :title="t('site.builder.columns', { count: preset.length })"
+            @click="builder.insert(sectionPreset(builder.spec.value, preset))"
+            @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
+            @dragend="end"
+          >
+            <span class="flex h-4 w-full gap-0.5">
+              <span v-for="(span, index) in preset" :key="index" class="rounded-sm bg-theme-200" :style="{ flex: span }"></span>
+            </span>
+            <span class="text-[10px]">{{ preset.join("·") }}</span>
+          </button>
+        </div>
+        <div class="mt-1.5 grid grid-cols-2 gap-1.5">
+          <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+        </div>
       </div>
     </section>
 
     <section v-if="elementKinds.length">
-      <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ t("site.builder.elements") }}</h3>
-      <div class="grid grid-cols-2 gap-1.5">
+      <h3 class="mb-2">
+        <button type="button" class="category-toggle" :aria-expanded="expanded.elements" :aria-controls="`${searchId}-elements`" @click="expanded.elements = !expanded.elements">
+          {{ t("site.builder.elements") }}
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.elements }" aria-hidden="true" />
+        </button>
+      </h3>
+      <div v-show="expanded.elements" :id="`${searchId}-elements`" class="grid grid-cols-2 gap-1.5">
         <PaletteItem
           v-for="kind in elementKinds"
           :key="kind"
@@ -55,10 +67,13 @@
     </section>
 
     <section v-if="showFields && (fields.length || !searchTerms.length)">
-      <h3 class="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-        {{ templateOwner ? t("site.builder.itemFields", { field: templateOwnerLabel }) : t("site.builder.fields") }}
+      <h3 class="mb-2">
+        <button type="button" class="category-toggle" :aria-expanded="expanded.fields" :aria-controls="`${searchId}-fields`" @click="expanded.fields = !expanded.fields">
+          {{ templateOwner ? t("site.builder.itemFields", { field: templateOwnerLabel }) : t("site.builder.fields") }}
+          <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-90': expanded.fields }" aria-hidden="true" />
+        </button>
       </h3>
-      <div class="space-y-1">
+      <div v-show="expanded.fields" :id="`${searchId}-fields`" class="space-y-1">
         <PaletteItem
           v-for="field in fields"
           :key="field.key"
@@ -80,7 +95,8 @@
 </template>
 
 <script setup>
-import { computed, ref, useId } from "vue";
+import { computed, ref, useId, watch } from "vue";
+import { Icon } from "@iconify/vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { ancestors, sectionPreset } from "../../../composables/layoutTree.js";
@@ -101,6 +117,11 @@ const { fieldTypeIcon } = useFieldTypeMeta();
 const search = ref("");
 const searchId = `builder-palette-search-${useId()}`;
 const searchTerms = computed(() => search.value.trim().toLowerCase().split(/\s+/).filter(Boolean));
+const expanded = ref({ layout: true, elements: true, fields: true });
+
+watch(searchTerms, (terms) => {
+  if (terms.length) expanded.value = { layout: true, elements: true, fields: true };
+});
 
 function matches(...values) {
   const text = values.filter(Boolean).join(" ").toLowerCase();
@@ -174,3 +195,9 @@ function end() {
   }, 0);
 }
 </script>
+
+<style scoped>
+.category-toggle {
+  @apply flex w-full items-center justify-between gap-2 rounded px-1 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500;
+}
+</style>
