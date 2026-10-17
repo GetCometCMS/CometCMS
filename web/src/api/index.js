@@ -290,7 +290,7 @@ export const api = {
   me:     ()                  => request('GET',    '/me'),
   login:  (username, password, remember = false)=> request('POST', '/login', { username, password, remember }),
   logout: ()                  => request('POST',   '/logout'),
-  setup:  (username, password, workspace, workspaceSlug)=> request('POST',   '/setup',  { username, password, workspace, workspace_slug: workspaceSlug }),
+  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'empty')=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate }),
   appInfo: ()                  => request('GET',    '/app'),
   workspaces: {
     list:       () => request('GET', '/workspaces'),

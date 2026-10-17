@@ -7,6 +7,7 @@ namespace CometCMS\Controllers\Admin;
 use CometCMS\Auth\LoginThrottle;
 use CometCMS\Core\Http;
 use CometCMS\Core\Security;
+use CometCMS\Setup\WebsiteStarter;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -108,8 +109,13 @@ final class AuthController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Invalid workspace slug.']], 422);
         }
 
+        $starterTemplate = $body['starter_template'] ?? 'empty';
+        if (!in_array($starterTemplate, ['empty', 'website'], true)) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Choose a valid starting point.']], 422);
+        }
+
         try {
-            $this->users->create($username, $password, 'admin');
+            $user = $this->users->create($username, $password, 'admin');
         } catch (\Throwable $e) {
             $this->json(['error' => ['code' => 'error', 'message' => $e->getMessage()]], 422);
         }
@@ -134,6 +140,10 @@ final class AuthController extends BaseController
         $context = new WorkspaceContext($workspaceSlug);
         $context->ensure();
         WorkspaceContext::setActive($workspaceSlug);
+
+        if ($starterTemplate === 'website') {
+            (new WebsiteStarter($context))->create($user);
+        }
 
         $this->auth->attempt($username, $password);
         $this->json(['data' => $this->safeUser($this->auth->user()), 'meta' => ['workspace' => $workspaceSlug]], 201, true);

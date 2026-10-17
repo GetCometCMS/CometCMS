@@ -33,7 +33,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 1. Download the latest release from the Github releases.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
-4. Create your admin account on the setup screen.
+4. Configure your workspace and create your admin account on the setup screen. Choose **Start empty** for a headless workspace, or **Start with a website** for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages and sets the landing page as your homepage. You can change or remove these defaults anytime.
 5. Define content types, add entries, fetch the API.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.

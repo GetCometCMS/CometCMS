@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-    <div class="w-full max-w-sm">
+    <div class="w-full max-w-md">
       <div class="text-center mb-8">
         <!-- Logo / wordmark -->
         <img
@@ -131,6 +131,31 @@
             </p>
           </div>
 
+          <fieldset class="space-y-2" aria-describedby="setup-starting-point-help">
+            <legend class="form-label">{{ t("setup.startingPoint") }}</legend>
+            <label
+              v-for="option in startingPoints"
+              :key="option.value"
+              class="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+              :class="starterTemplate === option.value ? 'border-theme-500 bg-theme-50' : 'border-slate-200'"
+            >
+              <input
+                v-model="starterTemplate"
+                type="radio"
+                name="starter-template"
+                :value="option.value"
+                class="mt-0.5 text-theme-600 focus:ring-theme-500"
+              />
+              <span>
+                <span class="block text-sm font-medium text-slate-800">{{ t(option.title) }}</span>
+                <span class="mt-1 block text-xs text-slate-500">{{ t(option.description) }}</span>
+              </span>
+            </label>
+            <p id="setup-starting-point-help" class="text-xs text-slate-500">
+              {{ t("setup.startingPointHelp") }}
+            </p>
+          </fieldset>
+
           <button
             type="submit"
             class="btn-primary w-full justify-center"
@@ -233,6 +258,11 @@ const step = ref(1);
 const username = ref("admin");
 const password = ref("");
 const workspaceName = ref("");
+const starterTemplate = ref("empty");
+const startingPoints = [
+  { value: "empty", title: "setup.startEmpty", description: "setup.startEmptyBody" },
+  { value: "website", title: "setup.startWebsite", description: "setup.startWebsiteBody" },
+];
 const loading = ref(false);
 const errorMsg = ref("");
 const logoFailed = ref(false);
@@ -273,6 +303,7 @@ async function handleSetup() {
       password.value,
       workspaceName.value,
       workspaceSlug.value,
+      starterTemplate.value,
     );
     router.push("/dashboard");
   } catch (err) {
