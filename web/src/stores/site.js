@@ -66,20 +66,24 @@ export const useSiteStore = defineStore('site', () => {
     return inFlight
   }
 
-  /** Save every changed part of the draft; field errors are kept for display. */
-  async function save() {
+  /**
+   * Save the changed parts of the draft (all of them, or only `parts`); field
+   * errors are kept for display.
+   */
+  async function save({ parts = null } = {}) {
     if (!draft.value) return
+    const pending = dirtyParts.value.filter((part) => !parts || parts.includes(part))
     saving.value = true
     fieldErrors.value = {}
 
     try {
-      if (dirtyParts.value.includes('menus')) {
+      if (pending.includes('menus')) {
         const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits })
         if (Object.keys(fields).length) {
           throw Object.assign(new Error(t('site.saveErrors')), { fields })
         }
       }
-      for (const part of dirtyParts.value) {
+      for (const part of pending) {
         if (part === 'settings') {
           data.value.settings = (await api.site.saveSettings(draft.value.settings)).data
         } else if (part === 'theme') {
@@ -130,11 +134,17 @@ export const useSiteStore = defineStore('site', () => {
     draft.value.theme = clone(theme);
   }
 
+  /** Drop pending design edits, keeping pending settings and menu edits. */
+  function discardTheme() {
+    if (!data.value || !draft.value) return
+    draft.value.theme = clone(data.value.theme)
+  }
+
   function invalidate() {
     data.value = null
     draft.value = null
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, load, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
 })

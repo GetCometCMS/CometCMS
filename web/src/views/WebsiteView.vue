@@ -25,25 +25,20 @@
         <Icon icon="mdi:open-in-new" class="h-4 w-4" />
         {{ t("site.openWebsite") }}
       </a>
-      <SiteHistory
-        v-if="site.draft && activeTab === 'theme'"
-        :title="t('site.history.themeTitle')"
-        :fetch-revisions="api.site.themeRevisions"
-        :restore-revision="api.site.restoreThemeRevision"
-        :dirty="site.dirtyParts.includes('theme')"
-        :busy="site.saving || site.loading"
-        @restored="site.applyRestoredTheme"
-      />
+      <router-link :to="DESIGN_PATH" class="btn-secondary">
+        <Icon icon="mdi:palette-outline" class="h-4 w-4" />
+        {{ t("site.design.open") }}
+      </router-link>
       <button
         v-if="site.draft"
         type="button"
         class="btn-primary relative"
-        :disabled="site.saving || !site.isDirty"
+        :disabled="site.saving || !isDirty"
         @click="save"
       >
         {{ site.saving ? t("common.saving") : t("site.save") }}
         <span
-          v-if="site.isDirty && !site.saving"
+          v-if="isDirty && !site.saving"
           class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"
         ></span>
       </button>
@@ -90,7 +85,6 @@
       />
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
-      <SiteThemePanel v-else-if="activeTab === 'theme'" />
       <SiteRegionsPanel v-else-if="activeTab === 'header-footer'" />
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <SiteMenusPanel v-else />
@@ -116,12 +110,9 @@ import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
-import SiteThemePanel from "../components/site/SiteThemePanel.vue";
 import SiteRegionsPanel from "../components/site/SiteRegionsPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
-import SiteHistory from "../components/site/SiteHistory.vue";
-import { api } from "../api/index.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
@@ -131,14 +122,16 @@ const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-const isDirty = computed(() => site.isDirty);
+/** The design is edited and saved in the builder; this screen owns settings and menus. */
+const PARTS = ["settings", "menus"];
+const DESIGN_PATH = "/website/builder/region/header?settings=design";
+const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "theme", "header-footer", "components", "menus"]);
+const validTabs = new Set(["overview", "header-footer", "components", "menus"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/website/overview" },
-  { value: "theme", label: t("site.tab.theme"), icon: "mdi:palette-outline", to: "/website/theme" },
   { value: "header-footer", label: t("site.tab.headerFooter"), icon: "mdi:page-layout-header-footer", to: "/website/header-footer" },
   { value: "components", label: t("site.tab.components"), icon: "mdi:puzzle-outline", to: "/website/components" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/website/menus" },
@@ -146,7 +139,7 @@ const tabs = computed(() => [
 
 async function save() {
   try {
-    await site.save();
+    await site.save({ parts: PARTS });
     toast.success(t("site.saved"));
   } catch (err) {
     toast.error(err.message);
@@ -162,7 +155,7 @@ function onKeydown(event) {
   if (event.target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
   if ((event.ctrlKey || event.metaKey) && event.key === "s") {
     event.preventDefault();
-    if (site.isDirty && !site.saving) save();
+    if (isDirty.value && !site.saving) save();
   }
 }
 

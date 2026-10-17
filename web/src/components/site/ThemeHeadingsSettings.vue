@@ -1,9 +1,6 @@
 <template>
-  <section class="card space-y-4 p-5">
-    <div>
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.theme.headings") }}</h2>
-      <p class="mt-1 text-xs text-slate-500">{{ t("site.theme.headingsHint") }}</p>
-    </div>
+  <div class="space-y-4">
+    <p class="text-xs text-slate-500">{{ t("site.theme.headingsHint") }}</p>
 
     <div class="flex w-full rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="radiogroup" :aria-label="t('site.theme.headingLevel')">
       <button
@@ -73,17 +70,18 @@
       </div>
     </div>
 
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <p class="text-xs text-slate-500">{{ t("site.theme.headingMobileHint") }}</p>
       <button v-if="isCustomized(level)" type="button" class="btn-secondary btn-sm shrink-0" @click="resetLevel">
         <Icon icon="mdi:restore" class="h-4 w-4" />
         {{ t("site.theme.resetHeading", { level: level.toUpperCase() }) }}
       </button>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup>
+/** Per-level heading overrides of the site design (the title comes from the surrounding group). */
 import { computed, ref, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import SegmentedControl from "./SegmentedControl.vue";

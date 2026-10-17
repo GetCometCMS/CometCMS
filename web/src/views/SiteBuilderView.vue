@@ -7,8 +7,8 @@
         <span class="sr-only">{{ t("site.builder.back") }}</span>
       </router-link>
 
-      <div class="min-w-0">
-        <p class="truncate text-sm font-semibold leading-tight text-slate-900">{{ heading }}</p>
+      <div class="w-64 min-w-40">
+        <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
         <p class="truncate text-xs leading-tight text-slate-500">
           {{ subheading }}
           <span v-if="!customized" class="ml-1 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.pages.default") }}</span>
@@ -75,6 +75,19 @@
           {{ t("site.builder.reset") }}
         </button>
 
+        <button
+          type="button"
+          class="topbar-action"
+          :class="{ 'is-active': settingsOpen }"
+          :aria-pressed="settingsOpen"
+          :title="t('site.builder.designSettings')"
+          @click="toggleSettings"
+        >
+          <Icon icon="mdi:cog-outline" class="h-5 w-5" />
+          <span class="sr-only">{{ t("site.builder.designSettings") }}</span>
+          <span v-if="themeDirty" class="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"></span>
+        </button>
+
         <SiteHistory
           :title="t(target === 'component' ? 'site.history.componentTitle' : 'site.history.layoutTitle')"
           :fetch-revisions="fetchRevisions"
@@ -85,14 +98,14 @@
         />
 
         <SplitButton
-          :primary-disabled="saving || loading || builder.hasSyntaxErrors.value || (!builder.isDirty.value && !upgradeRequired)"
+          :primary-disabled="saving || loading || (!layoutSavable && !themeDirty)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
         >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <template #badge>
-            <span v-if="builder.isDirty.value && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
+            <span v-if="(builder.isDirty.value || themeDirty) && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
           </template>
         </SplitButton>
       </div>
@@ -139,11 +152,12 @@
         v-model="rightWidth"
         side="right"
         :label="t('site.builder.resizeRight')"
-        :min="256"
+        :min="settingsOpen ? SETTINGS_MIN_WIDTH : 256"
         :max="rightMaxWidth"
         class="border-l border-slate-200"
       >
-        <BuilderInspector />
+        <SiteDesignPanel v-if="settingsOpen" :busy="saving || loading" @close="settingsOpen = false" />
+        <BuilderInspector v-else />
       </ResizableSidebar>
     </div>
 
@@ -203,8 +217,10 @@ import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
 import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
+import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
+import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import SiteHistory from "../components/site/SiteHistory.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
@@ -235,7 +251,11 @@ const builder = createSiteBuilder({
     edit: (id) => router.push({ path: `/website/builder/component/${id}`, query: { back: route.fullPath } }),
   },
 });
-const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(builder.isDirty);
+/** Pending design edits belong to the whole site: they stay while moving between builder pages. */
+const themeDirty = computed(() => site.dirtyParts.includes("theme"));
+const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
+  (to) => builder.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
+);
 
 const builderAreaRef = ref(null);
 const builderWidth = ref(window.innerWidth);
@@ -243,6 +263,7 @@ const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
 const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
 const leftMaxWidth = computed(() => Math.max(224, Math.min(480, builderWidth.value - rightWidth.value - 320)));
 const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftWidth.value - 320)));
+const SETTINGS_MIN_WIDTH = 320;
 let builderResizeObserver = null;
 
 watch(builderAreaRef, (area) => {
@@ -284,6 +305,10 @@ const entryUrl = ref(null);
 const component = ref(null);
 const usages = ref([]);
 const converting = ref(false);
+const settingsOpen = ref(route.query.settings === "design");
+
+/** The layout has changes that can be saved. */
+const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.value) && !builder.hasSyntaxErrors.value);
 
 /** The entry the preview shows: the chosen sample, or the single page itself. */
 const previewEntry = computed(() => (builder.type.value?.singleton ? builder.type.value.name : sampleId.value));
@@ -349,13 +374,32 @@ const subheading = computed(() => {
 
 const previewBody = computed(() => {
   if (loading.value) return null;
+  // Unsaved design edits render live on the canvas.
+  const theme = themeDirty.value ? { theme: site.draft.theme } : {};
   if (target === "component") {
-    return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value };
+    return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }
   return target === "region"
-    ? { target: "region", region: name, nodes: builder.nodes.value, locale: locale.value }
-    : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value };
+    ? { target: "region", region: name, nodes: builder.nodes.value, locale: locale.value, ...theme }
+    : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
 });
+
+function isBuilderPath(path) {
+  return typeof path === "string" && path.startsWith("/website/builder/");
+}
+
+function toggleSettings() {
+  settingsOpen.value = !settingsOpen.value;
+  // The panel replaces the inspector; picking an element again shows it.
+  if (settingsOpen.value) builder.select(null);
+}
+
+watch(builder.selectedId, (id) => {
+  if (id) settingsOpen.value = false;
+});
+watch(settingsOpen, (open) => {
+  if (open) rightWidth.value = Math.max(rightWidth.value, Math.min(SETTINGS_MIN_WIDTH, rightMaxWidth.value));
+}, { immediate: true });
 
 watch(locale, (value) => { builder.locale.value = value; });
 
@@ -405,21 +449,28 @@ async function load() {
   }
 }
 
+/** Save the layout and the site design, whichever has changes. */
 async function save() {
-  if (saving.value || builder.hasSyntaxErrors.value || (!builder.isDirty.value && !upgradeRequired.value)) return;
+  const saveLayout = layoutSavable.value;
+  const saveTheme = themeDirty.value;
+  if (saving.value || (!saveLayout && !saveTheme)) return;
   saving.value = true;
 
   try {
-    const nodes = builder.nodes.value;
-    const res = target === "region"
-      ? await api.site.saveRegion(name, nodes)
-      : target === "component" ? await api.site.saveComponent(name, nodes) : await api.site.saveLayout(name, variant, nodes);
-    builder.markSaved(res.data.nodes);
-    upgradeRequired.value = false;
-    customized.value = true;
-    if (target === "component") component.value = res.data.component;
-    else site.markCustomized(target, name, variant, true);
-    toast.success(t(target === "component" ? "site.component.saved" : "site.builder.saved"));
+    if (saveLayout) {
+      const nodes = builder.nodes.value;
+      const res = target === "region"
+        ? await api.site.saveRegion(name, nodes)
+        : target === "component" ? await api.site.saveComponent(name, nodes) : await api.site.saveLayout(name, variant, nodes);
+      builder.markSaved(res.data.nodes);
+      upgradeRequired.value = false;
+      customized.value = true;
+      if (target === "component") component.value = res.data.component;
+      else site.markCustomized(target, name, variant, true);
+    }
+    if (saveTheme) await site.save({ parts: ["theme"] });
+    const message = !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
+    toast.success(t(message));
   } catch (err) {
     toast.error(err.message);
   } finally {
@@ -557,11 +608,16 @@ onMounted(() => {
   window.addEventListener("keydown", onKeydown);
 });
 
-onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKeydown);
+  // Design edits the user chose to leave behind must not resurface elsewhere.
+  if (!isBuilderPath(router.currentRoute.value.path)) site.discardTheme();
+});
 </script>
 
 <style scoped>
 .topbar-action {
+  position: relative;
   display: inline-flex;
   height: 2rem;
   width: 2rem;
@@ -576,5 +632,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 }
 .topbar-action:disabled {
   opacity: 0.35;
+}
+.topbar-action.is-active {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
 }
 </style>

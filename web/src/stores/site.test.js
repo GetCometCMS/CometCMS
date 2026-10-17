@@ -62,3 +62,33 @@ describe('menu saves', () => {
     expect(site.draft.menus).not.toBe(site.data.menus)
   })
 })
+
+describe('design edits from the builder', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('saves only the requested parts and keeps other pending edits', async () => {
+    const site = useSiteStore()
+    site.data = { settings: { title: 'Saved' }, theme: { base_size: 17 }, menus: [] }
+    site.resetDraft()
+    site.draft.settings.title = 'Pending'
+    site.draft.theme.base_size = 20
+    api.site.saveTheme.mockResolvedValue({ data: { base_size: 20 } })
+    await site.save({ parts: ['theme'] })
+    expect(api.site.saveTheme).toHaveBeenCalledWith({ base_size: 20 })
+    expect(api.site.saveSettings).not.toHaveBeenCalled()
+    expect(site.dirtyParts).toEqual(['settings'])
+    expect(site.draft.settings.title).toBe('Pending')
+  })
+
+  it('discards pending design edits only', () => {
+    const site = useSiteStore()
+    site.data = { settings: { title: 'Saved' }, theme: { base_size: 17 }, menus: [] }
+    site.resetDraft()
+    site.draft.settings.title = 'Pending'
+    site.draft.theme.base_size = 20
+    site.discardTheme()
+    expect(site.draft.theme).toEqual({ base_size: 17 })
+    expect(site.draft.theme).not.toBe(site.data.theme)
+    expect(site.dirtyParts).toEqual(['settings'])
+  })
+})

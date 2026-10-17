@@ -98,7 +98,12 @@ const routes = [
     redirect: '/content-types',
   },
   {
-    path: '/website/:tab(overview|theme|header-footer|components|menus)?',
+    // The design settings moved into the builder.
+    path: '/website/theme',
+    redirect: '/website/builder/region/header?settings=design',
+  },
+  {
+    path: '/website/:tab(overview|header-footer|components|menus)?',
     component: () => import('../views/WebsiteView.vue'),
     meta: { requiresAuth: true },
   },

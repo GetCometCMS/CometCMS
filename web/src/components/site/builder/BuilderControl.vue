@@ -191,7 +191,9 @@ const site = useSiteStore();
 const linkSettings = computed(() => site.data?.workspace === getActiveWorkspace() && site.draft ? site.draft.settings : builder.settings.value);
 const { t } = useI18n();
 const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.name}`);
-const customClasses = computed(() => themeCssClasses(site.data?.theme?.custom_css ?? ""));
+/** The design being edited, so new custom colors and classes are offered right away. */
+const siteTheme = computed(() => site.draft?.theme ?? site.data?.theme ?? null);
+const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css ?? ""));
 const label = computed(() => {
   // Fields have a yes/no "link to the entry"; other elements pick a link target.
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
@@ -227,13 +229,13 @@ const enumOptions = computed(() => {
   return (props.def.options ?? []).map((option) => ({ value: option, label: optionLabel(option) }));
 });
 
-const colorOptions = computed(() => themeColorOptions(site.data?.theme, props.def.options ?? [], optionLabel));
+const colorOptions = computed(() => themeColorOptions(siteTheme.value, props.def.options ?? [], optionLabel));
 
 const enumBar = computed(() =>
   props.def.type === "enum"
     ? barOptions(props.group, props.name, props.def.options ?? [], {
         title: optionLabel,
-        theme: site.data?.theme ?? null,
+        theme: siteTheme.value,
         kind: props.node.kind,
       })
     : null,

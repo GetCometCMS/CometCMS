@@ -8,8 +8,12 @@ import { onBeforeRouteLeave } from 'vue-router'
  * closing or reloading the tab triggers the browser's own prompt. Call
  * `bypass()` right before navigating away programmatically after a successful
  * save or delete, when the changes are no longer at risk.
+ *
+ * `isDirty` is a ref, or a function of the destination route (undefined when
+ * the tab closes) for changes that survive some in-app navigation.
  */
 export function useUnsavedChangesGuard(isDirty) {
+  const dirtyFor = typeof isDirty === 'function' ? isDirty : () => isDirty.value
   const leavePromptOpen = ref(false)
   let resolveLeave = null
   let bypassed = false
@@ -20,8 +24,8 @@ export function useUnsavedChangesGuard(isDirty) {
     resolve?.(allowed)
   }
 
-  onBeforeRouteLeave(() => {
-    if (bypassed || !isDirty.value) return true
+  onBeforeRouteLeave((to) => {
+    if (bypassed || !dirtyFor(to)) return true
     leavePromptOpen.value = true
     return new Promise((resolve) => {
       resolveLeave = resolve
@@ -43,7 +47,7 @@ export function useUnsavedChangesGuard(isDirty) {
   }
 
   function onBeforeUnload(event) {
-    if (bypassed || !isDirty.value) return
+    if (bypassed || !dirtyFor(undefined)) return
     event.preventDefault()
     event.returnValue = ''
   }
