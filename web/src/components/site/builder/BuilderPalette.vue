@@ -99,6 +99,7 @@ import { computed, ref, useId, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
+import { fieldShortcut } from "../../../composables/smartValues.js";
 import { ancestors, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
@@ -161,25 +162,7 @@ function create(kind) {
 }
 
 function fieldNode(field) {
-  const displays = builder.spec.value?.field_displays?.[field.type] ?? ["text"];
-  const props = { field: field.key, display: displays[0] };
-  if (field.key === "title") props.tag = "h2";
-  if (field.type === "media") props.ratio = "16:9";
-  if (field.type === "relation") props.columns = 3;
-  const node = builder.make("field", props);
-
-  if (field.type === "repeater") {
-    node.children = (field.config?.subfields ?? [])
-      .filter((subfield) => subfield?.key && subfield.type !== "json")
-      .map((subfield, index) => builder.make("field", {
-        field: subfield.key,
-        display: builder.spec.value?.field_displays?.[subfield.type]?.[0] ?? "text",
-        // The first text subfield reads as the item's heading.
-        ...(index === 0 && (subfield.type ?? "text") === "text" ? { tag: "h4" } : {}),
-      }, { margin_bottom: "xs" }));
-  }
-
-  return node;
+  return fieldShortcut(field, builder.make, { source: templateOwner.value ? "item" : "current" });
 }
 
 function start(event, factory) {

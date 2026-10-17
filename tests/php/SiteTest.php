@@ -307,7 +307,7 @@ test('layout previews annotate nodes and render unsaved changes', function (): v
             ['id' => 'row1', 'kind' => 'row', 'children' => [
                 ['id' => 'col1', 'kind' => 'column', 'children' => [
                     ['id' => 'h1', 'kind' => 'heading', 'props' => ['text' => 'Unsaved heading']],
-                    ['id' => 'f1', 'kind' => 'field', 'props' => ['field' => 'removed_field']],
+                    ['id' => 'f1', 'kind' => 'field', 'props' => ['source' => \CometCMS\Site\SmartValue::reference('removed_field')]],
                 ]],
             ]],
         ]],

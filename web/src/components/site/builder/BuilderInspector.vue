@@ -131,8 +131,8 @@ const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.field
 
 const fieldWarning = computed(() => {
   if (node.value?.kind !== "field") return "";
-  if (!node.value.props.field) return t("site.builder.chooseFieldHint");
-  return fieldConfig.value ? "" : t("site.builder.missingFieldHint", { field: node.value.props.field });
+  if (!node.value.props.source) return t("site.builder.chooseFieldHint");
+  return fieldConfig.value ? "" : t("site.builder.missingFieldHint", { field: builder.nodeSummary(node.value) });
 });
 
 const styleGroups = computed(() => {
@@ -151,10 +151,10 @@ const visibleProps = computed(() => {
 
   if (current.kind === "field") {
     const type = fieldConfig.value?.type;
-    const displays = builder.spec.value?.field_displays?.[type] ?? [];
+    const displays = type === 'media' && fieldConfig.value?.multiple ? ['gallery', 'files'] : builder.spec.value?.field_displays?.[type] ?? [];
     const display = props.display && displays.includes(props.display) ? props.display : displays[0];
     const rules = {
-      field: true,
+      source: true,
       display: displays.length > 1,
       label: !!type,
       tag: ["text", "slug", "select", "number", "range", "textarea"].includes(type) && display !== "excerpt",
@@ -198,7 +198,7 @@ function openMenu(event) {
 }
 
 function updateProp(key, value) {
-  if (key !== "field") {
+  if (key !== "source") {
     builder.updateValue(node.value.id, "props", key, value);
     return;
   }
@@ -208,8 +208,9 @@ function updateProp(key, value) {
   builder.mutate((tree) => {
     const target = findNode(tree, id);
     if (!target) return;
-    target.props = { ...target.props, field: value };
-    const displays = builder.spec.value?.field_displays?.[builder.fieldConfig(target)?.type] ?? [];
+    target.props = { ...target.props, source: value };
+    const config = builder.fieldConfig(target);
+    const displays = config?.type === 'media' && config?.multiple ? ['gallery', 'files'] : builder.spec.value?.field_displays?.[config?.type] ?? [];
     if (!displays.includes(target.props.display)) target.props.display = displays[0] ?? "";
   });
 }

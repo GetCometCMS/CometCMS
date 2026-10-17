@@ -1,13 +1,20 @@
 <template>
   <div>
-    <div class="mb-1 flex items-center justify-between gap-2">
+    <div v-if="!def.binding" class="mb-1 flex items-center justify-between gap-2">
       <label class="text-xs font-medium text-slate-700" :for="inputId">{{ label }}</label>
       <span v-if="hint" class="truncate text-[10px] text-slate-400">{{ hint }}</span>
     </div>
 
+    <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
+      <template v-if="def.binding === 'media' || def.binding === 'link'" #literal>
+        <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" @update:model-value="emitValue" />
+        <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" @update:model-value="emitValue" />
+      </template>
+    </SmartValueEditor>
+
     <!-- enum -->
     <ThemeColorPicker
-      v-if="def.type === 'color'"
+      v-else-if="def.type === 'color'"
       :id="inputId"
       :label="label"
       :model-value="value ?? ''"
@@ -149,6 +156,7 @@
 
 <script setup>
 import { computed } from "vue";
+import SmartValueEditor from "./SmartValueEditor.vue";
 import { Icon } from "@iconify/vue";
 import FieldInput from "../../FieldInput.vue";
 import ToggleSwitch from "../../ToggleSwitch.vue";
@@ -211,7 +219,9 @@ const fieldConfig = computed(() => builder.fieldConfig(props.node));
 
 const enumOptions = computed(() => {
   if (props.def.type === "display") {
-    const displays = builder.spec.value?.field_displays?.[fieldConfig.value?.type] ?? [];
+    const displays = fieldConfig.value?.type === 'media' && fieldConfig.value?.multiple
+      ? ['gallery', 'files']
+      : builder.spec.value?.field_displays?.[fieldConfig.value?.type] ?? [];
     return displays.map((display) => ({ value: display, label: t(`site.display.${display}`) }));
   }
   return (props.def.options ?? []).map((option) => ({ value: option, label: optionLabel(option) }));
@@ -271,13 +281,6 @@ const keyOptions = computed(() => {
 
 const selectOptions = computed(() => {
   switch (props.def.type) {
-    case "field": {
-      const fields = builder.bindableFields(props.node).map((field) => ({ value: field.key, label: field.label }));
-      if (props.value && !fields.some((field) => field.value === props.value)) {
-        fields.unshift({ value: props.value, label: `${props.value} (${t("site.builder.missing")})` });
-      }
-      return [{ value: "", label: t("site.builder.chooseField") }, ...fields];
-    }
     case "content_type":
       return [
         { value: "", label: t("site.builder.chooseType") },

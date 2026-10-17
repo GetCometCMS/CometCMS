@@ -85,7 +85,7 @@
         />
 
         <SplitButton
-          :primary-disabled="saving || loading || !builder.isDirty.value"
+          :primary-disabled="saving || loading || builder.hasSyntaxErrors.value || (!builder.isDirty.value && !upgradeRequired)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
@@ -98,6 +98,8 @@
       </div>
     </header>
 
+    <p v-if="upgradeRequired" role="status" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">{{ t("site.binding.upgrade") }}</p>
+    <p v-if="builder.hasSyntaxErrors.value" role="alert" class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ t("site.binding.invalidSyntax") }}</p>
     <div v-if="loadError" class="m-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">{{ loadError }}</div>
 
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
@@ -122,7 +124,7 @@
           />
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <BuilderPalette v-if="leftTab === 'add'" :with-fields="target === 'layout'" />
+          <BuilderPalette v-if="leftTab === 'add'" :with-fields="builder.currentAvailable.value" />
           <BuilderOutline v-else />
         </div>
       </ResizableSidebar>
@@ -236,6 +238,7 @@ const name = String(route.params.name);
 const variant = String(route.params.variant || "detail");
 
 const loading = ref(true);
+const upgradeRequired = ref(false);
 const loadError = ref("");
 const saving = ref(false);
 const resetting = ref(false);
@@ -308,6 +311,8 @@ const previewBody = computed(() => {
     : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value };
 });
 
+watch(locale, (value) => { builder.locale.value = value; });
+
 async function load() {
   loading.value = true;
   loadError.value = "";
@@ -322,6 +327,8 @@ async function load() {
     builder.menus.value = data.menus ?? [];
     builder.settings.value = data.settings ?? null;
     builder.type.value = data.type ?? null;
+    builder.currentAvailable.value = target === "layout" && variant !== "index";
+    upgradeRequired.value = !!data.upgrade_required;
     samples.value = data.samples ?? [];
     const requested = typeof route.query.entry === "string" ? route.query.entry : "";
     sampleId.value = samples.value.some((sample) => sample.id === requested)
@@ -341,7 +348,7 @@ async function load() {
 }
 
 async function save() {
-  if (saving.value || !builder.isDirty.value) return;
+  if (saving.value || builder.hasSyntaxErrors.value || (!builder.isDirty.value && !upgradeRequired.value)) return;
   saving.value = true;
 
   try {
@@ -350,6 +357,7 @@ async function save() {
       ? await api.site.saveRegion(name, nodes)
       : await api.site.saveLayout(name, variant, nodes);
     builder.markSaved(res.data.nodes);
+    upgradeRequired.value = false;
     customized.value = true;
     site.markCustomized(target, name, variant, true);
     toast.success(t("site.builder.saved"));
@@ -369,6 +377,7 @@ async function reset() {
       tree.splice(0, tree.length, ...res.data.nodes);
     });
     builder.markSaved(res.data.nodes);
+    upgradeRequired.value = false;
     builder.select(null);
     customized.value = false;
     site.markCustomized(target, name, variant, false);
@@ -390,6 +399,7 @@ function restoreRevision(id) {
 }
 
 function onRevisionRestored(data) {
+  upgradeRequired.value = false;
   builder.load(data.nodes);
   customized.value = data.customized;
   site.markCustomized(target, name, variant, data.customized);

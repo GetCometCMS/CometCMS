@@ -34,10 +34,10 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 
 | Element      | Shows                                                                         |
 | ------------ | ----------------------------------------------------------------------------- |
-| Field        | A field of the entry, e.g. as text, formatted Markdown, image, gallery, cards. |
-| Heading      | Fixed text; `{site}`, `{tagline}` and `{year}` are replaced.                   |
+| Field display | Specialized values such as galleries, repeaters, related cards, badges, or meters. |
+| Heading      | Static text, field references, or a mixture of both.                           |
 | Text         | Rich text.                                                                    |
-| Image        | An image from the media library.                                              |
+| Image        | An image from the media library or a bound media field.                        |
 | Button       | A link to this entry, another entry, a list page, the homepage or any URL.    |
 | Entry list   | Entries of any public collection, filtered, sorted and optionally paged.     |
 | Menu         | One of the menus from the **Menus** tab.                                      |
@@ -108,3 +108,41 @@ The default workspace's website answers on the server's own address. To serve an
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.
+
+## Dynamic content and smart tags
+
+<div v-pre>
+
+Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
+
+Supported properties are heading text, Text content, image source/alt/caption, button label, section background image, and element link destinations. Layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+
+The picker offers these sources:
+
+| Source | Smart tag example |
+| --- | --- |
+| Current entry | `{{ current.intro_text }}` |
+| Current repeater item | `{{ item.heading }}` |
+| Single page | `{{ single.company.phone }}` |
+| Specific entry | `{{ entry.services["stable_uid"].description }}` |
+| Site information | `{{ site.title }}`, `{{ site.tagline }}`, `{{ site.year }}` |
+
+A single-entry relation can be followed, such as `{{ current.author.bio }}`. Entry sources expose `url`, including `{{ current.author.url }}`. Specific entries use stable UIDs so slug changes do not break references. Inside a repeater, Current item means its row and Current entry means the containing entry. In a card layout, Current entry is that card's entry. Current entry is unavailable in shared header/footer and list-page editors; use a singleton or a specific entry there.
+
+Text can combine references with manual content, such as `Meet {{ current.author.title }}.` Images and link destinations require a complete reference of a compatible type. Multiple values need a specialized list/gallery/repeater display; a scalar element never silently selects the first value. Rich text and Markdown render their formatting when bound as the entire Text content. References embedded within other text become escaped plain text. Tags cannot be inserted into HTML attributes; use the dedicated image and link properties.
+
+Formatting operations follow a pipe:
+
+```text
+{{ current.author.title | fallback:"Our team" }}
+{{ current.published_at | date:"long" }}
+{{ current.body | truncate:30 }}
+```
+
+`date` accepts `date`, `long`, `datetime`, or `time`. `truncate` limits words from 1 to 500. Fallbacks apply to missing or empty content; zero and false remain real values. Write `\{{` for literal opening braces and `\\` for a literal backslash in the syntax editor. Arithmetic, conditions, arbitrary functions, and recursive interpretation of field content are not supported.
+
+References stay within the current workspace and use the active website language. Referenced content must be published and belong to a public content type, even when previewing a draft root entry. Private or missing media is not exposed. Relation paths follow at most five links. The builder marks unresolved references; published pages use the fallback or empty output.
+
+The smart-reference layout format replaces the development format. Older saved layouts and header/footer designs show generated defaults with a notice until saved in the new format. Older layout revisions cannot be restored. Posts, schemas, media, website settings, menus, and theme are preserved.
+
+</div>

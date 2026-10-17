@@ -190,14 +190,14 @@ final class SiteRepository
         $this->assertRegion($region);
         $stored = $this->store->read('regions', $region);
 
-        return $stored !== null ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
     }
 
     public function regionCustomized(string $region): bool
     {
         $this->assertRegion($region);
 
-        return $this->store->read('regions', $region) !== null;
+        return ($this->store->read('regions', $region)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
     public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
@@ -205,7 +205,7 @@ final class SiteRepository
         $this->assertRegion($region);
         $nodes = LayoutSchema::normalize($nodes);
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
-        $this->store->write(['nodes' => $nodes, 'updated_at' => Security::now()], 'regions', $region);
+        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes, 'updated_at' => Security::now()], 'regions', $region);
         $this->clearCache();
 
         return $nodes;
@@ -229,7 +229,7 @@ final class SiteRepository
         $this->assertVariant($schema, $variant);
         $stored = $this->store->read('layouts', $type, $variant);
 
-        return $stored !== null ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultLayout($schema, $variant);
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultLayout($schema, $variant);
     }
 
     public function layoutCustomized(string $type, string $variant): bool
@@ -237,7 +237,7 @@ final class SiteRepository
         Security::assertSafeName($type);
         Security::assertSafeName($variant);
 
-        return $this->store->read('layouts', $type, $variant) !== null;
+        return ($this->store->read('layouts', $type, $variant)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
     public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
@@ -246,7 +246,7 @@ final class SiteRepository
         $this->assertVariant($schema, $variant);
         $nodes = LayoutSchema::normalize($nodes);
         $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
-        $this->store->write(['nodes' => $nodes, 'updated_at' => Security::now()], 'layouts', $type, $variant);
+        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes, 'updated_at' => Security::now()], 'layouts', $type, $variant);
         $this->clearCache();
 
         return $nodes;
@@ -261,6 +261,21 @@ final class SiteRepository
         $this->clearCache();
 
         return LayoutSchema::defaultLayout($schema, $variant);
+    }
+
+    public function needsLayoutUpgrade(string $type, string $variant): bool
+    {
+        Security::assertSafeName($type);
+        Security::assertSafeName($variant);
+        $stored = $this->store->read('layouts', $type, $variant);
+        return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
+    }
+
+    public function needsRegionUpgrade(string $region): bool
+    {
+        $this->assertRegion($region);
+        $stored = $this->store->read('regions', $region);
+        return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
     /** Variants a content type can have: single pages have no card or index. */
@@ -306,7 +321,7 @@ final class SiteRepository
     {
         $this->assertRegion($region);
         $revision = $this->revisions->read('regions', $region, $id);
-        if (!is_array($revision['snapshot']['nodes'] ?? null)) {
+        if (($revision['snapshot']['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($revision['snapshot']['nodes'] ?? null)) {
             return null;
         }
         $customized = ($revision['snapshot']['customized'] ?? true) === true;
@@ -321,7 +336,7 @@ final class SiteRepository
     {
         $this->assertVariant($this->requireType($type), $variant);
         $revision = $this->revisions->read('layouts', $type, $variant, $id);
-        if (!is_array($revision['snapshot']['nodes'] ?? null)) {
+        if (($revision['snapshot']['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($revision['snapshot']['nodes'] ?? null)) {
             return null;
         }
         $customized = ($revision['snapshot']['customized'] ?? true) === true;
@@ -334,17 +349,20 @@ final class SiteRepository
 
     private function regionSnapshot(string $region): array
     {
-        return ['nodes' => $this->region($region), 'customized' => $this->regionCustomized($region)];
+        return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $this->region($region), 'customized' => $this->regionCustomized($region)];
     }
 
     private function layoutSnapshot(string $type, string $variant): array
     {
-        return ['nodes' => $this->layout($type, $variant), 'customized' => $this->layoutCustomized($type, $variant)];
+        return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $this->layout($type, $variant), 'customized' => $this->layoutCustomized($type, $variant)];
     }
 
     private function listRevisions(array $path): array
     {
         $revisions = $this->revisions->all(...$path);
+        if (($path[0] ?? '') !== 'theme') {
+            $revisions = array_values(array_filter($revisions, static fn(array $revision): bool => ($revision['snapshot']['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION));
+        }
         usort($revisions, static fn(array $a, array $b): int => strcmp($b['id'], $a['id']));
         foreach ($revisions as &$revision) {
             $revision['customized'] = $revision['snapshot']['customized'] ?? null;

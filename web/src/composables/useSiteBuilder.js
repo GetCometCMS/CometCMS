@@ -1,3 +1,4 @@
+import { hasInvalidValues, referenceConfig, smartSummary } from './smartValues.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   ancestors,
@@ -23,13 +24,6 @@ import {
 const KEY = Symbol('site-builder')
 const HISTORY_LIMIT = 100
 
-const SYSTEM_FIELD_TYPES = {
-  title: 'text',
-  published_at: 'datetime',
-  created_at: 'datetime',
-  updated_at: 'datetime',
-}
-
 /**
  * Editing state of the website builder: the layout tree, selection,
  * undo/redo history, drag and drop and the field context nodes bind to.
@@ -43,6 +37,9 @@ export function createSiteBuilder({ t }) {
   const types = ref([])
   const menus = ref([])
   const settings = ref(null)
+  const currentAvailable = ref(true)
+  const locale = ref('')
+  const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
   const hoverId = ref(null)
   const drag = shallowRef(null)
@@ -152,25 +149,15 @@ export function createSiteBuilder({ t }) {
       .map((subfield) => ({ key: subfield.key, label: subfield.label || subfield.key, type: subfield.type ?? 'text', config: subfield }))
   }
 
-  /** Fields a field node can bind to: its repeater's subfields inside a template, otherwise the type's fields. */
-  function bindableFields(node) {
-    const owner = node ? templateOwner(node.id) : null
-    return owner ? subfieldsOf(owner) : typeFields()
-  }
-
   /** Config of the field a field node is bound to (resolving item templates). */
   function fieldConfig(node) {
-    if (!node || node.kind !== 'field' || !node.props?.field) return null
+    if (!node || node.kind !== 'field') return null
     const owner = templateOwner(node.id)
-
-    if (owner) {
-      const ownerConfig = fieldConfig(owner)
-      const subfield = (ownerConfig?.subfields ?? []).find((item) => item?.key === node.props.field)
-      return subfield ?? null
-    }
-
-    if (SYSTEM_FIELD_TYPES[node.props.field]) return { type: SYSTEM_FIELD_TYPES[node.props.field] }
-    return type.value?.fields?.[node.props.field] ?? null
+    return referenceConfig(node.props?.source, {
+      type: type.value,
+      types: types.value,
+      itemFields: owner ? subfieldsOf(owner) : [],
+    })
   }
 
   function isTemplateField(node) {
@@ -382,22 +369,20 @@ export function createSiteBuilder({ t }) {
     const props = node.props ?? {}
     switch (node.kind) {
       case 'field': {
-        if (!props.field) return t('site.builder.noField')
-        const field = bindableFields(node).find((item) => item.key === props.field)
-        return field?.label ?? `${props.field} ⚠`
+        return smartSummary(props.source) || t('site.builder.noField')
       }
       case 'heading':
-        return props.text
+        return smartSummary(props.text)
       case 'button':
-        return props.label
+        return smartSummary(props.label)
       case 'collection':
         return types.value.find((item) => item.name === props.type)?.label ?? t('site.builder.noType')
       case 'menu':
         return menus.value.find((item) => item.name === props.menu)?.label ?? props.menu
       case 'image':
-        return props.media || t('site.builder.noImage')
+        return smartSummary(props.media) || t('site.builder.noImage')
       case 'text':
-        return String(props.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
+        return smartSummary(props.html)
       case 'column': {
         const span = effectiveSpan(props.span, 'desktop')
         return span === 12 ? t('site.prop.full_width') : `${span}/12`
@@ -417,7 +402,8 @@ export function createSiteBuilder({ t }) {
     nodes, spec, type, types, menus, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, undo, redo, select, selectParent,
-    bindableFields, subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
+    currentAvailable, locale, hasSyntaxErrors,
+    subfieldsOf, templateOwner, fieldConfig, isTemplateField, typeFields,
     updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,

@@ -15,10 +15,12 @@ describe('admin i18n', () => {
   it('translates messages with fallback replacements', () => {
     setLocale('de', { persist: false })
     expect(t('profile.language')).toBe('Admin-Sprache')
+    expect(t('site.binding.syntax')).toBe('Quelltext')
     expect(t('app.version', { version: '1.2.3' })).toBe('CometCMS v1.2.3')
 
     setLocale('en', { persist: false })
     expect(t('profile.language')).toBe('Admin language')
+    expect(t('site.binding.syntax')).toBe('Raw')
   })
 
   it('defines every message key in every admin language', () => {

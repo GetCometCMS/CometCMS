@@ -31,7 +31,12 @@ final class NodeRenderer
 
     private int $annotationsSuspended = 0;
 
-    public function __construct(private readonly SiteContext $ctx) {}
+    private SmartValue $smart;
+
+    public function __construct(private readonly SiteContext $ctx)
+    {
+        $this->smart = new SmartValue($ctx);
+    }
 
     public function render(array $nodes, array $state = []): string
     {
@@ -58,7 +63,33 @@ final class NodeRenderer
 
     private function node(array $node, array $state): string
     {
-        return match ($node['kind'] ?? '') {
+        $warnings = false;
+        foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
+            $binding = $node['props'][$key] ?? null;
+            if ($target === 'link' && ($binding['type'] ?? '') === 'dynamic') {
+                $resolved = $this->smart->resolve($binding['value'], $state);
+                $node['props'][$key] = ['type' => 'url', 'url' => is_scalar($resolved['value']) ? (string) $resolved['value'] : '', 'new_tab' => $binding['new_tab'] ?? false];
+                $warnings = $warnings || $resolved['missing'];
+                continue;
+            }
+            if (!SmartValue::isDynamic($binding) || $key === 'source') continue;
+            if (in_array($target, ['text', 'html'], true)) {
+                $resolved = $this->smart->text($binding, $state, $target === 'html');
+                $node['props'][$key] = $resolved['value'];
+                $node['_resolved'][$key] = true;
+            } else {
+                $resolved = $this->smart->resolve($binding, $state);
+                $value = $resolved['value'];
+                if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($resolved['missing'] && array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback'))) { $value = ''; $resolved['missing'] = true; }
+                if ($target === 'media' && is_array($value) && empty($resolved['config']['multiple']) && count($value) <= 1) $value = $value[0] ?? '';
+                if (is_array($value)) $resolved['missing'] = true;
+                $node['props'][$key] = $target === 'link'
+                    ? ['type' => 'url', 'url' => is_scalar($value) ? (string) $value : '', 'new_tab' => false]
+                    : (is_scalar($value) ? (string) $value : '');
+            }
+            $warnings = $warnings || $resolved['missing'];
+        }
+        $html = match ($node['kind'] ?? '') {
             'section' => $this->section($node, $state),
             'row' => $this->row($node, $state),
             'column' => $this->column($node, $state),
@@ -75,6 +106,9 @@ final class NodeRenderer
             'language_switcher' => $this->languageSwitcher($node, $state),
             default => '',
         };
+        return $warnings && $this->annotating()
+            ? '<div class="c-placeholder c-placeholder-warning" role="status">Unresolved content reference (using fallback if configured)</div>' . $html
+            : $html;
     }
 
     // ─── Structure ───────────────────────────────────────────────────────────
@@ -180,7 +214,8 @@ final class NodeRenderer
     private function heading(array $node, array $state): string
     {
         $level = $node['props']['level'];
-        $text = Security::e($this->placeholders($node['props']['text']));
+        if (!empty($node['_resolved']['text']) && $node['props']['text'] === '' && !$this->annotating()) return '';
+        $text = Security::e($node['props']['text']);
         $link = $this->resolveLink($node['props']['link'], $state);
 
         if ($link !== null) {
@@ -193,8 +228,9 @@ final class NodeRenderer
     private function text(array $node, array $state): string
     {
         $html = HtmlSanitizer::sanitize($node['props']['html']);
+        if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
-        return $this->element($node, '<div class="c-prose">' . $this->placeholders($html, true) . '</div>');
+        return $this->element($node, '<div class="c-prose">' . $html . '</div>');
     }
 
     private function image(array $node, array $state): string
@@ -224,7 +260,7 @@ final class NodeRenderer
         $props = $node['props'];
         $link = $this->resolveLink($props['link'], $state);
         $classes = 'c-button c-button-' . $props['variant'] . ' c-button-' . $props['size'] . ($props['full_width'] ? ' c-button-block' : '');
-        $label = Security::e($this->placeholders($props['label']));
+        $label = Security::e($props['label']);
 
         if ($link === null) {
             return $this->annotating() ? $this->element($node, '<span class="' . $classes . '">' . $label . '</span>') : '';
@@ -449,8 +485,11 @@ final class NodeRenderer
     private function field(array $node, array $state): string
     {
         $props = $node['props'];
-        $name = $props['field'];
-        [$value, $config] = $this->fieldValue($name, $state);
+        $source = $props['source'] ?? null;
+        $name = is_array($source) ? implode('.', $source['path']) : '';
+        $resolved = is_array($source) ? $this->smart->resolve($source, $state) : ['value' => null, 'config' => null];
+        $value = $resolved['value'];
+        $config = $resolved['config'];
 
         if ($config === null) {
             return $this->annotating()
@@ -460,6 +499,7 @@ final class NodeRenderer
 
         $fieldType = (string) ($config['type'] ?? 'text');
         $displays = LayoutSchema::FIELD_DISPLAYS[$fieldType] ?? ['text'];
+        if ($fieldType === 'media' && !empty($config['multiple'])) $displays = ['gallery', 'files'];
         $display = in_array($props['display'], $displays, true) ? $props['display'] : $displays[0];
         $html = $this->isEmpty($value) ? '' : $this->fieldHtml($node, $value, $config, $fieldType, $display, $state);
 
@@ -473,33 +513,8 @@ final class NodeRenderer
             $html = '<div class="c-field-label">' . Security::e($this->fieldLabel($name, $config)) . '</div>' . $html;
         }
 
+        if (!empty($resolved['missing']) && $this->annotating()) $html = '<div class="c-placeholder c-placeholder-warning">Unresolved content reference</div>' . $html;
         return $this->element($node, $html, ['c-field', 'c-field-' . $fieldType]);
-    }
-
-    /** @return array{0: mixed, 1: ?array} value and field config */
-    private function fieldValue(string $name, array $state): array
-    {
-        if ($name === '') {
-            return [null, null];
-        }
-
-        if (array_key_exists('row', $state) && is_array($state['row'])) {
-            $config = $state['row_fields'][$name] ?? null;
-
-            return [$state['row'][$name] ?? null, is_array($config) ? $config : null];
-        }
-
-        $entry = is_array($state['entry'] ?? null) ? $state['entry'] : null;
-
-        if (in_array($name, LayoutSchema::SYSTEM_FIELDS, true)) {
-            $config = $name === 'title' ? ['type' => 'text', 'label' => 'Title'] : ['type' => 'datetime', 'label' => ucfirst(str_replace('_', ' ', $name))];
-
-            return [$entry[$name] ?? null, $config];
-        }
-
-        $config = $state['type']['fields'][$name] ?? null;
-
-        return [$entry[$name] ?? null, is_array($config) ? $config : null];
     }
 
     private function fieldHtml(array $node, mixed $value, array $config, string $fieldType, string $display, array $state): string
@@ -697,7 +712,7 @@ final class NodeRenderer
         $template = $node['children'];
         if ($template === []) {
             foreach ($subfields as $key => $subfield) {
-                $template[] = LayoutSchema::node('field', ['field' => $key, 'display' => LayoutSchema::defaultDisplay((string) ($subfield['type'] ?? 'text'))]);
+                $template[] = LayoutSchema::node('field', ['source' => SmartValue::reference($key, 'item'), 'display' => LayoutSchema::defaultDisplay((string) ($subfield['type'] ?? 'text'))]);
             }
         }
 
@@ -805,6 +820,7 @@ final class NodeRenderer
     {
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
+            'dynamic' => $this->dynamicLink($link, $state),
             'current' => $this->currentEntryUrl($state),
             'home' => $this->ctx->homeUrl(),
             'index' => $this->ctx->indexUrl((string) ($link['collection'] ?? '')),
@@ -818,6 +834,12 @@ final class NodeRenderer
         }
 
         return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
+    }
+
+    private function dynamicLink(array $link, array $state): ?string
+    {
+        $resolved = $this->smart->resolve($link['value'], $state);
+        return is_scalar($resolved['value']) ? $this->siteUrl((string) $resolved['value']) : null;
     }
 
     private function linkedEntryUrl(string $type, string $slug): ?string
@@ -939,23 +961,6 @@ final class NodeRenderer
         return $this->ctx->annotate && $this->annotationsSuspended === 0;
     }
 
-    /** Replace {year}, {site} and {tagline} in editor-written text. */
-    private function placeholders(string $text, bool $html = false): string
-    {
-        $settings = $this->ctx->settings();
-        $values = [
-            '{year}' => date('Y'),
-            '{site}' => $this->ctx->siteTitle(),
-            '{tagline}' => (string) ($settings['tagline'] ?? ''),
-        ];
-
-        if ($html) {
-            $values = array_map(static fn(string $value): string => Security::e($value), $values);
-        }
-
-        return strtr($text, $values);
-    }
-
     private function fieldLabel(string $name, array $config): string
     {
         $label = trim((string) ($config['label'] ?? ''));
@@ -975,7 +980,7 @@ final class NodeRenderer
             : trim(html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '</li>'], ' ', (string) $value)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
-    private function formatNumber(mixed $value): string
+    public function formatNumber(mixed $value): string
     {
         if (!is_numeric($value)) {
             return (string) $value;

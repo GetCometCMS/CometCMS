@@ -17,6 +17,8 @@ use CometCMS\Core\HtmlSanitizer;
  */
 final class LayoutSchema
 {
+    public const FORMAT_VERSION = 2;
+
     public const VARIANTS = ['detail', 'card', 'index'];
 
     public const REGIONS = ['header', 'footer'];
@@ -135,7 +137,7 @@ final class LayoutSchema
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
             ],
             'field' => [
-                'field' => ['type' => 'field', 'default' => ''],
+                'source' => ['type' => 'reference', 'default' => ''],
                 'display' => ['type' => 'display', 'default' => ''],
                 'tag' => ['type' => 'enum', 'options' => ['', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div'], 'default' => ''],
                 'label' => ['type' => 'bool', 'default' => false],
@@ -228,14 +230,20 @@ final class LayoutSchema
         $kinds = [];
 
         foreach ([...self::STRUCTURE, ...self::ELEMENTS] as $kind) {
+            $props = self::propSpec($kind);
+            foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
+                $props[$key]['binding'] = $binding;
+            }
             $kinds[$kind] = [
-                'props' => self::propSpec($kind),
+                'props' => $props,
                 'style' => self::styleKeys($kind),
                 'children' => self::allowedChildren($kind),
             ];
         }
 
         return [
+            'format_version' => self::FORMAT_VERSION,
+            'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES],
             'kinds' => $kinds,
             'root' => self::allowedChildren('root'),
             'style' => self::styleSpec(),
@@ -269,6 +277,10 @@ final class LayoutSchema
 
     public static function node(string $kind, array $props = [], array $style = [], array $children = []): array
     {
+        if ($kind === 'field' && isset($props['field'])) {
+            $props['source'] = SmartValue::reference((string) $props['field']);
+            unset($props['field']);
+        }
         $defaults = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {
@@ -291,6 +303,13 @@ final class LayoutSchema
 
     /** A sensible starting layout built from a content type's fields. */
     public static function defaultLayout(array $type, string $variant): array
+    {
+        $fields = ($type['fields'] ?? []) + array_fill_keys(self::SYSTEM_FIELDS, ['type' => 'datetime']);
+        $fields['title'] = ['type' => 'text'];
+        return self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), $fields);
+    }
+
+    private static function buildDefaultLayout(array $type, string $variant): array
     {
         $fields = is_array($type['fields'] ?? null) ? $type['fields'] : [];
         $slugField = (string) ($type['slug_field'] ?? 'slug');
@@ -399,6 +418,47 @@ final class LayoutSchema
         ];
     }
 
+    private static function bindDefaultNodes(array $nodes, array $fields, bool $item = false): array
+    {
+        foreach ($nodes as &$node) {
+            if ($node['kind'] !== 'field') {
+                $node['children'] = self::bindDefaultNodes($node['children'], $fields, $item);
+                continue;
+            }
+            $props = $node['props'];
+            $key = $props['source']['path'][0] ?? '';
+            $config = $fields[$key] ?? ['type' => 'text'];
+            $source = SmartValue::reference($key, $item ? 'item' : 'current');
+            if (!empty($props['truncate'])) $source['filters'][] = ['name' => 'truncate', 'value' => $props['truncate']];
+            if (in_array($config['type'], ['date', 'datetime'], true)) $source['filters'][] = ['name' => 'date', 'value' => $props['date_format']];
+            $simple = in_array($config['type'], ['text', 'slug', 'textarea', 'markdown', 'html', 'number', 'date', 'datetime'], true)
+                || ($config['type'] === 'media' && empty($config['multiple']));
+            if ($simple) {
+                if ($config['type'] === 'media') {
+                    $next = self::node('image', ['media' => $source, 'ratio' => $props['ratio'], 'fit' => $props['fit'], 'position' => $props['position']]);
+                } elseif (str_starts_with($props['tag'], 'h')) {
+                    $next = self::node('heading', ['text' => $source, 'level' => $props['tag']]);
+                } else {
+                    $content = $props['label']
+                        ? ['type' => 'template', 'parts' => ['<p><span class="c-field-label">' . \CometCMS\Core\Security::e((string) ($config['label'] ?? $key)) . '</span>', $source, '</p>']]
+                        : $source;
+                    $next = self::node('text', ['html' => $content]);
+                }
+                if ($props['link'] && isset(self::propSpec($next['kind'])['link'])) $next['props']['link'] = ['type' => 'current'];
+                $next['id'] = $node['id'];
+                $next['style'] = $node['style'];
+                $node = $next;
+            } else {
+                $node['props']['source'] = SmartValue::reference($key, $item ? 'item' : 'current');
+                if ($config['type'] === 'media' && !empty($config['multiple']) && $node['props']['display'] === 'image') $node['props']['display'] = 'gallery';
+                $subfields = [];
+                foreach ($config['subfields'] ?? [] as $sub) $subfields[$sub['key']] = $sub;
+                $node['children'] = self::bindDefaultNodes($node['children'], $subfields, true);
+            }
+        }
+        return $nodes;
+    }
+
     public static function defaultRegion(string $region): array
     {
         if ($region === 'header') {
@@ -420,7 +480,7 @@ final class LayoutSchema
             self::node('section', ['width' => 'contained'], ['padding_y' => 'lg', 'background' => 'surface', 'border' => 'top'], [
                 self::node('row', ['align' => 'center'], [], [
                     self::node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 0]], [], [
-                        self::node('text', ['html' => '<p>© {year} {site}</p>'], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'none']),
+                        self::node('text', ['html' => ['type' => 'template', 'parts' => ['<p>© ', SmartValue::reference('year', 'site'), ' ', SmartValue::reference('title', 'site'), '</p>']]], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'none']),
                     ]),
                     self::node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 0]], ['align' => 'right'], [
                         self::node('menu', ['menu' => 'footer', 'collapse_mobile' => false], ['font_size' => 'sm', 'margin_bottom' => 'none']),
@@ -433,6 +493,9 @@ final class LayoutSchema
     public static function normalizeLink(mixed $link): array
     {
         $link = is_array($link) ? $link : [];
+        if (($link['type'] ?? '') === 'dynamic') {
+            return ['type' => 'dynamic', 'value' => SmartValue::normalize($link['value'] ?? null, 'link'), 'new_tab' => (bool) ($link['new_tab'] ?? false)];
+        }
         $type = in_array($link['type'] ?? null, self::LINK_TYPES, true) ? (string) $link['type'] : 'none';
         $normalized = ['type' => $type];
 
@@ -515,7 +578,11 @@ final class LayoutSchema
         $normalized = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {
-            $normalized[$key] = self::normalizeValue($spec, $props[$key] ?? $spec['default']);
+            $value = $props[$key] ?? $spec['default'];
+            $binding = SmartValue::PROPERTIES[$kind][$key] ?? null;
+            $normalized[$key] = $binding !== null && SmartValue::isDynamic($value)
+                ? SmartValue::normalize($value, $binding)
+                : self::normalizeValue($spec, $value);
         }
 
         return $normalized;
@@ -554,6 +621,7 @@ final class LayoutSchema
             'html' => is_scalar($value) ? HtmlSanitizer::sanitize(Text::limit((string) $value, 50000)) : $default,
             'media' => is_scalar($value) && preg_match('/^[^\/\\\\\0]{1,255}$/', basename((string) $value)) ? basename((string) $value) : '',
             'link' => self::normalizeLink($value),
+            'reference' => SmartValue::isDynamic($value) ? SmartValue::normalize($value, 'value') : '',
             'spans' => self::normalizeSpans($value),
             'class' => self::cssClasses($value),
             'sort_field' => self::key($value) !== '' ? self::key($value) : $default,

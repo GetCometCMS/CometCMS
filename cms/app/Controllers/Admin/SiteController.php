@@ -163,6 +163,7 @@ final class SiteController extends BaseController
 
         $this->json(['data' => [
             'nodes' => $this->site->layout($type, $variant),
+            'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
             'customized' => $this->site->layoutCustomized($type, $variant),
             'type' => $schema,
             'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
@@ -177,7 +178,7 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user);
+        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user));
         $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
     }
@@ -201,6 +202,7 @@ final class SiteController extends BaseController
 
         $this->json(['data' => [
             'nodes' => $this->site->region($region),
+            'upgrade_required' => $this->site->needsRegionUpgrade($region),
             'customized' => $this->site->regionCustomized($region),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
@@ -212,7 +214,7 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireRegion($region);
-        $nodes = $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user);
+        $nodes = $this->validated(fn() => $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user));
         $this->logger->info('site.region_updated', ['region' => $region]);
         $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
     }
@@ -321,7 +323,7 @@ final class SiteController extends BaseController
             $region = (string) ($body['region'] ?? '');
             $this->requireRegion($region);
             if (array_key_exists('nodes', $body)) {
-                $context->override('region:' . $region, LayoutSchema::normalize($body['nodes']));
+                $context->override('region:' . $region, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
             }
             $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
 
@@ -333,7 +335,7 @@ final class SiteController extends BaseController
         $schema = $this->requireType($type, $variant);
 
         if (array_key_exists('nodes', $body)) {
-            $context->override('layout:' . $type . ':' . $variant, LayoutSchema::normalize($body['nodes']));
+            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
         }
 
         if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
@@ -381,6 +383,15 @@ final class SiteController extends BaseController
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private function validated(callable $action): mixed
+    {
+        try {
+            return $action();
+        } catch (ValidationException $error) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $error->getMessage(), 'fields' => $error->fields()]], 422);
+        }
+    }
 
     private function context(): SiteContext
     {
