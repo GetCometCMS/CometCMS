@@ -180,7 +180,13 @@ const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
 const component = computed(() => builder.componentOf(node.value));
 const locked = computed(() => !!node.value && builder.isLockedRoot(node.value.id));
-const nodePath = computed(() => node.value ? [...ancestors(builder.nodes.value, node.value.id), node.value] : []);
+const nodePath = computed(() => {
+  if (!node.value) return [];
+  const path = [...ancestors(builder.nodes.value, node.value.id), node.value];
+  // A collection's card is the local root of its repeated content.
+  const cardIndex = path.findLastIndex((ancestor) => builder.isCard(ancestor));
+  return cardIndex >= 0 ? path.slice(cardIndex) : path;
+});
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
