@@ -1,14 +1,31 @@
 <template>
   <div v-if="node" class="flex h-full flex-col">
-    <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+    <nav :aria-label="t('site.builder.hierarchy')" class="shrink-0 border-b border-slate-200 bg-slate-50/60 px-3 py-2">
+      <ol class="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-xs">
+        <li v-for="(ancestor, index) in nodePath" :key="ancestor.id" class="flex min-w-0 max-w-full items-center gap-0.5">
+          <Icon v-if="index" icon="mdi:chevron-right" class="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+          <span
+            v-if="ancestor.id === node.id"
+            aria-current="location"
+            :title="builder.nodeLabel(ancestor)"
+            class="max-w-[9rem] truncate rounded px-1.5 py-1 font-medium text-theme-700"
+          >{{ builder.nodeLabel(ancestor) }}</span>
+          <button
+            v-else
+            type="button"
+            :title="t('site.menu.selectParent', { name: builder.nodeLabel(ancestor) })"
+            class="min-w-0 max-w-[9rem] truncate rounded px-1.5 py-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-500"
+            @click="builder.select(ancestor.id)"
+          >{{ builder.nodeLabel(ancestor) }}</button>
+        </li>
+      </ol>
+    </nav>
+    <div class="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
       <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
         <p class="min-h-[1rem] truncate text-xs text-slate-500">{{ builder.nodeSummary(node) }}</p>
       </div>
-      <button type="button" class="inspector-action" :title="t('site.builder.selectParent')" :disabled="!hasParent" @click="builder.selectParent()">
-        <Icon icon="mdi:arrow-up-left" class="h-4 w-4" />
-      </button>
       <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" :disabled="locked || builder.isCard(node)" @click="builder.duplicate(node.id)">
         <Icon icon="mdi:content-copy" class="h-4 w-4" />
       </button>
@@ -17,7 +34,7 @@
       </button>
     </div>
 
-    <div v-if="!isInstance" class="border-b border-slate-200 px-4 py-2">
+    <div v-if="!isInstance" class="shrink-0 border-b border-slate-200 px-4 py-2">
       <SegmentedControl
         v-model="tab"
         :options="[
@@ -137,7 +154,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
-import { COMPONENT, findNode, isStructure, locate } from "../../../composables/layoutTree.js";
+import { COMPONENT, ancestors, findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -163,7 +180,7 @@ const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
 const component = computed(() => builder.componentOf(node.value));
 const locked = computed(() => !!node.value && builder.isLockedRoot(node.value.id));
-const hasParent = computed(() => !!(node.value && locate(builder.nodes.value, node.value.id)?.parent));
+const nodePath = computed(() => node.value ? [...ancestors(builder.nodes.value, node.value.id), node.value] : []);
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
