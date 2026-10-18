@@ -82,22 +82,6 @@
           </label>
         </div>
       </details>
-
-      <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-        <span class="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t("site.pages.layouts") }}</span>
-        <template v-if="!isNew">
-          <router-link
-            v-for="variant in variants"
-            :key="variant"
-            :to="`/page-builder/builder/layout/${name}/${variant}`"
-            class="btn-secondary btn-sm"
-          >
-            <Icon :icon="VARIANT_ICONS[variant]" class="h-4 w-4" />
-            {{ t(`site.variant.${variant}`) }}
-          </router-link>
-        </template>
-        <span v-else class="text-xs text-slate-500">{{ t("site.typeCard.layoutsAfterSave") }}</span>
-      </div>
     </template>
   </section>
 </template>
@@ -107,8 +91,6 @@ import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useI18n } from "../../i18n/index.js";
-
-const VARIANT_ICONS = { detail: "mdi:file-document-outline", index: "mdi:view-grid-outline" };
 
 const props = defineProps({
   /** Website settings of this type, or null when they cannot be edited. */
@@ -122,7 +104,6 @@ const props = defineProps({
   /** [{ key, type, label }] of the type's own fields. */
   fields: { type: Array, default: () => [] },
   errors: { type: Object, default: () => ({}) },
-  isNew: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["update:modelValue", "touched"]);
@@ -130,7 +111,6 @@ const { t } = useI18n();
 
 const route = computed(() => props.modelValue ?? props.status?.types?.[props.name] ?? {});
 const editable = computed(() => !!props.modelValue && !!props.status?.can_manage && props.visibility !== "private");
-const variants = computed(() => (props.singleton ? ["detail"] : ["detail", "index"]));
 
 // Follow the current route, including changes not yet saved.
 const summary = computed(() => {

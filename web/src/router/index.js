@@ -94,7 +94,12 @@ const routes = [
     redirect: '/connect/api',
   },
   {
-    path: '/page-builder/:tab(overview|seo|components|menus)?',
+    // Components are managed in the builder's components panel.
+    path: '/page-builder/components',
+    redirect: '/page-builder/builder/region/header?settings=components',
+  },
+  {
+    path: '/page-builder/:tab(overview|seo|menus)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },

@@ -2,6 +2,8 @@
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
     <header class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
+      <img :src="brandIcon" alt="CometCMS" class="h-7 w-7 shrink-0" />
+      <span class="mx-1 h-6 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
       <router-link :to="backTo" class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-5 w-5" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
@@ -140,7 +142,7 @@
           </div>
           <div class="min-h-0 flex-1 overflow-y-auto">
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
-            <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" />
+            <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
@@ -259,6 +261,7 @@ import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
+import { adminAsset } from "../basePath.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -266,10 +269,12 @@ const site = useSiteStore();
 const auth = useAuthStore();
 const toast = useToastStore();
 const { t } = useI18n();
+const brandIcon = adminAsset("img/cms-icon.png");
 const builder = createSiteBuilder({
   t,
   componentApi: {
     create: async (body) => (await api.site.createComponent(body)).data,
+    rename: async (id, name) => (await api.site.renameComponent(id, name)).data,
     remove: async (id) => (await api.site.deleteComponent(id)).data.component,
     load: async (id) => {
       try {
@@ -343,8 +348,10 @@ const DESIGN_MIN_WIDTH = 320;
 /** Code reads better wide, so the stylesheet panel may grow further. */
 const CSS_MIN_WIDTH = 360;
 const CSS_MAX_WIDTH = 720;
+/** Components are managed in the builder's components panel. */
+const COMPONENTS_PATH = "/page-builder/builder/region/header?settings=components";
 /** The open left panel, or null when collapsed. */
-const leftPanel = ref(["design", "css"].includes(route.query.settings) ? route.query.settings : "add");
+const leftPanel = ref(["design", "css", "components"].includes(route.query.settings) ? route.query.settings : "add");
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
@@ -474,7 +481,7 @@ const variants = computed(() => {
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
-  if (target === "component") return "/page-builder/components";
+  if (target === "component") return COMPONENTS_PATH;
   return target === "region" ? "/page-builder/overview" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => {
@@ -610,11 +617,15 @@ function onRevisionRestored(data) {
   else site.markCustomized(target, name, variant, data.customized);
 }
 
+function onComponentRenamed(updated) {
+  if (target === "component" && name === updated.id && component.value) component.value = { ...component.value, name: updated.name };
+}
+
 function onComponentDeleted(id) {
   historyVersion.value++;
   if (target === "component" && name === id) {
     bypass();
-    router.push("/page-builder/components");
+    router.push(COMPONENTS_PATH);
   }
 }
 

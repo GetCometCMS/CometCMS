@@ -25,7 +25,18 @@
     </section>
 
     <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.seo") }}</h2>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.seo") }}</h2>
+        <a
+          :href="site.data.site_url + '/sitemap.xml'"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1 text-sm text-theme-600 hover:underline"
+        >
+          sitemap.xml
+          <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+        </a>
+      </div>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-title-template">{{ t("site.overview.titleTemplate") }}</label>
@@ -54,6 +65,7 @@
 
 <script setup>
 import { computed } from "vue";
+import { Icon } from "@iconify/vue";
 import MediaSelect from "./MediaSelect.vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
 import { useSiteStore } from "../../stores/site.js";

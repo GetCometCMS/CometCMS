@@ -35,6 +35,9 @@ export default defineConfig(({ command }) => ({
     },
   ],
   root: __dirname,
+  test: {
+    setupFiles: ['./src/test/setup.js'],
+  },
   build: {
     outDir,
     emptyOutDir: true,

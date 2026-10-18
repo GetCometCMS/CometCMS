@@ -49,8 +49,9 @@ const MAX_FALLBACK = 2000
  * with useSiteBuilder().
  *
  * `componentApi` connects reusable components: create({ name, nodes, type })
- * stores a new component, load(id) returns one with its nodes, and remove(id)
- * deletes it, detaches saved instances and returns its last definition.
+ * stores a new component, load(id) returns one with its nodes, rename(id, name)
+ * returns its saved summary, and remove(id) deletes it, detaches saved instances
+ * and returns its last definition.
  *
  * `templateApi` connects collection cards: load(type) returns the standard
  * card of a content type ({ nodes }), which a collection can take over.
@@ -490,6 +491,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       && (!component.type || (context.currentAvailable && component.type === context.type?.name))
   }
 
+  async function renameComponent(id, name) {
+    const updated = await componentApi.rename(id, name)
+    components.value = components.value.map((item) => (item.id === id ? { ...item, name: updated.name } : item))
+    return updated
+  }
+
   /** Detach deleted instances in the draft, clipboard and every undo/redo state. */
   async function deleteComponent(id) {
     const component = await componentApi.remove(id)
@@ -731,7 +738,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
-    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent,
+    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
     fieldDialog, canMakeField, convertToField,
   }

@@ -8,6 +8,7 @@ import { createSiteBuilder } from '../../../composables/useSiteBuilder.js'
 import { t } from '../../../i18n/index.js'
 
 vi.mock('../../ConfirmModal.vue', () => ({ default: { render: () => null } }))
+vi.mock('../ComponentNameModal.vue', () => ({ default: { render: () => null } }))
 
 async function renderPanel(panel) {
   const app = createSSRApp({ setup() {
@@ -27,7 +28,7 @@ async function renderPanel(panel) {
 }
 
 describe('builder components panel', () => {
-  it('lists every component with add, edit and delete controls, disabling incompatible placements', async () => {
+  it('lists every component with add, edit, rename and delete controls, disabling incompatible placements', async () => {
     const html = await renderPanel(BuilderComponents)
     expect(html).toContain('Shared promo')
     expect(html).toContain('Article teaser')
@@ -35,6 +36,7 @@ describe('builder components panel', () => {
     expect(html.match(/draggable="true"/g)).toHaveLength(1)
     expect(html.match(/draggable="false"/g)).toHaveLength(2)
     expect(html).toContain('Edit component: Shared promo')
+    expect(html).toContain('Rename: Shared promo')
     expect(html).toContain('Delete: Shared promo')
   })
 

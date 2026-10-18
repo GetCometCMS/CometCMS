@@ -457,6 +457,30 @@ test('layout previews annotate nodes and render unsaved changes', function (): v
     assert_true(str_contains($html, 'data-node="sec1"'));
 });
 
+test('layout previews of a draft resolve its publish date', function (): void {
+    comet_site_test_setup();
+    $context = comet_site_test_context();
+    $context->preview = true;
+    $context->annotate = true;
+    $context->override('layout:blog:detail', LayoutSchema::normalize([
+        ['id' => 'sec1', 'kind' => 'section', 'children' => [
+            ['id' => 'row1', 'kind' => 'row', 'children' => [
+                ['id' => 'col1', 'kind' => 'column', 'children' => [
+                    ['id' => 'f1', 'kind' => 'field', 'props' => ['source' => \CometCMS\Site\SmartValue::reference('published_at')]],
+                ]],
+            ]],
+        ]],
+    ]));
+
+    $type = (new ContentTypeRepository())->find('blog');
+    $draft = $context->findEntry('blog', 'secret-draft', true);
+    assert_true(empty($draft['published_at']), 'The fixture draft has no publish date yet.');
+    $html = (new PageRenderer($context))->layoutPreview($type, 'detail', $draft);
+
+    assert_false(str_contains($html, 'Unresolved content reference'));
+    assert_true(str_contains($html, '<time'), 'The draft previews with the date it would get when published.');
+});
+
 test('theme normalizes values and keeps custom css inside its style element', function (): void {
     $theme = Theme::normalize([
         'colors' => ['primary' => '#ABC', 'text' => 'red; background:url(x)'],

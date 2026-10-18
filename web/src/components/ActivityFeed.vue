@@ -250,6 +250,11 @@ const EVENT_LABELS = {
   "site.layout_reset": "activity.siteLayoutReset",
   "site.region_updated": "activity.siteRegionUpdated",
   "site.region_reset": "activity.siteRegionReset",
+  "site.component_created": "activity.siteComponentCreated",
+  "site.component_updated": "activity.siteComponentUpdated",
+  "site.component_renamed": "activity.siteComponentRenamed",
+  "site.component_deleted": "activity.siteComponentDeleted",
+  "site.revision_restored": "activity.siteRevisionRestored",
 };
 
 function label(item) {
@@ -263,6 +268,8 @@ function sub(item) {
   if (ctx.type && ctx.slug) return `${ctx.type} / ${ctx.slug}`;
   if (ctx.type && ctx.variant) return `${ctx.type} · ${t(`site.variant.${ctx.variant}`)}`;
   if (ctx.region) return t(`site.region.${ctx.region}`);
+  if (ctx.target === "theme") return t("activity.siteTheme");
+  if (ctx.component) return ctx.component;
   if (ctx.name) return ctx.name;
   if (ctx.file) return ctx.file;
   if (ctx.role) return ctx.role;

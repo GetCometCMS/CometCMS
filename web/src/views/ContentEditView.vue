@@ -291,35 +291,14 @@
         </div>
       </div>
 
-      <!--
-        Pages and collection entries keep their design action alongside their
-        content. A single page is mostly its design, so it gets a large canvas;
-        collection entries keep it compact so their fields stay in view.
-      -->
-      <section
+      <!-- Pages and collection entries keep their design action alongside their content. -->
+      <PageBuilderCta
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
-        class="card flex gap-4 p-6"
-        :class="isSingleton ? 'h-96 flex-col items-center justify-center text-center' : 'flex-col items-start sm:flex-row sm:items-center'"
-        aria-labelledby="page-design-heading"
-      >
-        <Icon icon="mdi:pencil-ruler" class="shrink-0 text-slate-400" :class="isSingleton ? 'h-8 w-8' : 'h-6 w-6'" />
-        <div :class="isSingleton ? 'contents' : 'min-w-0 flex-1'">
-          <h2 id="page-design-heading" class="text-sm font-semibold text-slate-700">
-            {{ t("site.entry.pageDesign") }}
-          </h2>
-          <p id="page-design-hint" class="max-w-md text-sm text-slate-500">
-            {{ t("site.entry.editDesignHint") }}
-          </p>
-        </div>
-        <router-link
-          :to="designLink"
-          class="btn-primary shrink-0"
-          aria-describedby="page-design-hint"
-        >
-          <Icon icon="mdi:pencil-ruler" class="h-4 w-4" />
-          {{ t("site.entry.editDesign") }}
-        </router-link>
-      </section>
+        :title="t('site.builderCta.title')"
+        :description="t('site.entry.editDesignHint')"
+        :to="designLink"
+        :action-label="t('site.entry.editDesign')"
+      />
 
       <!-- Custom fields -->
       <div v-if="hasCustomFields" class="card p-6 space-y-4">
@@ -591,6 +570,7 @@ import BaseField from "../components/BaseField.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { usePermissions } from "../composables/usePermissions.js";
+import PageBuilderCta from "../components/site/PageBuilderCta.vue";
 import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";

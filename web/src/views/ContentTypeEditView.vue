@@ -157,7 +157,6 @@
         :visibility="form.visibility"
         :fields="customFields"
         :errors="websiteErrors"
-        :is-new="isNew"
         @touched="routeTouched = true"
       />
 

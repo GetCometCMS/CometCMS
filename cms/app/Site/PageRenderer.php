@@ -281,6 +281,10 @@ final class PageRenderer
 
     private function state(?array $entry, ?array $type, string $path, int $page, array $alternates): array
     {
+        // A previewed draft shows the date it gets once published instead of an unresolved reference.
+        if ($this->ctx->preview && $entry !== null && empty($entry['published_at'])) {
+            $entry['published_at'] = Security::now();
+        }
         return [
             'entry' => $entry,
             'type' => $type,
