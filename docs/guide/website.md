@@ -153,7 +153,7 @@ The theme also defines the **tokens** the builder offers, so one change reshapes
 
 Administrators can add **custom CSS**. Every class the website uses starts with `c-`, e.g. `.c-site-name` or `.c-button-primary`. Elements also accept extra CSS classes in the builder.
 
-Each workspace stores its theme in `storage/workspaces/{workspace}/site/theme/`: `tokens.json` contains the design settings, and `style.css` contains the custom CSS. Public pages load the custom stylesheet after the generated theme styles. The builder previews unsaved CSS immediately, and theme revisions include both settings and CSS. Website backups include both files.
+Each workspace stores its theme in `storage/workspaces/{workspace}/site/theme/`: `theme.json` contains the design settings, and `style.css` contains the custom CSS. Public pages load the custom stylesheet after the generated theme styles. The builder previews unsaved CSS immediately, and theme revisions include both settings and CSS. Website backups include both files.
 
 Existing `site/theme.json` files remain readable and move into this structure the next time the theme is saved. You can also edit `style.css` directly; stylesheet versions and page caches account for its contents.
 

@@ -17,7 +17,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * storage/workspaces/{workspace}/site/:
  *
  *   settings.json               homepage, URL patterns, SEO defaults
- *   theme/tokens.json           design tokens
+ *   theme/theme.json            theme settings
  *   theme/style.css             custom CSS, loaded after the generated theme
  *   menus.json                  navigation menus
  *   regions/{header,footer}.json
@@ -146,7 +146,7 @@ final class SiteRepository
         // Older workspaces keep both tokens and CSS in site/theme.json.
         // Read them until the next save migrates the theme into its directory.
         $legacy = $this->store->read('theme');
-        $stored = $legacy ?? $this->store->read('theme', 'tokens') ?? [];
+        $stored = $legacy ?? $this->store->read('theme', 'theme') ?? [];
         $path = $this->store->path('theme', 'style') . '.css';
         // A restored legacy backup takes precedence over the newer files.
         if ($legacy === null && is_file($path)) {
@@ -166,7 +166,7 @@ final class SiteRepository
         $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
         $theme['updated_at'] = Security::now();
         $this->writeThemeStylesheet($theme['custom_css']);
-        $this->store->write(array_diff_key($theme, ['custom_css' => true]), 'theme', 'tokens');
+        $this->store->write(array_diff_key($theme, ['custom_css' => true]), 'theme', 'theme');
         $this->store->delete('theme');
         $this->clearCache();
 

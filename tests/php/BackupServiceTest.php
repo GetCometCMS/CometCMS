@@ -16,7 +16,7 @@ test('website backups restore separate theme files over both new and legacy them
     $zip = new ZipArchive();
     assert_true($zip->open($path));
     assert_same($theme['custom_css'], $zip->getFromName('site/theme/style.css'));
-    assert_false(array_key_exists('custom_css', json_decode($zip->getFromName('site/theme/tokens.json'), true)));
+    assert_false(array_key_exists('custom_css', json_decode($zip->getFromName('site/theme/theme.json'), true)));
     $zip->close();
 
     $site->saveTheme(['custom_css' => '.changed {}']);
@@ -25,7 +25,7 @@ test('website backups restore separate theme files over both new and legacy them
 
     $store = new JsonStore($site->workspace()->path('site'));
     $store->write(['custom_css' => '.legacy {}'], 'theme');
-    unlink($site->workspace()->path('site') . '/theme/tokens.json');
+    unlink($site->workspace()->path('site') . '/theme/theme.json');
     unlink($site->workspace()->path('site') . '/theme/style.css');
     $legacyBackup = $backups->create(['id' => 'admin'], ['site']);
     $legacyPath = COMET_STORAGE . '/backups/' . $legacyBackup['name'];

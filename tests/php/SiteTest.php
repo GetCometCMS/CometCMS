@@ -527,7 +527,7 @@ test('theme stores custom css separately and reads direct stylesheet edits', fun
     $site = comet_site_test_setup();
     $saved = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.custom { color: red; }']);
     $path = $site->workspace()->path('site') . '/theme/style.css';
-    $tokens = (new JsonStore($site->workspace()->path('site')))->read('theme', 'tokens');
+    $tokens = (new JsonStore($site->workspace()->path('site')))->read('theme', 'theme');
     assert_same($saved['custom_css'], file_get_contents($path));
     assert_false(array_key_exists('custom_css', $tokens));
     assert_same('#123456', $tokens['colors']['primary']);
@@ -552,7 +552,7 @@ test('legacy themes migrate on save and restored legacy themes take precedence',
     $site->saveTheme($site->theme());
     assert_null($store->read('theme'));
     assert_same($legacy['custom_css'], file_get_contents($site->workspace()->path('site') . '/theme/style.css'));
-    assert_false(array_key_exists('custom_css', $store->read('theme', 'tokens')));
+    assert_false(array_key_exists('custom_css', $store->read('theme', 'theme')));
 
     $store->write([...$legacy, 'custom_css' => '.restored {}'], 'theme');
     assert_same('.restored {}', $site->theme()['custom_css'], 'Older backups override existing migrated files.');

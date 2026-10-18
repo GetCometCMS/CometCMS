@@ -93,8 +93,8 @@ final class RestoreService
             }
 
             // Treat legacy and migrated theme files as the same backup item.
-            $otherThemeFormatExists = ($name === 'site/theme.json' && is_file($this->workspace->path('site') . '/theme/tokens.json'))
-                || (in_array($name, ['site/theme/tokens.json', 'site/theme/style.css'], true) && is_file($this->workspace->path('site') . '/theme.json'));
+            $otherThemeFormatExists = ($name === 'site/theme.json' && is_file($this->workspace->path('site') . '/theme/theme.json'))
+                || (in_array($name, ['site/theme/theme.json', 'site/theme/style.css'], true) && is_file($this->workspace->path('site') . '/theme.json'));
             if (!$overwrite && (is_file($target) || $otherThemeFormatExists)) {
                 $summary['skipped']++;
                 continue;
@@ -105,7 +105,7 @@ final class RestoreService
             }
 
             $copied = copy('zip://' . $zipPath . '#' . $name, $target);
-            if (in_array($name, ['site/theme/tokens.json', 'site/theme/style.css'], true)) {
+            if (in_array($name, ['site/theme/theme.json', 'site/theme/style.css'], true)) {
                 $restoredTheme[$name] = $copied;
             }
 
@@ -126,7 +126,7 @@ final class RestoreService
 
         // A migrated theme must replace the legacy theme too when overwriting.
         // Otherwise an older theme.json would hide the restored tokens and CSS.
-        if ($overwrite && !empty($restoredTheme['site/theme/tokens.json']) && !empty($restoredTheme['site/theme/style.css'])
+        if ($overwrite && !empty($restoredTheme['site/theme/theme.json']) && !empty($restoredTheme['site/theme/style.css'])
             && $zip->locateName('site/theme.json') === false) {
             $legacyTheme = $this->workspace->path('site') . '/theme.json';
             if (is_file($legacyTheme)) {
