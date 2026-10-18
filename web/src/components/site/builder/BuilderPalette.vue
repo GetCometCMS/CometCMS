@@ -11,30 +11,29 @@
         @keydown.esc.stop.prevent="search = ''"
       />
     </div>
-    <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
 
     <BuilderGroup v-if="presets.length || layoutKinds.length" v-model:open="expanded.layout" :title="t('site.builder.layout')">
-      <div class="grid grid-cols-3 gap-1.5">
+      <div class="grid grid-cols-2 gap-1.5">
         <button
           v-for="preset in presets"
           :key="preset.join('-')"
           type="button"
           draggable="true"
-          class="flex flex-col items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
+          class="group flex flex-col items-stretch gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 shadow-xs transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
           style="cursor: grab"
-          :title="t('site.builder.columns', { count: preset.length })"
+          :title="t('site.builder.presetHint')"
           @click="builder.insert(sectionPreset(builder.spec.value, preset))"
           @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
           @dragend="end"
         >
-          <span class="flex h-4 w-full gap-0.5">
-            <span v-for="(span, index) in preset" :key="index" class="rounded-sm bg-theme-200" :style="{ flex: span }"></span>
+          <span class="flex h-6 w-full gap-1 rounded-md bg-slate-50 p-1 ring-1 ring-inset ring-slate-200 group-hover:bg-white">
+            <span v-for="(span, index) in preset" :key="index" class="rounded-[3px] bg-theme-200 group-hover:bg-theme-300" :style="{ flex: span }"></span>
           </span>
-          <span class="text-[10px]">{{ preset.join("·") }}</span>
+          <span class="text-left">{{ t(`site.builder.preset.${preset.join("-")}`) }}</span>
         </button>
       </div>
       <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" :hint="kindHint(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
       </div>
     </BuilderGroup>
 
@@ -44,6 +43,7 @@
         :key="kind"
         :icon="KIND_ICONS[kind]"
         :label="builder.kindLabel(kind)"
+        :hint="kindHint(kind)"
         @add="builder.insert(create(kind))"
         @drag="start($event, () => create(kind))"
         @dragend="end"
@@ -112,14 +112,20 @@ function matches(...values) {
 
 const presets = computed(() => PRESETS.filter((preset) => matches(
   t("site.builder.layout"), builder.kindLabel("section"), "section",
-  t("site.builder.columns", { count: preset.length }), preset.join("·"),
+  t("site.builder.columns", { count: preset.length }), t(`site.builder.preset.${preset.join("-")}`),
 )));
+
+function kindHint(kind) {
+  const key = `site.kindHint.${kind}`;
+  const text = t(key);
+  return text === key ? "" : text;
+}
 const layoutKinds = computed(() => ["row", "column"].filter((kind) => matches(
   t("site.builder.layout"), builder.kindLabel(kind), kind,
 )));
 
 const elementKinds = computed(() =>
-  (builder.spec.value?.elements ?? []).filter((kind) => !["field", "component"].includes(kind) && matches(builder.kindLabel(kind), kind)),
+  (builder.spec.value?.elements ?? []).filter((kind) => !["field", "component"].includes(kind) && matches(builder.kindLabel(kind), kind, kindHint(kind))),
 );
 
 /** The repeater whose item template the selection is in (or is). */

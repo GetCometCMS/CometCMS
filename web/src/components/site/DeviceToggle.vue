@@ -1,11 +1,11 @@
 <template>
-  <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="group" :aria-label="t('site.preview.device')">
+  <div class="inline-flex rounded-lg bg-slate-100 p-0.5" role="group" :aria-label="t('site.preview.device')">
     <button
       v-for="device in devices"
       :key="device.value"
       type="button"
       class="rounded-md p-1.5 transition-colors"
-      :class="modelValue === device.value ? 'bg-theme-600 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'"
+      :class="modelValue === device.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
       :aria-pressed="modelValue === device.value"
       :title="t(`site.device.${device.value}`)"
       @click="$emit('update:modelValue', device.value)"

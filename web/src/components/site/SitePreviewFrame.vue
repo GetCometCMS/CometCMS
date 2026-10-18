@@ -84,6 +84,16 @@ const frameBoxStyle = computed(() => ({
   height: `${Math.max(320, containerHeight.value)}px`,
 }));
 
+/**
+ * The frame is scaled down to fit; editor overlays inside it (labels, grips)
+ * divide their sizes by this so they stay readable at any zoom.
+ */
+function applyScale() {
+  iframeRef.value?.contentDocument?.documentElement?.style.setProperty("--cometcms-ui-scale", String(1 / scale.value));
+}
+
+watch(scale, applyScale);
+
 async function render() {
   if (!props.body) return;
   const current = ++sequence;
@@ -97,6 +107,7 @@ async function render() {
     if (doc?.body && html) {
       // Reloading the iframe would blank it for a frame on every edit.
       patchDocument(doc, html);
+      applyScale();
       emit("updated", doc);
     } else {
       pendingScroll = iframeRef.value?.contentWindow?.scrollY ?? 0;
@@ -121,6 +132,7 @@ function onLoad() {
   const doc = iframeRef.value?.contentDocument;
   if (!doc || !srcdoc.value) return;
   documentLoaded = true;
+  applyScale();
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);

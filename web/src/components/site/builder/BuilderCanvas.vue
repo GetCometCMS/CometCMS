@@ -71,12 +71,12 @@ const BUILDER_CSS = `
 
 /* Hover and selection */
 [data-builder-hover]{
-  outline:1px dashed var(--builder-color)!important;
+  outline:calc(1px * var(--cometcms-ui-scale,1)) dashed var(--builder-color)!important;
 }
 
 [data-builder-selected]{
-  outline:2px solid var(--builder-color)!important;
-  outline-offset:-2px;
+  outline:calc(2px * var(--cometcms-ui-scale,1)) solid var(--builder-color)!important;
+  outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
 }
 
 /* Empty drop area */
@@ -93,7 +93,7 @@ const BUILDER_CSS = `
 
 [data-drop-root]:empty::before{
   content:attr(data-empty-label);
-  font:500 13px/1.4 system-ui,sans-serif;
+  font:500 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
   color:#64748b;
 }
 
@@ -116,17 +116,19 @@ const BUILDER_CSS = `
 
 /* Node badges */
 .cometcms-badge{
+  --s:var(--cometcms-ui-scale,1);
   position:absolute;
   z-index:2147483647;
   cursor:pointer;
   transform:translateY(-100%);
-  background:color-mix(in srgb,var(--builder-color,#5875c9) 85%,#111827);
+  background:color-mix(in srgb,var(--builder-color,#5875c9) 88%,#111827);
   color:#fff;
-  font:600 11px/1 system-ui,sans-serif;
-  padding:5px 8px;
-  border-radius:5px 5px 0 0;
+  font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
+  letter-spacing:.01em;
+  padding:calc(5px * var(--s)) calc(8px * var(--s));
+  border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
   white-space:nowrap;
-  box-shadow:0 -1px 3px rgba(0,0,0,.06);
+  box-shadow:0 -1px 3px rgba(0,0,0,.08);
 }
 
 /* Column resizing: a grip on the edge under the pointer */

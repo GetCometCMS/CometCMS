@@ -70,6 +70,10 @@
       </template>
 
       <template v-else-if="tab === 'content'">
+        <p v-if="kindHint" class="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600 ring-1 ring-inset ring-slate-200">
+          <Icon icon="mdi:information-outline" class="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+          <span>{{ kindHint }}</span>
+        </p>
         <ColumnLayoutPicker v-if="['row', 'column'].includes(node.kind) && !builder.isCard(node)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
@@ -133,16 +137,14 @@
     </div>
   </div>
 
-  <div v-else class="flex h-full flex-col items-center justify-center px-6 text-center">
-    <Icon icon="mdi:cursor-default-click-outline" class="h-10 w-10 text-slate-300" />
-    <p class="mt-3 text-sm font-medium text-slate-700">{{ t("site.builder.nothingSelected") }}</p>
-    <p class="mt-1 text-xs text-slate-500">{{ t("site.builder.nothingSelectedHint") }}</p>
-    <ul class="mt-4 space-y-1 text-left text-[11px] text-slate-500">
-      <li><kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">Z</kbd> {{ t("site.builder.undo") }}</li>
-      <li><kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">D</kbd> {{ t("site.builder.duplicate") }}</li>
-      <li><kbd class="kbd">Del</kbd> {{ t("common.delete") }}</li>
-      <li><kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">S</kbd> {{ t("site.builder.save") }}</li>
-    </ul>
+  <div v-else class="h-full">
+    <slot name="empty">
+      <div class="flex h-full flex-col items-center justify-center px-6 text-center">
+        <Icon icon="mdi:cursor-default-click-outline" class="h-10 w-10 text-slate-300" />
+        <p class="mt-3 text-sm font-medium text-slate-700">{{ t("site.builder.nothingSelected") }}</p>
+        <p class="mt-1 text-xs text-slate-500">{{ t("site.builder.nothingSelectedHint") }}</p>
+      </div>
+    </slot>
   </div>
 </template>
 
@@ -176,6 +178,14 @@ const OPEN_STYLE_GROUPS = ["spacing", "text"];
 const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
 
 const node = computed(() => builder.selected.value);
+/** One sentence on what the selected kind of element is for. */
+const kindHint = computed(() => {
+  if (!node.value) return "";
+  const kind = builder.isCard(node.value) ? "card" : node.value.kind;
+  const key = `site.kindHint.${kind}`;
+  const text = t(key);
+  return text === key ? "" : text;
+});
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
