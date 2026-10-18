@@ -4,7 +4,7 @@
       <Icon icon="mdi:palette-outline" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
         <h2 class="text-sm font-semibold text-slate-900">{{ t("site.builder.designSettings") }}</h2>
-        <p class="truncate text-xs text-slate-500">{{ t("site.builder.designSettingsHint") }}</p>
+        <p class="text-xs text-slate-500">{{ t("site.builder.designSettingsHint") }}</p>
       </div>
       <button type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
