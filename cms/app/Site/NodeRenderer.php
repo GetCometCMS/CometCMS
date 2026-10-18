@@ -1354,8 +1354,8 @@ final class NodeRenderer
         if (($style['animation'] ?? 'none') !== 'none') {
             $classes[] = 'c-anim';
             $classes[] = 'c-anim-' . $style['animation'];
-            if (($style['animation_trigger'] ?? 'scroll') === 'load') {
-                $classes[] = 'c-anim-load';
+            if (in_array($style['animation_trigger'] ?? 'scroll', ['load', 'hover'], true)) {
+                $classes[] = 'c-anim-' . $style['animation_trigger'];
             }
             if (($style['animation_duration'] ?? 'normal') !== 'normal') {
                 $classes[] = 'c-anim-' . $style['animation_duration'];

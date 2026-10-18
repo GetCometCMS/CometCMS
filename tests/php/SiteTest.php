@@ -1029,13 +1029,18 @@ test('borders pick their sides and only keep a look while a side is set', functi
 test('entrance animations keep their timing only while an animation is set', function (): void {
     $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], ['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 9], [
         LayoutSchema::node('row', [], ['animation' => 'spin', 'animation_delay' => 2], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Hello'])])]),
+        LayoutSchema::node('row', [], ['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'fast', 'animation_delay' => 2], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Hover'])])]),
+        LayoutSchema::node('row', [], ['animation_trigger' => 'hover']),
     ])]);
 
     assert_same(['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 6], $nodes[0]['style'], 'Delay steps are clamped.');
     assert_same([], $nodes[0]['children'][0]['style'], 'Unknown animations and their orphaned timing are dropped.');
+    assert_same(['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'fast', 'animation_delay' => 2], $nodes[0]['children'][1]['style'], 'Hover and its timing survive normalization.');
+    assert_same([], $nodes[0]['children'][2]['style'], 'Hover is dropped without an animation.');
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
     assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-6'));
+    assert_true(str_contains($html, 'c-anim c-anim-zoom-in c-anim-hover c-anim-fast c-anim-d-2'));
     assert_true(str_contains(Theme::stylesheet([]), '@keyframes c-anim-fade-up'));
 });
 

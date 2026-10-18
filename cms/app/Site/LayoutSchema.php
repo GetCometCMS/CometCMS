@@ -136,8 +136,8 @@ final class LayoutSchema
             'border_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
             'max_width' => ['type' => 'enum', 'options' => ['', 'narrow', 'prose'], 'default' => ''],
             'animation' => ['type' => 'enum', 'options' => ['none', 'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'zoom-in', 'zoom-out', 'blur'], 'default' => 'none'],
-            // Scroll plays as the element comes into view; load plays once the page opens.
-            'animation_trigger' => ['type' => 'enum', 'options' => ['scroll', 'load'], 'default' => 'scroll'],
+            // Scroll plays as the element comes into view; load on page open; hover on pointer entry.
+            'animation_trigger' => ['type' => 'enum', 'options' => ['scroll', 'load', 'hover'], 'default' => 'scroll'],
             'animation_duration' => ['type' => 'enum', 'options' => ['fast', 'normal', 'slow'], 'default' => 'normal'],
             // Stagger step: later steps start a little after earlier ones.
             'animation_delay' => ['type' => 'int', 'min' => 0, 'max' => 6, 'default' => 0],

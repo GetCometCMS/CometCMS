@@ -8,10 +8,10 @@ import { createSiteBuilder } from '../../../composables/useSiteBuilder.js'
 import { SITE_ICONS } from '../../../composables/siteIcons.js'
 import { t } from '../../../i18n/index.js'
 
-async function renderControl(name, def, value) {
+async function renderControl(name, def, value, overrides = {}) {
   const app = createSSRApp({ setup() {
     createSiteBuilder({ t })
-    return () => h(BuilderControl, { node: { id: 'icon1', kind: 'icon', props: {}, style: {} }, name, def, value })
+    return () => h(BuilderControl, { node: { id: 'icon1', kind: 'icon', props: {}, style: {} }, name, def, value, ...overrides })
   } })
   app.use(createPinia())
   return renderToString(app)
@@ -34,5 +34,23 @@ describe('builder icon controls', () => {
     const label = await renderControl('label', { type: 'string', max: 120, default: '' }, '')
     expect(label).toContain('Accessible label')
     expect(label).not.toContain('Show field label')
+  })
+})
+
+describe('builder hover effects', () => {
+  it('describes movement for hover and entrances for other triggers', async () => {
+    const def = { type: 'enum', options: ['none', 'fade', 'fade-left', 'zoom-in', 'blur'] }
+    const hover = await renderControl('animation', def, 'fade-left', {
+      group: 'style', node: { id: 'text1', kind: 'text', style: { animation_trigger: 'hover' } },
+    })
+    expect(hover).toContain('Hover effect')
+    expect(hover).toContain('Move left')
+    expect(hover).toContain('Dim slightly')
+    expect(hover).toContain('Blur slightly')
+    expect(hover).not.toContain('Fade in from the right')
+
+    const scroll = await renderControl('animation', def, 'fade-left', { group: 'style' })
+    expect(scroll).toContain('Entrance')
+    expect(scroll).toContain('Fade in from the right')
   })
 })

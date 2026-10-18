@@ -270,7 +270,9 @@ const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.
 /** The design being edited, so new custom colors and classes are offered right away. */
 const siteTheme = computed(() => site.draft?.theme ?? site.data?.theme ?? null);
 const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css ?? ""));
+const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && props.node.style?.animation_trigger === "hover");
 const label = computed(() => {
+  if (isHoverAnimation.value) return t("site.style.hover_effect");
   // Fields have a yes/no "link to the entry"; other elements pick a link target.
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
@@ -309,7 +311,7 @@ function optionLabel(option) {
   if (option === "") return t(props.group === "style" ? "site.option.default" : "site.option.auto");
   if (/^h[1-6]$/.test(option)) return option.toUpperCase();
   if (/^\d+:\d+$/.test(option)) return option;
-  const key = `site.option.${option}`;
+  const key = `site.${isHoverAnimation.value ? "hoverEffect" : "option"}.${option}`;
   const translated = t(key);
   return translated === key ? option : translated;
 }
