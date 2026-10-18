@@ -2,8 +2,7 @@
   <div ref="rootRef" class="relative inline-flex shrink-0" @focusout="onFocusout">
     <button
       type="button"
-      class="btn-primary"
-      :class="{ 'rounded-r-none': items.length }"
+      :class="[buttonClass, { 'rounded-r-none': items.length }]"
       :disabled="disabled || primaryDisabled"
       @click="emit('click', $event)"
     >
@@ -13,7 +12,8 @@
       v-if="items.length"
       ref="triggerRef"
       type="button"
-      class="btn-primary rounded-l-none border-l border-white/25 px-2"
+      class="rounded-l-none border-l px-2"
+      :class="[buttonClass, variant === 'secondary' ? '-ml-px' : 'border-white/25']"
       :disabled="disabled"
       :aria-label="menuLabel"
       aria-haspopup="menu"
@@ -62,18 +62,20 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { Icon } from "@iconify/vue";
 
 const props = defineProps({
   /** Each item has a key and label, and optionally an href, target, icon, title or disabled flag. */
   items: { type: Array, default: () => [] },
   menuLabel: { type: String, required: true },
+  variant: { type: String, default: 'primary', validator: (value) => ['primary', 'secondary'].includes(value) },
   disabled: { type: Boolean, default: false },
   /** Disable only the primary action, keeping the menu available. */
   primaryDisabled: { type: Boolean, default: false },
 });
 const emit = defineEmits(["click", "select"]);
+const buttonClass = computed(() => props.variant === 'secondary' ? 'btn-secondary' : 'btn-primary');
 const rootRef = ref(null);
 const triggerRef = ref(null);
 const menuRef = ref(null);

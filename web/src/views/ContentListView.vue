@@ -20,15 +20,16 @@
             {{ t('site.collection.templates') }}
           </span>
 
-          <router-link v-for="template in COLLECTION_TEMPLATES" :key="template.variant" :to="{
-            path: `/page-builder/builder/layout/${collection}/${template.variant}`,
-            query: { back: route.fullPath }
-          }" class="btn-secondary" :title="t('site.collection.editTemplate', {
-      template: t(`site.variant.${template.variant}`)
-    })">
-            <Icon :icon="template.icon" class="h-4 w-4" />
-            {{ t(`site.variant.${template.variant}`) }}
-          </router-link>
+          <SplitButton
+            variant="secondary"
+            :menu-label="t('site.collection.templates')"
+            :items="templateMenuItems"
+            @click="editCollectionTemplate('index')"
+            @select="editCollectionTemplate($event.key)"
+          >
+            <Icon :icon="COLLECTION_TEMPLATES[0].icon" class="h-4 w-4" />
+            {{ t('site.variant.index') }}
+          </SplitButton>
         </nav>
 
         <!-- Vertical separator -->
@@ -438,6 +439,7 @@ import BulkEditBar from "../components/BulkEditBar.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import ContentListCell from "../components/ContentListCell.vue";
 import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
+import SplitButton from "../components/SplitButton.vue";
 import { Icon } from "@iconify/vue";
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -504,6 +506,20 @@ const COLLECTION_TEMPLATES = [
   { variant: "card", icon: "mdi:card-text-outline" },
   { variant: "detail", icon: "mdi:file-document-outline" },
 ];
+const templateMenuItems = computed(() => COLLECTION_TEMPLATES.slice(1).map((template) => ({
+  key: template.variant,
+  label: t(`site.variant.${template.variant}`),
+  icon: template.icon,
+  title: t('site.collection.editTemplate', { template: t(`site.variant.${template.variant}`) }),
+})));
+
+function editCollectionTemplate(variant) {
+  router.push({
+    path: `/page-builder/builder/layout/${collection.value}/${variant}`,
+    query: { back: route.fullPath },
+  });
+}
+
 const canEditTemplates = computed(() =>
   contentTypeSchema.value && !isSingleton.value
   && contentTypeSchema.value.visibility !== "private"
