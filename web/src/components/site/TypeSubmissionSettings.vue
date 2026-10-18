@@ -76,7 +76,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 const { t } = useI18n();
 const settings = computed(() => ({ status: "draft", captcha: "none", ...props.modelValue }));
-const supported = new Set(["text", "textarea", "markdown", "number", "range", "boolean", "select", "date", "datetime", "color"]);
+const supported = new Set(["text", "textarea", "markdown", "number", "range", "boolean", "select", "date", "datetime", "color", "media"]);
 const fillable = computed(() => props.fields.filter((field) => supported.has(field.type ?? "text")));
 const unsupported = computed(() => props.fields.filter((field) => !supported.has(field.type ?? "text")).map((field) => field.label || field.key));
 function update(patch) {

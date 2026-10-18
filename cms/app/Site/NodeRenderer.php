@@ -538,7 +538,9 @@ final class NodeRenderer
             $fields .= $this->formField($anchor, $input, $props['labels'] === 'hidden');
         }
 
-        $hidden = '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
+        $hasMedia = in_array('media', array_column(array_column($inputs, 'config'), 'type'), true);
+        $hidden = ($hasMedia ? '<input type="hidden" name="MAX_FILE_SIZE" value="' . FormUploads::maxBytes() . '">' : '')
+            . '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
             . '<input type="hidden" name="_anchor" value="' . Security::e($anchor) . '">'
             . ($this->ctx->locale !== '' ? '<input type="hidden" name="_locale" value="' . Security::e($this->ctx->locale) . '">' : '');
         // Hidden from people and assistive technology; bots filling in every input give themselves away.
@@ -548,7 +550,7 @@ final class NodeRenderer
         return $this->element($node,
             '<div id="' . Security::e($anchor) . '-sent" class="c-form-status c-form-sent" role="status">' . $this->paragraphs($success) . '</div>'
             . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
-            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8">'
+            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8"' . ($hasMedia ? ' enctype="multipart/form-data"' : '') . '>'
             . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot
             . '<div class="c-form-actions">' . $button . '</div></form>'
         );
@@ -567,6 +569,13 @@ final class NodeRenderer
         $width = (string) ($config['layout']['width'] ?? 'full');
         $width = in_array($width, ['1/3', '1/2', '2/3'], true) ? str_replace('/', '-', $width) : 'full';
         $help = trim((string) ($config['description'] ?? ''));
+        if ($type === 'media') {
+            $limit = rtrim(rtrim(number_format(FormUploads::maxBytes() / 1048576, 2, '.', ''), '0'), '.');
+            $uploadHelp = str_starts_with($this->ctx->htmlLang(), 'de')
+                ? 'Maximal ' . $limit . ' MiB pro Datei und insgesamt pro Formular.'
+                : 'Maximum ' . $limit . ' MiB per file and in total per form.';
+            $help = trim($help . ' ' . $uploadHelp);
+        }
         $describedBy = $help !== '' ? ' aria-describedby="' . Security::e($id) . '-help"' : '';
         // Without visible labels, the label doubles as the placeholder.
         $attributes = ' id="' . Security::e($id) . '" name="' . Security::e($name) . '"' . ($required ? ' required' : '') . $describedBy
@@ -601,6 +610,8 @@ final class NodeRenderer
 
         $value = is_scalar($default) ? (string) $default : '';
         $control = match ($type) {
+            'media' => '<input type="file" id="' . Security::e($id) . '" name="' . Security::e($name . (!empty($config['multiple']) ? '[]' : '')) . '"'
+                . ($required ? ' required' : '') . $describedBy . (!empty($config['multiple']) ? ' multiple' : '') . '>',
             'textarea', 'markdown' => '<textarea' . $attributes . ' rows="5">' . Security::e($value) . '</textarea>',
             'select' => '<select' . $attributes . '><option value="">' . Security::e($hiddenLabels ? $input['label'] : '–') . '</option>'
                 . implode('', array_map(static fn(string $option, string $text): string => '<option value="' . Security::e($option) . '"' . ($option === $value ? ' selected' : '') . '>' . Security::e($text) . '</option>', array_keys($options), $options))

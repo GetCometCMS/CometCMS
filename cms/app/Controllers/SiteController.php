@@ -8,6 +8,7 @@ use CometCMS\Core\Http;
 use CometCMS\Site\Flags;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
+use CometCMS\Site\FormUploads;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
@@ -106,9 +107,15 @@ final class SiteController
         }
 
         $maxBytes = max(1024, (int) comet_config('site.forms.max_body_bytes', 262144));
+        foreach ((new FormRepository($site))->inputs($form) as $field) {
+            if (($field['config']['type'] ?? '') === 'media') {
+                $maxBytes += FormUploads::maxBytes();
+                break;
+            }
+        }
         $result = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes
             ? ['status' => FormSubmission::ERROR, 'errors' => ['form' => 'The submission is too large.']]
-            : FormSubmission::make($site)->submit($form, $_POST, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), LayoutSchema::key($_POST['_locale'] ?? ''));
+            : FormSubmission::make($site)->submit($form, $_POST, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), LayoutSchema::key($_POST['_locale'] ?? ''), $_FILES);
 
         if (str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
             $sent = $result['status'] === FormSubmission::SENT;

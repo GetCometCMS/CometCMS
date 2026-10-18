@@ -28,7 +28,7 @@ use CometCMS\Storage\JsonStore;
 final class FormRepository
 {
     /** Field types a visitor can fill in with a plain HTML input. */
-    public const FIELD_TYPES = ['text', 'textarea', 'markdown', 'number', 'range', 'boolean', 'select', 'date', 'datetime', 'color'];
+    public const FIELD_TYPES = ['text', 'textarea', 'markdown', 'number', 'range', 'boolean', 'select', 'date', 'datetime', 'color', 'media'];
 
     public const STATUSES = ['draft', 'published'];
 

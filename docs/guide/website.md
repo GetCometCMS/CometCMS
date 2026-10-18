@@ -109,7 +109,7 @@ Forms let visitors send messages, sign-ups or requests. Every submission is save
 Set forms up on the **content type edit page** by enabling **Allow Submissions**:
 
 - The current content type receives the submissions and automatically appears in the builder’s **Forms** sidebar. Single pages cannot receive submissions.
-- The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time and colour fields are shown; media, relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
+- The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time, colour and media fields are shown; relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
 - **Status of new entries** is *Draft* by default, so submissions wait for review.
 - The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
 
@@ -118,6 +118,10 @@ Disabling **Allow Submissions** removes the type from the forms sidebar and bloc
 Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
 
 To place a form, open the **Forms** panel in the builder's left rail and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+
+Media fields accept file uploads and respect **Allow multiple** and **Required**. Attachments are stored privately in the receiving workspace’s media library and linked to the new entry; downloading them requires authenticated media access. Visitors cannot attach existing media by posting filenames.
+
+The default limit is **10 MiB per file and 10 MiB total attachments per submission**. Change `site.forms.max_upload_bytes` in `cms/config/config.php` to set both limits in bytes. The effective limit cannot exceed `media.max_upload_bytes`; the form displays it beside each upload input. Allowed file types follow `media.allowed_mime_types`, with executable filename extensions rejected. PHP’s `upload_max_filesize`, `post_max_size`, `max_file_uploads`, and your web server’s request limits also apply; allow room for multipart overhead and text fields in the total request limit. Forms without media retain their 256 KiB request limit (`site.forms.max_body_bytes`); forms with media add the upload budget to that allowance.
 
 Forms work without JavaScript. After sending, the visitor returns to the same page, where the form is replaced by the success message, or shows the error message above it. Spam protection uses a hidden trap field, and a limit of 5 submissions per visitor and form in 10 minutes (`site.forms.rate_limit_attempts` and `site.forms.rate_limit_window_seconds` in the configuration). Cloudflare Turnstile and Google reCAPTCHA are planned.
 
