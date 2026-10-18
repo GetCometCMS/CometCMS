@@ -369,7 +369,7 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireForm($id);
-        $form = $this->forms->delete($id);
+        $form = $this->validated(fn() => $this->forms->delete($id));
         $this->logger->info('site.form_deleted', ['form' => $id]);
         $this->json(['data' => ['deleted' => true, 'form' => $form]]);
     }

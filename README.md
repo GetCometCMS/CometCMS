@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  A lightweight headless CMS that runs on any shared PHP host.<br />
+  A visual page builder and content CMS that runs on any shared PHP host.<br />
   No Node, no Composer, no database, no CLI, no SSH required.
 </p>
 
@@ -17,12 +17,13 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **No database.** Content is stored as JSON files in `storage/`.
 - **No Composer.** Nothing to install on the server.
 - **No build step to deploy.** Run `make build` locally once, upload the `dist/` folder, done.
-- **Headless & API-first.** Use any consumer — Next.js, Astro, SvelteKit, a mobile app, plain `fetch`, anything.
-- **Optional website.** Turn any workspace into a server-rendered website: a layout per content type built in a visual builder, a theme, header, footer and menus. Still no Node and no build step.
+- **Visual Page Builder.** Build a server-rendered website with shared layouts, a theme, header, footer and menus. Keep design consistent while editors manage content.
+- **Content fields and an optional headless API.** Bind structured content to your designs, or explicitly expose a content type through the API for Next.js, Astro, mobile apps or any other consumer.
+- **Forms from content types.** Enable submissions on a collection, customize its messages and review incoming entries in the CMS.
 - **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
 - **Built-in localization.** Content types support multiple locales; the API resolves translations with a single `?locale=` parameter.
-- **Intentionally simple.** Not a framework, not extensible to infinity. Just a clean JSON API with an admin UI.
+- **Intentionally simple.** Not a framework, not extensible to infinity. Visual editing, structured content and a clean JSON API in one admin UI.
 
 <p align="center">
   <img src="docs/screenshots/view-dashboard.png" alt="CometCMS admin dashboard" width="860" />
@@ -33,14 +34,14 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 1. Download the latest release from the Github releases.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
-4. Configure your workspace and create your admin account on the setup screen. Choose **Start empty** for a headless workspace, or **Start with a website** for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages and sets the landing page as your homepage. You can change or remove these defaults anytime.
-5. Define content types, add entries, fetch the API.
+4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages and sets the landing page as your homepage. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
+5. Edit your pages in the Page Builder, add content fields as needed, and enable API exposure only for types you want to use headlessly.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.
 
 ## Public REST API
 
-Public API endpoints must include a workspace slug: `/api/v1/workspaces/{workspace}/...`. No authentication is required for public reads. A machine-readable OpenAPI contract is available at `docs/public/api/openapi.yaml` and is served in the docs as `/api/openapi.yaml`.
+Public API endpoints must include a workspace slug: `/api/v1/workspaces/{workspace}/...`. Content types require explicit API exposure; published, unprotected entries are then public. Drafts and protected entries keep their access rules. Existing schemas retain their previous API access until reconfigured. A machine-readable OpenAPI contract is available at `docs/public/api/openapi.yaml` and is served in the docs as `/api/openapi.yaml`.
 
 ### Health
 

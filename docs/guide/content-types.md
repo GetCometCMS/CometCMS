@@ -2,7 +2,9 @@
 
 A **content type** defines the structure (schema) for content. Most content types are collections of entries, such as `posts`. A content type can also be marked as a **single page** for one-off content like `start-page`, `contact-page`, or `imprint`.
 
-Content types are public through the REST API by default. Set **API access** to **Private** when reads should require an access token with `content.read` permission for that type. Existing content types remain public unless you change this setting.
+New content types use the **Page Builder** by default. **Content fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
+
+The headless API is disabled for new types. Enable **Expose content fields through the API** explicitly to make published, unprotected entries publicly readable. Drafts and protected entries keep their access rules. API exposure is independent of website pages. Existing schemas retain their previous API access until reconfigured.
 
 ![Content types overview in the CometCMS admin](../screenshots/view-content-types.png)
 
@@ -10,15 +12,16 @@ Content types are public through the REST API by default. Set **API access** to 
 
 1. In the sidebar, click **Content types**.
 2. Click **New content type**.
-3. Enter a **name** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
+3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
 4. Choose the **Content model**:
    - **Collection** for repeatable content with many entries.
    - **Single page** for one fixed entry.
-5. Add fields (see [Field Types](./field-types)).
+5. Add content fields (see [Field Types](./field-types)).
 6. Optional: add locales and choose a default locale.
-7. Click **Save**.
+7. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
+8. Click **Save**.
 
-Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and the default API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
+Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
 
 ## Editing a content type
 
@@ -78,6 +81,7 @@ Content types are stored in `cms/storage/content-types/{name}.json`. A typical s
   "singleton": false,
   "locales": ["en", "de"],
   "default_locale": "en",
+  "api_enabled": true,
   "fields": {
     "title": { "type": "text", "required": true },
     "slug": { "type": "slug", "required": true, "unique": true },

@@ -91,3 +91,37 @@ test('admin content type create rejects normalized name conflicts', function ():
         comet_test_stop_process($server);
     }
 });
+
+test('new content types require explicit API opt-in and default to no submissions', function (): void {
+    $types = new ContentTypeRepository();
+    $types->save(['name' => 'pages', 'visibility' => 'public']);
+    $type = $types->find('pages');
+    assert_false($type['api_enabled']);
+    assert_false($type['allow_submissions']);
+
+    $types->save([...$type, 'api_enabled' => true, 'visibility' => 'private']);
+    assert_true($types->find('pages')['api_enabled']);
+    assert_same('public', $types->find('pages')['visibility'], 'Enabling the API makes it public.');
+
+    $types->save([...$types->find('pages'), 'api_enabled' => false]);
+    assert_false($types->find('pages')['api_enabled']);
+});
+
+test('legacy API visibility is retained until explicitly reconfigured', function (): void {
+    $store = new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/content-types');
+    $store->write(['name' => 'legacy', 'visibility' => 'public'], 'legacy');
+    $types = new ContentTypeRepository();
+    assert_true($types->find('legacy')['api_enabled']);
+    $types->save([...$types->find('legacy'), 'api_enabled' => false]);
+    assert_false($types->find('legacy')['api_enabled']);
+});
+
+test('submission-enabled schemas reject unusable fields before changing storage', function (): void {
+    $types = new ContentTypeRepository();
+    foreach ([[], ['file' => ['type' => 'media', 'required' => true]], ['email' => ['type' => 'text'], 'file' => ['type' => 'media', 'required' => true]]] as $fields) {
+        assert_throws(\CometCMS\Core\ValidationException::class, static fn() => $types->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => $fields]));
+        assert_false($types->exists('applications'));
+    }
+    $types->save(['name' => 'about', 'singleton' => true, 'allow_submissions' => true]);
+    assert_false($types->find('about')['allow_submissions'], 'Single pages cannot receive submissions.');
+});

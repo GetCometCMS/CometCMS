@@ -6,6 +6,8 @@ namespace CometCMS\Content;
 
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
+use CometCMS\Site\FormRepository;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Storage\SettingsStore;
@@ -99,7 +101,23 @@ final class ContentTypeRepository
     public function save(array $schema): void
     {
         $name = Security::slug((string) ($schema['name'] ?? ''));
+        if (!empty($schema['api_enabled'])) {
+            $schema['visibility'] = 'public';
+        }
+        $previous = $this->exists($name) ? $this->find($name) : null;
+        $schema['api_enabled'] ??= $previous['api_enabled'] ?? false;
+        $schema['allow_submissions'] ??= $previous['allow_submissions'] ?? false;
+        if (!array_key_exists('submission_settings', $schema)) {
+            $schema['submission_settings'] = $previous['submission_settings'] ?? null;
+        }
         $schema = $this->normalize($name, $schema);
+        if ($schema['allow_submissions']) {
+            $fillable = array_filter($schema['fields'], static fn(array $config, string $key): bool => FormRepository::accepts($key, $config, $schema), ARRAY_FILTER_USE_BOTH);
+            $unsupported = array_filter(FormRepository::unsupported($schema), static fn(array $config): bool => !empty($config['required']));
+            if ($fillable === [] || $unsupported !== []) {
+                throw new ValidationException(['allow_submissions' => 'Submissions need at least one content field visitors can fill in, and all required content fields must support forms.']);
+            }
+        }
         $this->store->write($schema, $name);
         $this->ensureInOrder($name);
         ApiCache::fromConfig($this->workspace)->clear();
@@ -186,6 +204,16 @@ final class ContentTypeRepository
             $defaultLocale = $locales[0];
         }
 
+        // Existing forms keep working until their type explicitly disables submissions.
+        $legacyForms = [];
+        $formsPath = $this->workspace->path('site') . '/forms';
+        if (!array_key_exists('allow_submissions', $schema) && is_dir($formsPath)) {
+            $legacyForms = array_filter((new JsonStore($formsPath))->all(), static fn(array $form): bool => ($form['type'] ?? '') === $name);
+        }
+        // Stored schemas from before API opt-in already chose their visibility.
+        // New schemas omit it and start with the API disabled.
+        $apiEnabled = (bool) ($schema['api_enabled'] ?? array_key_exists('visibility', $schema));
+
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
 
@@ -194,7 +222,12 @@ final class ContentTypeRepository
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
             'singleton' => (bool) ($schema['singleton'] ?? false),
+            // API exposure and website pages are independent. Keep legacy private
+            // protection until the owner explicitly enables the public API.
+            'api_enabled' => $apiEnabled,
             'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
+            'allow_submissions' => empty($schema['singleton']) && (bool) ($schema['allow_submissions'] ?? ($legacyForms !== [])),
+            'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),
             'locales' => $locales,

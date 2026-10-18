@@ -80,7 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
     initPromise = null
   }
 
-  async function setup(username, password, workspaceName, workspaceSlug, starterTemplate = 'empty') {
+  async function setup(username, password, workspaceName, workspaceSlug, starterTemplate = 'website') {
     const res  = await api.setup(username, password, workspaceName, workspaceSlug, starterTemplate)
     adoptUser(res.data)
     const ws = res.meta?.workspace

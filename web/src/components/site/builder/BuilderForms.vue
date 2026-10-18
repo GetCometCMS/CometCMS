@@ -24,7 +24,7 @@
             @drag="start($event, form)"
             @dragend="end"
           />
-          <router-link :to="manageLink(form.id)" class="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-theme-700" :title="t('site.forms.edit')">
+          <router-link :to="manageLink(form.type)" class="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-theme-700" :title="t('site.forms.edit')">
             <Icon icon="mdi:pencil-outline" class="h-4 w-4" />
             <span class="sr-only">{{ t("site.forms.edit") }}: {{ form.name }}</span>
           </router-link>
@@ -53,7 +53,7 @@ import { KIND_ICONS } from "./kindIcons.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
-/** Website forms, ready to place; they are set up in the Page Builder settings. */
+/** Website forms, ready to place; their settings belong to the content type. */
 const builder = useSiteBuilder();
 const route = useRoute();
 const { t } = useI18n();
@@ -72,8 +72,8 @@ function typeLabel(name) {
 }
 
 /** The forms settings, coming back here afterwards. */
-function manageLink(id = "") {
-  return { path: "/page-builder/forms", query: { ...(id ? { form: id } : {}), back: route.fullPath } };
+function manageLink(type = "") {
+  return { path: type ? `/content-types/${type}/edit` : "/content-types", hash: type ? "#submissions" : "", query: { back: route.fullPath } };
 }
 
 function create(form) {

@@ -26,7 +26,7 @@ describe('setup starting point', () => {
         password: 'secret-password',
         workspace: 'My Website',
         workspace_slug: 'my-website',
-        starter_template: choice ?? 'empty',
+        starter_template: choice ?? 'website',
       }),
     }))
   })

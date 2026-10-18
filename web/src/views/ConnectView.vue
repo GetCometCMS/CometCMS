@@ -135,7 +135,7 @@ watch(activeTab, async (tab) => {
 
   try {
     const res = await api.contentTypes.list();
-    collections.value = res.data ?? [];
+    collections.value = (res.data ?? []).filter((type) => type.api_enabled);
   } catch {
     // The API explorer remains useful for manually entered endpoints.
   }

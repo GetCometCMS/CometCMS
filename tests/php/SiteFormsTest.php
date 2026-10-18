@@ -17,7 +17,7 @@ function comet_form_test_setup(): array
     $site = comet_site_test_setup();
     (new ContentTypeRepository())->save([
         'name' => 'inquiries',
-        'visibility' => 'private',
+        'visibility' => 'private', 'allow_submissions' => true,
         'fields' => [
             'name' => ['type' => 'text', 'label' => 'Your name', 'required' => true, 'layout' => ['width' => '1/2']],
             'email' => ['type' => 'text', 'label' => 'Email', 'required' => true, 'layout' => ['width' => '1/2']],
@@ -173,7 +173,7 @@ test('a placed form renders labelled inputs from the content type and is found w
 test('posting a form stores the entry and sends the visitor back to the page', function (): void {
     $root = comet_site_preview_test_install();
     $formId = trim(comet_test_run_php(['-r', 'require ' . var_export($root . '/app/bootstrap.php', true) . ';' . <<<'PHP'
-(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'inquiries', 'visibility' => 'private', 'fields' => [
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'inquiries', 'visibility' => 'private', 'allow_submissions' => true, 'fields' => [
     'email' => ['type' => 'text', 'required' => true],
     'message' => ['type' => 'textarea'],
 ]]);
@@ -223,4 +223,73 @@ PHP]));
     } finally {
         comet_test_stop_process($server);
     }
+});
+
+test('content type submission settings create a usable form without a separate form record', function (): void {
+    $types = new ContentTypeRepository();
+    $types->save([
+        'name' => 'signups', 'label' => 'Sign ups', 'allow_submissions' => true,
+        'fields' => ['email' => ['type' => 'text', 'required' => true]],
+        'submission_settings' => ['status' => 'published', 'submit_label' => 'Join', 'success_message' => 'Welcome!', 'error_message' => 'Try again.', 'captcha' => 'turnstile'],
+    ]);
+    $site = new SiteRepository();
+    $forms = new FormRepository($site);
+    assert_same(['signups'], array_keys($forms->types()));
+    assert_same(1, count($forms->all()));
+    $form = $forms->all()[0];
+    assert_same($form, $forms->find($form['id']));
+    assert_same('Sign ups', $form['name']);
+    assert_same('Join', $form['submit_label']);
+    assert_same('Welcome!', $form['success_message']);
+    assert_same('none', $form['captcha']);
+    $result = comet_form_test_submit($site, $forms, $form, ['fields' => ['email' => 'ada@example.com']]);
+    assert_same(FormSubmission::SENT, $result['status']);
+    assert_same('published', $result['entry']['status']);
+    assert_same([], (new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/site/forms'))->all());
+
+    $types->save([...$types->find('signups'), 'allow_submissions' => false]);
+    $site = new SiteRepository();
+    $forms = new FormRepository($site);
+    assert_same([], $forms->all());
+    assert_null($forms->find($form['id']));
+    assert_same(FormSubmission::ERROR, comet_form_test_submit($site, $forms, $form, ['fields' => ['email' => 'another@example.com']])['status']);
+    assert_same(1, count(ContentRepository::make()->all('signups')), 'Disabling submissions retains existing entries.');
+
+    $types->save([...$types->find('signups'), 'allow_submissions' => true]);
+    $reenabled = (new FormRepository(new SiteRepository()))->all()[0];
+    assert_same($form['id'], $reenabled['id'], 'Existing placements work again when submissions are enabled.');
+    assert_same('Join', $reenabled['submit_label']);
+});
+
+test('existing forms retain their placements and adopt settings saved with the type', function (): void {
+    [$site, $forms, $form] = comet_form_test_setup();
+    $types = new ContentTypeRepository();
+    $types->save([...$types->find('inquiries'), 'submission_settings' => ['submit_label' => 'Send request', 'success_message' => 'Received', 'status' => 'published']]);
+    $forms = new FormRepository(new SiteRepository());
+    assert_same(1, count($forms->all()));
+    assert_same($form['id'], $forms->all()[0]['id']);
+    assert_same('Send request', $forms->find($form['id'])['submit_label']);
+    assert_same('published', $forms->find($form['id'])['status']);
+
+    $types->save([...$types->find('inquiries'), 'allow_submissions' => false]);
+    $forms = new FormRepository(new SiteRepository());
+    assert_same([], $forms->all());
+    assert_null($forms->find($form['id']));
+
+    $types->save(['name' => 'inquiries', 'fields' => $types->find('inquiries')['fields']]);
+    assert_false($types->find('inquiries')['allow_submissions'], 'An omitted toggle must not enable legacy forms again.');
+    assert_same('Send request', $types->find('inquiries')['submission_settings']['submit_label']);
+});
+
+test('legacy forms opt their receiving type into submissions without rewriting storage', function (): void {
+    (new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/content-types'))->write([
+        'name' => 'legacy', 'fields' => ['email' => ['type' => 'text']],
+    ], 'legacy');
+    (new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/site/forms'))->write([
+        'id' => 'old-form', 'type' => 'legacy', 'name' => 'Contact', 'success_message' => 'Thank you',
+    ], 'old-form');
+    assert_true((new ContentTypeRepository())->find('legacy')['allow_submissions']);
+    $form = (new FormRepository(new SiteRepository()))->all()[0];
+    assert_same('old-form', $form['id']);
+    assert_same('Thank you', $form['success_message']);
 });

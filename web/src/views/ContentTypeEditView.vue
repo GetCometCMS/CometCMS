@@ -35,6 +35,11 @@
       {{ loadError }}
     </div>
 
+    <router-link v-if="backToBuilder" :to="backToBuilder" class="mb-4 inline-flex items-center gap-1 text-sm text-theme-600 hover:underline">
+      <Icon icon="mdi:arrow-left" class="h-4 w-4" />
+      {{ t("site.forms.backToBuilder") }}
+    </router-link>
+
     <form id="type-form" @submit.prevent="handleSave" class="space-y-6">
       <!-- Basics -->
       <div class="card p-6 space-y-4">
@@ -112,36 +117,39 @@
             </p>
           </div>
 
-          <div class="col-span-1">
-            <label class="form-label">{{ t("contentTypeEdit.apiAccess") }}</label>
-            <div class="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-              <button type="button" :class="modelButtonClass(form.visibility === 'public')" @click="form.visibility = 'public'">
-                {{ t("contentTypeEdit.public") }}
-              </button>
-              <button type="button" :class="modelButtonClass(form.visibility === 'private')" @click="form.visibility = 'private'">
-                {{ t("contentTypeEdit.private") }}
-              </button>
-            </div>
-            <p class="mt-1 text-xs text-slate-500">
-              {{ t(form.visibility === "private" ? "contentTypeEdit.privateHint" : "contentTypeEdit.publicHint") }}
-            </p>
-          </div>
-
           <div v-if="websiteStatus" id="frontend-page-setting" class="col-span-1 scroll-mt-24">
             <label for="content-type-frontend" class="form-label">{{ t("site.typeCard.title") }}</label>
             <label class="flex items-center gap-3 text-sm text-slate-700">
               <ToggleSwitch
                 id="content-type-frontend"
                 v-model="frontendPagesEnabled"
-                :disabled="!websiteStatus.can_manage || !websiteRoute || form.visibility === 'private'"
+                :disabled="!websiteStatus.can_manage || !websiteRoute"
                 :aria-label="t('site.pages.showInFrontend')"
                 aria-describedby="content-type-frontend-help"
               />
               {{ t("site.pages.showInFrontend") }}
             </label>
             <p id="content-type-frontend-help" class="mt-1 text-xs text-slate-500">
-              {{ t(form.visibility === "private" ? "site.typeCard.private" : "site.pages.frontendHint") }}
+              {{ t("site.pages.frontendHint") }}
             </p>
+          </div>
+          <div class="col-span-1">
+            <label for="content-type-api" class="form-label">{{ t("contentTypeEdit.apiAccess") }}</label>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <ToggleSwitch id="content-type-api" v-model="form.api_enabled" aria-describedby="content-type-api-help" />
+              {{ t("contentTypeEdit.exposeApi") }}
+            </label>
+            <p id="content-type-api-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.apiHint") }}</p>
+          </div>
+
+          <div class="col-span-1">
+            <label for="content-type-submissions" class="form-label">{{ t("site.forms.title") }}</label>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <ToggleSwitch id="content-type-submissions" v-model="form.allow_submissions" :disabled="form.singleton" aria-describedby="content-type-submissions-help" />
+              {{ t("contentTypeEdit.allowSubmissions") }}
+            </label>
+            <p v-if="submissionError" class="mt-1 text-xs text-red-600" role="alert">{{ submissionError }}</p>
+            <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t(form.singleton ? "contentTypeEdit.submissionsSingleton" : "contentTypeEdit.submissionsHint") }}</p>
           </div>
         </div>
       </div>
@@ -210,7 +218,7 @@
         </div>
       </div>
 
-      <!-- Fields -->
+      <!-- Custom content fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
           <h2 class="text-sm font-semibold text-slate-700">
@@ -239,6 +247,8 @@
           </div>
         </div>
 
+        <p class="mb-4 text-xs text-slate-500">{{ t("contentTypeEdit.fieldsHint") }}</p>
+
         <FieldBuilder
           ref="fieldBuilder"
           v-model="customFields"
@@ -247,6 +257,15 @@
           :field-errors="customFieldErrors"
         />
       </div>
+
+      <TypeSubmissionSettings
+        v-if="form.allow_submissions && !form.singleton && !submissionSettingsError"
+        v-model="form.submission_settings"
+        :name="isNew ? '' : form.name"
+        :fields="customFields"
+      />
+
+      <p v-if="form.allow_submissions && submissionSettingsError" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{{ submissionSettingsError }}</p>
 
       <div
         v-if="saveError"
@@ -311,6 +330,7 @@ import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useSiteStore } from "../stores/site.js";
+import TypeSubmissionSettings from "../components/site/TypeSubmissionSettings.vue";
 import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
@@ -326,6 +346,10 @@ const { t } = useI18n();
 const apiEndpointOwner = "content-type-edit";
 
 const isNew = computed(() => !route.params.name);
+const backToBuilder = computed(() => {
+  const back = typeof route.query.back === "string" ? route.query.back : "";
+  return back.startsWith("/page-builder/builder/") ? back : "";
+});
 const defaultIcon = "mdi:file-document-outline";
 
 const form = ref({
@@ -334,6 +358,9 @@ const form = ref({
   icon: defaultIcon,
   singleton: false,
   visibility: "public",
+  api_enabled: false,
+  allow_submissions: false,
+  submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
   locales: [],
   default_locale: "",
   fields: {},
@@ -387,6 +414,8 @@ const fieldTypes = ref([]);
 const contentTypes = ref([]);
 const loadError = ref("");
 const saveError = ref("");
+const submissionError = ref("");
+const submissionSettingsError = ref("");
 const customFieldErrors = ref({});
 const saving = ref(false);
 const deleting = ref(false);
@@ -402,7 +431,7 @@ watch(
 );
 
 watch(
-  () => route.params.name,
+  () => form.value.api_enabled ? route.params.name : "",
   (name) => {
     if (!name) {
       apiEndpointStore.clearEndpoint(apiEndpointOwner);
@@ -430,11 +459,12 @@ const site = useSiteStore();
 const websiteStatus = ref(null);
 const websiteRoute = ref(null);
 const frontendPagesEnabled = computed({
-  get: () => form.value.visibility !== "private" && !!(
+  get: () => !!(
     websiteRoute.value?.enabled ?? websiteStatus.value?.types?.[form.value.name]?.pages_enabled
   ),
   set: (enabled) => {
-    if (!websiteRoute.value || !websiteStatus.value?.can_manage || form.value.visibility === "private") return;
+    if (!websiteRoute.value || !websiteStatus.value?.can_manage) return;
+    if (enabled) form.value.visibility = "public";
     websiteRoute.value = { ...websiteRoute.value, enabled };
   },
 });
@@ -444,7 +474,7 @@ let routeClean = "null";
 
 function defaultRoute(name, singleton) {
   return {
-    enabled: false,
+    enabled: isNew.value,
     pattern: singleton ? `/${name}` : `/${name}/{slug}`,
     index_path: singleton ? "" : `/${name}`,
     index_title: "",
@@ -516,9 +546,9 @@ watch(
   },
 );
 
-watch(websiteRoute, () => updateDirtyState(), { deep: true });
-
-onMounted(loadWebsite);
+watch(websiteRoute, () => { if (_formLoaded) updateDirtyState(); }, { deep: true });
+watch(() => form.value.singleton, (singleton) => { if (singleton) form.value.allow_submissions = false; });
+watch(() => form.value.api_enabled, (enabled) => { if (enabled) form.value.visibility = "public"; });
 
 onMounted(async () => {
   try {
@@ -535,7 +565,13 @@ onMounted(async () => {
     try {
       const res = await api.contentTypes.get(route.params.name);
       const type = res.data;
-      form.value = { ...type };
+      form.value = {
+        ...type,
+        // Legacy private types stay protected until website pages or the public API are explicitly enabled.
+        visibility: type.visibility ?? "public",
+        api_enabled: type.visibility !== "private" && !!type.api_enabled,
+        submission_settings: type.submission_settings,
+      };
       originalLocalization.value = {
         locales: Array.isArray(type.locales) ? [...type.locales] : [],
         default_locale: type.default_locale ?? "",
@@ -551,7 +587,24 @@ onMounted(async () => {
     }
   }
 
+  // Legacy forms keep their own texts until the type’s settings are edited.
+  // A failed optional read must never prevent loading the content fields.
+  if (!isNew.value && form.value.allow_submissions && !form.value.submission_settings && auth.can("site.manage", "site:*")) {
+    try {
+      const forms = (await api.site.forms()).data.forms ?? [];
+      const existing = forms.find((item) => item.type === form.value.name);
+      if (existing) {
+        const { status, captcha, submit_label, success_message, error_message } = existing;
+        form.value.submission_settings = { status, captcha, submit_label, success_message, error_message };
+      }
+    } catch {
+      submissionSettingsError.value = t("contentTypeEdit.submissionSettingsLoadFailed");
+    }
+  }
+
+  await loadWebsite();
   await nextTick();
+  if (route.hash === "#submissions") document.getElementById("submissions")?.scrollIntoView({ behavior: "smooth", block: "start" });
   markClean();
   _formLoaded = true;
 });
@@ -560,6 +613,7 @@ async function handleSave() {
   if (saving.value) return;
 
   saveError.value = "";
+  submissionError.value = "";
   customFieldErrors.value = {};
 
   if (hasNameConflict()) {
@@ -622,7 +676,9 @@ async function handleSave() {
     typesStore.invalidate();
     auth.refresh().catch(() => {});
   } catch (err) {
-    failSave(err.message);
+    const error = err.fields?.allow_submissions;
+    submissionError.value = Array.isArray(error) ? error[0] : error ?? "";
+    failSave(submissionError.value || err.message);
   } finally {
     saving.value = false;
   }

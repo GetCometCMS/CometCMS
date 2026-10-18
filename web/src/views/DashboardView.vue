@@ -143,11 +143,11 @@ const gettingStartedSteps = computed(() => {
       to: firstType ? `/content/${firstType.name}` : null,
     },
     {
-      key: "connect",
+      key: "design",
       title: t("dashboard.start.connectTitle"),
       body: t("dashboard.start.connectBody"),
       done: false,
-      to: "/connect/api",
+      to: "/page-builder/overview",
     },
   ];
 });

@@ -8,6 +8,7 @@ use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\Http;
 use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
 use CometCMS\Fields\FieldRegistry;
 
 final class ContentTypesController extends BaseController
@@ -65,16 +66,16 @@ final class ContentTypesController extends BaseController
         if ($name === '') {
             $this->json(['error' => [
                 'code' => 'validation_failed',
-                'message' => 'Choose an API name for this content type.',
-                'fields' => ['name' => ['Choose an API name for this content type.']],
+                'message' => 'Choose an identifier for this content type.',
+                'fields' => ['name' => ['Choose an identifier for this content type.']],
             ]], 422);
         }
 
         if ($this->types->exists($name)) {
             $this->json(['error' => [
                 'code' => 'validation_failed',
-                'message' => 'A content type with this API name already exists.',
-                'fields' => ['name' => ['A content type with this API name already exists.']],
+                'message' => 'A content type with this identifier already exists.',
+                'fields' => ['name' => ['A content type with this identifier already exists.']],
             ]], 422);
         }
 
@@ -87,7 +88,11 @@ final class ContentTypesController extends BaseController
             ]], 422);
         }
 
-        $this->types->save($body);
+        try {
+            $this->types->save($body);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
         $this->cache->clear();
         $this->logger->info('content_type.created', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->json(['data' => $this->types->find($name)], 201);
@@ -134,7 +139,11 @@ final class ContentTypesController extends BaseController
             ]], 422);
         }
 
-        $this->types->save($body);
+        try {
+            $this->types->save($body);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
         $schema = $this->types->find($name);
         $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
 

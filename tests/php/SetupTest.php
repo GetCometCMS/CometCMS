@@ -24,6 +24,7 @@ register_shutdown_function(static function (): void {
     echo "\n--state--\n" . json_encode([
         'users' => count((new \CometCMS\Auth\UserRepository())->all()),
         'types' => array_column($types->all(), 'name'),
+        'api_enabled' => array_column($types->all(), 'api_enabled'),
         'home' => $content->all('landing-page'),
         'pages' => $content->all('pages'),
         'events' => $content->all('events'),
@@ -62,8 +63,8 @@ PHP;
     }
 }
 
-test('setup defaults to an empty headless workspace and supports an explicit empty choice', function (): void {
-    foreach ([[], ['starter_template' => 'empty']] as $body) {
+test('setup supports an explicit empty workspace', function (): void {
+    foreach ([['starter_template' => 'empty']] as $body) {
         [$status, $json, $state] = comet_setup_request($body);
 
         assert_same(201, $status);
@@ -78,12 +79,13 @@ test('setup defaults to an empty headless workspace and supports an explicit emp
     }
 });
 
-test('website setup seeds a singleton homepage pages and events in the chosen workspace', function (): void {
-    [$status, $json, $state] = comet_setup_request(['starter_template' => 'website']);
+test('setup defaults to the website starter with a singleton homepage pages and events', function (): void {
+    [$status, $json, $state] = comet_setup_request([]);
 
     assert_same(201, $status);
     assert_same('my-website', $json['meta']['workspace']);
     assert_same(['landing-page', 'pages', 'events'], $state['types']);
+    assert_same([false, false, false], $state['api_enabled']);
     assert_same(1, count($state['home']));
     assert_same('published', $state['home'][0]['status']);
     assert_same(['about', 'hello-world'], array_column($state['pages'], 'slug'));

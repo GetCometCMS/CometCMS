@@ -29,9 +29,8 @@
         <Icon icon="mdi:palette-outline" class="h-4 w-4" />
         {{ t("site.design.open") }}
       </router-link>
-      <!-- Forms are saved one at a time in their own tab. -->
       <button
-        v-if="site.draft && activeTab !== 'forms'"
+        v-if="site.draft"
         type="button"
         class="btn-primary relative"
         :disabled="site.saving || !isDirty"
@@ -87,7 +86,6 @@
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
       <SiteSeoPanel v-else-if="activeTab === 'seo'" />
-      <SiteFormsPanel v-else-if="activeTab === 'forms'" />
       <SiteMenusPanel v-else />
     </template>
 
@@ -113,7 +111,6 @@ import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
-import SiteFormsPanel from "../components/site/SiteFormsPanel.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
@@ -129,13 +126,12 @@ const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "seo", "menus", "forms"]);
+const validTabs = new Set(["overview", "seo", "menus"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
   { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
-  { value: "forms", label: t("site.tab.forms"), icon: "mdi:form-select", to: "/page-builder/forms" },
 ]);
 
 async function save() {

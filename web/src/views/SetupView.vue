@@ -267,10 +267,10 @@ const step = ref(1);
 const username = ref("admin");
 const password = ref("");
 const workspaceName = ref("");
-const starterTemplate = ref("empty");
+const starterTemplate = ref("website");
 const startingPoints = [
-  { value: "empty", title: "setup.startEmpty", description: "setup.startEmptyBody" },
   { value: "website", title: "setup.startWebsite", description: "setup.startWebsiteBody" },
+  { value: "empty", title: "setup.startEmpty", description: "setup.startEmptyBody" },
 ];
 const loading = ref(false);
 const errorMsg = ref("");

@@ -1,6 +1,6 @@
 # Website
 
-CometCMS is headless first, but each workspace can also publish its content as a website. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. The API keeps working whether the website is online or not.
+CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
@@ -96,14 +96,16 @@ Deleting a component turns all its instances into independent, editable copies, 
 
 ### Forms
 
-Forms let visitors send messages, sign-ups or requests. Every submission is saved as a new entry of a content type you choose, so the content type defines what the form asks for. A private content type, for example "Contact inquiries", keeps submissions out of the public API and the website.
+Forms let visitors send messages, sign-ups or requests. Every submission is saved as a new entry of a content type you choose, so the content type defines what the form asks for. For private inquiries, disable API exposure and the Page Builder on the receiving type.
 
-Set forms up in the **Forms** tab of the Page Builder settings:
+Set forms up on the **content type edit page** by enabling **Allow Submissions**:
 
-- **Save submissions to** picks the content type. Single pages cannot receive submissions.
+- The current content type receives the submissions and automatically appears in the builder’s **Forms** sidebar. Single pages cannot receive submissions.
 - The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time and colour fields are shown; media, relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
 - **Status of new entries** is *Draft* by default, so submissions wait for review.
 - The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
+
+Disabling **Allow Submissions** removes the type from the forms sidebar and blocks submissions from existing placements; saved entries and form settings are retained.
 
 Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
 
@@ -163,7 +165,7 @@ Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a descri
 
 ## Previewing drafts
 
-People who manage the website get a **Page design** section between **Core** and **Fields** in the entry editor, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the save button's menu offers **Preview**, which opens the last saved layout with the sample entry, drafts included, for signed-in users only and marked with a preview banner. Save first to include unsaved layout changes. The same menu has **View live page** for the published page, and the top bar links back to the entry's content. Published entries also offer **View on website** in the editor header.
+People who manage the website get a **Page design** section between **Core** and **Content fields** in the entry editor, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the save button's menu offers **Preview**, which opens the last saved layout with the sample entry, drafts included, for signed-in users only and marked with a preview banner. Save first to include unsaved layout changes. The same menu has **View live page** for the published page, and the top bar links back to the entry's content. Published entries also offer **View on website** in the editor header.
 
 ## Domains and workspaces
 
@@ -185,7 +187,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image source, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image source, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

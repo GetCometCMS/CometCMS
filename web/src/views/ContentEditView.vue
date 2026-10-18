@@ -1120,8 +1120,12 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  apiEndpointUrl,
-  (url) => {
+  [apiEndpointUrl, () => contentTypeSchema.value?.api_enabled],
+  ([url, enabled]) => {
+    if (!enabled) {
+      apiEndpointStore.clearEndpoint(apiEndpointOwner);
+      return;
+    }
     apiEndpointStore.setEndpoint(
       {
         label: isNew.value && !isSingleton.value ? "Collection" : "Entry",

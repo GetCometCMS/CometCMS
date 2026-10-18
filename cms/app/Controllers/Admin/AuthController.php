@@ -109,7 +109,7 @@ final class AuthController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Invalid workspace slug.']], 422);
         }
 
-        $starterTemplate = $body['starter_template'] ?? 'empty';
+        $starterTemplate = $body['starter_template'] ?? 'website';
         if (!in_array($starterTemplate, ['empty', 'website'], true)) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Choose a valid starting point.']], 422);
         }

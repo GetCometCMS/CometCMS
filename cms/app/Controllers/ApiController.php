@@ -85,6 +85,9 @@ final class ApiController
     {
         $principal = $this->tokenPrincipal();
         $types = array_values(array_filter($this->types->all(), function (array $type) use ($principal): bool {
+            if (empty($type['api_enabled'])) {
+                return false;
+            }
             if (($type['visibility'] ?? 'public') !== 'private') {
                 return true;
             }
@@ -108,6 +111,9 @@ final class ApiController
         }
 
         $schema = $this->types->find($name);
+        if (empty($schema['api_enabled'])) {
+            $this->response->error('not_found', 'Content type is not exposed through the API.', 404);
+        }
 
         if (($schema['visibility'] ?? 'public') === 'private') {
             $this->requireToken('schema.read', ['type' => 'schema', 'name' => $name]);
@@ -124,11 +130,11 @@ final class ApiController
         $user = $this->requireToken('schema.create', ['type' => 'schema', 'name' => $name]);
 
         if ($name === '') {
-            $this->response->error('validation_failed', 'Choose an API name for this content type.', 422, ['name' => ['Choose an API name for this content type.']]);
+            $this->response->error('validation_failed', 'Choose an identifier for this content type.', 422, ['name' => ['Choose an identifier for this content type.']]);
         }
 
         if ($this->types->exists($name)) {
-            $this->response->error('validation_failed', 'A content type with this API name already exists.', 422, ['name' => ['A content type with this API name already exists.']]);
+            $this->response->error('validation_failed', 'A content type with this identifier already exists.', 422, ['name' => ['A content type with this identifier already exists.']]);
         }
 
         $body['name'] = $name;
@@ -137,7 +143,11 @@ final class ApiController
             $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
         }
 
-        $this->types->save($body);
+        try {
+            $this->types->save($body);
+        } catch (ValidationException $e) {
+            $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
+        }
         $this->cache->clear();
         (new Logger())->info('content_type.created', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->response->data($this->types->find($name), 201);
@@ -166,7 +176,11 @@ final class ApiController
             $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
         }
 
-        $this->types->save($body);
+        try {
+            $this->types->save($body);
+        } catch (ValidationException $e) {
+            $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
+        }
         $schema = $this->types->find($name);
         $this->content->syncLocalization($name, $schema);
         $this->cache->clear();
@@ -604,7 +618,7 @@ final class ApiController
 
     private function requireCollection(string $collection): void
     {
-        if (!$this->types->exists($collection)) {
+        if (!$this->types->exists($collection) || empty($this->types->find($collection)['api_enabled'])) {
             $this->response->error('not_found', 'Content collection not found.', 404);
         }
     }
@@ -927,6 +941,9 @@ final class ApiController
         }
 
         $schema = $this->types->find($collection);
+        if (empty($schema['api_enabled'])) {
+            return false;
+        }
         if (($schema['visibility'] ?? 'public') !== 'private') {
             return true;
         }

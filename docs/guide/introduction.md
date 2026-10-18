@@ -1,11 +1,13 @@
 # Introduction
 
-CometCMS is a lightweight, **file-based headless CMS** built with PHP and a Vue 3 admin interface. It requires no database — all content, users, and settings are stored as plain JSON files on disk.
+CometCMS is a lightweight, **Page Builder and file-based CMS** built with PHP and a Vue 3 admin interface. It requires no database — all content, users, and settings are stored as plain JSON files on disk.
 
 ## Key concepts
 
 | Concept           | Description                                                                                    |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
+| **Page Builder** | Shared layouts keep the design consistent while editors work with content. |
+| **Content fields** | Structured values bound to layouts, also available through the optional headless API. |
 | **Content type**  | A schema that defines either a collection of entries (e.g. `posts`) or one single page-like entry (e.g. `start-page`). |
 | **Content entry** | A saved item made up of the fields defined by its content type.                                |
 | **Media**         | Uploaded images/files, managed through the media library.                                      |
