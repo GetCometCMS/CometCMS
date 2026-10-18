@@ -209,7 +209,7 @@ test('collections without a card of their own show the standard card', function 
     ])])]);
     assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Hello &lt;script&gt;'), 'The generated card shows the title.');
 
-    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store = new JsonStore(comet_test_workspace_path() . '/site/theme');
     $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [
         LayoutSchema::node('section', [], ['background' => 'accent', 'padding_y' => 'xl'], [LayoutSchema::node('row', [], [], [
             LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Legacy card</p>'])]),
@@ -527,7 +527,7 @@ test('theme stores custom css separately and reads direct stylesheet edits', fun
     $site = comet_site_test_setup();
     $saved = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.custom { color: red; }']);
     $path = $site->workspace()->path('site') . '/theme/style.css';
-    $tokens = (new JsonStore($site->workspace()->path('site')))->read('theme', 'theme');
+    $tokens = (new JsonStore($site->workspace()->path('site') . '/theme'))->read('theme');
     assert_same($saved['custom_css'], file_get_contents($path));
     assert_false(array_key_exists('custom_css', $tokens));
     assert_same('#123456', $tokens['colors']['primary']);
@@ -719,12 +719,13 @@ test('deleting a content type removes its website layouts and route', function (
     $site->saveLayout('blog', 'index', []);
     assert_true($site->layoutCustomized('blog', 'index'));
     $store = new JsonStore(comet_test_workspace_path() . '/site');
-    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
+    $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
+    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
 
     (new ContentTypeRepository())->delete('blog');
 
-    assert_null($store->read('layouts', 'blog', 'index'));
-    assert_null($store->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
+    assert_null($theme->read('layouts', 'blog', 'index'));
+    assert_null($theme->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });

@@ -10,12 +10,16 @@ use CometCMS\Auth\UserRepository;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Logging\Logger;
+use CometCMS\Site\ThemeMigration;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
 
 final class RestoreService
 {
     private WorkspaceContext $workspace;
+
+    /** @var array<string, string>|null legacy component id => current id */
+    private ?array $componentAliases = null;
 
     public function __construct(?WorkspaceContext $workspace = null)
     {
@@ -88,7 +92,8 @@ final class RestoreService
 
             $target = $this->targetPath($name, $parts);
 
-            if ($target === null) {
+            // ThemeMigration keeps this workspace's own record of renamed components.
+            if ($target === null || $name === 'site/' . ThemeMigration::ALIASES . '.json') {
                 continue;
             }
 
@@ -148,6 +153,7 @@ final class RestoreService
         }
 
         $zip->close();
+        (new ThemeMigration($this->workspace))->run();
         ApiCache::fromConfig($this->workspace)->clear();
         (new Logger())->info('backup restored', ['summary' => $summary, 'user_id' => $user['id'] ?? null]);
 
@@ -284,11 +290,36 @@ final class RestoreService
                     return null;
                 }
 
-                return $target . substr($name, strlen($prefix));
+                return $target . ($prefix === 'site/' ? $this->siteTarget(substr($name, strlen($prefix))) : substr($name, strlen($prefix)));
             }
         }
 
         return null;
+    }
+
+    /**
+     * Older backups keep regions, layouts and components next to the theme
+     * folder and name components by generated ids. Restore them where they
+     * live now, so they count as the same items when not overwriting.
+     * ThemeMigration then renames what is still left over.
+     */
+    private function siteTarget(string $relative): string
+    {
+        $directory = strstr($relative, '/', true);
+        if (!in_array($directory, ThemeMigration::MOVED, true)) {
+            return $relative;
+        }
+
+        if ($directory === 'components') {
+            $this->componentAliases ??= json_decode((string) @file_get_contents($this->workspace->path('site') . '/' . ThemeMigration::ALIASES . '.json'), true) ?: [];
+            $id = basename($relative, '.json');
+            $alias = $this->componentAliases[$id] ?? null;
+            if ($relative === 'components/' . $id . '.json' && is_string($alias) && preg_match('/^[A-Za-z0-9_-]+$/', $alias)) {
+                $relative = 'components/' . $alias . '.json';
+            }
+        }
+
+        return 'theme/' . $relative;
     }
 
     private function normalizeParts(?array $parts): array

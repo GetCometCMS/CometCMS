@@ -109,13 +109,11 @@
       class="rail-action"
       :class="{ 'is-active': leftPanel === panel.value }"
       :aria-pressed="leftPanel === panel.value"
-      :title="leftPanel ? panel.label : undefined"
       @click="togglePanel(panel.value)"
     >
       <Icon :icon="panel.icon" class="h-5 w-5" />
       <span class="sr-only">{{ panel.label }}</span>
-      <!-- Hover label while the rail is collapsed -->
-      <span v-if="!leftPanel" class="rail-tooltip" aria-hidden="true">{{ panel.label }}</span>
+      <span class="rail-tooltip" aria-hidden="true">{{ panel.label }}</span>
       <span
         v-if="panel.dirty"
         class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"

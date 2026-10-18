@@ -160,7 +160,7 @@ test('smart renderer shares previews lists repeaters and live resolution', funct
 
 test('incompatible designs use defaults without deleting data and old revisions cannot restore', function (): void {
     $site = comet_site_test_setup();
-    $store = new JsonStore($site->workspace()->path('site'));
+    $store = new JsonStore($site->workspace()->path('site') . '/theme');
     $old = ['nodes' => [LayoutSchema::node('section')]];
     $store->write($old, 'layouts', 'blog', 'detail');
     $store->write($old, 'regions', 'footer');

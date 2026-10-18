@@ -17,13 +17,19 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * storage/workspaces/{workspace}/site/:
  *
  *   settings.json               homepage, URL patterns, SEO defaults
- *   theme/theme.json            theme settings
- *   theme/style.css             custom CSS, loaded after the generated theme
  *   menus.json                  navigation menus
- *   regions/{header,footer}.json
- *   layouts/{type}/{variant}.json
- *   components/{id}.json        reusable blocks placed in layouts and regions
  *   forms/{id}.json             website forms (see FormRepository)
+ *   theme/                      the design, kept apart so it can live in git:
+ *     theme.json                theme settings
+ *     style.css                 custom CSS, loaded after the generated theme
+ *     regions/{header,footer}.json
+ *     layouts/{type}/{variant}.json
+ *     components/{id}.json      reusable blocks placed in layouts and regions
+ *
+ * Theme files hold no save timestamps, so saving unchanged content leaves
+ * them unchanged; "updated_at" comes from the file modification time.
+ * Revisions live outside, in revisions/site/. ThemeMigration moves files
+ * from older layouts into this structure.
  *
  * Layouts and regions that were never customized are generated from the
  * content type on the fly, so publishing a first page works without setup.
@@ -41,6 +47,7 @@ final class SiteRepository
     public const RESERVED_FILES = ['/sitemap.xml', '/robots.txt', '/favicon.ico'];
 
     private JsonStore $store;
+    private JsonStore $themeStore;
     private JsonStore $revisions;
     private WorkspaceContext $workspace;
     private ContentTypeRepository $types;
@@ -52,7 +59,13 @@ final class SiteRepository
         $this->workspace = $workspace ?? WorkspaceContext::active();
         $this->types = $types ?? new ContentTypeRepository($this->workspace);
         $this->store = new JsonStore($this->workspace->path('site'));
+        $this->themeStore = new JsonStore($this->workspace->path('site') . '/theme');
         $this->revisions = new JsonStore($this->workspace->path('revisions') . '/site');
+
+        $migration = new ThemeMigration($this->workspace);
+        if ($migration->needed() && $migration->run()) {
+            $this->clearCache();
+        }
     }
 
     public function workspace(): WorkspaceContext
@@ -146,8 +159,8 @@ final class SiteRepository
         // Older workspaces keep both tokens and CSS in site/theme.json.
         // Read them until the next save migrates the theme into its directory.
         $legacy = $this->store->read('theme');
-        $stored = $legacy ?? $this->store->read('theme', 'theme') ?? [];
-        $path = $this->store->path('theme', 'style') . '.css';
+        $stored = $legacy ?? $this->themeStore->read('theme') ?? [];
+        $path = $this->themeStore->path('style') . '.css';
         // A restored legacy backup takes precedence over the newer files.
         if ($legacy === null && is_file($path)) {
             $css = file_get_contents($path);
@@ -156,27 +169,37 @@ final class SiteRepository
             }
             $stored['custom_css'] = $css;
         }
+        // Older theme files still carry their save time.
+        $updated = (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('theme') . '.json', $path);
 
-        return Theme::normalize($stored) + ['updated_at' => (string) ($stored['updated_at'] ?? '')];
+        return Theme::normalize($stored) + ['updated_at' => $updated];
     }
 
     public function saveTheme(array $input, array $user = [], string $event = 'saved'): array
     {
         $theme = Theme::normalize($input);
         $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
-        $theme['updated_at'] = Security::now();
         $this->writeThemeStylesheet($theme['custom_css']);
-        $this->store->write(array_diff_key($theme, ['custom_css' => true]), 'theme', 'theme');
+        $this->themeStore->write(array_diff_key($theme, ['custom_css' => true]), 'theme');
         $this->store->delete('theme');
         $this->clearCache();
 
-        return $theme;
+        return $theme + ['updated_at' => self::modifiedAt($this->themeStore->path('theme') . '.json', $this->themeStore->path('style') . '.css')];
+    }
+
+    /** When the newest of the given files changed, formatted like Security::now(); '' if none exists. */
+    private static function modifiedAt(string ...$paths): string
+    {
+        clearstatcache();
+        $times = array_filter(array_map(static fn(string $path): int|false => is_file($path) ? filemtime($path) : false, $paths));
+
+        return $times === [] ? '' : gmdate('Y-m-d\TH:i:s\Z', max($times));
     }
 
     /** Replace the stylesheet atomically so readers never see a partial edit. */
     private function writeThemeStylesheet(string $css): void
     {
-        $path = $this->store->path('theme', 'style') . '.css';
+        $path = $this->themeStore->path('style') . '.css';
         if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0775, true) && !is_dir(dirname($path))) {
             throw new \RuntimeException('Could not create the theme directory.');
         }
@@ -250,7 +273,7 @@ final class SiteRepository
     public function region(string $region): array
     {
         $this->assertRegion($region);
-        $stored = $this->store->read('regions', $region);
+        $stored = $this->themeStore->read('regions', $region);
 
         return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
     }
@@ -259,7 +282,7 @@ final class SiteRepository
     {
         $this->assertRegion($region);
 
-        return ($this->store->read('regions', $region)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
+        return ($this->themeStore->read('regions', $region)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
     public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
@@ -267,7 +290,7 @@ final class SiteRepository
         $this->assertRegion($region);
         $nodes = LayoutSchema::normalize($nodes);
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
-        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes, 'updated_at' => Security::now()], 'regions', $region);
+        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'regions', $region);
         $this->clearCache();
 
         return $nodes;
@@ -277,7 +300,7 @@ final class SiteRepository
     {
         $this->assertRegion($region);
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
-        $this->store->delete('regions', $region);
+        $this->themeStore->delete('regions', $region);
         $this->clearCache();
 
         return $this->region($region);
@@ -289,7 +312,7 @@ final class SiteRepository
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
-        $stored = $this->store->read('layouts', $type, $variant);
+        $stored = $this->themeStore->read('layouts', $type, $variant);
 
         return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultLayout($schema, $variant);
     }
@@ -299,7 +322,7 @@ final class SiteRepository
         Security::assertSafeName($type);
         Security::assertSafeName($variant);
 
-        return ($this->store->read('layouts', $type, $variant)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
+        return ($this->themeStore->read('layouts', $type, $variant)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
     public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
@@ -308,7 +331,7 @@ final class SiteRepository
         $this->assertVariant($schema, $variant);
         $nodes = LayoutSchema::normalize($nodes);
         $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
-        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes, 'updated_at' => Security::now()], 'layouts', $type, $variant);
+        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'layouts', $type, $variant);
         $this->clearCache();
 
         return $nodes;
@@ -319,7 +342,7 @@ final class SiteRepository
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
         $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
-        $this->store->delete('layouts', $type, $variant);
+        $this->themeStore->delete('layouts', $type, $variant);
         $this->clearCache();
 
         return LayoutSchema::defaultLayout($schema, $variant);
@@ -333,7 +356,7 @@ final class SiteRepository
     public function cardTemplate(string $type): array
     {
         $schema = $this->requireType($type);
-        $stored = $this->store->read('layouts', $type, 'card');
+        $stored = $this->themeStore->read('layouts', $type, 'card');
 
         return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
             ? LayoutSchema::cardTemplate(LayoutSchema::normalize($stored['nodes'] ?? []))
@@ -355,7 +378,7 @@ final class SiteRepository
     {
         $list = [];
 
-        foreach ($this->store->all('components') as $stored) {
+        foreach ($this->themeStore->all('components') as $stored) {
             $component = $this->readComponent($stored);
             if ($component !== null) {
                 unset($component['nodes']);
@@ -373,7 +396,39 @@ final class SiteRepository
             return null;
         }
 
-        return $this->readComponent($this->store->read('components', $id));
+        $stored = $this->themeStore->read('components', $id);
+        // Placements and open editors may still use an id from before
+        // components were named after their name.
+        if ($stored === null && preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id)) {
+            $alias = (string) ($this->store->read(ThemeMigration::ALIASES)[$id] ?? '');
+            $stored = $alias !== '' && LayoutSchema::key($alias) === $alias ? $this->themeStore->read('components', $alias) : null;
+        }
+
+        return $this->readComponent($stored);
+    }
+
+    /**
+     * A readable component id, also its file name: the name as a slug,
+     * numbered when taken. Renaming a component keeps its id.
+     *
+     * @param callable(string): bool $taken
+     */
+    public static function componentId(string $name, callable $taken): string
+    {
+        $slug = strtr($name, ['Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue', 'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss']);
+        if (function_exists('iconv')) {
+            $slug = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $slug) ?: $slug;
+        }
+        $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($slug)), '-');
+        $slug = rtrim(substr($slug, 0, 60), '-') ?: 'component';
+
+        $id = $slug;
+        // Never look like a generated id, which ThemeMigration would rename.
+        for ($number = 2; $taken($id) || preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id); $number++) {
+            $id = $slug . '-' . $number;
+        }
+
+        return $id;
     }
 
     /** Create a component from one structure node (and everything inside it). */
@@ -385,36 +440,33 @@ final class SiteRepository
             throw new ValidationException(['nodes' => 'A component is made from one section, column set or column.']);
         }
 
-        $now = Security::now();
+        $name = $this->componentName($name);
         $component = $this->validateComponent([
-            'id' => 'c' . bin2hex(random_bytes(5)),
-            'name' => $this->componentName($name),
+            'id' => self::componentId($name, fn(string $id): bool => is_file($this->themeStore->path('components', $id) . '.json')),
+            'name' => $name,
             'root' => $root,
             'type' => '',
-            'created_at' => $now,
+            'created_at' => Security::now(),
         ], $nodes, $type);
-        $this->writeComponent($component);
 
-        return $component;
+        return $this->writeComponent($component);
     }
 
     public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $current = $this->requireComponent($id);
         $component = $this->validateComponent($current, $nodes, $current['type']);
-        $this->writeRevision(['components', $id], $this->componentSnapshot($current), $user, $event);
-        $this->writeComponent($component);
+        $this->writeRevision(['components', $current['id']], $this->componentSnapshot($current), $user, $event);
 
-        return $component;
+        return $this->writeComponent($component);
     }
 
     public function renameComponent(string $id, mixed $name): array
     {
         $component = $this->requireComponent($id);
         $component['name'] = $this->componentName($name);
-        $this->writeComponent($component);
 
-        return $component;
+        return $this->writeComponent($component);
     }
 
     /**
@@ -432,17 +484,17 @@ final class SiteRepository
         foreach ($this->types() as $name => $type) {
             // Old card layouts still render as their type's standard card.
             foreach ([...$this->variantsFor($type), 'card'] as $variant) {
-                if ($uses($this->store->read('layouts', (string) $name, $variant))) {
+                if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
             }
         }
         foreach (LayoutSchema::REGIONS as $region) {
-            if ($uses($this->store->read('regions', $region))) {
+            if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
         }
-        foreach ($this->store->all('components') as $stored) {
+        foreach ($this->themeStore->all('components') as $stored) {
             if (($stored['id'] ?? '') !== $id && $uses($stored)) {
                 $usages[] = ['target' => 'component', 'id' => (string) $stored['id'], 'name' => (string) ($stored['name'] ?? $stored['id'])];
             }
@@ -479,17 +531,17 @@ final class SiteRepository
 
         foreach ($this->types() as $name => $type) {
             foreach ($this->variantsFor($type) as $variant) {
-                if ($uses($this->store->read('layouts', (string) $name, $variant))) {
+                if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
             }
         }
         foreach (LayoutSchema::REGIONS as $region) {
-            if ($uses($this->store->read('regions', $region))) {
+            if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
         }
-        foreach ($this->store->all('components') as $stored) {
+        foreach ($this->themeStore->all('components') as $stored) {
             if ($uses($stored)) {
                 $usages[] = ['target' => 'component', 'id' => (string) ($stored['id'] ?? ''), 'name' => (string) ($stored['name'] ?? $stored['id'] ?? '')];
             }
@@ -502,6 +554,7 @@ final class SiteRepository
     public function deleteComponent(string $id): array
     {
         $component = $this->requireComponent($id);
+        $id = $component['id'];
         $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGIONS);
         foreach ($this->types() as $name => $type) {
             foreach ([...$this->variantsFor($type), 'card'] as $variant) {
@@ -515,11 +568,11 @@ final class SiteRepository
         }
 
         foreach ($paths as $path) {
-            $stored = $this->store->read(...$path);
+            $stored = $this->themeStore->read(...$path);
             if ($this->hasComponentInstance($stored, $id)) {
                 $stored['nodes'] = $this->detachComponentInstances($stored['nodes'], $component);
-                $stored['updated_at'] = Security::now();
-                $this->store->write($stored, ...$path);
+                unset($stored['updated_at']);
+                $this->themeStore->write($stored, ...$path);
             }
             // Restoring an older layout must not bring back a missing component.
             foreach ($this->revisions->all(...$path) as $revision) {
@@ -530,7 +583,7 @@ final class SiteRepository
             }
         }
 
-        $this->store->delete('components', $id);
+        $this->themeStore->delete('components', $id);
         foreach ($this->listRevisions(['components', $id]) as $revision) {
             $this->revisions->delete('components', $id, $revision['id']);
         }
@@ -572,14 +625,14 @@ final class SiteRepository
 
     public function componentRevisions(string $id): array
     {
-        $this->requireComponent($id);
+        $id = $this->requireComponent($id)['id'];
 
         return $this->listRevisions(['components', $id]);
     }
 
     public function restoreComponentRevision(string $id, string $revisionId, array $user = []): ?array
     {
-        $this->requireComponent($id);
+        $id = $this->requireComponent($id)['id'];
         $revision = $this->revisions->read('components', $id, $revisionId);
         if (($revision['snapshot']['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($revision['snapshot']['nodes'] ?? null)) {
             return null;
@@ -618,7 +671,8 @@ final class SiteRepository
             'type' => LayoutSchema::key($stored['type'] ?? ''),
             'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
             'created_at' => (string) ($stored['created_at'] ?? ''),
-            'updated_at' => (string) ($stored['updated_at'] ?? ''),
+            // Older component files still carry their save time.
+            'updated_at' => (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
         ];
     }
 
@@ -665,7 +719,7 @@ final class SiteRepository
             return false;
         }
         $seen[$from] = true;
-        $stored = $this->store->read('components', $from);
+        $stored = $this->themeStore->read('components', $from);
         foreach (LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []) as $ref) {
             if ($ref === $target || $this->componentReaches($ref, $target, $seen)) {
                 return true;
@@ -685,11 +739,21 @@ final class SiteRepository
         return $name;
     }
 
-    private function writeComponent(array $component): void
+    private function writeComponent(array $component): array
     {
-        $component['updated_at'] = Security::now();
-        $this->store->write(['format_version' => LayoutSchema::FORMAT_VERSION, ...$component], 'components', $component['id']);
+        // A fixed key order, so saving an unchanged component leaves its file unchanged.
+        $this->themeStore->write([
+            'format_version' => LayoutSchema::FORMAT_VERSION,
+            'id' => $component['id'],
+            'name' => $component['name'],
+            'root' => $component['root'],
+            'type' => $component['type'],
+            'created_at' => $component['created_at'],
+            'nodes' => $component['nodes'],
+        ], 'components', $component['id']);
         $this->clearCache();
+
+        return [...$component, 'updated_at' => self::modifiedAt($this->themeStore->path('components', $component['id']) . '.json')];
     }
 
     private function componentSnapshot(array $component): array
@@ -701,14 +765,14 @@ final class SiteRepository
     {
         Security::assertSafeName($type);
         Security::assertSafeName($variant);
-        $stored = $this->store->read('layouts', $type, $variant);
+        $stored = $this->themeStore->read('layouts', $type, $variant);
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
     public function needsRegionUpgrade(string $region): bool
     {
         $this->assertRegion($region);
-        $stored = $this->store->read('regions', $region);
+        $stored = $this->themeStore->read('regions', $region);
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
@@ -764,7 +828,7 @@ final class SiteRepository
 
     public function componentRevision(string $component, string $id): ?array
     {
-        $this->requireComponent($component);
+        $component = $this->requireComponent($component)['id'];
         return $this->readLayoutRevision(['components', $component, $id]);
     }
 
@@ -874,13 +938,13 @@ final class SiteRepository
         Security::assertSafeName($type);
         // Including card layouts from before cards lived in collections.
         foreach ([...LayoutSchema::VARIANTS, 'card'] as $variant) {
-            $this->store->delete('layouts', $type, $variant);
+            $this->themeStore->delete('layouts', $type, $variant);
             foreach ($this->listRevisions(['layouts', $type, $variant]) as $revision) {
                 $this->revisions->delete('layouts', $type, $variant, $revision['id']);
             }
         }
 
-        $directory = $this->store->path('layouts', $type);
+        $directory = $this->themeStore->path('layouts', $type);
         if (is_dir($directory) && (glob($directory . '/*') ?: []) === []) {
             @rmdir($directory);
         }

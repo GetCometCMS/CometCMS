@@ -79,7 +79,7 @@ test('components are created from one structure node and keep their root kind', 
     assert_same('Promo', $component['name']);
     assert_same('column', $component['root']);
     assert_same('', $component['type']);
-    assert_matches('/^c[0-9a-f]{10}$/', $component['id']);
+    assert_same('promo', $component['id'], 'Components are named after their name.');
     assert_same('Shared', $site->component($component['id'])['nodes'][0]['children'][0]['props']['text']);
     assert_same([['id' => $component['id'], 'name' => 'Promo', 'root' => 'column', 'type' => '']], array_map(
         static fn(array $item): array => array_intersect_key($item, ['id' => 1, 'name' => 1, 'root' => 1, 'type' => 1]),
@@ -138,7 +138,7 @@ test('deleting a component detaches all placements and removes its history', fun
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id']) + ['name' => 'Footer promo']]);
     $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
     // A card layout from before cards lived in collections still renders as the standard card.
-    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store = new JsonStore(comet_test_workspace_path() . '/site/theme');
     $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [comet_component_test_instance('i3', $component['id'])]], 'layouts', 'blog', 'card');
 
     assert_same([

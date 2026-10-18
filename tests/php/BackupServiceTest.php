@@ -10,6 +10,8 @@ use CometCMS\Storage\JsonStore;
 test('website backups restore separate theme files over both new and legacy themes', function (): void {
     $site = new SiteRepository();
     $theme = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.backup { color: red; }']);
+    // Restored files are new files, so only their contents must match.
+    $withoutTime = static fn(array $theme): array => array_diff_key($theme, ['updated_at' => true]);
     $backups = new BackupService();
     $backup = $backups->create(['id' => 'admin'], ['site']);
     $path = COMET_STORAGE . '/backups/' . $backup['name'];
@@ -21,7 +23,7 @@ test('website backups restore separate theme files over both new and legacy them
 
     $site->saveTheme(['custom_css' => '.changed {}']);
     (new RestoreService())->restore($path, true, ['id' => 'admin'], ['site']);
-    assert_same($theme, $site->theme());
+    assert_same($withoutTime($theme), $withoutTime($site->theme()));
 
     $store = new JsonStore($site->workspace()->path('site'));
     $store->write(['custom_css' => '.legacy {}'], 'theme');
@@ -32,10 +34,10 @@ test('website backups restore separate theme files over both new and legacy them
     (new RestoreService())->restore($path, false, ['id' => 'admin'], ['site']);
     assert_same('.legacy {}', $site->theme()['custom_css'], 'Restoring without overwrite preserves the existing theme.');
     (new RestoreService())->restore($path, true, ['id' => 'admin'], ['site']);
-    assert_same($theme, $site->theme());
+    assert_same($withoutTime($theme), $withoutTime($site->theme()));
     assert_null($store->read('theme'));
     (new RestoreService())->restore($legacyPath, false, ['id' => 'admin'], ['site']);
-    assert_same($theme, $site->theme(), 'An old backup without overwrite preserves a migrated theme.');
+    assert_same($withoutTime($theme), $withoutTime($site->theme()), 'An old backup without overwrite preserves a migrated theme.');
     (new RestoreService())->restore($legacyPath, true, ['id' => 'admin'], ['site']);
     assert_same('.legacy {}', $site->theme()['custom_css']);
 });
