@@ -86,23 +86,45 @@
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
     <div v-else ref="builderAreaRef" class="flex min-h-0 flex-1">
-      <!-- Panel rail: one left panel at a time; picking the open one collapses it. -->
-      <nav class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2" :aria-label="t('site.builder.panels')">
-        <button
-          v-for="panel in panels"
-          :key="panel.value"
-          type="button"
-          class="rail-action"
-          :class="{ 'is-active': leftPanel === panel.value }"
-          :aria-pressed="leftPanel === panel.value"
-          :title="panel.label"
-          @click="togglePanel(panel.value)"
-        >
-          <Icon :icon="panel.icon" class="h-5 w-5" />
-          <span class="sr-only">{{ panel.label }}</span>
-          <span v-if="panel.dirty" class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"></span>
-        </button>
-      </nav>
+
+<!-- Panel rail -->
+<nav
+  class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2"
+  :aria-label="t('site.builder.panels')"
+>
+  <template v-for="panel in panels" :key="panel.value">
+    <!-- Separator before Fields / Components -->
+    <div
+      v-if="panel.value === 'fields' || (panel.value === 'components' && !hasEntryFields)"
+      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      aria-hidden="true"
+    ></div>
+
+    <button
+      type="button"
+      class="rail-action"
+      :class="{ 'is-active': leftPanel === panel.value }"
+      :aria-pressed="leftPanel === panel.value"
+      :title="panel.label"
+      @click="togglePanel(panel.value)"
+    >
+      <Icon :icon="panel.icon" class="h-5 w-5" />
+      <span class="sr-only">{{ panel.label }}</span>
+      <span
+        v-if="panel.dirty"
+        class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
+      ></span>
+    </button>
+
+    <!-- Separator after Forms -->
+    <div
+      v-if="panel.value === 'forms'"
+      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      aria-hidden="true"
+    ></div>
+  </template>
+</nav>
+
 
       <ResizableSidebar
         v-if="leftPanel"
