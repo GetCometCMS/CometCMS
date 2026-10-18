@@ -5,15 +5,6 @@
         {{ contentTypeSchema?.label || collection }}
       </h1>
       <div class="flex flex-wrap items-center gap-2">
-        <router-link
-          v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
-          :to="`/trash/${collection}`" class="btn-secondary">
-          {{ t("contentList.trash") }}
-          <span
-            class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5">{{
-              trashCount }}</span>
-        </router-link>
-
         <nav v-if="canEditTemplates" class="flex flex-wrap items-center gap-1.5"
           :aria-label="t('site.collection.templates')">
           <span class="mr-1 text-xs font-semibold text-slate-500">
@@ -31,6 +22,15 @@
             {{ t('site.variant.index') }}
           </SplitButton>
         </nav>
+
+        <router-link
+          v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
+          :to="`/trash/${collection}`" class="btn-secondary">
+          {{ t("contentList.trash") }}
+          <span
+            class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5">{{
+              trashCount }}</span>
+        </router-link>
 
         <!-- Vertical separator -->
         <div v-if="canEditTemplates && canContent('content.create', collection)"
