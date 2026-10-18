@@ -374,6 +374,10 @@ try {
     }
 
     // ── Website (opt-in per workspace) ────────────────────────────────────
+    if (preg_match('#^/_site/(' . SEG . ')/theme/style\\.css$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->stylesheet($m[1], true);
+    }
+
     if (preg_match('#^/_site/(' . SEG . ')/style\.css$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
         (new SiteController($http))->stylesheet($m[1]);
     }

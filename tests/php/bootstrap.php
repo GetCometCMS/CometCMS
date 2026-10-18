@@ -42,6 +42,11 @@ function comet_config(string $key, mixed $default = null): mixed
     return $value;
 }
 
+function comet_version(): string
+{
+    return 'test';
+}
+
 function comet_test_reset_storage(): void
 {
     comet_test_remove_directory(COMET_STORAGE);

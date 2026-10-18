@@ -284,6 +284,11 @@ final class SiteContext
         return $this->basePath . '/_site/' . rawurlencode($this->site->workspace()->slug()) . '/style.css?v=' . $this->site->stylesheetVersion();
     }
 
+    public function customStylesheetUrl(): string
+    {
+        return $this->basePath . '/_site/' . rawurlencode($this->site->workspace()->slug()) . '/theme/style.css?v=' . $this->site->customStylesheetVersion();
+    }
+
     // ─── Content ─────────────────────────────────────────────────────────────
 
     /** A visible entry by slug or id, with the current locale applied. */

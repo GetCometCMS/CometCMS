@@ -17,7 +17,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * storage/workspaces/{workspace}/site/:
  *
  *   settings.json               homepage, URL patterns, SEO defaults
- *   theme.json                  design tokens and custom CSS
+ *   theme/tokens.json           design tokens
+ *   theme/style.css             custom CSS, loaded after the generated theme
  *   menus.json                  navigation menus
  *   regions/{header,footer}.json
  *   layouts/{type}/{variant}.json
@@ -142,7 +143,19 @@ final class SiteRepository
 
     public function theme(): array
     {
-        $stored = $this->store->read('theme') ?? [];
+        // Older workspaces keep both tokens and CSS in site/theme.json.
+        // Read them until the next save migrates the theme into its directory.
+        $legacy = $this->store->read('theme');
+        $stored = $legacy ?? $this->store->read('theme', 'tokens') ?? [];
+        $path = $this->store->path('theme', 'style') . '.css';
+        // A restored legacy backup takes precedence over the newer files.
+        if ($legacy === null && is_file($path)) {
+            $css = file_get_contents($path);
+            if ($css === false) {
+                throw new \RuntimeException('Could not read the theme stylesheet.');
+            }
+            $stored['custom_css'] = $css;
+        }
 
         return Theme::normalize($stored) + ['updated_at' => (string) ($stored['updated_at'] ?? '')];
     }
@@ -152,19 +165,45 @@ final class SiteRepository
         $theme = Theme::normalize($input);
         $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
         $theme['updated_at'] = Security::now();
-        $this->store->write($theme, 'theme');
+        $this->writeThemeStylesheet($theme['custom_css']);
+        $this->store->write(array_diff_key($theme, ['custom_css' => true]), 'theme', 'tokens');
+        $this->store->delete('theme');
         $this->clearCache();
 
         return $theme;
     }
 
-    /** Changes whenever the generated stylesheet would change, for cache busting. */
+    /** Replace the stylesheet atomically so readers never see a partial edit. */
+    private function writeThemeStylesheet(string $css): void
+    {
+        $path = $this->store->path('theme', 'style') . '.css';
+        if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0775, true) && !is_dir(dirname($path))) {
+            throw new \RuntimeException('Could not create the theme directory.');
+        }
+        $temporary = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        try {
+            if (file_put_contents($temporary, $css, LOCK_EX) !== strlen($css) || !rename($temporary, $path)) {
+                throw new \RuntimeException('Could not write the theme stylesheet.');
+            }
+        } finally {
+            if (is_file($temporary)) {
+                unlink($temporary);
+            }
+        }
+    }
+
+    /** Version both generated styles and custom CSS for stylesheet and page caches. */
     public function stylesheetVersion(): string
     {
-        $theme = $this->store->read('theme') ?? [];
+        $theme = $this->theme();
         $base = __DIR__ . '/assets/site.css';
 
         return substr(sha1(json_encode($theme) . '|' . (is_file($base) ? (string) filemtime($base) : '') . '|' . (function_exists('comet_version') ? comet_version() : '')), 0, 12);
+    }
+
+    public function customStylesheetVersion(): string
+    {
+        return substr(sha1($this->theme()['custom_css']), 0, 12);
     }
 
     // ─── Menus ───────────────────────────────────────────────────────────────

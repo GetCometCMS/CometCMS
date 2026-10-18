@@ -77,6 +77,7 @@ final class RestoreService
             'errors' => [],
         ];
 
+        $restoredTheme = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = str_replace('\\', '/', (string) $zip->getNameIndex($i));
 
@@ -91,7 +92,10 @@ final class RestoreService
                 continue;
             }
 
-            if (is_file($target) && !$overwrite) {
+            // Treat legacy and migrated theme files as the same backup item.
+            $otherThemeFormatExists = ($name === 'site/theme.json' && is_file($this->workspace->path('site') . '/theme/tokens.json'))
+                || (in_array($name, ['site/theme/tokens.json', 'site/theme/style.css'], true) && is_file($this->workspace->path('site') . '/theme.json'));
+            if (!$overwrite && (is_file($target) || $otherThemeFormatExists)) {
                 $summary['skipped']++;
                 continue;
             }
@@ -100,7 +104,10 @@ final class RestoreService
                 mkdir(dirname($target), 0775, true);
             }
 
-            copy('zip://' . $zipPath . '#' . $name, $target);
+            $copied = copy('zip://' . $zipPath . '#' . $name, $target);
+            if (in_array($name, ['site/theme/tokens.json', 'site/theme/style.css'], true)) {
+                $restoredTheme[$name] = $copied;
+            }
 
             if (str_starts_with($name, 'content-types/')) {
                 $summary['restored_content_types']++;
@@ -114,6 +121,16 @@ final class RestoreService
                 $summary['restored_media_meta']++;
             } elseif (str_starts_with($name, 'site/')) {
                 $summary['restored_site']++;
+            }
+        }
+
+        // A migrated theme must replace the legacy theme too when overwriting.
+        // Otherwise an older theme.json would hide the restored tokens and CSS.
+        if ($overwrite && !empty($restoredTheme['site/theme/tokens.json']) && !empty($restoredTheme['site/theme/style.css'])
+            && $zip->locateName('site/theme.json') === false) {
+            $legacyTheme = $this->workspace->path('site') . '/theme.json';
+            if (is_file($legacyTheme)) {
+                unlink($legacyTheme);
             }
         }
 

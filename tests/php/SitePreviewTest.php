@@ -122,6 +122,38 @@ test('headless public roots show the placeholder in root and subdirectory instal
     }
 });
 
+test('custom theme stylesheets are served separately in root and subdirectory installs', function (): void {
+    $root = comet_site_preview_test_install();
+    comet_test_run_php(['-r', 'require ' . var_export($root . '/app/bootstrap.php', true) . ';' . <<<'PHP'
+(new \CometCMS\Workspaces\WorkspaceRepository())->all();
+(new \CometCMS\Site\SiteRepository())->saveTheme(['custom_css' => '.custom-file { color: red; }']);
+PHP]);
+    $version = substr(sha1('.custom-file { color: red; }'), 0, 12);
+    $port = 22080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $root . '/router.php');
+    try {
+        usleep(300000);
+        foreach (['', '/cms'] as $base) {
+            $path = $base . '/_site/default/theme/style.css?v=' . $version;
+            [$status, $css, $headers] = comet_site_preview_test_request($port, $path);
+            assert_same(200, $status);
+            assert_same('.custom-file { color: red; }', $css);
+            assert_same('text/css; charset=utf-8', $headers['content-type']);
+            assert_same('nosniff', $headers['x-content-type-options']);
+            assert_same('"' . $version . '"', $headers['etag']);
+            assert_true(str_contains($headers['cache-control'], 'immutable'));
+            [$status, $baseCss] = comet_site_preview_test_request($port, $base . '/_site/default/style.css');
+            assert_same(200, $status);
+            assert_true(str_contains($baseCss, '--c-primary:'));
+            assert_false(str_contains($baseCss, '.custom-file'));
+            assert_same(200, comet_site_preview_test_request($port, $path, '', 'HEAD')[0]);
+        }
+        assert_same(404, comet_site_preview_test_request($port, '/_site/missing/theme/style.css')[0]);
+    } finally {
+        comet_test_stop_process($server);
+    }
+});
+
 test('website history routes protect revisions and restore saved layouts regions and themes', function (): void {
     $root = comet_site_preview_test_install();
     $sessionPrefix = 'history-' . bin2hex(random_bytes(6));

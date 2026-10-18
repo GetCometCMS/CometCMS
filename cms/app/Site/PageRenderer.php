@@ -261,7 +261,8 @@ final class PageRenderer
         // Previews render unsaved themes, so they inline the stylesheet.
         $head .= $this->ctx->preview
             ? '<style>' . Theme::stylesheet($this->ctx->theme()) . '</style>'
-            : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">';
+            : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">'
+                . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
         $banner = $this->ctx->previewBanner
             ? '<div class="c-preview-bar" role="status">Preview – this is how the page will look once it is published.</div>'

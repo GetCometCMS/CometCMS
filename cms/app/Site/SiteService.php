@@ -28,8 +28,9 @@ final class SiteService
         $cache = ApiCache::fromConfig($this->ctx->site->workspace());
         // Only pagination changes the output. Include every URL component
         // used by links and canonical URLs, even for subdirectory installs.
+        // File edits also need to refresh the versioned stylesheet links.
         $key = $cache->key('site|' . json_encode([
-            $this->ctx->origin, $this->ctx->basePath, $path,
+            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(),
         ]), $page > 1 ? 'page=' . $page : '');
         $cached = $this->ctx->preview ? null : $cache->get($key);
 

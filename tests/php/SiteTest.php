@@ -523,6 +523,68 @@ test('layout previews of a draft resolve its publish date', function (): void {
     assert_true(str_contains($html, '<time'), 'The draft previews with the date it would get when published.');
 });
 
+test('theme stores custom css separately and reads direct stylesheet edits', function (): void {
+    $site = comet_site_test_setup();
+    $saved = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.custom { color: red; }']);
+    $path = $site->workspace()->path('site') . '/theme/style.css';
+    $tokens = (new JsonStore($site->workspace()->path('site')))->read('theme', 'tokens');
+    assert_same($saved['custom_css'], file_get_contents($path));
+    assert_false(array_key_exists('custom_css', $tokens));
+    assert_same('#123456', $tokens['colors']['primary']);
+    assert_same($saved, (new SiteRepository())->theme());
+    $version = $site->customStylesheetVersion();
+    $fullVersion = $site->stylesheetVersion();
+
+    file_put_contents($path, '.edited { color: blue; }');
+    assert_same('.edited { color: blue; }', $site->theme()['custom_css']);
+    assert_false($version === $site->customStylesheetVersion());
+    assert_false($fullVersion === $site->stylesheetVersion());
+    file_put_contents($path, '');
+    assert_same('', $site->theme()['custom_css'], 'An empty stylesheet clears custom CSS.');
+});
+
+test('legacy themes migrate on save and restored legacy themes take precedence', function (): void {
+    $site = comet_site_test_setup();
+    $store = new JsonStore($site->workspace()->path('site'));
+    $legacy = ['colors' => ['primary' => '#abcdef'], 'custom_css' => '.legacy { color: red; }'];
+    $store->write($legacy, 'theme');
+    assert_same($legacy['custom_css'], $site->theme()['custom_css']);
+    $site->saveTheme($site->theme());
+    assert_null($store->read('theme'));
+    assert_same($legacy['custom_css'], file_get_contents($site->workspace()->path('site') . '/theme/style.css'));
+    assert_false(array_key_exists('custom_css', $store->read('theme', 'tokens')));
+
+    $store->write([...$legacy, 'custom_css' => '.restored {}'], 'theme');
+    assert_same('.restored {}', $site->theme()['custom_css'], 'Older backups override existing migrated files.');
+    $site->saveTheme($site->theme());
+    assert_same('.restored {}', (new SiteRepository())->theme()['custom_css']);
+});
+
+test('custom stylesheet edits update cached page links while previews keep draft css inline', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveTheme(['custom_css' => '.saved { color: red; }']);
+    $context = comet_site_test_context($site);
+    $service = new SiteService($context);
+    $before = $service->respondCached('/blog/hello', []);
+    assert_same('MISS', $before['cache_status']);
+    assert_same('HIT', $service->respondCached('/blog/hello', [])['cache_status']);
+    assert_true(strpos($before['body'], $context->stylesheetUrl()) < strpos($before['body'], $context->customStylesheetUrl()));
+    assert_false(str_contains($before['body'], '.saved {'));
+
+    file_put_contents($site->workspace()->path('site') . '/theme/style.css', '.edited {}');
+    $after = $service->respondCached('/blog/hello', []);
+    assert_same('MISS', $after['cache_status']);
+    assert_false($before['body'] === $after['body']);
+    assert_true(str_contains($after['body'], $context->customStylesheetUrl()));
+
+    $context->preview = true;
+    $context->override('theme', [...$site->theme(), 'custom_css' => '.draft { color: blue; }']);
+    $preview = $service->respond('/blog/hello', [])['body'];
+    assert_true(str_contains($preview, '.draft { color: blue; }'));
+    assert_false(str_contains($preview, '/theme/style.css'));
+    assert_same('.edited {}', $site->theme()['custom_css'], 'Previewing does not write draft CSS.');
+});
+
 test('theme normalizes values and keeps custom css inside its style element', function (): void {
     $theme = Theme::normalize([
         'colors' => ['primary' => '#ABC', 'text' => 'red; background:url(x)'],

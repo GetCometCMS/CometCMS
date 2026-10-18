@@ -60,15 +60,16 @@ final class SiteController
         $this->send($response, $response['cache_status']);
     }
 
-    public function stylesheet(string $workspace): never
+    public function stylesheet(string $workspace, bool $custom = false): never
     {
         if (!(new WorkspaceRepository())->exists($workspace)) {
             $this->http->notFound();
         }
 
         $site = new SiteRepository(new WorkspaceContext($workspace));
-        $version = $site->stylesheetVersion();
-        $css = Theme::stylesheet($site->theme());
+        $version = $custom ? $site->customStylesheetVersion() : $site->stylesheetVersion();
+        $theme = $site->theme();
+        $css = $custom ? $theme['custom_css'] : Theme::stylesheet([...$theme, 'custom_css' => '']);
         $etag = '"' . $version . '"';
 
         header('Content-Type: text/css; charset=utf-8');
