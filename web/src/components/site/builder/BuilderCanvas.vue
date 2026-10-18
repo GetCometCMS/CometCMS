@@ -7,12 +7,14 @@
     :title="t('site.builder.canvas')"
     interactive
     @ready="attach"
+    @updated="prepare"
   />
 </template>
 
 <script setup>
 import { onBeforeUnmount, ref, watch } from "vue";
 import SitePreviewFrame from "../SitePreviewFrame.vue";
+import { PREVIEW_KEEP } from "../../../composables/previewDocument.js";
 import { findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -208,20 +210,14 @@ function attach(document) {
   resizeLabel.className = "cometcms-resize-label";
   resizeLabel.hidden = true;
   resizeHandle.append(resizeLabel);
+  for (const overlay of [indicator, badge, resizeHandle]) overlay.setAttribute(PREVIEW_KEEP, "");
   resizeEdge = null;
   resizing = null;
-  doc.body.append(indicator, badge, resizeHandle);
 
   resizeHandle.addEventListener("pointerdown", onResizeStart);
   resizeHandle.addEventListener("pointermove", onResizeMove);
   resizeHandle.addEventListener("pointerup", onResizeEnd);
   resizeHandle.addEventListener("pointercancel", onResizeEnd);
-
-  doc.querySelectorAll("[data-drop-root]").forEach((element) => {
-    element.setAttribute("data-empty-label", t("site.builder.dropHere"));
-  });
-  doc.querySelectorAll("[data-node]").forEach((element) => element.setAttribute("draggable", "true"));
-  doc.querySelectorAll("img, a").forEach((element) => element.setAttribute("draggable", "false"));
 
   doc.addEventListener("click", onClick, true);
   doc.addEventListener("contextmenu", onContextMenu);
@@ -246,8 +242,28 @@ function attach(document) {
   doc.addEventListener("keydown", (event) => emit("keydown", event));
   doc.defaultView?.addEventListener("resize", () => applySelection(false));
 
+  prepare(document);
+}
+
+/** Editor markup for the rendered page, on load and after each in-place update. */
+function prepare(document) {
+  if (document !== doc) return;
+  doc.body.append(indicator, badge, resizeHandle);
+
+  doc.querySelectorAll("[data-drop-root]").forEach((element) => {
+    element.setAttribute("data-empty-label", t("site.builder.dropHere"));
+  });
+  doc.querySelectorAll("[data-node]").forEach((element) => element.setAttribute("draggable", "true"));
+  doc.querySelectorAll("img, a").forEach((element) => element.setAttribute("draggable", "false"));
+
+  // Restore the editor state the update cleared before layout is read, so outlines don't blink.
   applySelection(false);
   applyHover();
+  if (!resizing) {
+    const edge = resizeEdge;
+    resizeEdge = null;
+    showResizeEdge(edge?.el.isConnected ? edge : null);
+  }
 }
 
 function element(id) {
