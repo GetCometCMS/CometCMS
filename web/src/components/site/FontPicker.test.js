@@ -11,7 +11,7 @@ const renderPicker = async (modelValue, extra = {}) => {
       fonts: ['system', 'fontsource-inter', 'custom-123'],
       font_stacks: { 'fontsource-inter': '"comet-fontsource-inter",sans-serif' },
       font_families: [
-        { id: 'fontsource-inter', name: 'Inter', source: 'bundled', available: true },
+        { id: 'fontsource-inter', name: 'Inter', source: 'fontsource', available: true },
         { id: 'custom-123', name: 'Brand <script>', source: 'custom', available: false },
       ],
     }
@@ -22,17 +22,15 @@ const renderPicker = async (modelValue, extra = {}) => {
 }
 
 describe('shared font picker', () => {
-  it('groups fonts and keeps role choices without loading specimens for every option', async () => {
-    const html = await renderPicker('fontsource-inter', { allowEmpty: true, roles: true, sample: true })
+  it('renders the selected label without mounting menu previews before opening', async () => {
+    const html = await renderPicker('fontsource-inter', { allowEmpty: true, roles: true })
     expect(html).toContain('id="typeface"')
-    expect(html).toContain('label="System fonts"')
-    expect(html).toContain('label="Bundled"')
-    expect(html).toContain('label="Installed"')
-    expect(html).toContain('value="body"')
-    expect(html).toContain('value="heading"')
-    expect(html).toContain('Brand &lt;script&gt;')
-    expect(html).toContain('comet-fontsource-inter')
-    expect(html).not.toContain('<option style=')
+    expect(html).toContain('role="combobox"')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('Inter')
+    expect(html).not.toContain('role="option"')
+    expect(html).not.toContain('font-family:')
+    expect(html).not.toContain('<p')
   })
 
   it('identifies unavailable references retained by older revisions', async () => {

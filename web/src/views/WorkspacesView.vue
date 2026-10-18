@@ -69,7 +69,7 @@
         </fieldset>
         <div class="flex justify-end gap-2">
           <button type="submit" :disabled="creating" class="btn-primary">
-            {{ creating ? t("common.saving") : t("workspaces.create") }}
+            {{ installingFonts ? t("site.fonts.installingDemo") : creating ? t("common.saving") : t("workspaces.create") }}
           </button>
           <button
             type="button"
@@ -239,6 +239,7 @@ import { buildAdminApiUrl } from "../composables/apiEndpoint.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
 import { useAutoSlug } from "../composables/useAutoSlug.js";
+import { installStarterFonts } from "../composables/starterFonts.js";
 
 const toast = useToastStore();
 const auth = useAuthStore();
@@ -254,6 +255,7 @@ const activeWorkspace = ref(getActiveWorkspace());
 // Create
 const showCreateForm = ref(false);
 const creating = ref(false);
+const installingFonts = ref(false);
 const createError = ref("");
 const createLabel = ref("");
 const createStarterTemplate = ref("website");
@@ -316,11 +318,19 @@ async function handleCreate() {
   createError.value = "";
   creating.value = true;
   try {
-    await api.workspaces.create({
+    const res = await api.workspaces.create({
       label: createLabel.value,
       slug: createSlug.value || undefined,
       starter_template: createStarterTemplate.value,
     });
+    if (createStarterTemplate.value === "website") {
+      installingFonts.value = true;
+      try {
+        await installStarterFonts(res.data.slug);
+      } catch {
+        toast.error(t("site.fonts.demoFailed"));
+      }
+    }
     toast.success(t("workspaces.created"));
     createLabel.value = "";
     createStarterTemplate.value = "website";
@@ -332,6 +342,7 @@ async function handleCreate() {
     createError.value =
       err?.data?.error?.message ?? t("workspaces.createFailed");
   } finally {
+    installingFonts.value = false;
     creating.value = false;
   }
 }

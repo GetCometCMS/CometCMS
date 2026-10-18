@@ -55,12 +55,12 @@
                 <span class="flex-1"></span>
                 <button v-if="font.source === 'fontsource'" type="button" class="btn-ghost btn-sm" :disabled="!!busy" :title="t('site.fonts.update')" @click="startInstall(font.provider_id, font.subsets, true)"><Icon icon="mdi:refresh" class="h-4 w-4" /><span class="sr-only sm:not-sr-only">{{ t('site.fonts.update') }}</span></button>
                 <button v-if="font.source === 'custom'" type="button" data-action="add-faces" class="btn-ghost btn-sm" :disabled="!!busy" @click="addFaces(font)"><Icon icon="mdi:plus" class="h-4 w-4" />{{ t('site.fonts.addFaces') }}</button>
-                <button v-if="font.source !== 'bundled'" type="button" data-action="remove" class="btn-ghost btn-sm text-red-600 hover:bg-red-50 hover:text-red-700" :disabled="!!busy || used(font)" :title="used(font) ? t('site.fonts.removeBlocked') : t('common.delete')" @click="removing = font"><Icon icon="mdi:trash-can-outline" class="h-4 w-4" /><span class="sr-only">{{ t('common.delete') }}</span></button>
+                <button type="button" data-action="remove" class="btn-ghost btn-sm text-red-600 hover:bg-red-50 hover:text-red-700" :disabled="!!busy || used(font)" :title="used(font) ? t('site.fonts.removeBlocked') : t('common.delete')" @click="removing = font"><Icon icon="mdi:trash-can-outline" class="h-4 w-4" /><span class="sr-only">{{ t('common.delete') }}</span></button>
               </div>
             </article>
           </div>
         </section>
-        <div v-if="!families.length" class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">{{ t('common.loading') }}</div>
+        <div v-if="!families.length" class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">{{ t('site.fonts.empty') }}</div>
       </template>
 
       <!-- Catalogue -->
@@ -194,8 +194,7 @@ const tabItems = computed(() => [
   { value: 'upload', label: t('site.fonts.upload'), icon: 'mdi:tray-arrow-up', disabled: !!busy.value },
 ])
 const installedGroups = computed(() => [
-  { key: 'installed', fonts: families.value.filter((font) => font.source !== 'bundled') },
-  { key: 'bundled', fonts: families.value.filter((font) => font.source === 'bundled') },
+  { key: 'installed', fonts: families.value },
   { key: 'system', fonts: (site.data?.fonts ?? []).filter((id) => !families.value.some((family) => family.id === id)).map((id) => ({ id, name: t(`site.font.${id}`), source: 'system' })) },
 ].filter((group) => group.fonts.length))
 

@@ -98,11 +98,11 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label" for="design-font-heading">{{ t("site.theme.headingFont") }}</label>
-            <FontPicker id="design-font-heading" v-model="theme.fonts.heading" sample />
+            <FontPicker id="design-font-heading" v-model="theme.fonts.heading" />
           </div>
           <div>
             <label class="form-label" for="design-font-body">{{ t("site.theme.bodyFont") }}</label>
-            <FontPicker id="design-font-body" v-model="theme.fonts.body" sample />
+            <FontPicker id="design-font-body" v-model="theme.fonts.body" />
           </div>
           <div>
             <label class="form-label" for="design-scale">{{ t("site.theme.typeScale") }}</label>

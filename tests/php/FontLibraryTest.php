@@ -15,8 +15,8 @@ use CometCMS\Workspaces\WorkspaceContext;
 
 function comet_font_bytes(): string
 {
-    $manifest = json_decode((string) file_get_contents(COMET_APP . '/Site/assets/fonts/manifest.json'), true);
-    return (string) file_get_contents(COMET_APP . '/Site/assets/fonts/files/' . $manifest['families'][0]['faces'][0]['hash'] . '.woff2');
+    $manifest = json_decode((string) file_get_contents(COMET_TEST_ROOT . '/tests/fixtures/fonts/manifest.json'), true);
+    return (string) file_get_contents(COMET_TEST_ROOT . '/tests/fixtures/fonts/files/' . $manifest['families'][0]['faces'][0]['hash'] . '.woff2');
 }
 
 function comet_font_provider(array &$calls, bool &$fail, bool $variable = true, string $version = '1.2.3'): Fontsource
@@ -66,15 +66,38 @@ function comet_install_job(FontInstaller $installer, array $job): array
     return $job;
 }
 
-test('bundled fonts are complete, licensed, content addressed and local', function (): void {
-    $fonts = FontRegistry::active();
-    assert_same(12, count($fonts->families()));
-    foreach ($fonts->families() as $font) {
-        assert_true($font['available']);
-        if ($font['provider_id'] !== 'roboto-slab') {
-            assert_true(in_array('italic', array_column($font['faces'], 'style'), true), $font['name'] . ' must include its italic files.');
+function comet_install_fixture_fonts(FontRegistry $fonts): void
+{
+    $root = COMET_TEST_ROOT . '/tests/fixtures/fonts';
+    $manifest = json_decode((string) file_get_contents($root . '/manifest.json'), true);
+    foreach ($manifest['families'] as $font) {
+        foreach ($font['faces'] as $face) {
+            $bytes = (string) file_get_contents($root . '/files/' . $face['hash'] . '.woff2');
+            FontFiles::write($fonts->directory() . '/files/' . $face['hash'] . '.woff2', $bytes);
+            FontFiles::json($fonts->directory() . '/files/' . $face['hash'] . '.json', ['hash' => $face['hash']]);
         }
-        assert_file_exists_at(COMET_APP . '/Site/assets/fonts/licenses/' . $font['provider_id'] . '.txt');
+        $fonts->save($font);
+    }
+}
+
+test('empty workspaces have only system font stacks and no shipped website fonts', function (): void {
+    $fonts = FontRegistry::active();
+    assert_same([], $fonts->families());
+    assert_same(Theme::FONT_STACKS, $fonts->stacks());
+    assert_false(is_dir(COMET_APP . '/Site/assets/fonts'));
+    assert_false(str_contains($fonts->css(), '@font-face'));
+    assert_false(is_dir($fonts->directory()));
+    assert_same('system', Theme::normalize([])['fonts']['body']);
+});
+
+test('installed fonts are licensed, content addressed, local and removable when unused', function (): void {
+    $fonts = FontRegistry::active();
+    comet_install_fixture_fonts($fonts);
+    assert_same(3, count($fonts->families()));
+    foreach ($fonts->families() as $font) {
+        assert_same('fontsource', $font['source']);
+        assert_true($font['available']);
+        assert_true($font['license'] !== '');
         foreach ($font['faces'] as $face) {
             $path = $fonts->asset($face['hash']);
             assert_true($path !== null);
@@ -89,7 +112,8 @@ test('bundled fonts are complete, licensed, content addressed and local', functi
     assert_true(str_contains($css, '/cms/_site/default/fonts/'));
     assert_false(str_contains($css, 'fonts.googleapis.com'));
     assert_false(str_contains($css, 'cdn.jsdelivr.net'));
-    assert_same('system', Theme::normalize([])['fonts']['body']);
+    $fonts->delete('fontsource-inter');
+    assert_false(isset($fonts->families()['fontsource-inter']));
 });
 
 test('font choices retain missing registry IDs safely across themes and layouts', function (): void {
@@ -272,7 +296,7 @@ PHP;
     assert_same(403, comet_admin_request('font-reader', $seed, 'GET', '/admin/api/site/fonts', $controller . '->index();')[0]);
     [$status, $response] = comet_admin_request('admin', '', 'GET', '/admin/api/site/fonts', $controller . '->index();');
     assert_same(200, $status);
-    assert_same(12, count($response['data']['font_families']));
+    assert_same([], $response['data']['font_families']);
     assert_same(419, comet_admin_request('admin', '$_SERVER["HTTP_X_CSRF_TOKEN"] = "invalid";', 'POST', '/admin/api/site/fonts/install', $controller . '->install();', ['id' => 'example'])[0]);
 });
 
@@ -310,7 +334,8 @@ test('abandoned font jobs and previews expire outside the backed-up theme direct
 
 test('registered element fonts render in reusable components and unsaved previews', function (): void {
     $site = comet_site_test_setup();
-    $heading = LayoutSchema::node('heading', ['text' => 'ÄÖÜ and Greek ΑΒΓ'], ['font_family' => 'fontsource-merriweather']);
+    comet_install_fixture_fonts(FontRegistry::active());
+    $heading = LayoutSchema::node('heading', ['text' => 'ÄÖÜ and Greek ΑΒΓ'], ['font_family' => 'fontsource-lato']);
     $column = LayoutSchema::node('column', [], [], [$heading]);
     $component = $site->createComponent('Font sample', [$column]);
     $nodes = [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('component', ['component' => $component['id'], 'root' => 'column'])])])];
@@ -318,13 +343,13 @@ test('registered element fonts render in reusable components and unsaved preview
     $site->saveTheme(['fonts' => ['body' => 'fontsource-inter', 'heading' => 'fontsource-lora']]);
     $live = comet_site_test_get('/about');
     assert_same(200, $live['status']);
-    assert_true(str_contains($live['body'], 'c-ff-fontsource-merriweather'));
+    assert_true(str_contains($live['body'], 'c-ff-fontsource-lato'));
     $context = comet_site_test_context($site);
     $context->preview = true;
-    $context->override('theme', Theme::normalize(['fonts' => ['body' => 'fontsource-roboto']]));
+    $context->override('theme', Theme::normalize(['fonts' => ['body' => 'fontsource-lato']]));
     $preview = (new \CometCMS\Site\SiteService($context))->respond('/about', []);
-    assert_true(str_contains($preview['body'], '--font-body:"comet-fontsource-roboto"'));
-    assert_true(str_contains($preview['body'], 'c-ff-fontsource-merriweather'));
+    assert_true(str_contains($preview['body'], '--font-body:"comet-fontsource-lato"'));
+    assert_true(str_contains($preview['body'], 'c-ff-fontsource-lato'));
     assert_false(str_contains($preview['body'], 'fonts.googleapis.com'));
 });
 

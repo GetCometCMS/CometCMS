@@ -28,12 +28,7 @@ final class FontRegistry
     /** Includes unavailable families so revisions never silently lose a selection. */
     public function families(): array
     {
-        $manifest = json_decode((string) file_get_contents(__DIR__ . '/assets/fonts/manifest.json'), true);
         $families = [];
-        foreach ($manifest['families'] ?? [] as $family) {
-            $family['source'] = 'bundled';
-            $families[$family['id']] = $family;
-        }
         foreach (glob($this->directory() . '/*.json') ?: [] as $path) {
             $family = json_decode((string) file_get_contents($path), true);
             if (!is_array($family) || !self::validId($family['id'] ?? null) || isset($families[$family['id']])
@@ -54,15 +49,15 @@ final class FontRegistry
             $family['faces'] = $faces;
             $family['category'] = in_array($family['category'] ?? '', ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy'], true) ? $family['category'] : 'sans-serif';
             $family['name'] = (string) ($family['name'] ?? $id);
-            $family['available'] = $faces !== [] && count(array_filter($faces, fn(array $face): bool => is_file($this->facePath($family, $face['hash'])))) === count($faces);
+            $family['available'] = $faces !== [] && count(array_filter($faces, fn(array $face): bool => is_file($this->facePath($face['hash'])))) === count($faces);
         }
         unset($family);
         return $families;
     }
 
-    private function facePath(array $family, string $hash): string
+    private function facePath(string $hash): string
     {
-        return ($family['source'] === 'bundled' ? __DIR__ . '/assets/fonts' : $this->directory()) . '/files/' . $hash . '.woff2';
+        return $this->directory() . '/files/' . $hash . '.woff2';
     }
 
     public function asset(string $hash): ?string
@@ -77,7 +72,7 @@ final class FontRegistry
         }
         foreach ($this->families() as $family) {
             foreach ($family['faces'] as $face) {
-                if ($face['hash'] === $hash && is_file($path = $this->facePath($family, $hash))) {
+                if ($face['hash'] === $hash && is_file($path = $this->facePath($hash))) {
                     return $path;
                 }
             }
@@ -104,7 +99,7 @@ final class FontRegistry
         $css = '';
         foreach ($this->families() as $id => $family) {
             foreach ($family['faces'] as $face) {
-                if (!is_file($this->facePath($family, $face['hash']))) {
+                if (!is_file($this->facePath($face['hash']))) {
                     continue;
                 }
                 $url = rtrim($basePath, '/') . '/_site/' . rawurlencode($this->workspace->slug()) . '/fonts/' . $face['hash'] . '.woff2';
@@ -127,7 +122,7 @@ final class FontRegistry
         $families = array_values($this->families());
         foreach ($families as &$family) {
             unset($family['license']);
-            $family['usages'] = $family['source'] === 'bundled' ? [] : $this->usages($family['id']);
+            $family['usages'] = $this->usages($family['id']);
         }
         return ['fonts' => array_keys($this->stacks()), 'font_stacks' => $this->stacks(), 'font_families' => $families, 'font_css' => $this->css($basePath), 'font_version' => $this->fingerprint()];
     }
@@ -195,7 +190,7 @@ final class FontRegistry
     {
         $this->locked(function () use ($id): void {
             $family = $this->families()[$id] ?? null;
-            if ($family === null || $family['source'] === 'bundled') {
+            if ($family === null) {
                 throw new \InvalidArgumentException('This font cannot be removed.');
             }
             if ($this->usages($id) !== []) {

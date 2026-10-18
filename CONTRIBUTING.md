@@ -24,11 +24,13 @@ make build
 
 This assembles a deployment-ready `dist/` folder containing the PHP CMS, compiled admin UI in `dist/admin/`, config, rewrite files, and clean storage placeholders. Upload the contents of `dist/` to your server; production does not need Node.
 
-## Bundled fonts
+## Website fonts
 
-The twelve bundled website families, WOFF2 files and licences are committed under `cms/app/Site/assets/fonts/`. Production builds copy them without contacting a font provider. Run `npm run fonts:vendor` to reproduce the files from the exact package versions in `scripts/font-versions.json`. Deliberately refresh those pins with `php scripts/vendor-fonts.php --resolve`, then review the resulting manifest, files and licences.
+Website font files are not shipped in the CMS. The admin's website starter downloads Inter and Lora through the normal catalogue installer and stores them inside the new workspace as removable installed fonts. Empty workspaces use system fonts only. A download failure leaves the website working with system fonts; users can install families later in Manage fonts.
 
 After a production build, `node tests/browser/typography.mjs` checks the font manager, uploads, live previews and a real catalogue installation using PHP and Chrome. It uses an isolated temporary installation. Add `--offline` to skip online catalogue access. The browser test needs Node 22+ and Chrome/Chromium (`CHROME_BIN` may override the executable).
+
+The small font fixtures and their licences under `tests/fixtures/fonts/` are used only by tests and are excluded from production builds. They cover variable weights and static italics without requiring a network connection.
 
 ## Testing
 

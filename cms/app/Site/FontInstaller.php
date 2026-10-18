@@ -58,7 +58,7 @@ final class FontInstaller
     {
         $this->cleanup();
         $existing = $this->fonts->families()['fontsource-' . $id] ?? null;
-        if ($existing !== null && (!$update || $existing['source'] === 'bundled')) {
+        if ($existing !== null && !$update) {
             throw new \InvalidArgumentException('This font is already installed.');
         }
         $family = $this->provider->prepare($id, $subsets);

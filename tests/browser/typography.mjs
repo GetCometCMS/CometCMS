@@ -1,7 +1,7 @@
 // Run after npm run build: node tests/browser/typography.mjs
 // Uses only Node, PHP and Chrome. All changes live in a temporary installation.
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +52,17 @@ async function click(text, selector = 'button') {
 async function field(selector, value) {
   await evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) throw new Error('Missing field'); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); })()`);
 }
+async function openFont(selector) {
+  await evaluate(`(() => { const trigger = document.querySelector(${JSON.stringify(selector)}); trigger.scrollIntoView({ block: 'center' }); trigger.click(); })()`);
+  await waitFor('!!document.querySelector(\'[role="listbox"] [role="option"]\')', 'font menu');
+}
+async function chooseFont(selector, value) {
+  await openFont(selector);
+  await field('input[role="combobox"][type="search"]', value);
+  await waitFor(`document.querySelectorAll('[role="listbox"] [role="option"]').length === 1 && document.querySelector('[role="option"]').dataset.value === ${JSON.stringify(value)}`, 'font search');
+  await evaluate(`document.querySelector('input[role="combobox"][type="search"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+}
+
 try {
   const activePort = join(profile, 'DevToolsActivePort');
   for (let count = 0; count < 100 && !existsSync(activePort); count++) await delay(100);
@@ -72,31 +83,87 @@ try {
   await command('Page.enable');
   await command('Runtime.enable');
   await command('Network.enable');
-  await command('Network.setBlockedURLs', { urls: ['*fonts.googleapis.com*', '*fonts.gstatic.com*', '*fontsource.org*', '*cdn.jsdelivr.net*'] });
+  const blockedProviders = ['*fonts.googleapis.com*', '*fonts.gstatic.com*', '*fontsource.org*', '*cdn.jsdelivr.net*'];
+  await command('Network.setBlockedURLs', { urls: [...blockedProviders, ...(process.argv.includes('--offline') ? ['*/admin/api/site/fonts/install'] : [])] });
   await command('Page.navigate', { url: `${origin}/admin` });
-  await waitFor('!!document.querySelector(\'meta[name="csrf-token"]\')', 'admin shell');
-  await evaluate(`(async () => {
-    const response = await fetch('/admin/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'font-admin', password: 'font-test-password', workspace: 'Typography', workspace_slug: 'typography', starter_template: 'website' }) });
-    if (!response.ok) throw new Error(await response.text());
-    return true;
+  await waitFor('!!document.querySelector("#setup-workspace")', 'setup form');
+  await field('#setup-workspace', 'Typography');
+  await field('#setup-workspace-slug', 'typography');
+  await click('Continue');
+  await field('#setup-username', 'font-admin');
+  await field('#setup-password', 'font-test-password');
+  await click('Create admin account');
+  await waitFor('location.pathname.endsWith("/dashboard")', 'website starter and font downloads', 180000);
+  const starter = await evaluate(`(async () => {
+    const headers = { 'X-Comet-Workspace': 'typography' };
+    const response = await fetch('/admin/api/site', { headers });
+    const { data } = await response.json();
+    headers['Content-Type'] = 'application/json';
+    headers['X-CSRF-Token'] = response.headers.get('X-CSRF-Token') || document.querySelector('meta[name="csrf-token"]').content;
+    const result = { fonts: data.theme.fonts, families: data.font_families.map(({ id, source, available }) => ({ id, source, available })) };
+    data.theme.fonts = { body: 'system', heading: 'system' };
+    const saved = await fetch('/admin/api/site/theme', { method: 'PUT', headers, body: JSON.stringify(data.theme) });
+    if (!saved.ok) throw new Error(await saved.text());
+    return result;
   })()`);
+  if (process.argv.includes('--offline')) {
+    assert(starter.families.length === 0 && starter.fonts.body === 'system', 'Blocked demo downloads still finish setup using system fonts');
+  } else {
+    assert(starter.families.length === 2 && starter.families.every((font) => font.source === 'fontsource' && font.available), 'Website starter downloads two ordinary installed fonts');
+    assert(starter.fonts.body === 'fontsource-inter' && starter.fonts.heading === 'fontsource-lora', 'Website starter applies the downloaded fonts');
+  }
+  await command('Network.setBlockedURLs', { urls: blockedProviders });
+  assert(!existsSync(join(install, 'app/Site/assets/fonts')), 'Distribution contains no website font library');
+  const fontFixtureRoot = join(root, 'tests/fixtures/fonts');
+  const fontFixtures = JSON.parse(readFileSync(join(fontFixtureRoot, 'manifest.json'), 'utf8'));
+  const registry = join(install, 'storage/workspaces/typography/site/theme/fonts');
+  mkdirSync(join(registry, 'files'), { recursive: true });
+  for (const font of fontFixtures.families) {
+    for (const face of font.faces) {
+      cpSync(join(fontFixtureRoot, 'files', `${face.hash}.woff2`), join(registry, 'files', `${face.hash}.woff2`));
+      writeFileSync(join(registry, 'files', `${face.hash}.json`), JSON.stringify({ hash: face.hash }));
+    }
+    writeFileSync(join(registry, `${font.id}.json`), JSON.stringify(font));
+  }
   await command('Page.navigate', { url: `${origin}/admin/page-builder/builder/region/header?settings=design` });
   await waitFor('!!document.querySelector("#design-font-body")', 'design panel');
-  assert(await evaluate('document.querySelectorAll("#design-font-body optgroup").length') === 2, 'System and bundled groups are visible');
+  await evaluate('document.querySelector(\'[role="dialog"][aria-labelledby^="builder-guide-"] button[aria-label="Collapse panel"]\')?.click()');
+  await waitFor('!document.querySelector(\'[role="dialog"][aria-labelledby^="builder-guide-"]\')', 'builder guide dismissed');
+  assert(await evaluate('!document.querySelector("#design-font-body span").style.fontFamily'), 'Collapsed typography controls defer font previews');
   await click('Typography');
+  await evaluate('document.querySelector("#design-font-body").scrollIntoView({ block: "center" })');
   const beforeChoices = requests.filter((url) => url.includes('/_site/') && url.endsWith('.woff2')).length;
   assert(beforeChoices === 0, 'Opening the editor does not download the whole font library');
-  await field('#design-font-body', 'fontsource-inter');
-  await field('#design-font-heading', 'fontsource-lora');
-  await waitFor('document.fonts.check(\'16px "comet-fontsource-inter"\', "Äöß")', 'local Inter specimen');
+  await openFont('#design-font-body');
+  assert(await evaluate('document.querySelectorAll(\'[role="listbox"] [role="group"][aria-label]\').length') === 2, 'System and installed groups are visible');
+  assert(await evaluate('!document.querySelector(\'[role="option"][data-value="fontsource-inter"] span\').style.fontFamily'), 'Offscreen menu fonts remain unloaded');
+  await evaluate('document.querySelector(\'[role="option"][data-value="fontsource-inter"]\').scrollIntoView({ block: "center" })');
+  await waitFor('document.querySelector(\'[role="option"][data-value="fontsource-inter"] span\').style.fontFamily.includes("comet-fontsource-inter") && document.fonts.check(\'16px "comet-fontsource-inter"\', "Inter")', 'Inter menu preview before selection');
+  await evaluate('document.fonts.ready');
+  const beforeReopening = await evaluate('performance.getEntriesByType(\'resource\').filter((entry) => entry.name.includes(\'/_site/\') && entry.name.endsWith(\'.woff2\')).length');
+  await evaluate('document.querySelector(\'[role="option"][data-value="fontsource-inter"]\').click()');
+  await openFont('#design-font-body');
+  await evaluate('document.fonts.ready');
+  assert(await evaluate('performance.getEntriesByType(\'resource\').filter((entry) => entry.name.includes(\'/_site/\') && entry.name.endsWith(\'.woff2\')).length') === beforeReopening, 'Reopening the menu reuses loaded faces');
+  await evaluate('document.querySelector(\'[role="option"][data-value="fontsource-inter"]\').click()');
+  await chooseFont('#design-font-heading', 'fontsource-lora');
+  assert(await evaluate('document.activeElement.id') === 'design-font-heading', 'Keyboard selection restores focus to the field');
+  await openFont('#design-font-heading');
+  await field('input[role="combobox"][type="search"]', 'fontsource-l');
+  await waitFor('document.querySelectorAll(\'[role="option"]\').length === 2', 'filtered font results');
+  await evaluate('document.querySelector(\'input[role="combobox"][type="search"]\').dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))');
+  assert(await evaluate('document.querySelector("#design-font-heading").textContent.trim()') === 'Lora', 'Escape keeps the selected font');
+  await waitFor('getComputedStyle(document.querySelector("#design-font-body span")).fontFamily.includes("comet-fontsource-inter")', 'font preview inside selector');
+  await waitFor('document.fonts.check(\'16px "comet-fontsource-inter"\', "Inter")', 'local Inter selector preview');
+  assert(await evaluate('!document.querySelector("#design-font-body").parentElement.querySelector("p")'), 'Font selector has no sample subtext');
   await waitFor('[...document.querySelectorAll("iframe")].some((frame) => frame.contentDocument?.head.textContent.includes("comet-fontsource-lora"))', 'draft font preview');
   await click('Manage fonts');
   await waitFor('!!document.querySelector(\'[role="dialog"][aria-labelledby^="font-manager-"]\')', 'font manager');
   await click('Upload', '[role="tab"]');
   await field('[role="dialog"][aria-labelledby^="font-manager-"] form input[maxlength="160"]', 'Browser Brand');
-  const manifest = JSON.parse(readFileSync(join(root, 'cms/app/Site/assets/fonts/manifest.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(join(root, 'tests/fixtures/fonts/manifest.json'), 'utf8'));
   const latinFace = manifest.families[0].faces.find((face) => face.subset === 'latin' && face.style === 'normal');
-  const bytes = readFileSync(join(root, 'cms/app/Site/assets/fonts/files', `${latinFace.hash}.woff2`)).toString('base64');
+  const bytes = readFileSync(join(root, 'tests/fixtures/fonts/files', `${latinFace.hash}.woff2`)).toString('base64');
   await evaluate(`(() => {
     const input = document.querySelector('[role="dialog"][aria-labelledby^="font-manager-"] input[type="file"]');
     const file = new File([Uint8Array.from(atob(${JSON.stringify(bytes)}), (c) => c.charCodeAt(0))], 'brand.woff2', { type: 'font/woff2' });
@@ -106,10 +173,11 @@ try {
   await click('Upload', '[role="dialog"][aria-labelledby^="font-manager-"] button[type="submit"]');
   await waitFor('document.querySelector(\'[role="dialog"][aria-labelledby^="font-manager-"]\').innerText.includes("Browser Brand") && document.querySelector(\'[role="dialog"][aria-labelledby^="font-manager-"]\').innerText.includes("The font library has been updated.")', 'custom upload');
   await evaluate('document.querySelector(\'[role="dialog"][aria-labelledby^="font-manager-"] button[aria-label="Close"]\').click()');
-  assert(await evaluate('document.querySelector("#design-font-body").value') === 'fontsource-inter', 'Upload preserves unsaved body choice');
-  assert(await evaluate('!!document.querySelector("#design-font-body optgroup[label=Installed]")'), 'Upload adds Installed group');
-  const customId = await evaluate('[...document.querySelectorAll("#design-font-body option")].find((option) => option.textContent === "Browser Brand").value');
-  await field('#design-font-body', customId);
+  assert(await evaluate('document.querySelector("#design-font-body").textContent.trim()') === 'Inter', 'Upload preserves unsaved body choice');
+  await openFont('#design-font-body');
+  assert(await evaluate('!!document.querySelector(\'[role=group][aria-label=Installed]\')'), 'Upload adds Installed group');
+  const customId = await evaluate('[...document.querySelectorAll(\'[role="option"]\')].find((option) => option.textContent.trim() === "Browser Brand").dataset.value');
+  await evaluate(`document.querySelector('[role="option"][data-value="${customId}"]').click()`);
   await waitFor(`document.fonts.check('400 16px "comet-${customId}"')`, 'uploaded font loads');
   await click('Manage fonts');
   await waitFor('!!document.querySelector(\'[role="dialog"][aria-labelledby^="font-manager-"]\')', 'reopen library');
@@ -142,9 +210,10 @@ try {
     const url = '/_site/typography/fonts/' + asset + '.woff2';
     const head = await fetch(url, { method: 'HEAD' });
     const cached = await fetch(url, { headers: { 'If-None-Match': head.headers.get('ETag') }, cache: 'no-store' });
-    return { head: head.status, type: head.headers.get('Content-Type'), cached: cached.status };
+    return { head: head.status, type: head.headers.get('Content-Type'), cached: cached.status, cache: head.headers.get('Cache-Control') };
   })()`);
   assert(result.head === 200 && result.type === 'font/woff2' && result.cached === 304, 'Font assets support HEAD, content type and ETag revalidation');
+  assert(result.cache === 'public, max-age=31536000, immutable', 'Installed font files have an immutable one-year browser cache');
   await command('Page.navigate', { url: origin + '/' });
   await waitFor('document.readyState === "complete" && document.body.classList.contains("c-site")', 'public website');
   await waitFor(`document.fonts.check('400 16px "comet-${customId}"')`, 'public self-hosted font');

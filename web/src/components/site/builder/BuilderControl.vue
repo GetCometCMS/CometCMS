@@ -12,7 +12,7 @@
       </template>
     </SmartValueEditor>
 
-    <FontPicker v-else-if="def.type === 'font'" :id="inputId" :model-value="value || ''" allow-empty roles sample @update:model-value="emitValue" />
+    <FontPicker v-else-if="def.type === 'font'" :id="inputId" :model-value="value || ''" allow-empty roles @update:model-value="emitValue" />
 
     <IconPickerGrid
       v-else-if="def.type === 'icon'"
