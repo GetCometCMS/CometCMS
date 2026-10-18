@@ -1,12 +1,12 @@
 <template>
-  <div class="flex h-full flex-col">
-    <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+  <div :class="layout === 'page' ? 'card' : 'flex h-full flex-col'">
+    <div class="flex items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
       <Icon icon="mdi:palette-outline" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-semibold text-slate-900">{{ t("site.builder.designSettings") }}</h2>
-        <p class="text-xs text-slate-500">{{ t("site.builder.designSettingsHint") }}</p>
+        <h2 :class="layout === 'page' ? 'card-title' : 'text-sm font-semibold text-slate-900'">{{ t("site.builder.designSettings") }}</h2>
+        <p :class="layout === 'page' ? 'card-description' : 'text-xs text-slate-500'">{{ t("site.builder.designSettingsHint") }}</p>
       </div>
-      <button type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
+      <button v-if="layout === 'sidebar'" type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
         <span class="sr-only">{{ t("site.builder.closeSettings") }}</span>
       </button>
@@ -15,7 +15,7 @@
     <p v-if="!theme && site.error" role="alert" class="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ site.error }}</p>
     <div v-else-if="!theme" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
-    <div v-else class="flex-1 space-y-5 overflow-y-auto p-3">
+    <div v-else class="space-y-5" :class="layout === 'page' ? 'p-6' : 'flex-1 overflow-y-auto p-3'">
       <BuilderGroup v-model:open="expanded.presets" :title="t('site.theme.presets')" content-class="mt-2 grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
         <button
           v-for="preset in PRESETS"
@@ -94,7 +94,7 @@
 
       <BuilderGroup v-model:open="expanded.typography" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
         <button type="button" class="btn-secondary btn-sm w-full" @click="fontManagerOpen = true"><Icon icon="mdi:format-font" class="h-4 w-4" />{{ t('site.fonts.manage') }}</button>
-        <FontManager v-model="fontManagerOpen" :draft-nodes="builder?.nodes.value ?? []" />
+        <FontManager v-model="fontManagerOpen" :draft-nodes="draftNodes" />
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label" for="design-font-heading">{{ t("site.theme.headingFont") }}</label>
@@ -231,15 +231,17 @@ import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
 import FontPicker from "../FontPicker.vue";
 import FontManager from "../FontManager.vue";
-import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
 import { newId } from "../../../composables/layoutTree.js";
 
-/** Global design of the website, edited on the site draft; the builder canvas is its preview. */
+/** Global design of the website, shared by the backend settings and builder sidebar. */
+defineProps({
+  layout: { type: String, default: "sidebar", validator: (value) => ["sidebar", "page"].includes(value) },
+  draftNodes: { type: Array, default: () => [] },
+});
 const emit = defineEmits(["close"]);
-const builder = useSiteBuilder();
 const fontManagerOpen = ref(false);
 
 const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];

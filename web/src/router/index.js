@@ -103,7 +103,7 @@ const routes = [
     redirect: '/content-types',
   },
   {
-    path: '/page-builder/:tab(overview|seo|menus|fonts)?',
+    path: '/page-builder/:tab(overview|design|seo|menus|fonts)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },

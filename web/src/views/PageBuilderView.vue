@@ -85,6 +85,7 @@
       />
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
+      <SiteDesignPanel v-else-if="activeTab === 'design'" layout="page" />
       <SiteSeoPanel v-else-if="activeTab === 'seo'" />
       <section v-else-if="activeTab === 'fonts'" class="card p-6">
         <div class="mb-4">
@@ -116,6 +117,7 @@ import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
+import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import FontLibrary from "../components/site/FontLibrary.vue";
@@ -128,16 +130,17 @@ const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-/** The design is edited and saved in the builder; this screen owns settings and menus. */
-const PARTS = ["settings", "menus"];
+/** Settings, global design and menus share a draft across these tabs. */
+const PARTS = ["settings", "theme", "menus"];
 const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "seo", "menus", "fonts"]);
+const validTabs = new Set(["overview", "design", "seo", "menus", "fonts"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
   { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
   { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },

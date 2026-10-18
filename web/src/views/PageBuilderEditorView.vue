@@ -167,7 +167,7 @@
         :max="leftMaxWidth"
         class="border-r border-slate-200"
       >
-        <SiteDesignPanel v-if="leftPanel === 'design'" @close="leftPanel = null" />
+        <SiteDesignPanel v-if="leftPanel === 'design'" :draft-nodes="builder.nodes.value" @close="leftPanel = null" />
         <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
         <template v-else>
           <div class="flex items-start gap-2 border-b border-slate-200 px-4 py-3">
