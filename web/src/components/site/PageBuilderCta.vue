@@ -1,28 +1,19 @@
 <template>
-  <router-link
-    :to="to"
-    class="card group flex flex-col gap-4 p-6 transition-colors hover:border-slate-300 sm:flex-row sm:items-center sm:gap-6"
-    :aria-labelledby="`${headingId} ${actionId}`"
-    :aria-describedby="description ? hintId : undefined"
-  >
-    <div class="flex min-w-0 flex-1 items-start gap-3">
-      <span
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:text-theme-600 group-focus-visible:text-theme-600"
-        aria-hidden="true"
-      >
-        <Icon :icon="icon" class="h-5 w-5" />
-      </span>
-      <div class="min-w-0">
-        <h2 :id="headingId" class="text-sm font-semibold text-slate-700">{{ title }}</h2>
-        <p v-if="description" :id="hintId" class="mt-1 text-sm text-slate-500">{{ description }}</p>
-      </div>
-    </div>
+  <section class="card p-6 space-y-4" :aria-labelledby="headingId">
+    <h2 :id="headingId" class="text-sm font-semibold text-slate-700">{{ title }}</h2>
 
-    <span class="btn-primary shrink-0 justify-center ">
-      <span :id="actionId">{{ actionLabel }}</span>
-      <Icon icon="mdi:arrow-right" class="h-4 w-4" aria-hidden="true" />
-    </span>
-  </router-link>
+    <div class="flex flex-col items-center gap-4 py-2 text-center">
+      <p v-if="description" :id="hintId" class="max-w-2xl text-sm text-slate-500">{{ description }}</p>
+      <router-link
+        :to="to"
+        class="btn-primary justify-center"
+        :aria-describedby="description ? hintId : undefined"
+      >
+        {{ actionLabel }}
+        <Icon icon="mdi:arrow-right" class="h-4 w-4 shrink-0" aria-hidden="true" />
+      </router-link>
+    </div>
+  </section>
 </template>
 
 <script setup>
@@ -34,10 +25,8 @@ defineProps({
   description: { type: String, default: "" },
   to: { type: [String, Object], required: true },
   actionLabel: { type: String, required: true },
-  icon: { type: String, default: "mdi:file-document-edit-outline" },
 });
 
 const headingId = `builder-cta-${useId()}`;
 const hintId = `${headingId}-hint`;
-const actionId = `${headingId}-action`;
 </script>

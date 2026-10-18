@@ -1758,7 +1758,7 @@ const messages = {
     'site.entry.editDesign': 'Open Page Builder',
     'site.entry.editDesignHint': 'Design the layout shared by all entries of this content type, using this entry as the preview.',
     'site.entry.editSingletonDesignHint': 'Edit this page’s content and layout in the Page Builder.',
-    'site.builderCta.title': 'Page content',
+    'site.builderCta.title': 'Page Builder',
     'site.builder.entryFields': 'Entry fields',
     'site.builder.entryFieldsHint': 'Edit this entry’s content. Save to apply your changes and update the preview.',
     'site.builder.entryFieldsRetry': 'Try again',

@@ -1763,7 +1763,7 @@ const messages = {
   'site.entry.editDesign': 'Page Builder öffnen',
   'site.entry.editDesignHint': 'Gestalte das gemeinsame Layout aller Einträge dieses Inhaltstyps, mit diesem Eintrag als Vorschau.',
   'site.entry.editSingletonDesignHint': 'Bearbeite die Inhalte und das Layout dieser Seite im Page Builder.',
-  'site.builderCta.title': 'Seiteninhalt',
+  'site.builderCta.title': 'Page Builder',
   'site.builder.entryFields': 'Eintragsfelder',
   'site.builder.entryFieldsHint': 'Bearbeite die Inhalte dieses Eintrags. Speichere, um deine Änderungen zu übernehmen und die Vorschau zu aktualisieren.',
   'site.builder.entryFieldsRetry': 'Erneut versuchen',
