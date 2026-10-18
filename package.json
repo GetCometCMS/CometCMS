@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs full",
+    "fonts:vendor": "php scripts/vendor-fonts.php",
     "test": "npm run lint:php && npm run lint:frontend && npm run test:backend && npm run test:frontend",
     "ci": "npm run test && npm run build",
     "clean": "node scripts/build.mjs clean",

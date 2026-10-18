@@ -93,18 +93,16 @@
       </BuilderGroup>
 
       <BuilderGroup v-model:open="expanded.typography" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
+        <button type="button" class="btn-secondary btn-sm w-full" @click="fontManagerOpen = true"><Icon icon="mdi:format-font" class="h-4 w-4" />{{ t('site.fonts.manage') }}</button>
+        <FontManager v-model="fontManagerOpen" :draft-nodes="builder?.nodes.value ?? []" />
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label" for="design-font-heading">{{ t("site.theme.headingFont") }}</label>
-            <select id="design-font-heading" v-model="theme.fonts.heading" class="form-select w-full rounded-lg border-slate-300 text-sm">
-              <option v-for="font in site.data.fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
-            </select>
+            <FontPicker id="design-font-heading" v-model="theme.fonts.heading" sample />
           </div>
           <div>
             <label class="form-label" for="design-font-body">{{ t("site.theme.bodyFont") }}</label>
-            <select id="design-font-body" v-model="theme.fonts.body" class="form-select w-full rounded-lg border-slate-300 text-sm">
-              <option v-for="font in site.data.fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
-            </select>
+            <FontPicker id="design-font-body" v-model="theme.fonts.body" sample />
           </div>
           <div>
             <label class="form-label" for="design-scale">{{ t("site.theme.typeScale") }}</label>
@@ -231,6 +229,9 @@ import RangeRow from "../RangeRow.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
+import FontPicker from "../FontPicker.vue";
+import FontManager from "../FontManager.vue";
+import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
@@ -238,6 +239,8 @@ import { newId } from "../../../composables/layoutTree.js";
 
 /** Global design of the website, edited on the site draft; the builder canvas is its preview. */
 const emit = defineEmits(["close"]);
+const builder = useSiteBuilder();
+const fontManagerOpen = ref(false);
 
 const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
 const RADIUS_TOKENS = ["sm", "md", "lg"];

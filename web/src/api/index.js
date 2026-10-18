@@ -90,9 +90,9 @@ function isRetryableNetworkError(err) {
   return err?.name === 'AbortError' || err instanceof TypeError
 }
 
-async function fetchWithTimeout(url, options) {
+async function fetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController()
-  const timer = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     return await fetch(url, { ...options, signal: controller.signal })
@@ -154,7 +154,7 @@ async function requestOnce(method, path, body = null) {
         headers,
         body: finalBody,
         credentials: 'same-origin',
-      })
+      }, path.startsWith('/site/fonts') ? 60000 : REQUEST_TIMEOUT_MS)
 
       if (attempt < maxAttempts && RETRYABLE_STATUSES.has(res.status)) {
         await sleep(retryDelay(attempt, res))
@@ -455,6 +455,19 @@ export const api = {
       if (locale) params.set('locale', locale)
       return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
     },
+  },
+
+  fonts: {
+    list: () => request('GET', '/site/fonts'),
+    catalogue: (query = {}) => request('GET', withQuery('/site/fonts/catalogue', query)),
+    details: (id) => request('GET', `/site/fonts/catalogue/${encodeURIComponent(id)}`),
+    preview: (id) => request('POST', `/site/fonts/catalogue/${encodeURIComponent(id)}/preview`),
+    jobs: () => request('GET', '/site/fonts/jobs'),
+    install: (body) => request('POST', '/site/fonts/install', body),
+    step: (id, cursor) => request('POST', `/site/fonts/jobs/${encodeURIComponent(id)}/step`, { cursor }),
+    cancel: (id) => request('DELETE', `/site/fonts/jobs/${encodeURIComponent(id)}`),
+    upload: (body) => request('POST', '/site/fonts/upload', body),
+    remove: (id) => request('DELETE', `/site/fonts/${encodeURIComponent(id)}`),
   },
 
   // Profile (current user)

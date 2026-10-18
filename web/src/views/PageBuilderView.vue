@@ -86,6 +86,13 @@
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
       <SiteSeoPanel v-else-if="activeTab === 'seo'" />
+      <section v-else-if="activeTab === 'fonts'" class="card p-6">
+        <div class="mb-4">
+          <h2 class="card-title">{{ t("site.fonts.libraryTitle") }}</h2>
+          <p class="card-description">{{ t("site.fonts.libraryHint") }}</p>
+        </div>
+        <FontLibrary layout="page" />
+      </section>
       <SiteMenusPanel v-else />
     </template>
 
@@ -111,6 +118,7 @@ import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
+import FontLibrary from "../components/site/FontLibrary.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
@@ -126,12 +134,13 @@ const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "seo", "menus"]);
+const validTabs = new Set(["overview", "seo", "menus", "fonts"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
   { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
+  { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },
 ]);
 
 async function save() {

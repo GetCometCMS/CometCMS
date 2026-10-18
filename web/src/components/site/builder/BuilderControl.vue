@@ -12,6 +12,8 @@
       </template>
     </SmartValueEditor>
 
+    <FontPicker v-else-if="def.type === 'font'" :id="inputId" :model-value="value || ''" allow-empty roles sample @update:model-value="emitValue" />
+
     <IconPickerGrid
       v-else-if="def.type === 'icon'"
       :id="inputId"
@@ -243,6 +245,7 @@ import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { localeFlagCountry } from "../../../composables/localeOptions.js";
+import FontPicker from "../FontPicker.vue";
 import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";

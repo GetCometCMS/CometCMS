@@ -636,7 +636,7 @@ const overview = computed(() => {
 const previewBody = computed(() => {
   if (loading.value) return null;
   // The canvas always shows the draft design: unsaved edits, and a restored version as soon as it arrives.
-  const theme = site.draft?.theme ? { theme: site.draft.theme } : {};
+  const theme = site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {};
   if (target === "component") {
     return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }

@@ -221,7 +221,7 @@ final class SiteRepository
         $theme = $this->theme();
         $base = __DIR__ . '/assets/site.css';
 
-        return substr(sha1(json_encode($theme) . '|' . (is_file($base) ? (string) filemtime($base) : '') . '|' . (function_exists('comet_version') ? comet_version() : '')), 0, 12);
+        return substr(sha1(json_encode($theme) . '|' . (new FontRegistry($this->workspace))->fingerprint() . '|' . (is_file($base) ? (string) filemtime($base) : '') . '|' . (function_exists('comet_version') ? comet_version() : '')), 0, 12);
     }
 
     public function customStylesheetVersion(): string

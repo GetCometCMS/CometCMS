@@ -162,7 +162,15 @@ For a section link, enter an anchor ID assigned in the page builder, such as `co
 
 ## Theme
 
-The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Fonts are local font stacks; nothing is loaded from third-party font services.
+The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Choose system font stacks or one of twelve bundled font families. **Manage fonts** opens the installed library, the online catalogue and custom uploads; the same library is also available as the **Fonts** tab on the Page Builder settings page. Every family is shown as a live specimen, and you can type your own preview text and change its size. Website and editor font files are always served from your CometCMS installation.
+
+The **Catalogue** lets website managers search and filter Fontsource families by category, see each family's preview as it scrolls into view, and install selected character sets. Latin and extended Latin are selected by default where available. Installations show progress and can be cancelled or resumed after an interruption. Catalogue access requires outbound HTTPS from the PHP host; installed fonts continue working offline. Updates happen only when you choose **Update font**.
+
+**Upload** accepts custom WOFF2 files, with a family name, fallback category, style and weight for each file. Drop files onto the upload area; style and weight are suggested from the file names and each file shows a local preview before upload. Enter identical start and end weights for a static face, or the supported range for a variable face. Upload italic files separately and confirm permission to use the fonts. You can add more files to an existing custom family. Files are limited to 10 MiB each and 100 MiB per family, subject to your host's upload limits.
+
+Installed fonts are available for body text, headings, H1–H6 overrides and individual builder elements. System stacks and the Body/Heading element options remain available. Only faces used by the page are downloaded by the browser. Missing files use fallback fonts and are marked in the editor.
+
+Site backups include installed fonts and their metadata. Fonts referenced by saved designs or the current draft cannot be removed; the library shows their usages. Bundled fonts remain available with every installation.
 
 **Heading levels** fine-tune H1 to H6 one by one: font, size, weight, line height, letter spacing and capitalization. Empty values follow the general typography settings, so a level only needs the values that should differ. Custom sizes from 32 px shrink by 20 % on phones. Font, size and weight chosen for a single element in the builder still take precedence.
 

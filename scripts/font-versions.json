@@ -1,0 +1,49 @@
+{
+    "inter": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "roboto": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "open-sans": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "lato": {
+        "latest": "5.3.0"
+    },
+    "montserrat": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "nunito-sans": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "source-sans-3": {
+        "latestVariable": "5.3.1",
+        "latest": "5.3.1"
+    },
+    "merriweather": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "lora": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "playfair-display": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "roboto-slab": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    },
+    "jetbrains-mono": {
+        "latestVariable": "5.3.0",
+        "latest": "5.3.0"
+    }
+}
