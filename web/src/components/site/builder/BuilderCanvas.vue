@@ -3,6 +3,7 @@
     ref="frameRef"
     :body="body"
     :device="device"
+    :head-css="BUILDER_CSS"
     :title="t('site.builder.canvas')"
     interactive
     @ready="attach"
@@ -193,9 +194,6 @@ const RESIZE_EDGE = 8;
 
 function attach(document) {
   doc = document;
-  const style = doc.createElement("style");
-  style.textContent = BUILDER_CSS;
-  doc.head.appendChild(style);
 
   indicator = doc.createElement("div");
   indicator.className = "cometcms-drop";
