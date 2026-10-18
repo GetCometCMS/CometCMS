@@ -112,7 +112,7 @@ describe('builder integration with smart values', () => {
     const original = builder.nodes.value[0].children[0].children[0].children[0]
     builder.select(original.id)
     builder.updateValue(original.id, 'props', 'html', { type: 'template', parts: ['Welcome ', reference('title', 'site')] })
-    expect(builder.nodeSummary(builder.selected.value)).toBe('Welcome [site → title]')
+    expect(builder.nodeSummary(builder.selected.value)).toBe('Welcome [site › title]')
     builder.undo()
     expect(builder.selected.value.props.html).toEqual(reference('intro'))
     builder.redo()

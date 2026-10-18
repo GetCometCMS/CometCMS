@@ -54,6 +54,6 @@ describe('binding compatibility, context and shortcuts', () => {
     expect(repeater.kind).toBe('field')
     expect(repeater.children[0]).toMatchObject({ kind: 'heading', props: { text: reference('title', 'item'), level: 'h4' } })
     expect(repeater.children[1]).toMatchObject({ kind: 'text', props: { html: reference('detail', 'item') } })
-    expect(smartSummary(repeater.children[0].props.text)).toBe('item → title')
+    expect(smartSummary(repeater.children[0].props.text)).toBe('item › title')
   })
 })

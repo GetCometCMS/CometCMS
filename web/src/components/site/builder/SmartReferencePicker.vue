@@ -25,7 +25,7 @@
       @select="chooseEntry" />
     <p v-if="missingUid" role="status" class="text-xs text-amber-700">{{ t('site.binding.missingUid') }}</p>
     <template v-if="source !== 'entry' || entry">
-      <button v-if="path.length" type="button" class="text-xs text-theme-700 hover:underline" @click="path = path.slice(0, -1)">← {{ path.join(' → ') }}</button>
+      <button v-if="path.length" type="button" class="inline-flex items-center gap-1 text-xs text-theme-700 hover:underline" @click="path = path.slice(0, -1)"><Icon icon="mdi:arrow-left" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{{ path.join(' › ') }}</button>
       <label class="sr-only" :for="searchId">{{ t('select.search') }}</label>
       <input :id="searchId" v-model="search" type="search" class="form-input w-full rounded-lg border-slate-300 text-xs" :placeholder="t('select.search')" />
       <div class="max-h-48 space-y-1 overflow-auto" role="group" :aria-label="t('site.binding.choose')">

@@ -129,7 +129,7 @@ export function compatibleField(config, target) {
 }
 
 export function smartSummary(value) {
-  if (isReference(value)) return [value.source, ...(['single', 'entry'].includes(value.source) ? [value.collection] : []), ...value.path].join(' → ')
+  if (isReference(value)) return [value.source, ...(['single', 'entry'].includes(value.source) ? [value.collection] : []), ...value.path].join(' › ')
   if (value?.type === 'template') return value.parts.map((part) => typeof part === 'string' ? part : `[${smartSummary(part)}]`).join('').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)
   return typeof value === 'string' ? value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) : ''
 }
