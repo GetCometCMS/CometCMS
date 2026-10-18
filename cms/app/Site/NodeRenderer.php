@@ -117,9 +117,16 @@ final class NodeRenderer
             'language_switcher' => $this->languageSwitcher($node, $state),
             default => '',
         };
-        return $warnings && $this->annotating()
-            ? '<div class="c-placeholder c-placeholder-warning" role="status">Unresolved content reference (using fallback if configured)</div>' . $html
-            : $html;
+        if ($warnings && $this->annotating()) {
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status">Unresolved content reference (using fallback if configured)</div>';
+            // Keep the warning inside the annotated root so hover, selection and
+            // the node badge use its full bounds even when the content is empty.
+            $html = $html === ''
+                ? $this->element($node, $warning)
+                : substr_replace($html, $warning, strpos($html, '>') + 1, 0);
+        }
+
+        return $html;
     }
 
     /**
