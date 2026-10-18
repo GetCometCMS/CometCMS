@@ -1545,7 +1545,6 @@ const messages = {
     'site.menu.addRow': 'Add row',
     'site.menu.addSection': 'Add section below',
     'site.builder.columnLayout': 'Columns',
-    'site.builder.columnLayoutTarget': 'of this section',
     'site.builder.sideBySide': 'Side by side',
     'site.builder.stacked': 'Stacked',
     'site.builder.columnLayoutHint': 'Columns always stack on phones. Content of removed columns moves into the last column.',

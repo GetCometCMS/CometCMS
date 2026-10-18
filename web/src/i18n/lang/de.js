@@ -1550,7 +1550,6 @@ const messages = {
   'site.menu.addRow': 'Zeile hinzufügen',
   'site.menu.addSection': 'Abschnitt darunter einfügen',
   'site.builder.columnLayout': 'Spalten',
-  'site.builder.columnLayoutTarget': 'dieses Abschnitts',
   'site.builder.sideBySide': 'Nebeneinander',
   'site.builder.stacked': 'Untereinander',
   'site.builder.columnLayoutHint': 'Auf Smartphones stehen Spalten immer untereinander. Inhalte entfernter Spalten wandern in die letzte Spalte.',

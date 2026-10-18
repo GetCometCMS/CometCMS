@@ -70,7 +70,7 @@
       </template>
 
       <template v-else-if="tab === 'content'">
-        <ColumnLayoutPicker v-if="isStructure(node.kind) && !builder.isCard(node)" :node="node" />
+        <ColumnLayoutPicker v-if="['row', 'column'].includes(node.kind) && !builder.isCard(node)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
         </div>
@@ -154,7 +154,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
-import { COMPONENT, ancestors, findNode, isStructure } from "../../../composables/layoutTree.js";
+import { COMPONENT, ancestors, findNode } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
