@@ -1391,7 +1391,6 @@ const messages = {
     'site.theme.customCssHint': 'Added after the theme. Every website class starts with "c-".',
     'site.theme.customCssAdminOnly': 'Only administrators can change custom CSS.',
     'site.builder.customCssPanelHint': 'Your own styles for the whole website',
-    'site.builder.customCssClasses': 'Classes offered in the inspector',
     'site.theme.reset': 'Reset theme',
     'site.font.system': 'System UI',
     'site.font.neo-grotesque': 'Neo-grotesque',

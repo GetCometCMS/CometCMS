@@ -1396,7 +1396,6 @@ const messages = {
   'site.theme.customCssHint': 'Wird nach dem Theme eingefügt. Alle Website-Klassen beginnen mit „c-“.',
   'site.theme.customCssAdminOnly': 'Nur Administratoren können eigenes CSS ändern.',
   'site.builder.customCssPanelHint': 'Eigene Styles für die gesamte Website',
-  'site.builder.customCssClasses': 'Im Inspektor angebotene Klassen',
   'site.theme.reset': 'Theme zurücksetzen',
   'site.font.system': 'System-Schrift',
   'site.font.neo-grotesque': 'Neo-Grotesk',
