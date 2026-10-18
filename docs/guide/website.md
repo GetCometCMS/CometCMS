@@ -42,6 +42,8 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 | Text         | Rich text.                                                                    |
 | Image        | An image from the media library or a bound media field.                        |
 | Button       | A link to this entry, another entry, a list page, the homepage or any URL.    |
+| Accordion    | An expandable title and rich text content, optionally open on load. Duplicate it for more items or use it in a repeater template. |
+| Icons        | A searchable selection of bundled Material Design icons, with size, color, an accessible label, and an optional link. Works without external icon requests. |
 | Entry list   | Entries of any public collection, filtered, sorted and optionally paged.     |
 | Menu         | One of the menus from the **Menus** tab.                                      |
 | Site title   | Logo, title and tagline from the website settings.                            |

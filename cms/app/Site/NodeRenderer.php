@@ -104,6 +104,8 @@ final class NodeRenderer
             'text' => $this->text($node, $state),
             'image' => $this->image($node, $state),
             'button' => $this->button($node, $state),
+            'accordion' => $this->accordion($node),
+            'icon' => $this->icon($node, $state),
             'spacer' => $this->element($node, '', ['c-spacer', 'c-spacer-' . $node['props']['size']]),
             'divider' => $this->element($node, '<hr class="c-divider' . (!empty($node['style']['text_color']) ? ' c-divider-colored' : '') . '">'),
             'collection' => $this->collection($node, $state),
@@ -352,6 +354,36 @@ final class NodeRenderer
         if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
         return $this->element($node, '<div class="c-prose">' . $html . '</div>');
+    }
+
+    private function accordion(array $node): string
+    {
+        $props = $node['props'];
+        $html = '<details class="c-accordion"' . ($props['open'] ? ' open' : '') . '>'
+            . '<summary class="c-accordion-title">' . Security::e($props['title']) . '</summary>'
+            . '<div class="c-accordion-content c-prose">' . HtmlSanitizer::sanitize($props['html']) . '</div></details>';
+
+        return $this->element($node, $html);
+    }
+
+    private function icon(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $icon = Icons::catalog()[$props['icon']] ?? null;
+        if ($icon === null) return '';
+
+        $link = $this->resolveLink($props['link'], $state);
+        // Linked icons need a name even when no custom label was entered.
+        $label = $props['label'];
+        if ($label === '' && $link !== null) {
+            $label = ucwords(str_replace('-', ' ', substr($props['icon'], 4)));
+        }
+        $accessibility = $label !== '' ? ' role="img" aria-label="' . Security::e($label) . '"' : ' aria-hidden="true"';
+        $html = '<svg class="c-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . (int) $props['size']
+            . '" height="' . (int) $props['size'] . '" fill="currentColor" focusable="false"' . $accessibility . '>' . $icon['body'] . '</svg>';
+        if ($link !== null) $html = $this->anchor($link, $html, 'c-icon-link');
+
+        return $this->element($node, $html);
     }
 
     private function image(array $node, array $state): string

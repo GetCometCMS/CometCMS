@@ -13,7 +13,7 @@ vi.mock('../ComponentNameModal.vue', () => ({ default: { render: () => null } })
 async function renderPanel(panel) {
   const app = createSSRApp({ setup() {
     const builder = createSiteBuilder({ t })
-    builder.spec.value = { elements: ['text', 'component'], kinds: {} }
+    builder.spec.value = { elements: ['text', 'accordion', 'icon', 'component'], kinds: {} }
     builder.components.value = [
       { id: 'shared', name: 'Shared promo', root: 'section', type: '' },
       { id: 'typed', name: 'Article teaser', root: 'row', type: 'posts' },
@@ -47,5 +47,7 @@ describe('builder components panel', () => {
     expect(html).not.toContain('Components')
     expect(html).not.toContain('>Component<')
     expect(html).toContain('Text')
+    expect(html).toContain('Accordion')
+    expect(html).toContain('Icons')
   })
 })

@@ -225,7 +225,8 @@ function onContextMenu(event) {
 }
 
 function onClick(event) {
-  event.preventDefault();
+  // Native disclosure controls remain usable while selecting the element.
+  if (!event.target.closest?.('.c-accordion-title')) event.preventDefault();
   event.stopPropagation();
 
   // The badge on the selection opens its menu.

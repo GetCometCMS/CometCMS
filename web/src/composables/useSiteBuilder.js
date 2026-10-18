@@ -702,6 +702,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return smartSummary(props.text)
       case 'button':
         return smartSummary(props.label)
+      case 'accordion':
+        return smartSummary(props.title)
+      case 'icon':
+        return props.icon
       case 'collection':
         return types.value.find((item) => item.name === props.type)?.label ?? t('site.builder.noType')
       case 'menu':

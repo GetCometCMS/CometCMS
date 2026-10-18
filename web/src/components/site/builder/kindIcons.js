@@ -8,6 +8,8 @@ export const KIND_ICONS = {
   text: 'mdi:text',
   image: 'mdi:image-outline',
   button: 'mdi:gesture-tap-button',
+  accordion: 'mdi:chevron-down',
+  icon: 'mdi:star-outline',
   spacer: 'mdi:arrow-expand-vertical',
   divider: 'mdi:minus',
   collection: 'mdi:view-grid-outline',

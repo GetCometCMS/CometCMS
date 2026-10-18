@@ -12,6 +12,15 @@
       </template>
     </SmartValueEditor>
 
+    <IconPickerGrid
+      v-else-if="def.type === 'icon'"
+      :id="inputId"
+      :model-value="value ?? def.default"
+      :icons="def.options ?? SITE_ICONS"
+      :allow-custom="false"
+      @update:model-value="emitValue"
+    />
+
     <!-- Language switcher flags, each choice drawn as it will look -->
     <div v-else-if="isFlagChoice" class="grid grid-cols-3 gap-1.5" role="radiogroup" :aria-label="label">
       <button
@@ -92,7 +101,7 @@
         class="min-w-0 flex-1 accent-theme-600"
         :min="def.min"
         :max="def.slider_max ?? def.max"
-        :step="SIZE_STEP"
+        :step="node.kind === 'icon' ? 1 : SIZE_STEP"
         :value="value ?? 0"
         :aria-label="label"
         @input="emitNumber($event.target.value)"
@@ -219,6 +228,8 @@ import { computed } from "vue";
 import SmartValueEditor from "./SmartValueEditor.vue";
 import { Icon } from "@iconify/vue";
 import FieldInput from "../../FieldInput.vue";
+import IconPickerGrid from "../../IconPickerGrid.vue";
+import { SITE_ICONS } from "../../../composables/siteIcons.js";
 import ToggleSwitch from "../../ToggleSwitch.vue";
 import LinkEditor from "../LinkEditor.vue";
 import { getActiveWorkspace } from "../../../api/index.js";
@@ -264,6 +275,7 @@ const label = computed(() => {
   if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
+  if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 

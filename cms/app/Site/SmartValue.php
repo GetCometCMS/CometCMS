@@ -18,6 +18,8 @@ final class SmartValue
         'text' => ['html' => 'html'],
         'image' => ['media' => 'media', 'link' => 'link'],
         'button' => ['label' => 'text', 'link' => 'link'],
+        'accordion' => ['title' => 'text', 'html' => 'html'],
+        'icon' => ['label' => 'text', 'link' => 'link'],
         'field' => ['source' => 'value'],
     ];
     /** Style keys that accept a binding, on every kind that offers them. */

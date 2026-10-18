@@ -42,6 +42,8 @@ final class LayoutSchema
         'text',
         'image',
         'button',
+        'accordion',
+        'icon',
         'spacer',
         'divider',
         'collection',
@@ -51,7 +53,7 @@ final class LayoutSchema
     ];
 
     /** Elements allowed inside a repeater field's item template. */
-    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'button', 'spacer', 'divider'];
+    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'button', 'accordion', 'icon', 'spacer', 'divider'];
 
     public const SYSTEM_FIELDS = ['title', 'published_at', 'created_at', 'updated_at'];
 
@@ -235,6 +237,17 @@ final class LayoutSchema
                 'variant' => ['type' => 'enum', 'options' => ['primary', 'secondary', 'outline', 'link'], 'default' => 'primary'],
                 'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg'], 'default' => 'md'],
                 'full_width' => ['type' => 'bool', 'default' => false],
+            ],
+            'accordion' => [
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Accordion title'],
+                'html' => ['type' => 'html', 'default' => '<p>Accordion content</p>'],
+                'open' => ['type' => 'bool', 'default' => false],
+            ],
+            'icon' => [
+                'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:star-outline'],
+                'size' => ['type' => 'int', 'min' => 12, 'max' => 240, 'unit' => 'px', 'default' => 48],
+                'label' => ['type' => 'string', 'max' => 120, 'default' => ''],
+                'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'spacer' => [
                 'size' => ['type' => 'enum', 'options' => ['xs', 'sm', 'md', 'lg', 'xl', '2xl'], 'default' => 'md'],
@@ -832,7 +845,7 @@ final class LayoutSchema
 
         return match ($spec['type']) {
             'color' => is_string($value) && (in_array($value, $spec['options'], true) || Theme::isCustomColorKey($value)) ? $value : $default,
-            'enum' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
+            'enum', 'icon' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
             'set' => array_values(array_intersect($spec['options'], array_map('strval', is_array($value) ? $value : []))),
             'bool' => is_bool($value) ? $value : (bool) $default,
             'int' => is_numeric($value) ? max($spec['min'], min($spec['max'], (int) $value)) : $default,
