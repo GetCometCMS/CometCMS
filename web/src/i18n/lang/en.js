@@ -1704,6 +1704,7 @@ const messages = {
     'site.style.font_size': 'Font size',
     'site.style.font_weight': 'Font weight',
     'site.style.font_family': 'Font',
+    'site.style.text_shadow': 'Text shadow',
     'site.style.radius': 'Corners',
     'site.style.shadow': 'Shadow',
     'site.style.border': 'Border',

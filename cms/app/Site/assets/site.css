@@ -546,6 +546,11 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-ff-body, .c-ff-body .c-heading { font-family: var(--font-body); }
 .c-ff-heading { font-family: var(--font-heading); }
 
+.c-ts-none { text-shadow: none; }
+.c-ts-sm { text-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
+.c-ts-md { text-shadow: 0 2px 4px rgb(0 0 0 / 0.35); }
+.c-ts-lg { text-shadow: 0 4px 8px rgb(0 0 0 / 0.45); }
+
 .c-r-none { border-radius: 0; }
 .c-r-theme { border-radius: var(--radius-box); }
 .c-r-sm { border-radius: var(--radius-sm); }

@@ -1709,6 +1709,7 @@ const messages = {
   'site.style.font_size': 'Schriftgröße',
   'site.style.font_weight': 'Schriftstärke',
   'site.style.font_family': 'Schrift',
+  'site.style.text_shadow': 'Textschatten',
   'site.style.radius': 'Ecken',
   'site.style.shadow': 'Schatten',
   'site.style.border': 'Rahmen',

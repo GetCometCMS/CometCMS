@@ -977,6 +977,34 @@ test('background blur renders a separate decorative layer for public images only
     }
 });
 
+test('text shadows survive layout normalization and render in preview and public output', function (): void {
+    comet_site_test_setup();
+    foreach (['text', 'heading'] as $kind) {
+        assert_true(in_array('text_shadow', LayoutSchema::spec()['kinds'][$kind]['style'], true));
+        foreach (['', 'none', 'sm', 'md', 'lg', 'invalid'] as $shadow) {
+            $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [
+                LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+                    LayoutSchema::node($kind, ['text' => 'Heading', 'html' => '<p>Text</p>'], ['text_shadow' => $shadow]),
+                ])]),
+            ])]);
+            $style = $nodes[0]['children'][0]['children'][0]['children'][0]['style'];
+            $expected = in_array($shadow, ['none', 'sm', 'md', 'lg'], true) ? $shadow : '';
+            assert_same($expected, $style['text_shadow'] ?? '');
+            assert_same($nodes, LayoutSchema::normalize($nodes));
+            foreach ([false, true] as $annotate) {
+                $ctx = comet_site_test_context();
+                $ctx->annotate = $annotate;
+                $html = (new NodeRenderer($ctx))->render($nodes);
+                assert_same($expected !== '', str_contains($html, 'c-ts-'));
+                if ($expected !== '') {
+                    assert_true(str_contains($html, 'c-ts-' . $expected));
+                }
+            }
+        }
+    }
+    assert_false(in_array('text_shadow', LayoutSchema::styleKeys('image'), true));
+});
+
 test('image elements use media library metadata instead of layout overrides', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');

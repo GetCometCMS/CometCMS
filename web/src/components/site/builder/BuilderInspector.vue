@@ -162,7 +162,7 @@ import { useI18n } from "../../../i18n/index.js";
 const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
   { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
-  { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family"] },
+  { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
