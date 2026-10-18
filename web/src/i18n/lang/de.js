@@ -1750,7 +1750,7 @@ const messages = {
   'site.entry.view': 'Auf der Website ansehen',
   'site.typeCard.title': 'Page Builder',
   'site.entry.pageDesign': 'Seitendesign',
-  'site.collection.templates': 'Vorlagen',
+  'site.collection.templates': 'Im Page Builder bearbeiten',
   'site.collection.editTemplate': 'Vorlage „{template}“ für alle Einträge dieser Sammlung bearbeiten.',
   'site.entry.editDesign': 'Seite bearbeiten',
   'site.entry.editDesignHint': 'Gestalte das gemeinsame Layout aller Einträge dieses Inhaltstyps, mit diesem Eintrag als Vorschau.',

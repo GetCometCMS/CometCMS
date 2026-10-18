@@ -1745,7 +1745,7 @@ const messages = {
     'site.entry.view': 'View on website',
     'site.typeCard.title': 'Page Builder',
     'site.entry.pageDesign': 'Page design',
-    'site.collection.templates': 'Templates',
+    'site.collection.templates': 'Edit in Page Builder',
     'site.collection.editTemplate': 'Edit the {template} template shared by all entries in this collection.',
     'site.entry.editDesign': 'Edit page',
     'site.entry.editDesignHint': 'Design the layout shared by all entries of this content type, using this entry as the preview.',
