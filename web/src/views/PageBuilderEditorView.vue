@@ -34,6 +34,7 @@
         <select
           v-if="showsSamples && !builder.type.value?.singleton && samples.length"
           v-model="sampleId"
+          :disabled="saving"
           class="form-select hidden max-w-[14rem] rounded-lg border-slate-300 py-1 text-xs lg:block"
           :aria-label="t('site.builder.sampleEntry')"
           :title="t('site.builder.sampleEntry')"
@@ -46,21 +47,12 @@
         <select
           v-if="locales.length > 1"
           v-model="locale"
+          :disabled="saving"
           class="form-select rounded-lg border-slate-300 py-1 text-xs"
           :aria-label="t('site.builder.language')"
         >
           <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
         </select>
-
-        <router-link
-          v-if="contentLink"
-          :to="contentLink"
-          class="topbar-action"
-          :title="t('site.builder.editContent')"
-        >
-          <Icon icon="mdi:file-document-edit-outline" class="h-5 w-5" />
-          <span class="sr-only">{{ t("site.builder.editContent") }}</span>
-        </router-link>
 
         <DeviceToggle v-model="device" allow-full-width />
 
@@ -74,14 +66,14 @@
         </div>
 
         <SplitButton
-          :primary-disabled="saving || loading || (!layoutSavable && !themeDirty)"
+          :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
         >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <template #badge>
-            <span v-if="(builder.isDirty.value || themeDirty) && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
+            <span v-if="(builder.isDirty.value || themeDirty || entryFields.isDirty.value) && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
           </template>
         </SplitButton>
       </div>
@@ -144,6 +136,7 @@
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
+            <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
               :key="`theme-${historyVersion}`"
@@ -248,6 +241,7 @@ import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
+import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
@@ -255,6 +249,8 @@ import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
+import { useBuilderEntry } from "../composables/useBuilderEntry.js";
+import { usePermissions } from "../composables/usePermissions.js";
 import { findNode } from "../composables/layoutTree.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -267,6 +263,7 @@ const route = useRoute();
 const router = useRouter();
 const site = useSiteStore();
 const auth = useAuthStore();
+const { canContent } = usePermissions();
 const toast = useToastStore();
 const { t } = useI18n();
 const brandIcon = adminAsset("img/cms-icon.png");
@@ -339,7 +336,7 @@ const themeDirty = computed(() => site.dirtyParts.includes("theme"));
 const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_css ?? "") !== (site.data?.theme?.custom_css ?? ""));
 const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
-  (to) => builder.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
+  (to) => builder.isDirty.value || entryFields.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
   { guardUpdates: true },
 );
 
@@ -358,6 +355,7 @@ const historyVersion = ref(0);
 const panels = computed(() => [
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
+  ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
   { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
@@ -369,7 +367,7 @@ const builderAreaRef = ref(null);
 const builderWidth = ref(window.innerWidth);
 const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
 const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
-const leftMinWidth = computed(() => ({ design: DESIGN_MIN_WIDTH, css: CSS_MIN_WIDTH })[leftPanel.value] ?? 224);
+const leftMinWidth = computed(() => ({ design: DESIGN_MIN_WIDTH, css: CSS_MIN_WIDTH, fields: 320 })[leftPanel.value] ?? 224);
 /** Width the left panel takes from the canvas: nothing while collapsed. */
 const leftSpace = computed(() => RAIL_WIDTH + (leftPanel.value ? leftWidth.value : 0));
 const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(leftPanel.value === "css" ? CSS_MAX_WIDTH : 480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
@@ -420,6 +418,14 @@ const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.v
 const previewEntry = computed(() => (builder.type.value?.singleton ? builder.type.value.name : sampleId.value));
 /** Layouts of single entries and components of a content type preview an entry. */
 const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
+const hasEntryFields = computed(() => showsSamples.value && !!previewEntry.value);
+const entryFields = useBuilderEntry({
+  type: builder.type,
+  entryId: computed(() => hasEntryFields.value ? previewEntry.value : ""),
+  locale,
+  contentApi: api.content,
+  canUpdate: (type, entry) => canContent("content.update", type, entry),
+});
 
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
@@ -442,7 +448,7 @@ const saveMenuItems = computed(() => {
       icon: "mdi:eye-outline",
       href: previewUrl.value,
       target: "_blank",
-      title: builder.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
+      title: builder.isDirty.value || entryFields.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
     });
   }
   if (liveUrl.value || liveHint.value) {
@@ -458,11 +464,6 @@ const saveMenuItems = computed(() => {
   }
   return items;
 });
-const contentLink = computed(() => {
-  if (target !== "layout" || variant === "index" || !previewEntry.value) return null;
-  return builder.type.value?.singleton ? `/content/${name}` : `/content/${name}/${previewEntry.value}`;
-});
-
 watch(previewEntry, async (entry) => {
   entryUrl.value = null;
   if (target !== "layout" || !entry) return;
@@ -518,7 +519,7 @@ function togglePanel(panel) {
 }
 
 watch(leftPanel, (panel) => {
-  if (panel === "design" || panel === "css") leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
+  if (["design", "css", "fields"].includes(panel)) leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
 }, { immediate: true });
 
 watch(locale, (value) => { builder.locale.value = value; });
@@ -569,14 +570,22 @@ async function load() {
   }
 }
 
-/** Save the layout and the site design, whichever has changes. */
+/** Save pending entry values, layout and site design together. */
 async function save() {
   const saveLayout = layoutSavable.value;
   const saveTheme = themeDirty.value;
-  if (saving.value || (!saveLayout && !saveTheme)) return;
+  const saveContent = entryFields.isDirty.value;
+  if (saving.value || (!saveLayout && !saveTheme && !saveContent)) return;
   saving.value = true;
 
   try {
+    if (saveContent) {
+      const entries = await entryFields.save();
+      for (const entry of entries) {
+        const sample = samples.value.find((item) => item.id === entry.id);
+        if (sample) sample.title = entry.title;
+      }
+    }
     if (saveLayout) {
       const nodes = builder.nodes.value;
       const res = target === "region"
@@ -590,11 +599,17 @@ async function save() {
     }
     if (saveTheme) await site.save({ parts: ["theme"] });
     historyVersion.value++;
-    const message = !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
+    const message = saveContent ? "site.builder.changesSaved" : !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
     toast.success(t(message));
   } catch (err) {
+    if (err.entryId) {
+      sampleId.value = err.entryId;
+      locale.value = err.locale;
+      leftPanel.value = "fields";
+    }
     toast.error(err.message);
   } finally {
+    if (saveContent) canvasRef.value?.refresh();
     saving.value = false;
   }
 }
@@ -670,7 +685,7 @@ async function convertField(label) {
 
 function goToVariant(next) {
   if (next === variant) return;
-  if (builder.isDirty.value) {
+  if (builder.isDirty.value || entryFields.isDirty.value) {
     pendingVariant.value = next;
     return;
   }
