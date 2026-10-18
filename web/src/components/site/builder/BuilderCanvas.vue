@@ -241,7 +241,9 @@ function attach(document) {
   doc.addEventListener("dragleave", onDragLeave);
   doc.addEventListener("drop", onDrop);
   doc.addEventListener("dragend", onDragEnd);
-  doc.addEventListener("keydown", (event) => emit("keydown", event));
+  doc.addEventListener("keydown", (event) => {
+    if (!event.target.closest?.('.c-lightbox')) emit("keydown", event);
+  });
   doc.defaultView?.addEventListener("resize", () => applySelection(false));
 
   prepare(document);
@@ -329,6 +331,9 @@ function onContextMenu(event) {
 }
 
 function onClick(event) {
+  if (event.target.closest?.('.c-lightbox')) return;
+  // A second click on the selected gallery previews its viewer.
+  if (event.target.closest?.('[data-gallery-image]') && event.target.closest?.('[data-node]')?.dataset.node === builder.selectedId.value) return;
   // Native disclosure controls remain usable while selecting the element.
   if (!event.target.closest?.('.c-accordion-title')) event.preventDefault();
   event.stopPropagation();

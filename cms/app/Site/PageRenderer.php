@@ -275,6 +275,8 @@ final class PageRenderer
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
+            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-gallery-lightbox')
+                ? '<script type="module">' . GalleryLightbox::script() . '</script>' : '')
             . '</body></html>';
     }
 

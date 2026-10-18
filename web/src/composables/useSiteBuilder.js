@@ -737,6 +737,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return forms.value.find((item) => item.id === props.form)?.name ?? t('site.forms.none')
       case 'image':
         return smartSummary(props.media) || t('site.builder.noImage')
+      case 'gallery':
+        return Array.isArray(props.media) ? t('site.builder.galleryCount', { count: props.media.length }) : smartSummary(props.media)
       case 'text':
         return smartSummary(props.html)
       case 'column': {

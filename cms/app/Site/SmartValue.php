@@ -17,10 +17,11 @@ final class SmartValue
         'heading' => ['text' => 'text', 'link' => 'link'],
         'text' => ['html' => 'html'],
         'image' => ['media' => 'media', 'link' => 'link'],
+        'gallery' => ['media' => 'media_list', 'link' => 'link'],
         'button' => ['label' => 'text', 'link' => 'link'],
         'accordion' => ['title' => 'text', 'html' => 'html'],
         'icon' => ['label' => 'text', 'link' => 'link'],
-        'field' => ['source' => 'value'],
+        'field' => ['source' => 'value', 'link' => 'link'],
     ];
     /** Style keys that accept a binding, on every kind that offers them. */
     public const STYLE_PROPERTIES = ['background_image' => 'media'];
@@ -129,7 +130,7 @@ final class SmartValue
                 'truncate' => is_int($arg) && $arg > 0 && $arg <= 500,
                 default => false,
             };
-            if (!$valid || (in_array($target, ['media', 'link'], true) && $name !== 'fallback')) {
+            if (!$valid || (in_array($target, ['media', 'media_list', 'link'], true) && $name !== 'fallback')) {
                 self::invalid();
             }
             $result['filters'][] = ['name' => $name, 'value' => $arg];

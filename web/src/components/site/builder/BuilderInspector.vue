@@ -299,8 +299,15 @@ const visibleProps = computed(() => {
     return keys.filter((key) => (key !== "filter_value" || props.filter_field) && (key !== "columns" || props.display === "cards"));
   }
 
-  if (current.kind === "image") {
-    return keys.filter((key) => !["fit", "position"].includes(key) || props.ratio);
+  if (["image", "gallery"].includes(current.kind)) {
+    return keys.filter((key) => {
+      if (props.masonry && ["ratio", "fit", "position"].includes(key)) return false;
+      if (["fit", "position"].includes(key) && !props.ratio) return false;
+      if (key === "label") return props.media?.type === "reference";
+      if (key === "lightbox_navigation") return !!props.lightbox;
+      if (key === "link") return !props.lightbox;
+      return true;
+    });
   }
 
   if (current.kind === "column") {

@@ -1,6 +1,6 @@
 # Website
 
-CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. Developers can also enable the headless API per content type, independently of website pages.
+CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
@@ -45,10 +45,11 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 
 | Element      | Shows                                                                         |
 | ------------ | ----------------------------------------------------------------------------- |
-| Field display | Specialized values such as galleries, repeaters, related cards, badges, or meters. |
+| Field display | Specialized values such as downloads, repeaters, related cards, badges, or meters. |
 | Heading      | Static text, field references, or a mixture of both.                           |
 | Text         | Rich text.                                                                    |
 | Image        | An image from the media library or a bound media field.                        |
+| Gallery      | Selected media in a custom order, or media from a bound entry field, in a responsive grid with crop, spacing, and caption controls. |
 | Button       | A link to this entry, another entry, a list page, the homepage or any URL.    |
 | Accordion    | An expandable title and rich text content, optionally open on load. Duplicate it for more items or use it in a repeater template. |
 | Icons        | A searchable selection of bundled Material Design icons, with size, color, an accessible label, and an optional link. Works without external icon requests. |
@@ -61,6 +62,12 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 A column set (row) decides whether its columns sit side by side or underneath each other. Each column decides the same for its own elements under **Arrange elements**: underneath each other (default) or side by side, which wraps onto the next line when there is no room left. Side by side adds **Distribute elements** and **Align elements**, and **Space between elements** becomes the gap between them.
 
 Repeater fields contain an **item template**: the elements inside them are repeated for every row and bind to the repeater's sub-fields.
+
+Add a **Gallery** to any column or repeater item template. Choose media manually and drag the selected files to reorder them, or use the content reference picker to bind the gallery to a media field. Set one to six columns, spacing, aspect ratio, image fit and focal point, and optional captions from media titles. Galleries can also be included in reusable components. Existing **Field → Gallery** displays open as Gallery elements with their content reference and styling preserved.
+
+Enable **Masonry layout** to stack images at their natural heights, flowing down each column before the next. The column count and spacing still apply, and captions stay with their images. Crop controls are hidden while masonry is enabled; turning it off restores the saved grid crop settings.
+
+Enable **Open images in a modal** to show the clicked image at full size over a dark backdrop. Close it with the close button, a click on the backdrop, or Escape. **Show previous / next buttons** optionally enables navigation through that gallery, including the arrow keys. Captions follow the gallery's caption setting. The viewer works with grids and masonry; videos, audio, and downloads keep their normal controls. In the builder, select the gallery and click an image again to try the modal. Public pages allow only the exact bundled viewer script through a CSP hash; preview documents still block scripts and the trusted editor controls the viewer.
 
 Drag elements from **Add** onto the preview or into the **Outline**, or click them to insert next to the selection. Select an element to change its content and style in the inspector. Style options come from the theme (sizes, colors, radius, shadows), which keeps every page consistent. Shortcuts: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo, <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate, <kbd>Del</kbd> delete, <kbd>Ctrl</kbd>+<kbd>S</kbd> save.
 
@@ -145,9 +152,11 @@ Each section has scroll options in its content settings, usually used for the se
 | **Float over the content below** | The section takes no room, so the page's first section (a hero image, for example) starts underneath it. It stays transparent at the top of the page and shows its background once the visitor scrolls.                                             |
 | **When scrolled**                | For sticky and floating sections: add a **Shadow**, make the background **Frosted** (translucent and blurred), or make the section **Compact** by reducing its vertical padding.                                                                      |
 
-A floating sticky section is pinned to the very top of the window, so use it as the header's first section. When editing the header, the preview gets extra room so you can scroll it and try these options. Pages still ship no JavaScript: these effects use CSS scroll states. Browsers without them, such as Firefox, keep **When scrolling up** sections always visible, show floating sections with their background, and skip the scroll effects.
+A floating sticky section is pinned to the very top of the window, so use it as the header's first section. When editing the header, the preview gets extra room so you can scroll it and try these options. These effects use CSS scroll states and require no JavaScript. Browsers without them, such as Firefox, keep **When scrolling up** sections always visible, show floating sections with their background, and skip the scroll effects.
 
 The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
+
+Element **Link** controls use the same destination picker, including Field and Gallery elements. Choose a page, entry, listing, custom URL, section, the current entry, or no link. The database icon binds the destination to a URL field or another compatible content reference, resolved for each entry or repeater item. Links can open in a new tab. Existing **Link to the entry** switches are preserved as **This entry** or **None** destinations. Gallery modal viewers take precedence over image links while enabled.
 
 For a section link, enter an anchor ID assigned in the page builder, such as `contact` or `#contact`. Choose **Section** to jump within the current page, or add an optional section to a page, entry or listing destination. Custom links also accept website paths, external URLs, `mailto:` and `tel:` links. Parent links and submenu disclosure buttons work independently on the published website.
 
@@ -220,7 +229,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image source, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image and gallery sources, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, single-image media inserts an Image, and multiple-media fields insert a Gallery. Files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

@@ -54,3 +54,18 @@ describe('builder hover effects', () => {
     expect(scroll).toContain('Fade in from the right')
   })
 })
+
+describe('builder link destinations', () => {
+  it('uses the shared destination selector and dynamic content picker for fields and galleries', async () => {
+    for (const kind of ['field', 'gallery']) {
+      const html = await renderControl('link', { type: 'link', binding: 'link', default: { type: 'none' } }, { type: 'current' }, {
+        node: { id: 'linked', kind, props: {}, style: {} },
+      })
+      expect(html).toContain('Insert dynamic content')
+      expect(html).toContain('This entry')
+      expect(html).toContain('Open in a new tab')
+      expect(html).not.toContain('Link to the entry')
+      expect(html).not.toContain('role="switch"')
+    }
+  })
+})

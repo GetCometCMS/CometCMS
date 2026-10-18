@@ -140,12 +140,12 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────── */
 .c-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
-.c-gap-none { gap: 0; }
-.c-gap-xs { gap: var(--space-xs); }
-.c-gap-sm { gap: var(--space-sm); }
-.c-gap-md { gap: var(--space-md) calc(var(--space-md) * 1.5); }
-.c-gap-lg { gap: var(--space-lg); }
-.c-gap-xl { gap: var(--space-xl); }
+.c-gap-none, .c-gallery.c-gap-none { gap: 0; }
+.c-gap-xs, .c-gallery.c-gap-xs { gap: var(--space-xs); }
+.c-gap-sm, .c-gallery.c-gap-sm { gap: var(--space-sm); }
+.c-gap-md, .c-gallery.c-gap-md { gap: var(--space-md) calc(var(--space-md) * 1.5); }
+.c-gap-lg, .c-gallery.c-gap-lg { gap: var(--space-lg); }
+.c-gap-xl, .c-gallery.c-gap-xl { gap: var(--space-xl); }
 .c-items-stretch { align-items: stretch; }
 .c-items-start { align-items: start; }
 .c-items-center { align-items: center; }
@@ -280,7 +280,71 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-ta-center.c-img-sized .c-ratio, .c-ta-center.c-img-sized figcaption { margin-left: auto; margin-right: auto; }
 .c-ta-right.c-img-sized img:not(.c-ratio img), .c-ta-right.c-img-sized .c-ratio, .c-ta-right.c-img-sized figcaption { margin-left: auto; }
 .c-video, .c-audio { width: 100%; border-radius: var(--radius-box); }
-.c-gallery { gap: var(--space-sm); }
+.c-gallery-item { min-width: 0; }
+.c-gallery-zoom { display: block; cursor: zoom-in; }
+.c-gallery-zoom:focus-visible { outline: 3px solid var(--c-primary); outline-offset: 3px; }
+html:has(.c-lightbox[open]) { overflow: hidden; }
+.c-lightbox {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 4rem 4.5rem;
+  background: transparent;
+  color: #fff;
+  box-sizing: border-box;
+}
+.c-lightbox::backdrop { background: rgb(0 0 0 / 0.9); }
+.c-lightbox[open] { display: flex; align-items: center; justify-content: center; }
+.c-lightbox-figure { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; max-width: 100%; max-height: 100%; margin: 0; }
+.c-lightbox-image { display: block; width: auto; height: auto; max-width: 100%; max-height: calc(100dvh - 11rem); object-fit: contain; min-height: 0; }
+.c-lightbox-caption { max-width: 65ch; max-height: 3rem; overflow: auto; font: 400 0.9rem/1.5 system-ui, sans-serif; text-align: center; }
+.c-lightbox button {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.4);
+  color: #fff;
+  cursor: pointer;
+}
+.c-lightbox button svg { display: block; flex: none; width: 1.5rem; height: 1.5rem; pointer-events: none; }
+.c-lightbox button:hover { background: rgb(255 255 255 / 0.2); }
+.c-lightbox button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.c-lightbox [hidden] { display: none; }
+.c-lightbox-close { top: 1rem; right: 1rem; }
+.c-lightbox-previous, .c-lightbox-next { top: calc(50% - 1.375rem); }
+.c-lightbox-previous { left: 1rem; }
+.c-lightbox-next { right: 1rem; }
+.c-lightbox-counter { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%); margin: 0; font: 400 0.9rem/1.5 system-ui, sans-serif; }
+@media (max-width: 639px) {
+  .c-lightbox { padding: 4rem 0.75rem 5rem; }
+  .c-lightbox-previous, .c-lightbox-next { top: auto; bottom: 1rem; }
+}
+/* Columns keep each image and its caption together, with natural image heights. */
+.c-gallery-masonry { column-count: 1; }
+.c-gallery-masonry > .c-gallery-item {
+  display: flow-root;
+  break-inside: avoid;
+  margin-bottom: var(--c-gallery-gap);
+}
+.c-gallery-masonry > .c-gallery-item:last-child { margin-bottom: 0; }
+.c-gallery-masonry img { width: 100%; height: auto; }
+@media (min-width: 640px) {
+  .c-gallery-masonry:not(.c-cols-1) { column-count: 2; }
+}
+@media (min-width: 1024px) {
+  .c-gallery-masonry:not(.c-cols-1) { column-count: var(--c-gallery-columns); }
+}
 .c-files, .c-links, .c-entry-list { list-style: none; padding: 0; margin: 0; }
 .c-files li, .c-links li, .c-entry-list li { padding: 0.4em 0; border-bottom: 1px solid var(--c-border); }
 .c-files li:last-child, .c-links li:last-child, .c-entry-list li:last-child { border-bottom: 0; }

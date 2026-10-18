@@ -90,7 +90,7 @@ export function parseSmartValue(text, target = 'text') {
     if ((markup.match(/<[^>]*>/gs) ?? []).some((tag) => tag.includes('SMARTREFERENCE'))) throw new Error('syntax')
   }
   if (parts.length === 1 && isReference(parts[0])) {
-    if (['media', 'link'].includes(target) && parts[0].filters.some((filter) => filter.name !== 'fallback')) throw new Error('syntax')
+    if (['media', 'media_list', 'link'].includes(target) && parts[0].filters.some((filter) => filter.name !== 'fallback')) throw new Error('syntax')
     return parts[0]
   }
   if (!['text', 'html'].includes(target)) throw new Error('syntax')
@@ -124,6 +124,7 @@ export function compatibleField(config, target) {
   if (!config || typeof config.type !== 'string') return false
   if (target === 'value') return true
   if (target === 'media') return config.type === 'media' && !config.multiple
+  if (target === 'media_list') return config.type === 'media'
   if (target === 'link') return ['text', 'textarea', 'slug', 'url'].includes(config.type) && !config.multiple
   return !['media', 'relation', 'repeater', 'json'].includes(config.type) && !config.multiple
 }
@@ -138,8 +139,9 @@ export function fieldShortcut(field, make, { source = 'current', heading = 'h2' 
   const ref = reference(field.key, source)
   if (field.key === 'title') return make('heading', { text: ref, level: heading })
   if (field.type === 'media' && !field.config?.multiple) return make('image', { media: ref, ratio: '16:9' })
+  if (field.type === 'media') return make('gallery', { media: ref })
   if (compatibleField({ type: field.type, ...field.config }, 'text') && !['range', 'boolean', 'select', 'color'].includes(field.type)) return make('text', { html: ref })
-  const node = make('field', { source: ref, display: field.type === 'media' ? 'gallery' : field.type === 'relation' ? 'cards' : field.type === 'repeater' ? 'items' : '', ...(field.type === 'relation' ? { columns: 3 } : {}) })
+  const node = make('field', { source: ref, display: field.type === 'relation' ? 'cards' : field.type === 'repeater' ? 'items' : '', ...(field.type === 'relation' ? { columns: 3 } : {}) })
   if (field.type === 'repeater') node.children = (field.config?.subfields ?? []).filter((sub) => sub?.key).map((sub, index) => {
     const child = fieldShortcut({ key: sub.key, type: sub.type ?? 'text', config: sub }, make, { source: 'item', heading: 'h4' })
     if (index === 0 && sub.type === 'text') { child.kind = 'heading'; child.props = { ...make('heading').props, text: reference(sub.key, 'item'), level: 'h4' } }

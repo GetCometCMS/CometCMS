@@ -84,6 +84,7 @@ final class NodeRenderer
             if (!SmartValue::isDynamic($binding) || $key === 'source') continue;
             $resolved = $this->resolveBinding($binding, $target, $state);
             $node['props'][$key] = $resolved['value'];
+            if ($target === 'media_list') $node['_gallery_label'] = $resolved['label'] ?? '';
             if (in_array($target, ['text', 'html'], true)) {
                 $node['_resolved'][$key] = true;
             }
@@ -105,6 +106,7 @@ final class NodeRenderer
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
             'image' => $this->image($node, $state),
+            'gallery' => $this->gallery($node, $state),
             'button' => $this->button($node, $state),
             'accordion' => $this->accordion($node),
             'icon' => $this->icon($node, $state),
@@ -133,7 +135,7 @@ final class NodeRenderer
      * The value of a bound property or style: text and HTML are rendered,
      * media must come from a media field, links become URLs.
      *
-     * @return array{value: mixed, missing: bool}
+     * @return array{value: mixed, missing: bool, label?: string}
      */
     private function resolveBinding(array $binding, string $target, array $state): array
     {
@@ -148,6 +150,14 @@ final class NodeRenderer
 
         $value = $resolved['value'];
         $missing = $resolved['missing'];
+        if ($target === 'media_list') {
+            $valid = ($resolved['config']['type'] ?? '') === 'media';
+            return [
+                'value' => $valid ? (is_array($value) ? $value : (is_string($value) && $value !== '' ? [$value] : [])) : [],
+                'missing' => $missing || !$valid,
+                'label' => $valid ? $this->fieldLabel(implode('.', $binding['path']), $resolved['config']) : '',
+            ];
+        }
         $fallback = array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback') !== [];
         if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($missing && $fallback)) {
             $value = '';
@@ -439,6 +449,53 @@ final class NodeRenderer
         if ($max > 0) $style[] = '--c-img-max:' . $max . 'px';
 
         return $style === [] ? [[], ''] : [['c-img-sized'], implode(';', $style)];
+    }
+
+    private function gallery(array $node, array $state): string
+    {
+        $props = $node['props'];
+        // Masonry uses natural image heights; keep the saved crop for grid mode.
+        if ($props['masonry']) $props['ratio'] = '';
+        $items = [];
+        foreach (is_array($props['media']) ? $props['media'] : [] as $file) {
+            $item = is_string($file) ? $this->ctx->mediaItem($file) : null;
+            if ($item !== null) $items[] = $item;
+        }
+        if ($items === []) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose gallery images</div>') : '';
+        }
+
+        $columns = $props['columns'];
+        $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) ' . ($columns > 1 ? '50' : '100') . 'vw, 100vw';
+        $link = $this->resolveLink($props['link'], $state);
+        $german = str_starts_with($this->ctx->htmlLang(), 'de');
+        $html = '';
+        foreach ($items as $item) {
+            $image = $this->mediaElement($item, $props, $state);
+            if ($props['lightbox'] && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . ($german ? 'Bild vergrößern' : 'Enlarge image') . '"'
+                    . ($props['captions'] ? ' data-caption="' . Security::e((string) ($item['title'] ?? '')) . '"' : '') . '>' . $image . '</a>';
+            } elseif ($link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = $this->anchor($link, $image, 'c-image-link');
+            }
+            $caption = $props['captions'] ? (string) ($item['title'] ?? '') : '';
+            $html .= '<figure class="c-gallery-item c-figure">' . $image
+                . ($caption !== '' ? '<figcaption>' . Security::e($caption) . '</figcaption>' : '') . '</figure>';
+        }
+        $layout = $props['masonry'] ? 'c-gallery-masonry' : 'c-grid';
+        $masonryStyle = $props['masonry']
+            ? ' style="--c-gallery-columns:' . $columns . ';--c-gallery-gap:' . ($props['gap'] === 'none' ? '0px' : 'var(--space-' . $props['gap'] . ')') . '"'
+            : '';
+        $lightbox = $props['lightbox']
+            ? ' data-gallery-lightbox data-gallery-navigation="' . ($props['lightbox_navigation'] ? 'true' : 'false') . '"'
+                . ' data-gallery-label="' . ($german ? 'Bildergalerie' : 'Image gallery') . '" data-gallery-close="' . ($german ? 'Schließen' : 'Close') . '"'
+                . ' data-gallery-previous="' . ($german ? 'Vorheriges Bild' : 'Previous image') . '" data-gallery-next="' . ($german ? 'Nächstes Bild' : 'Next image') . '"'
+            : '';
+        $html = '<div class="' . $layout . ' c-gallery c-cols-' . $columns . ' c-gap-' . $props['gap'] . '"' . $masonryStyle . $lightbox . '>' . $html . '</div>';
+        if ($props['label'] && ($node['_gallery_label'] ?? '') !== '') {
+            $html = '<div class="c-field-label">' . Security::e($node['_gallery_label']) . '</div>' . $html;
+        }
+        return $this->element($node, $html);
     }
 
     private function button(array $node, array $state): string
@@ -911,17 +968,13 @@ final class NodeRenderer
         };
     }
 
-    /** Wrap text in the chosen tag, linking it to the entry when asked. */
+    /** Wrap text in the chosen tag, with the configured link destination. */
     private function textTag(array $props, string $html, array $state, string $defaultTag): string
     {
         $tag = $props['tag'] !== '' ? $props['tag'] : $defaultTag;
 
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null && $tag !== 'div') {
-                $html = '<a href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        $link = $this->resolveLink($props['link'], $state);
+        if ($link !== null) $html = $this->anchor($link, $html);
 
         $class = str_starts_with($tag, 'h') ? ' class="c-heading"' : '';
 
@@ -1008,21 +1061,21 @@ final class NodeRenderer
             $gallery = '';
             $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, 50vw';
             foreach ($items as $item) {
-                $gallery .= '<div class="c-gallery-item">' . $this->mediaElement($item, $props, $state) . '</div>';
+                $gallery .= '<div class="c-gallery-item">' . $this->linkedMedia($item, $props, $state) . '</div>';
             }
 
-            return '<div class="c-grid c-gallery c-cols-' . $columns . '">' . $gallery . '</div>';
+            return '<div class="c-grid c-gallery c-gap-sm c-cols-' . $columns . '">' . $gallery . '</div>';
         }
 
-        $html = $this->mediaElement($items[0], $props, $state);
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null) {
-                $html = '<a class="c-image-link" href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        return $this->linkedMedia($items[0], $props, $state);
+    }
 
-        return $html;
+    private function linkedMedia(array $item, array $props, array $state): string
+    {
+        $html = $this->mediaElement($item, $props, $state);
+        $link = $this->resolveLink($props['link'], $state);
+        return $link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')
+            ? $this->anchor($link, $html, 'c-image-link') : $html;
     }
 
     private function relationField(mixed $value, array $config, array $props, string $display, array $state): string
@@ -1183,8 +1236,9 @@ final class NodeRenderer
     // ─── Links ───────────────────────────────────────────────────────────────
 
     /** @return array{href: string, new_tab: bool}|null */
-    private function resolveLink(array $link, array $state): ?array
+    private function resolveLink(array|bool $link, array $state): ?array
     {
+        if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
             // Bound destinations, resolved by boundLink() before rendering.

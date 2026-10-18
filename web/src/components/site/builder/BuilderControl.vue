@@ -6,8 +6,8 @@
     </div>
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
-      <template v-if="def.binding === 'media' || def.binding === 'link'" #literal>
-        <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" :compact="group === 'style'" @update:model-value="emitValue" />
+      <template v-if="['media', 'media_list', 'link'].includes(def.binding)" #literal>
+        <MediaSelect v-if="['media', 'media_list'].includes(def.binding)" :model-value="value" :multiple="def.binding === 'media_list'" :name="inputId" :compact="group === 'style' || def.binding === 'media_list'" @update:model-value="emitValue" />
         <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
       </template>
     </SmartValueEditor>
@@ -273,11 +273,10 @@ const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css
 const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && props.node.style?.animation_trigger === "hover");
 const label = computed(() => {
   if (isHoverAnimation.value) return t("site.style.hover_effect");
-  // Fields have a yes/no "link to the entry"; other elements pick a link target.
-  if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
+  if (props.name === "media" && props.node.kind === "gallery") return t("site.prop.galleryImages");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 

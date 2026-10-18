@@ -42,6 +42,7 @@ final class LayoutSchema
         'heading',
         'text',
         'image',
+        'gallery',
         'button',
         'accordion',
         'icon',
@@ -55,7 +56,7 @@ final class LayoutSchema
     ];
 
     /** Elements allowed inside a repeater field's item template. */
-    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'button', 'accordion', 'icon', 'spacer', 'divider'];
+    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'gallery', 'button', 'accordion', 'icon', 'spacer', 'divider'];
 
     public const SYSTEM_FIELDS = ['title', 'published_at', 'created_at', 'updated_at'];
 
@@ -206,7 +207,7 @@ final class LayoutSchema
                 'display' => ['type' => 'display', 'default' => ''],
                 'tag' => ['type' => 'enum', 'options' => ['', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div'], 'default' => ''],
                 'label' => ['type' => 'bool', 'default' => false],
-                'link' => ['type' => 'bool', 'default' => false],
+                'link' => ['type' => 'link', 'default' => ['type' => 'none']],
                 'truncate' => ['type' => 'int', 'min' => 0, 'max' => 500, 'default' => 0],
                 'date_format' => ['type' => 'enum', 'options' => ['date', 'long', 'datetime', 'time'], 'default' => 'date'],
                 'ratio' => $ratio,
@@ -234,6 +235,20 @@ final class LayoutSchema
                 // Rendered width bounds in pixels; 0 leaves that side to the image and its column.
                 'min_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
                 'max_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
+                'link' => ['type' => 'link', 'default' => ['type' => 'none']],
+            ],
+            'gallery' => [
+                'media' => ['type' => 'media_list', 'default' => []],
+                'label' => ['type' => 'bool', 'default' => false],
+                'masonry' => ['type' => 'bool', 'default' => false],
+                'ratio' => ['default' => '16:9'] + $ratio,
+                'fit' => $fit,
+                'position' => $position,
+                'columns' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 3],
+                'gap' => ['type' => 'enum', 'options' => ['none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => 'sm'],
+                'captions' => ['type' => 'bool', 'default' => false],
+                'lightbox' => ['type' => 'bool', 'default' => false],
+                'lightbox_navigation' => ['type' => 'bool', 'default' => true],
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'button' => [
@@ -462,6 +477,9 @@ final class LayoutSchema
 
         foreach (self::propSpec($kind) as $key => $spec) {
             $defaults[$key] = $spec['default'];
+            if ($key === 'link' && $spec['type'] === 'link' && is_bool($props[$key] ?? null)) {
+                $props[$key] = self::normalizeLink($props[$key]);
+            }
         }
 
         return [
@@ -647,13 +665,15 @@ final class LayoutSchema
                         : $source;
                     $next = self::node('text', ['html' => $content]);
                 }
-                if ($props['link'] && isset(self::propSpec($next['kind'])['link'])) $next['props']['link'] = ['type' => 'current'];
+                if (isset(self::propSpec($next['kind'])['link'])) $next['props']['link'] = self::normalizeLink($props['link']);
                 $next['id'] = $node['id'];
                 $next['style'] = $node['style'];
                 $node = $next;
+            } elseif ($config['type'] === 'media' && !empty($config['multiple'])) {
+                $node['props']['source'] = $source;
+                $node = self::galleryFromField($node);
             } else {
                 $node['props']['source'] = SmartValue::reference($key, $item ? 'item' : 'current');
-                if ($config['type'] === 'media' && !empty($config['multiple']) && $node['props']['display'] === 'image') $node['props']['display'] = 'gallery';
                 $subfields = [];
                 foreach ($config['subfields'] ?? [] as $sub) $subfields[$sub['key']] = $sub;
                 $node['children'] = self::bindDefaultNodes($node['children'], $subfields, true);
@@ -695,6 +715,8 @@ final class LayoutSchema
 
     public static function normalizeLink(mixed $link): array
     {
+        // Older fields and galleries stored only a "link to current entry" toggle.
+        if (is_bool($link)) $link = ['type' => $link ? 'current' : 'none'];
         $link = is_array($link) ? $link : [];
         if (($link['type'] ?? '') === 'dynamic') {
             return ['type' => 'dynamic', 'value' => SmartValue::normalize($link['value'] ?? null, 'link'), 'new_tab' => (bool) ($link['new_tab'] ?? false)];
@@ -747,6 +769,10 @@ final class LayoutSchema
                 continue;
             }
 
+            // Promote saved gallery displays while preserving identity and styling.
+            if (($node['kind'] ?? '') === 'field' && ($node['props']['display'] ?? '') === 'gallery') {
+                $node = self::galleryFromField($node);
+            }
             $kind = (string) ($node['kind'] ?? '');
             $placed = self::placementKind($node);
             if ($placed === '' || !in_array($placed, $allowed, true) || ($placed === 'row' && $rows > self::MAX_ROW_DEPTH)) {
@@ -813,6 +839,19 @@ final class LayoutSchema
         return $normalized;
     }
 
+    private static function galleryFromField(array $node): array
+    {
+        $props = $node['props'];
+        $node['kind'] = 'gallery';
+        $node['props'] = self::node('gallery', [
+            'media' => $props['source'] ?? '',
+            'columns' => max(2, (int) ($props['columns'] ?? 1)),
+            'ratio' => $props['ratio'] ?? '',
+        ] + array_intersect_key($props, array_flip(['fit', 'position', 'label', 'link'])))['props'];
+        $node['children'] = [];
+        return $node;
+    }
+
     /** Only values that differ from their default are kept. */
     private static function normalizeStyle(string $kind, array $style): array
     {
@@ -872,6 +911,7 @@ final class LayoutSchema
             'string' => is_scalar($value) ? trim(Text::limit(str_replace(["\r", "\n"], ' ', (string) $value), $spec['max'] ?? 200)) : $default,
             'html' => is_scalar($value) ? HtmlSanitizer::sanitize(Text::limit((string) $value, 50000)) : $default,
             'media' => is_scalar($value) && preg_match('/^[^\/\\\\\0]{1,255}$/', basename((string) $value)) ? basename((string) $value) : '',
+            'media_list' => self::normalizeMediaList($value),
             'link' => self::normalizeLink($value),
             'reference' => SmartValue::isDynamic($value) ? SmartValue::normalize($value, 'value') : '',
             'spans' => self::normalizeSpans($value),
@@ -880,6 +920,16 @@ final class LayoutSchema
             'field', 'display', 'content_type', 'menu', 'form', 'key' => self::key($value),
             default => $default,
         };
+    }
+
+    private static function normalizeMediaList(mixed $value): array
+    {
+        $items = [];
+        foreach (array_slice(is_array($value) ? $value : [], 0, 500) as $file) {
+            $name = self::normalizeValue(['type' => 'media', 'default' => ''], $file);
+            if ($name !== '') $items[] = $name;
+        }
+        return array_values(array_unique($items));
     }
 
     private static function normalizeSpans(mixed $value): array

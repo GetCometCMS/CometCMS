@@ -37,6 +37,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api } from "../../api/index.js";
 import { useI18n } from "../../i18n/index.js";
 import { patchDocument, withPreviewStyles } from "../../composables/previewDocument.js";
+import { initGalleryLightbox } from "../../../../cms/app/Site/assets/gallery.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -133,6 +134,7 @@ function onLoad() {
   if (!doc || !srcdoc.value) return;
   documentLoaded = true;
   applyScale();
+  initGalleryLightbox(doc);
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);
@@ -141,6 +143,7 @@ function onLoad() {
   if (!props.interactive) {
     // Previews are for looking: following links would leave the preview.
     doc.addEventListener("click", (event) => {
+      if (event.target.closest?.('[data-gallery-image]') && doc.defaultView?.HTMLDialogElement?.prototype.showModal) return;
       if (event.target.closest?.("a, label, input")) event.preventDefault();
     }, true);
   }
