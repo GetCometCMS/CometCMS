@@ -835,6 +835,8 @@ const messages = {
     'workspaces.title': 'Workspaces',
     'workspaces.new': 'New workspace',
     'workspaces.createTitle': 'Create workspace',
+    'workspaces.startWebsiteBody': 'Landing Page and Pages with editable sample content. The Page Builder is enabled and the homepage is ready.',
+    'workspaces.startEmptyBody': 'A clean workspace without content types or entries. Set up your own content and pages.',
     'workspaces.label': 'Label',
     'workspaces.labelPlaceholder': 'My workspace',
     'workspaces.slug': 'Slug',

@@ -50,6 +50,8 @@ Workspace-scoped admin requests send `X-Comet-Workspace: {workspace}`. Content t
 
 ---
 
+Workspace creation accepts `label`, `slug`, and optional `starter_template` (`website` or `empty`). `website` creates Landing Page and Pages, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
+
 ## Content types
 
 | Method   | Path                              | Description                                  |

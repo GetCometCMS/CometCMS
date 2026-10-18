@@ -840,6 +840,8 @@ const messages = {
   'workspaces.title': 'Arbeitsbereiche',
   'workspaces.new': 'Neuer Arbeitsbereich',
   'workspaces.createTitle': 'Arbeitsbereich erstellen',
+  'workspaces.startWebsiteBody': 'Landing Page und Seiten mit bearbeitbaren Beispielinhalten. Der Page Builder ist aktiviert und die Startseite eingerichtet.',
+  'workspaces.startEmptyBody': 'Ein leerer Arbeitsbereich ohne Inhaltstypen oder Einträge. Richte eigene Inhalte und Seiten ein.',
   'workspaces.label': 'Name',
   'workspaces.labelPlaceholder': 'Mein Arbeitsbereich',
   'workspaces.slug': 'Slug',
