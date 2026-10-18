@@ -1754,6 +1754,7 @@ const messages = {
   'site.collection.editTemplate': 'Vorlage „{template}“ für alle Einträge dieser Sammlung bearbeiten.',
   'site.entry.editDesign': 'Page Builder öffnen',
   'site.entry.editDesignHint': 'Gestalte das gemeinsame Layout aller Einträge dieses Inhaltstyps, mit diesem Eintrag als Vorschau.',
+  'site.entry.editSingletonDesignHint': 'Bearbeite die Inhalte und das Layout dieser Seite im Page Builder.',
   'site.builderCta.title': 'Seiteninhalt',
   'site.builder.editContent': 'Inhalt dieses Eintrags bearbeiten',
   'site.builder.viewLive': 'Live-Seite ansehen',

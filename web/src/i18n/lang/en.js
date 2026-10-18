@@ -1749,6 +1749,7 @@ const messages = {
     'site.collection.editTemplate': 'Edit the {template} template shared by all entries in this collection.',
     'site.entry.editDesign': 'Open Page Builder',
     'site.entry.editDesignHint': 'Design the layout shared by all entries of this content type, using this entry as the preview.',
+    'site.entry.editSingletonDesignHint': 'Edit this page’s content and layout in the Page Builder.',
     'site.builderCta.title': 'Page content',
     'site.builder.editContent': 'Edit the content of this entry',
     'site.builder.viewLive': 'View live page',

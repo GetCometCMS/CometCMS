@@ -18,7 +18,7 @@
       </div>
     </div>
 
-    <span class="btn-secondary shrink-0 justify-center group-hover:bg-slate-100 group-focus-visible:bg-slate-100">
+    <span class="btn-primary shrink-0 justify-center ">
       <span :id="actionId">{{ actionLabel }}</span>
       <Icon icon="mdi:arrow-right" class="h-4 w-4" aria-hidden="true" />
     </span>

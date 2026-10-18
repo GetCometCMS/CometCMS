@@ -295,7 +295,7 @@
       <PageBuilderCta
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
         :title="t('site.builderCta.title')"
-        :description="t('site.entry.editDesignHint')"
+        :description="t(isSingleton ? 'site.entry.editSingletonDesignHint' : 'site.entry.editDesignHint')"
         :to="designLink"
         :action-label="t('site.entry.editDesign')"
       />
