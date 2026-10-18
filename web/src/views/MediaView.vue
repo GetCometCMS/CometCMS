@@ -551,8 +551,13 @@
     >
       <div v-if="detailFile" class="p-6 space-y-6">
         <!-- Preview -->
-        <div
-          class="rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center"
+        <a
+          :href="origin + detailFile.url"
+          target="_blank"
+          rel="noopener"
+          :aria-label="t('media.openInNewTab')"
+          :title="t('media.openInNewTab')"
+          class="group relative rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500 focus-visible:ring-offset-2"
         >
           <img
             v-if="isImage(detailFile.name)"
@@ -567,7 +572,13 @@
             <Icon v-bind="getFileIcon(detailFile.name)" class="w-12 h-12" />
             <span class="text-sm">{{ t("media.noPreview") }}</span>
           </div>
-        </div>
+          <span
+            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-theme-900/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+            aria-hidden="true"
+          >
+            <Icon icon="mdi:magnify-plus-outline" class="h-10 w-10" />
+          </span>
+        </a>
 
         <!-- Metadata -->
         <dl class="space-y-3 text-sm">
@@ -837,16 +848,6 @@
               readonly
               class="form-input min-w-0 flex-1 rounded-lg border-slate-300 text-sm bg-slate-50 text-slate-600"
             />
-            <a
-              :href="origin + detailFile.url"
-              target="_blank"
-              rel="noopener"
-              class="btn-secondary shrink-0"
-              :title="t('media.openInNewTab')"
-            >
-              <Icon icon="mdi:open-in-new" class="h-4 w-4" />
-              {{ t("media.open") }}
-            </a>
             <button
               type="button"
               class="btn-secondary shrink-0"
