@@ -2,7 +2,7 @@
   <div class="space-y-6">
 
     <!-- Homepage -->
-    <section class="card space-y-4 p-6">
+    <section id="homepage" class="card scroll-mt-24 space-y-4 p-6">
       <div>
         <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.homepage") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.homepageHint") }}</p>

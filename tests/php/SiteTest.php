@@ -1075,3 +1075,30 @@ test('theme spacing and radius tokens drive the stylesheet', function (): void {
     assert_same('lg', $legacy['radius']);
     assert_false(array_key_exists('spacing', $legacy));
 });
+
+test('website status opens the homepage editor for single pages selected entries and lists', function (): void {
+    $seed = <<<'PHP'
+$types = new \CometCMS\Content\ContentTypeRepository();
+$types->save(['name' => 'home', 'singleton' => true]);
+$types->save(['name' => 'pages']);
+$content = \CometCMS\Content\ContentRepository::make();
+$entry = $content->save('pages', ['title' => 'Welcome', 'slug' => 'welcome', 'status' => 'published'], ['id' => 'admin']);
+$site = new \CometCMS\Site\SiteRepository();
+PHP;
+    foreach ([
+        ["['type' => '', 'entry' => '']", null],
+        ["['type' => 'home', 'entry' => '']", '/page-builder/builder/layout/home/detail'],
+        ["['type' => 'pages', 'entry' => 'welcome']", '/page-builder/builder/layout/pages/detail?entry=welcome'],
+        ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '/page-builder/builder/layout/pages/detail?entry=welcome'],
+        ["['type' => 'pages', 'entry' => '']", '/page-builder/builder/layout/pages/index'],
+        ["['type' => 'pages', 'entry' => 'deleted']", null],
+    ] as [$homepage, $expected]) {
+        [$status, $json] = comet_admin_request('admin',
+            $seed . "\n\$site->saveSettings(['homepage' => " . $homepage . ", 'routes' => ['pages' => ['enabled' => true]]]);",
+            'GET', '/admin/api/site/status',
+            '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->status();');
+        assert_same(200, $status);
+        assert_true($json['data']['can_manage']);
+        assert_same($expected, $json['data']['homepage_editor']);
+    }
+});

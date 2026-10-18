@@ -9,6 +9,8 @@
     <LoadingSpinner v-if="loading" />
 
     <template v-else>
+      <DashboardSiteWidget :status="websiteStatus" />
+
       <!-- First-run guidance until the install has a content type and an entry -->
       <section v-if="showGettingStarted" class="card mb-5 p-5" aria-labelledby="getting-started-title">
         <h2 id="getting-started-title" class="text-base font-semibold text-slate-900">
@@ -106,9 +108,10 @@
 <script setup>
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import ActivityFeed from "../components/ActivityFeed.vue";
-import { computed, onMounted, ref } from "vue";
+import DashboardSiteWidget from "../components/DashboardSiteWidget.vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
-import { api } from "../api/index.js";
+import { api, getActiveWorkspace } from "../api/index.js";
 import { useI18n } from "../i18n/index.js";
 import { usePermissions } from "../composables/usePermissions.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
@@ -116,6 +119,7 @@ import { useContentTypesStore } from "../stores/contentTypes.js";
 const loading = ref(true);
 const stats = ref({ collections: 0, entries: 0, content_types: 0 });
 const appVersion = ref("");
+const websiteStatus = ref(null);
 const { t } = useI18n();
 const { canSchema } = usePermissions();
 const typesStore = useContentTypesStore();
@@ -181,16 +185,35 @@ const statusItems = computed(() => [
   },
 ]);
 
-onMounted(async () => {
+let loadGeneration = 0;
+async function loadDashboard() {
+  const generation = ++loadGeneration;
+  const workspace = getActiveWorkspace();
+  const current = () => generation === loadGeneration && workspace === getActiveWorkspace();
+  loading.value = true;
+  websiteStatus.value = null;
   try {
-    const [dashboard, app] = await Promise.allSettled([
+    const [dashboard, app, website] = await Promise.allSettled([
       api.dashboard(),
       api.appInfo(),
+      api.site.status(),
     ]);
+    if (!current()) return;
     if (dashboard.status === "fulfilled") stats.value = dashboard.value.data;
     if (app.status === "fulfilled") appVersion.value = app.value.data?.version ?? "";
+    if (website.status === "fulfilled") websiteStatus.value = website.value.data;
   } finally {
-    loading.value = false;
+    if (current()) loading.value = false;
   }
+}
+
+onMounted(() => {
+  loadDashboard();
+  window.addEventListener("cometcms:workspace-changed", loadDashboard);
+});
+
+onBeforeUnmount(() => {
+  loadGeneration += 1;
+  window.removeEventListener("cometcms:workspace-changed", loadDashboard);
 });
 </script>

@@ -160,6 +160,11 @@ const messages = {
   'setup.failed': 'Einrichtung fehlgeschlagen.',
 
   'dashboard.title': 'Dashboard',
+  'dashboard.site.title': 'Deine Website',
+  'dashboard.site.description': 'Öffne den Page Builder mit deiner Startseite, um deine Website zu bearbeiten.',
+  'dashboard.site.edit': 'Website bearbeiten',
+  'dashboard.site.noHomepage': 'Es ist noch keine Startseite eingerichtet. Wähle eine aus, um die Bearbeitung deiner Website dort zu beginnen.',
+  'dashboard.site.chooseHomepage': 'Startseite auswählen',
   'dashboard.status': 'Status',
   'dashboard.stats.collections': 'Sammlungen',
   'dashboard.stats.totalCollections': 'Sammlungen gesamt',
@@ -812,6 +817,10 @@ const messages = {
   'activity.siteComponentUpdated': 'Komponente aktualisiert',
   'activity.siteComponentRenamed': 'Komponente umbenannt',
   'activity.siteComponentDeleted': 'Komponente gelöscht',
+  'activity.siteFormCreated': 'Formular erstellt',
+  'activity.siteFormUpdated': 'Formular aktualisiert',
+  'activity.siteFormDeleted': 'Formular gelöscht',
+  'activity.siteFormSubmitted': 'Formulareinsendung erhalten',
   'activity.siteRevisionRestored': 'Website-Revision wiederhergestellt',
   'activity.siteTheme': 'Theme',
 

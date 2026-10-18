@@ -254,6 +254,10 @@ const EVENT_LABELS = {
   "site.component_updated": "activity.siteComponentUpdated",
   "site.component_renamed": "activity.siteComponentRenamed",
   "site.component_deleted": "activity.siteComponentDeleted",
+  "site.form_created": "activity.siteFormCreated",
+  "site.form_updated": "activity.siteFormUpdated",
+  "site.form_deleted": "activity.siteFormDeleted",
+  "site.form_submitted": "activity.siteFormSubmitted",
   "site.revision_restored": "activity.siteRevisionRestored",
 };
 

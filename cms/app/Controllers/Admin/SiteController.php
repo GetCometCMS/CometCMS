@@ -86,8 +86,32 @@ final class SiteController extends BaseController
             'enabled' => $settings['enabled'],
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
             'site_url' => $this->siteUrl(),
+            'homepage_editor' => $this->homepageEditor($settings),
             'types' => $types,
         ]]);
+    }
+
+    /** Start editing the actual homepage, including its selected entry. */
+    private function homepageEditor(array $settings): ?string
+    {
+        $homepage = $settings['homepage'];
+        $type = $this->site->types()[$homepage['type']] ?? null;
+        if ($type === null || ($type['visibility'] ?? 'public') === 'private') {
+            return null;
+        }
+
+        $variant = !empty($type['singleton']) || $homepage['entry'] !== '' ? 'detail' : 'index';
+        $path = '/page-builder/builder/layout/' . rawurlencode($type['name']) . '/' . $variant;
+        if (empty($type['singleton']) && $homepage['entry'] !== '') {
+            $entry = ContentRepository::make($this->site->workspace())->findByIdentifier($type['name'], $homepage['entry']);
+            if ($entry === null) {
+                return null;
+            }
+            // Builder samples are selected by slug, even when settings use a stable ID.
+            $path .= '?entry=' . rawurlencode((string) ($entry['slug'] ?? $entry['id']));
+        }
+
+        return $path;
     }
 
     /** Live URL and draft preview URL for one entry. */
