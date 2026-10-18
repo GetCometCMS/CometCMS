@@ -5,7 +5,7 @@
       class="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
       @focus.self="$emit('select', item.id)" @keydown="onKey">
     <div
-      class="group relative flex min-w-0 items-center gap-1 rounded-lg border px-2 py-2 outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
+      class="group relative flex min-w-0 cursor-pointer items-center gap-1 rounded-lg border px-2 py-2 outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
       :class="selectedId === item.id ? 'border-theme-200 bg-theme-50' : 'border-transparent hover:bg-slate-50'"
       :style="{ marginLeft: `${Math.min(depth - 1, 4) * 14}px` }"
       @click="$emit('select', item.id)"
@@ -17,7 +17,7 @@
         @click.stop @dragstart.stop="startDrag" @dragend="$emit('drag', '')">
         <Icon icon="mdi:drag-vertical" class="h-4 w-4" />
       </button>
-      <button v-if="item.children.length" type="button" class="shrink-0 rounded p-1 text-slate-500 hover:bg-slate-100"
+      <button v-if="item.children.length" type="button" class="shrink-0 cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-100"
         :aria-expanded="expanded" :aria-label="t(expanded ? 'site.builder.collapse' : 'site.builder.expand')" @click.stop="$emit('toggle', item.id)">
         <Icon icon="mdi:chevron-right" class="h-4 w-4 transition-transform" :class="{ 'rotate-90': expanded }" />
       </button>

@@ -1555,6 +1555,7 @@ const messages = {
   'site.builder.style': 'Stil',
   'site.builder.noOptions': 'Dieses Element hat keine Optionen. Ändere sein Aussehen im Tab „Stil“.',
   'site.builder.templateHint': 'Die Elemente in diesem Feld werden für jeden Eintrag wiederholt. Füge Felder des Eintrags über „Hinzufügen“ ein.',
+  'site.builder.elementHelp': 'Hilfe',
   'site.builder.placeholderHint': 'Nutze die Auswahl für dynamische Inhalte oder füge Feldreferenzen im Quelltext ein.',
   'site.builder.nothingSelected': 'Nichts ausgewählt',
   'site.builder.nothingSelectedHint': 'Klicke ein Element auf der Seite oder in der Struktur an, um es zu bearbeiten.',

@@ -3,7 +3,7 @@
     <aside class="card h-fit p-3">
       <ul class="space-y-1">
         <li v-for="menu in menus" :key="menu.name">
-          <button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
+          <button type="button" class="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
             :class="menu.name === selectedName ? 'bg-theme-50 font-medium text-theme-700' : 'text-slate-700 hover:bg-slate-50'" @click="selectedName = menu.name">
             <Icon icon="mdi:menu" class="h-4 w-4 shrink-0 opacity-60" />
             <span class="min-w-0 flex-1 truncate">{{ menu.label }}</span>

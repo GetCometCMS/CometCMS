@@ -1550,6 +1550,7 @@ const messages = {
     'site.builder.style': 'Style',
     'site.builder.noOptions': 'This element has no options. Use the Style tab to change its look.',
     'site.builder.templateHint': 'The elements inside this field are repeated for every item. Add item fields from the Add panel.',
+    'site.builder.elementHelp': 'Help',
     'site.builder.placeholderHint': 'Use the dynamic content picker or insert field references in the raw view.',
     'site.builder.nothingSelected': 'Nothing selected',
     'site.builder.nothingSelectedHint': 'Click an element on the page or in the outline to change it.',

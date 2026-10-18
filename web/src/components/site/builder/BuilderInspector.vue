@@ -20,10 +20,36 @@
         </li>
       </ol>
     </nav>
-    <div class="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
       <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
+        <div class="flex min-w-0 items-center gap-1">
+          <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
+          <span
+            v-if="helpHints.length"
+            class="inline-flex shrink-0"
+            @mouseenter="helpOpen = true"
+            @mouseleave="helpOpen = false"
+            @focusin="helpOpen = true"
+            @focusout="helpOpen = false"
+            @keydown.esc.stop="helpOpen = false"
+          >
+            <button
+              type="button"
+              :aria-label="`${builder.nodeLabel(node)} — ${t('site.builder.elementHelp')}`"
+              :aria-describedby="helpOpen ? helpId : undefined"
+              class="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-theme-50 hover:text-theme-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
+              @click="helpOpen = true"
+            >
+              <Icon icon="mdi:help-circle-outline" class="h-4 w-4" aria-hidden="true" />
+            </button>
+            <span v-if="helpOpen" class="absolute inset-x-3 top-[calc(100%-1.5rem)] pt-8">
+              <span :id="helpId" role="tooltip" class="block space-y-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-3 text-xs font-normal leading-relaxed text-slate-100 shadow-xl shadow-slate-900/20">
+                <span v-for="hint in helpHints" :key="hint" class="block">{{ hint }}</span>
+              </span>
+            </span>
+          </span>
+        </div>
         <p class="min-h-[1rem] truncate text-xs text-slate-500">{{ builder.nodeSummary(node) }}</p>
       </div>
       <button type="button" class="inspector-action" :title="t('site.builder.duplicate')" :disabled="locked || builder.isCard(node)" @click="builder.duplicate(node.id)">
@@ -47,8 +73,7 @@
     <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
       <template v-if="isInstance">
         <div class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
-          <p v-if="component">{{ t("site.component.instanceHint") }}</p>
-          <p v-else class="text-amber-800">{{ t("site.component.missingHint") }}</p>
+          <p v-if="!component" class="text-amber-800">{{ t("site.component.missingHint") }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
             <button v-if="component" type="button" class="btn-primary btn-sm" @click="builder.editComponent(component.id)">
               <Icon icon="mdi:puzzle-edit-outline" class="mr-1 h-4 w-4" />{{ t("site.component.edit") }}
@@ -70,10 +95,6 @@
       </template>
 
       <template v-else-if="tab === 'content'">
-        <p v-if="kindHint" class="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600 ring-1 ring-inset ring-slate-200">
-          <Icon icon="mdi:information-outline" class="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-          <span>{{ kindHint }}</span>
-        </p>
         <ColumnLayoutPicker v-if="['row', 'column'].includes(node.kind) && !builder.isCard(node)" :node="node" />
         <div v-if="fieldWarning" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           {{ fieldWarning }}
@@ -105,12 +126,6 @@
           </div>
         </div>
         <p v-if="visibleProps.length === 0" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
-        <p v-if="node.kind === 'field' && builder.isTemplateField(node)" class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {{ t("site.builder.templateHint") }}
-        </p>
-        <p v-if="['heading', 'text', 'button'].includes(node.kind)" class="text-[11px] text-slate-400">
-          {{ t("site.builder.placeholderHint") }}
-        </p>
       </template>
 
       <template v-else>
@@ -149,7 +164,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, useId, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import BuilderGroup from "./BuilderGroup.vue";
@@ -186,6 +201,17 @@ const kindHint = computed(() => {
   const text = t(key);
   return text === key ? "" : text;
 });
+const helpId = useId();
+const helpOpen = ref(false);
+const helpHints = computed(() => {
+  const current = node.value;
+  if (!current) return [];
+  const hints = [current.kind === COMPONENT && builder.componentOf(current) ? t("site.component.instanceHint") : kindHint.value];
+  if (current.kind === "field" && builder.isTemplateField(current)) hints.push(t("site.builder.templateHint"));
+  if (["heading", "text", "button"].includes(current.kind)) hints.push(t("site.builder.placeholderHint"));
+  return hints.filter(Boolean);
+});
+watch(() => node.value?.id, () => { helpOpen.value = false; });
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
