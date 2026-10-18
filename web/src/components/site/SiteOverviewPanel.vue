@@ -4,7 +4,7 @@
     <!-- Homepage -->
     <section id="homepage" class="card scroll-mt-24 space-y-4 p-6">
       <div>
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.homepage") }}</h2>
+        <h2 class="card-title">{{ t("site.overview.homepage") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.homepageHint") }}</p>
       </div>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -27,7 +27,7 @@
     <!-- Languages -->
     <section class="card space-y-4 p-6">
       <div>
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.languages") }}</h2>
+        <h2 class="card-title">{{ t("site.overview.languages") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.languagesHint") }}</p>
       </div>
       <p v-if="localeOptions.length === 0" class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
@@ -51,7 +51,7 @@
     <!-- Domains -->
     <section class="card space-y-4 p-6">
       <div>
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.domains") }}</h2>
+        <h2 class="card-title">{{ t("site.overview.domains") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.domainsHint") }}</p>
       </div>
       <textarea
@@ -64,7 +64,7 @@
 
     <!-- 404 -->
     <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.notFound") }}</h2>
+      <h2 class="card-title">{{ t("site.overview.notFound") }}</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-404-title">{{ t("site.overview.notFoundTitle") }}</label>

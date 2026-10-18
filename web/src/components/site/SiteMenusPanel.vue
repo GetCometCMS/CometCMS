@@ -38,7 +38,7 @@
       <div class="grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="min-w-0 p-4">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-slate-800">{{ t('site.menus.structure') }}</h2>
+            <h2 class="card-title">{{ t('site.menus.structure') }}</h2>
             <button type="button" class="btn-secondary btn-sm" :disabled="selected.items.length >= limits.max_siblings" @click="addItem()">
               <Icon icon="mdi:plus" class="h-4 w-4" />{{ t('site.menus.addItem') }}
             </button>
@@ -63,7 +63,7 @@
         <aside class="min-w-0 border-t border-slate-200 bg-slate-50/50 p-4 xl:border-l xl:border-t-0">
           <template v-if="selectedItem">
             <div class="mb-3 flex items-center justify-between gap-2">
-              <h2 class="text-sm font-semibold text-slate-800">{{ t('site.menus.editItem') }}</h2>
+              <h2 class="card-title">{{ t('site.menus.editItem') }}</h2>
               <button type="button" class="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" :aria-label="t('common.remove')" @click="requestRemove">
                 <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
               </button>

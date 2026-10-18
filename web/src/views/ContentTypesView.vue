@@ -1,79 +1,52 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ t("contentTypes.title") }}
-      </h1>
-      <router-link v-if="canSchema('schema.create')" to="/content-types/new" class="btn-primary">
-        {{ t("contentTypes.new") }}
-      </router-link>
-    </div>
+    <PageHeader
+      :title="t('contentTypes.title')"
+      :description="t('contentTypes.description')"
+    >
+      <template #actions>
+        <router-link v-if="canSchema('schema.create')" to="/content-types/new" class="btn-primary">
+          <Icon icon="mdi:plus" class="h-4 w-4" />
+          {{ t("contentTypes.new") }}
+        </router-link>
+      </template>
+    </PageHeader>
 
     <LoadingSpinner v-if="loading" />
 
-    <div
-      v-else-if="types.length === 0"
-      class="card p-8 text-center text-slate-500 text-sm"
-    >
-      {{ t("contentTypes.empty") }}
-      <router-link
-        v-if="canSchema('schema.create')"
-        to="/content-types/new"
-        class="text-theme-600 hover:underline ml-1"
-        >{{ t("contentTypes.createOne") }}</router-link
-      >.
+    <div v-else-if="types.length === 0" class="card">
+      <EmptyState
+        icon="mdi:shape-outline"
+        :title="t('contentTypes.empty')"
+        :description="t('contentTypes.emptyHint')"
+      >
+        <router-link v-if="canSchema('schema.create')" to="/content-types/new" class="btn-primary">
+          <Icon icon="mdi:plus" class="h-4 w-4" />
+          {{ t("contentTypes.new") }}
+        </router-link>
+      </EmptyState>
     </div>
 
     <div v-else class="card overflow-x-auto">
-      <table class="w-full">
+      <table class="data-table">
         <thead>
-          <tr class="bg-slate-50 border-b border-slate-200">
-            <th class="w-10 px-4 py-3"></th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("contentTypes.label") }}
-            </th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("contentTypes.model") }}
-            </th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("contentTypes.name") }}
-            </th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("contentTypes.icon") }}
-            </th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("contentTypes.fields") }}
-            </th>
-            <th
-              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-            >
-              {{ t("site.typeCard.title") }}
-            </th>
-            <th class="px-4 py-3"></th>
+          <tr>
+            <th class="w-10 !px-2"><span class="sr-only">{{ t("contentTypes.reorderHint") }}</span></th>
+            <th>{{ t("contentTypes.label") }}</th>
+            <th>{{ t("contentTypes.model") }}</th>
+            <th>{{ t("contentTypes.fields") }}</th>
+            <th>{{ t("site.typeCard.title") }}</th>
+            <th><span class="sr-only">{{ t("common.moreActions") }}</span></th>
           </tr>
         </thead>
-        <TransitionGroup
-          tag="tbody"
-          name="ct-sort"
-          class="divide-y divide-slate-100"
-        >
+        <TransitionGroup tag="tbody" name="ct-sort">
           <tr
             v-for="type in types"
             :key="type.name"
-            class="hover:bg-slate-50 cursor-pointer transition-colors"
+            class="cursor-pointer"
             :class="{
               'opacity-50': draggedName === type.name,
-              'bg-theme-50':
+              '!bg-theme-50':
                 dropTargetName === type.name && draggedName !== type.name,
             }"
             @click="openType(type.name)"
@@ -81,11 +54,11 @@
             @dragleave="clearDropTarget(type.name)"
             @drop.prevent="handleDrop(type.name)"
           >
-            <td class="px-4 py-3 text-slate-400">
+            <td class="!px-2 text-slate-400">
               <button
                 v-if="canSchema('schema.update')"
                 type="button"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                class="inline-flex h-8 w-8 cursor-grab items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
                 :title="t('contentTypes.reorderHint')"
                 :aria-label="t('contentTypes.reorderNamed', { name: type.label })"
                 draggable="true"
@@ -99,61 +72,50 @@
                 <Icon icon="mdi:drag-vertical" class="w-5 h-5" />
               </button>
             </td>
-            <td
-              class="px-4 py-3 text-sm font-medium text-slate-900 hover:text-theme-600 hover:underline"
-            >
-              {{ type.label }}
+            <td>
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200">
+                  <Icon :icon="type.icon || defaultIcon" class="h-[18px] w-[18px]" />
+                </span>
+                <div class="min-w-0">
+                  <div class="truncate font-medium text-slate-900">{{ type.label }}</div>
+                  <div class="truncate font-mono text-xs text-slate-500">{{ type.name }}</div>
+                </div>
+              </div>
             </td>
-            <td class="px-4 py-3 text-sm text-slate-600">
+            <td>
               <span :class="modelPillClass(type)">
+                <Icon :icon="type.singleton ? 'mdi:file-outline' : 'mdi:file-multiple-outline'" class="h-3.5 w-3.5" />
                 {{ modelLabel(type) }}
               </span>
             </td>
-            <td class="px-4 py-3 text-sm text-slate-600">{{ type.name }}</td>
-            <td class="px-4 py-3 text-sm text-slate-600">
-              <div class="flex items-center gap-2">
-                <Icon
-                  :icon="type.icon || defaultIcon"
-                  class="w-4 h-4 text-slate-500"
-                />
-              </div>
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-600">
+            <td class="tabular-nums text-slate-600">
               {{ Object.keys(type.fields ?? {}).length }}
             </td>
-            <td class="px-4 py-3 text-sm">
+            <td>
               <span v-if="type.visibility === 'private'" class="text-slate-500" :title="t('site.typeCard.private')">
                 {{ t("contentTypeEdit.private") }}
               </span>
-              <div v-else-if="websiteStatus?.types?.[type.name]" class="space-y-1">
-                <div class="flex items-center gap-2">
-                  <span
-                    class="badge whitespace-nowrap"
-                    :class="websiteStatus.types[type.name].pages_enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'"
-                  >
-                    {{ websiteStatus.types[type.name].pages_enabled ? t("contentTypes.frontendEnabled") : t("contentTypes.frontendDisabled") }}
-                  </span>
-                </div>
-              </div>
+              <span
+                v-else-if="websiteStatus?.types?.[type.name]"
+                class="badge badge-dot"
+                :class="websiteStatus.types[type.name].pages_enabled ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-500 ring-slate-500/15'"
+              >
+                {{ websiteStatus.types[type.name].pages_enabled ? t("contentTypes.frontendEnabled") : t("contentTypes.frontendDisabled") }}
+              </span>
               <span v-else class="text-slate-400" :title="t('contentTypes.frontendUnavailable')">—</span>
             </td>
-            <td class="px-4 py-3 text-right">
+            <td class="text-right">
               <div class="flex items-center justify-end gap-2" @click.stop>
-                <router-link
-                  :to="contentLink(type)"
-                  class="btn-secondary btn-sm"
-                >
-                  {{
-                    type.singleton
-                      ? t("contentTypes.open")
-                      : t("contentTypes.browse")
-                  }}
+                <router-link :to="contentLink(type)" class="btn-secondary btn-sm">
+                  {{ type.singleton ? t("contentTypes.open") : t("contentTypes.browse") }}
                 </router-link>
                 <router-link
                   v-if="canSchema('schema.update', type.name)"
                   :to="`/content-types/${type.name}/edit`"
                   class="btn-secondary btn-sm"
                 >
+                  <Icon icon="mdi:pencil-outline" class="h-3.5 w-3.5" />
                   {{ t("contentTypes.edit") }}
                 </router-link>
               </div>
@@ -167,6 +129,8 @@
 
 <script setup>
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
 import { ref, onBeforeUnmount, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import { useRouter } from "vue-router";
@@ -275,10 +239,10 @@ function modelLabel(type) {
 
 function modelPillClass(type) {
   return [
-    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
+    "badge",
     type.singleton
-      ? "bg-violet-50 text-violet-700 ring-violet-200"
-      : "bg-slate-100 text-slate-700 ring-slate-200",
+      ? "bg-violet-50 text-violet-700 ring-violet-600/20"
+      : "bg-slate-100 text-slate-700 ring-slate-500/15",
   ];
 }
 

@@ -1,13 +1,14 @@
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ contentTypeSchema?.label || collection }}
-      </h1>
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader
+      :title="contentTypeSchema?.label || collection"
+      :icon="contentTypeIcon(contentTypeSchema)"
+      :description="col.loading ? '' : `${totalEntries} ${entryLabel(totalEntries)}`"
+    >
+      <template #actions>
         <nav v-if="canEditTemplates" class="flex flex-wrap items-center gap-1.5"
           :aria-label="t('site.collection.templates')">
-          <span class="mr-1 text-xs font-semibold text-slate-500">
+          <span class="mr-1 text-xs font-medium text-slate-500">
             {{ t('site.collection.templates') }}
           </span>
 
@@ -26,94 +27,24 @@
         <router-link
           v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
           :to="`/trash/${collection}`" class="btn-secondary">
+          <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
           {{ t("contentList.trash") }}
           <span
-            class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5">{{
+            class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-medium text-slate-600">{{
               trashCount }}</span>
         </router-link>
 
         <!-- Vertical separator -->
         <div v-if="canEditTemplates && canContent('content.create', collection)"
-          class="mx-2 h-6 w-px shrink-0 bg-slate-300" aria-hidden="true"></div>
+          class="mx-1 h-6 w-px shrink-0 bg-slate-200" aria-hidden="true"></div>
 
         <router-link v-if="canContent('content.create', collection)" :to="`/content/${collection}/new`"
           class="btn-primary">
+          <Icon icon="mdi:plus" class="h-4 w-4" />
           {{ t("contentList.newEntry") }}
         </router-link>
-
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="card p-4 mb-4">
-      <div class="flex items-end gap-3 flex-wrap">
-        <div class="min-w-[240px] flex-1">
-          <label for="content-search" class="form-label text-xs">{{
-            t("contentList.search")
-          }}</label>
-          <div class="relative">
-            <Icon icon="mdi:magnify"
-              class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input id="content-search" v-model="filters.q" type="text" :placeholder="t('contentList.searchPlaceholder')"
-              class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm" @keydown.enter="applyFilters" />
-          </div>
-        </div>
-
-        <button type="button" @click="applyFilters" class="btn-secondary">
-          <Icon icon="mdi:filter-outline" class="h-4 w-4" />
-          {{ t("contentList.apply") }}
-        </button>
-        <button v-if="hasActiveFilters" type="button" @click="clearFilters" class="btn-secondary">
-          <Icon icon="mdi:close" class="h-4 w-4" />
-          {{ t("contentList.clear") }}
-        </button>
-
-        <!-- Columns picker -->
-        <div class="relative" ref="colPickerRef">
-          <button type="button" @click="colPickerOpen = !colPickerOpen" class="btn-secondary flex items-center gap-1.5">
-            <Icon icon="mdi:table-column" class="h-4 w-4" />
-            {{ t("contentList.columns") }}
-            <Icon icon="mdi:chevron-down" class="h-3.5 w-3.5 transition-transform duration-150"
-              :class="colPickerOpen ? 'rotate-180' : ''" />
-          </button>
-          <div v-if="colPickerOpen"
-            class="absolute right-0 top-full mt-1 z-50 max-h-80 w-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1">
-            <label v-for="column in tableColumns" :key="column.key"
-              class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
-              :class="visibleColumns[column.key] && displayedColumns.length === 1
-                ? 'opacity-40 cursor-not-allowed'
-                : ''
-                ">
-              <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
-                :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
-                  " @change="toggleColumn(column.key)" />
-              {{ column.label }}
-            </label>
-            <template v-if="postTypeFieldColumns.length > 0">
-              <div class="border-t border-slate-100 my-1"></div>
-              <label v-for="column in postTypeFieldColumns" :key="column.key"
-                class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
-                :class="visibleColumns[column.key] && displayedColumns.length === 1
-                  ? 'opacity-40 cursor-not-allowed'
-                  : ''
-                  ">
-                <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
-                  :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
-                    " @change="toggleColumn(column.key)" />
-                <span class="min-w-0 flex-1 truncate">{{ column.label }}</span>
-                <span class="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">{{ column.type }}</span>
-              </label>
-            </template>
-            <div class="border-t border-slate-100 mt-1 pt-1 px-3 pb-1">
-              <button type="button" class="text-xs text-theme-600 hover:text-theme-700 font-medium"
-                @click="resetColumns">
-                {{ t("contentList.resetColumns") }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <LoadingSpinner v-if="col.loading" />
 
@@ -175,32 +106,82 @@
         " :confirm-label="t('contentList.moveToTrash')" variant="danger" :loading="bulkDeleting"
         @confirm="applyBulkDelete" />
 
-      <div class="mb-3 px-1 flex items-center justify-between text-sm text-slate-500">
-        <span>
-          {{ t("contentList.showingPrefix") }} {{ pageStart }}-
-          <InlinePageSizeSelect v-model="pageSize" :display-value="pageEnd" :options="pageSizeOptions"
-            :aria-label="t('contentList.rowsPerPage')" @change="changePageSize" />
-          {{ t("contentList.showingOf") }} {{ totalEntries }}
-          {{ entryLabel(totalEntries) }}
-        </span>
-        <div class="flex gap-2">
-          <button type="button" :disabled="!canPageBackward" @click="changePage(-1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40">
-            {{ t("contentList.prev") }}
+      <div class="card">
+        <!-- Toolbar -->
+        <div class="border-b border-slate-200 p-3">
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="min-w-[240px] flex-1">
+          <label for="content-search" class="sr-only">{{
+            t("contentList.search")
+          }}</label>
+          <div class="relative">
+            <Icon icon="mdi:magnify"
+              class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input id="content-search" v-model="filters.q" type="text" :placeholder="t('contentList.searchPlaceholder')"
+              class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm" @keydown.enter="applyFilters" />
+          </div>
+        </div>
+
+        <button type="button" @click="applyFilters" class="btn-secondary">
+          {{ t("contentList.apply") }}
+        </button>
+        <button v-if="hasActiveFilters" type="button" @click="clearFilters" class="btn-secondary">
+          <Icon icon="mdi:close" class="h-4 w-4" />
+          {{ t("contentList.clear") }}
+        </button>
+
+        <!-- Columns picker -->
+        <div class="relative" ref="colPickerRef">
+          <button type="button" @click="colPickerOpen = !colPickerOpen" class="btn-secondary flex items-center gap-1.5">
+            <Icon icon="mdi:table-column" class="h-4 w-4" />
+            {{ t("contentList.columns") }}
+            <Icon icon="mdi:chevron-down" class="h-3.5 w-3.5 transition-transform duration-150"
+              :class="colPickerOpen ? 'rotate-180' : ''" />
           </button>
-          <button type="button" :disabled="!canPageForward" @click="changePage(1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40">
-            {{ t("contentList.next") }}
-          </button>
+          <div v-if="colPickerOpen"
+            class="absolute right-0 top-full mt-1 z-50 max-h-80 w-64 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-1">
+            <label v-for="column in tableColumns" :key="column.key"
+              class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
+              :class="visibleColumns[column.key] && displayedColumns.length === 1
+                ? 'opacity-40 cursor-not-allowed'
+                : ''
+                ">
+              <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
+                :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
+                  " @change="toggleColumn(column.key)" />
+              {{ column.label }}
+            </label>
+            <template v-if="postTypeFieldColumns.length > 0">
+              <div class="border-t border-slate-100 my-1"></div>
+              <label v-for="column in postTypeFieldColumns" :key="column.key"
+                class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
+                :class="visibleColumns[column.key] && displayedColumns.length === 1
+                  ? 'opacity-40 cursor-not-allowed'
+                  : ''
+                  ">
+                <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
+                  :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
+                    " @change="toggleColumn(column.key)" />
+                <span class="min-w-0 flex-1 truncate">{{ column.label }}</span>
+                <span class="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">{{ column.type }}</span>
+              </label>
+            </template>
+            <div class="border-t border-slate-100 mt-1 pt-1 px-3 pb-1">
+              <button type="button" class="text-xs text-theme-600 hover:text-theme-700 font-medium"
+                @click="resetColumns">
+                {{ t("contentList.resetColumns") }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="card overflow-hidden mb-3">
         <div class="overflow-x-auto">
-          <table class="min-w-full">
+          <table class="data-table min-w-full">
             <thead>
-              <tr class="bg-slate-50 border-b border-slate-200 group/thead">
-                <th v-if="canSelectEntries" class="w-10 px-3 py-3">
+              <tr class="group/thead">
+                <th v-if="canSelectEntries" class="w-10 !px-3">
                   <input type="checkbox" :aria-label="t('contentList.selectPage')"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
                       ? 'opacity-100'
@@ -209,7 +190,7 @@
                     @change="toggleAllPage" />
                 </th>
                 <th v-for="column in displayedColumns" :key="column.key" :class="[
-                  'text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 select-none',
+                  'select-none whitespace-nowrap',
                   column.sortKey
                     ? 'cursor-pointer hover:text-slate-700'
                     : 'cursor-default',
@@ -225,20 +206,30 @@
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-if="col.entries.length === 0">
-                <td :colspan="displayedColumns.length + (canSelectEntries ? 1 : 0)"
-                  class="px-4 py-8 text-left text-slate-500 text-sm sm:text-center">
-                  {{ t("contentList.noEntries") }}
-                  <router-link :to="`/content/${collection}/new`" class="text-theme-600 hover:underline ml-1">{{
-                    t("contentList.createOne") }}</router-link>.
+            <tbody>
+              <tr v-if="col.entries.length === 0" class="hover:!bg-transparent">
+                <td :colspan="displayedColumns.length + (canSelectEntries ? 1 : 0)">
+                  <EmptyState
+                    :icon="hasActiveFilters ? 'mdi:magnify-close' : contentTypeIcon(contentTypeSchema)"
+                    :title="hasActiveFilters ? t('contentList.noMatches') : t('contentList.noEntries')"
+                    :description="hasActiveFilters ? '' : t('contentList.emptyHint')"
+                  >
+                    <button v-if="hasActiveFilters" type="button" class="btn-secondary" @click="clearFilters">
+                      {{ t("contentList.clear") }}
+                    </button>
+                    <router-link v-else-if="canContent('content.create', collection)"
+                      :to="`/content/${collection}/new`" class="btn-primary">
+                      <Icon icon="mdi:plus" class="h-4 w-4" />
+                      {{ t("contentList.newEntry") }}
+                    </router-link>
+                  </EmptyState>
                 </td>
               </tr>
-              <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer transition-colors group" :class="selectedIds.has(entry.id)
-                ? 'bg-theme-50 hover:bg-theme-100'
-                : 'hover:bg-slate-50'
+              <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer group" :class="selectedIds.has(entry.id)
+                ? '!bg-theme-50 hover:!bg-theme-100'
+                : ''
                 " @click="router.push(`/content/${collection}/${entry.id}`)">
-                <td v-if="canSelectEntries" class="w-10 px-3 py-3" @click.stop>
+                <td v-if="canSelectEntries" class="w-10 !px-3" @click.stop>
                   <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
                     class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
@@ -406,10 +397,9 @@
             </tbody>
           </table>
         </div>
-      </div>
 
       <!-- Pagination -->
-      <div class="flex px-1 items-center justify-between text-sm text-slate-500">
+      <div class="flex flex-wrap gap-2 items-center justify-between border-t border-slate-200 px-4 py-2.5 text-sm text-slate-500">
         <span>
           {{ t("contentList.showingPrefix") }} {{ pageStart }}-
           <InlinePageSizeSelect v-model="pageSize" :display-value="pageEnd" :options="pageSizeOptions"
@@ -419,14 +409,15 @@
         </span>
         <div class="flex gap-2">
           <button type="button" :disabled="!canPageBackward" @click="changePage(-1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40">
+            class="btn-secondary btn-sm">
             {{ t("contentList.prev") }}
           </button>
           <button type="button" :disabled="!canPageForward" @click="changePage(1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40">
+            class="btn-secondary btn-sm">
             {{ t("contentList.next") }}
           </button>
         </div>
+      </div>
       </div>
     </template>
   </div>
@@ -440,6 +431,9 @@ import ConfirmModal from "../components/ConfirmModal.vue";
 import ContentListCell from "../components/ContentListCell.vue";
 import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
 import SplitButton from "../components/SplitButton.vue";
+import PageHeader from "../components/PageHeader.vue";
+import EmptyState from "../components/EmptyState.vue";
+import { contentTypeIcon } from "../composables/useNavigation.js";
 import { Icon } from "@iconify/vue";
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -1078,7 +1072,7 @@ function formatDate(iso) {
 }
 
 function cellClass(column) {
-  const base = "px-4 py-3 text-sm align-middle";
+  const base = "align-middle";
   if (column.key === "title") return `${base} font-medium text-slate-900`;
   if (["created", "updated", "scheduled"].includes(column.key))
     return `${base} text-slate-500 whitespace-nowrap`;

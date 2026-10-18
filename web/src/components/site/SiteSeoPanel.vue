@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <!-- Identity -->
     <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.identity") }}</h2>
+      <h2 class="card-title">{{ t("site.overview.identity") }}</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-title">{{ t("site.overview.siteTitle") }}</label>
@@ -26,7 +26,7 @@
 
     <section class="card space-y-4 p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.overview.seo") }}</h2>
+        <h2 class="card-title">{{ t("site.overview.seo") }}</h2>
         <a
           :href="site.data.site_url + '/sitemap.xml'"
           target="_blank"

@@ -1,27 +1,22 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">{{ t("users.title") }}</h1>
-      <div class="flex items-center gap-2">
-        <router-link
-          v-if="auth.can('roles.read')"
-          to="/roles"
-          class="btn-secondary"
-        >
-          {{ t("users.editRoles") }}
-        </router-link>
-        <button @click="showNewUser = !showNewUser" class="btn-primary">
+    <PageHeader :title="t('app.nav.usersRoles')" :description="t('users.description')">
+      <template #actions>
+        <button type="button" @click="showNewUser = !showNewUser" class="btn-primary">
+          <Icon icon="mdi:account-plus-outline" class="h-4 w-4" />
           {{ t("users.newUser") }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
+
+    <UsersRolesTabs active="users" />
 
     <!-- New user form -->
-    <div v-if="showNewUser" class="card p-6 mb-6">
-      <h2 class="text-sm font-semibold text-slate-700 mb-4">
+    <div v-if="showNewUser" class="card p-5 mb-6">
+      <h2 class="card-title mb-4">
         {{ t("users.createUser") }}
       </h2>
-      <form @submit.prevent="handleCreateUser" class="grid grid-cols-3 gap-4">
+      <form @submit.prevent="handleCreateUser" class="grid gap-4 sm:grid-cols-3">
         <div>
           <label class="form-label">{{ t("users.username") }}</label>
           <input
@@ -53,10 +48,10 @@
             </option>
           </select>
         </div>
-        <div v-if="createError" class="col-span-3 text-red-600 text-sm">
+        <div v-if="createError" class="sm:col-span-3 text-red-600 text-sm">
           {{ createError }}
         </div>
-        <div class="col-span-3 flex gap-2">
+        <div class="sm:col-span-3 flex gap-2">
           <button type="submit" class="btn-primary">
             {{ t("users.create") }}
           </button>
@@ -75,20 +70,22 @@
     <LoadingSpinner v-if="loading" />
 
     <template v-else>
+      <div class="card overflow-hidden">
       <template v-for="role in roleGroups" :key="role.id">
         <template v-if="sortedUsers.some((u) => u.role === role.id)">
           <h2
-            class="text-sm font-semibold text-slate-500 tracking-wider mt-6 mb-3 capitalize"
+            class="flex items-center gap-2 border-b border-slate-200 bg-slate-50/70 px-5 py-2 text-xs font-medium text-slate-500 [&:not(:first-child)]:border-t"
           >
             {{ role.label }}
+            <span class="text-slate-400">{{ sortedUsers.filter((u) => u.role === role.id).length }}</span>
           </h2>
-          <div class="space-y-4">
+          <div class="divide-y divide-slate-100">
             <div
               v-for="user in sortedUsers.filter((u) => u.role === role.id)"
               :key="user.id"
-              class="card p-5"
+              class="px-5 py-3.5"
             >
-              <div class="flex items-center justify-between mb-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
                 <component
                   :is="user.id === currentUser?.id ? 'router-link' : 'div'"
                   :to="user.id === currentUser?.id ? '/profile' : undefined"
@@ -100,7 +97,7 @@
                   "
                 >
                   <div
-                    class="w-9 h-9 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-sm font-semibold select-none shrink-0"
+                    class="w-10 h-10 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-sm font-semibold select-none shrink-0 ring-2 ring-white shadow-sm"
                   >
                     <img
                       v-if="user.has_avatar"
@@ -111,15 +108,12 @@
                     <span v-else>{{ user.username?.[0]?.toUpperCase() }}</span>
                   </div>
                   <div class="min-w-0">
-                    <p class="font-semibold text-slate-900">
-                      {{ user.display_name || user.username }}
+                    <p class="flex items-center gap-2 text-sm font-medium text-slate-900">
+                      <span class="truncate">{{ user.display_name || user.username }}</span>
+                      <span v-if="user.id === currentUser?.id" class="badge bg-theme-50 text-theme-700 ring-theme-600/20">{{ t("users.you") }}</span>
                     </p>
-                    <p class="text-xs text-slate-500">
-                      {{ user.username }} ·
-                      <span>{{ roleLabel(user.role) }}</span>
-                    </p>
-                    <p v-if="user.email" class="text-xs text-slate-400">
-                      {{ user.email }}
+                    <p class="truncate text-sm text-slate-500">
+                      @{{ user.username }}<template v-if="user.email"> · {{ user.email }}</template>
                     </p>
                   </div>
                 </component>
@@ -151,16 +145,14 @@
               <!-- Edit user form -->
               <div
                 v-if="editForm.userId === user.id"
-                class="border-t border-slate-100 pt-4 mb-4"
+                class="mt-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4"
               >
-                <h3
-                  class="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3"
-                >
+                <h3 class="mb-3 text-sm font-semibold text-slate-900">
                   {{ t("users.editUser") }}
                 </h3>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label class="text-xs text-slate-500 block mb-0.5">{{
+                    <label class="form-label">{{
                       t("users.displayName")
                     }}</label>
                     <input
@@ -170,7 +162,7 @@
                     />
                   </div>
                   <div>
-                    <label class="text-xs text-slate-500 block mb-0.5">{{
+                    <label class="form-label">{{
                       t("users.email")
                     }}</label>
                     <input
@@ -180,7 +172,7 @@
                     />
                   </div>
                   <div>
-                    <label class="text-xs text-slate-500 block mb-0.5">{{
+                    <label class="form-label">{{
                       t("users.rolePreset")
                     }}</label>
                     <select
@@ -198,7 +190,7 @@
                     </select>
                   </div>
                   <div>
-                    <label class="text-xs text-slate-500 block mb-0.5"
+                    <label class="form-label"
                       >{{ t("users.newPassword") }}
                       <span class="text-slate-400">{{
                         t("users.leaveBlank")
@@ -219,13 +211,13 @@
                 <div class="mt-3 flex gap-2">
                   <button
                     @click="handleUpdateUser(user.id)"
-                    class="btn-primary text-xs py-1.5 px-3"
+                    class="btn-primary btn-sm"
                   >
                     {{ t("users.saveChanges") }}
                   </button>
                   <button
                     @click="editForm.userId = null"
-                    class="btn-secondary text-xs py-1.5 px-3"
+                    class="btn-secondary btn-sm"
                   >
                     {{ t("common.cancel") }}
                   </button>
@@ -236,7 +228,9 @@
           </div>
           <!-- end space-y-4 --> </template
         ><!-- end role group --> </template
-      ><!-- end role loop --> </template
+      ><!-- end role loop -->
+      </div>
+    </template
     ><!-- end v-else -->
 
     <ConfirmModal
@@ -253,6 +247,9 @@
 import { ADMIN_API_BASE } from "../basePath.js";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
+import PageHeader from "../components/PageHeader.vue";
+import UsersRolesTabs from "../components/UsersRolesTabs.vue";
+import { Icon } from "@iconify/vue";
 import { ref, computed, onBeforeUnmount, onMounted } from "vue";
 import { api } from "../api/index.js";
 import { usersAdminEndpoint } from "../composables/apiEndpoint.js";
@@ -400,10 +397,6 @@ async function executeDeleteUser() {
   } finally {
     deletingUser.value = false;
   }
-}
-
-function roleLabel(id) {
-  return roles.value.find((role) => role.id === id)?.label ?? id;
 }
 
 onMounted(load);

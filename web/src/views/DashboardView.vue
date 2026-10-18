@@ -1,22 +1,16 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ t("dashboard.title") }}
-      </h1>
-    </div>
+    <PageHeader :title="greeting" :description="t('dashboard.subtitle', { workspace: workspaceLabel })" />
 
     <LoadingSpinner v-if="loading" />
 
     <template v-else>
-      <DashboardSiteWidget :status="websiteStatus" />
-
       <!-- First-run guidance until the install has a content type and an entry -->
-      <section v-if="showGettingStarted" class="card mb-5 p-5" aria-labelledby="getting-started-title">
-        <h2 id="getting-started-title" class="text-base font-semibold text-slate-900">
+      <section v-if="showGettingStarted" class="card mb-6 p-5" aria-labelledby="getting-started-title">
+        <h2 id="getting-started-title" class="card-title">
           {{ t("dashboard.start.title") }}
         </h2>
-        <p class="mt-1 text-sm text-slate-500">{{ t("dashboard.start.body") }}</p>
+        <p class="card-description">{{ t("dashboard.start.body") }}</p>
         <ol class="mt-4 grid gap-3 md:grid-cols-3">
           <li v-for="(step, index) in gettingStartedSteps" :key="step.key">
             <component
@@ -49,57 +43,68 @@
         </ol>
       </section>
 
-      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+      <!-- Key figures -->
+      <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <component
+          :is="item.to ? 'router-link' : item.href ? 'a' : 'div'"
+          v-for="item in statusItems"
+          :key="item.label"
+          :to="item.to"
+          :href="item.href"
+          :target="item.href ? '_blank' : undefined"
+          :rel="item.href ? 'noopener noreferrer' : undefined"
+          class="card group flex items-start gap-4 p-5"
+          :class="item.to || item.href ? 'transition hover:border-slate-300 hover:shadow-sm' : ''"
+        >
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600 ring-1 ring-inset ring-theme-600/10">
+            <Icon :icon="item.icon" class="h-5 w-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm text-slate-500">{{ item.label }}</p>
+            <p
+              class="mt-0.5 truncate font-semibold tracking-tight text-slate-900"
+              :class="item.href ? 'text-lg leading-8' : 'text-2xl'"
+            >
+              {{ item.value }}
+            </p>
+            <p class="mt-0.5 text-xs text-slate-400">{{ item.caption }}</p>
+          </div>
+          <Icon
+            v-if="item.to || item.href"
+            :icon="item.href ? 'mdi:arrow-top-right' : 'mdi:arrow-right'"
+            class="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-slate-500"
+          />
+        </component>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
         <!-- Recent Activity -->
         <ActivityFeed />
 
-        <!-- Status -->
-        <section class="card p-5">
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-slate-900">
-              {{ t("dashboard.status") }}
-            </h2>
-            <router-link
-              to="/update"
-              class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40"
-            >
-              <Icon icon="mdi:update" class="h-4 w-4 text-slate-500" />
-              <span>{{ t("dashboard.stats.checkUpdates") }}</span>
-            </router-link>
-          </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <component
-              :is="item.href ? 'a' : 'div'"
-              v-for="item in statusItems"
-              :key="item.label"
-              :href="item.href"
-              :target="item.href ? '_blank' : undefined"
-              :rel="item.href ? 'noopener noreferrer' : undefined"
-              :class="[
-                'rounded-lg border border-slate-200 bg-slate-50/70 p-4',
-                item.href
-                  ? 'block transition hover:border-theme-300 hover:bg-theme-50/50'
-                  : '',
-              ]"
-            >
-              <div class="mb-3 flex items-center gap-2">
-                <Icon
-                  :icon="item.icon"
-                  class="h-5 w-5 shrink-0 text-theme-600"
-                />
-                <p
-                  class="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-slate-500"
+        <div class="space-y-6">
+          <DashboardSiteWidget :status="websiteStatus" />
+
+          <!-- Quick actions -->
+          <section v-if="quickActions.length > 0" class="card" aria-labelledby="quick-actions-title">
+            <div class="card-header">
+              <h2 id="quick-actions-title" class="card-title">{{ t("dashboard.quickActions") }}</h2>
+            </div>
+            <ul class="p-2">
+              <li v-for="action in quickActions" :key="action.key">
+                <router-link
+                  :to="action.to"
+                  class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
                 >
-                  {{ item.label }}
-                </p>
-              </div>
-              <p class="text-2xl font-bold text-slate-900">
-                {{ item.value }}
-              </p>
-              <p class="mt-1 text-sm text-slate-500">{{ item.caption }}</p>
-            </component>
-          </div>
-        </section>
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200 transition-colors group-hover:bg-theme-50 group-hover:text-theme-600 group-hover:ring-theme-200">
+                    <Icon :icon="action.icon" class="h-4 w-4" />
+                  </span>
+                  <span class="min-w-0 flex-1 truncate font-medium">{{ action.label }}</span>
+                  <Icon icon="mdi:chevron-right" class="h-4 w-4 shrink-0 text-slate-300 group-hover:text-slate-500" />
+                </router-link>
+              </li>
+            </ul>
+          </section>
+        </div>
       </div>
     </template>
   </div>
@@ -109,6 +114,9 @@
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import ActivityFeed from "../components/ActivityFeed.vue";
 import DashboardSiteWidget from "../components/DashboardSiteWidget.vue";
+import PageHeader from "../components/PageHeader.vue";
+import { useAuthStore } from "../stores/auth.js";
+import { contentTypeIcon } from "../composables/useNavigation.js";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { api, getActiveWorkspace } from "../api/index.js";
@@ -123,6 +131,31 @@ const websiteStatus = ref(null);
 const { t } = useI18n();
 const { canSchema } = usePermissions();
 const typesStore = useContentTypesStore();
+const auth = useAuthStore();
+const workspaceLabel = ref(getActiveWorkspace());
+
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+  const key = hour < 12 ? "dashboard.greetingMorning" : hour < 18 ? "dashboard.greetingAfternoon" : "dashboard.greetingEvening";
+  return t(key, { name: auth.user?.display_name || auth.user?.username || "" });
+});
+
+const quickActions = computed(() => {
+  const actions = typesStore.list
+    .filter((type) => auth.can("content.create", `content:${type.name}:*`))
+    .slice(0, 4)
+    .map((type) => ({
+      key: `type:${type.name}`,
+      label: type.singleton ? t("dashboard.editPage", { type: type.label }) : t("app.search.newEntry", { type: type.label }),
+      icon: type.singleton ? contentTypeIcon(type) : "mdi:plus",
+      to: type.singleton ? `/content/${type.name}` : `/content/${type.name}/new`,
+    }));
+  actions.push({ key: "media", label: t("dashboard.uploadMedia"), icon: "mdi:upload-outline", to: "/media" });
+  if (canSchema("schema.create")) {
+    actions.push({ key: "type", label: t("app.search.newContentType"), icon: "mdi:shape-plus-outline", to: "/content-types/new" });
+  }
+  return actions;
+});
 
 const showGettingStarted = computed(
   () =>
@@ -168,13 +201,15 @@ const statusItems = computed(() => [
     label: t("dashboard.stats.contentTypes"),
     value: stats.value.content_types,
     caption: t("dashboard.stats.totalContentTypes"),
-    icon: "mdi:table",
+    icon: "mdi:shape-outline",
+    to: canSchema("schema.read") ? "/content-types" : undefined,
   },
   {
     label: t("dashboard.stats.cmsVersion"),
     value: `v${appVersion.value || "..."}`,
     caption: t("dashboard.stats.currentVersion"),
     icon: "mdi:rocket-launch-outline",
+    to: "/update",
   },
   {
     label: t("dashboard.stats.documentation"),
@@ -193,15 +228,20 @@ async function loadDashboard() {
   loading.value = true;
   websiteStatus.value = null;
   try {
-    const [dashboard, app, website] = await Promise.allSettled([
+    const [dashboard, app, website, workspaces] = await Promise.allSettled([
       api.dashboard(),
       api.appInfo(),
       api.site.status(),
+      auth.can("workspaces.read") ? api.workspaces.list() : Promise.resolve({ data: [] }),
     ]);
     if (!current()) return;
     if (dashboard.status === "fulfilled") stats.value = dashboard.value.data;
     if (app.status === "fulfilled") appVersion.value = app.value.data?.version ?? "";
     if (website.status === "fulfilled") websiteStatus.value = website.value.data;
+    workspaceLabel.value =
+      (workspaces.status === "fulfilled"
+        ? (workspaces.value.data ?? []).find((w) => w.slug === workspace)?.label
+        : null) ?? workspace;
   } finally {
     if (current()) loading.value = false;
   }

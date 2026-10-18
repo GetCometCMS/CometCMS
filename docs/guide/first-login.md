@@ -28,11 +28,17 @@ https://yourdomain.com/admin
 
 Enter your username and password. Sessions are server-side (PHP sessions stored in `cms/storage/sessions/`).
 
-After login, you can add more workspaces in **Settings -> Workspaces**. See [Workspaces](./workspaces) for routing, isolation, and permission scoping details.
+After login, you can add more workspaces in **Administration → Workspaces**. See [Workspaces](./workspaces) for routing, isolation, and permission scoping details.
+
+## Finding your way around
+
+The sidebar groups the admin into **Content** (your content types and media), **Website** (the Page Builder, once enabled) and **Administration** (content types, users and roles, workspaces, API & integrations, backups and updates).
+
+Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (<kbd>⌘</kbd> + <kbd>K</kbd> on macOS), or click **Search** in the sidebar, to jump to any page, find entries by title, or start a new entry.
 
 ## Your profile
 
-Click your **name or avatar in the bottom-left corner of the sidebar** to open your profile page where you can:
+Click your **name or avatar in the bottom-left corner of the sidebar** and choose **Profile** to open your profile page where you can:
 
 - Upload or remove your profile picture
 - Change your display name and email address

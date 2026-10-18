@@ -5,7 +5,7 @@
     >
       <div>
         <div class="flex flex-wrap items-center gap-2">
-          <h2 class="text-base font-semibold text-slate-900">
+          <h2 class="card-title">
             {{ t("apiBuilder.title") }}
           </h2>
         </div>

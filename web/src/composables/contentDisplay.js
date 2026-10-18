@@ -1,9 +1,11 @@
+// Status pills reuse the global .badge-* styles (style.css) so lists, pickers
+// and editors render one status vocabulary.
 export const statusPillClasses = {
-  draft: "bg-slate-100 text-slate-700 ring-slate-200",
-  published: "bg-emerald-100 text-emerald-700 ring-emerald-200",
-  scheduled: "bg-sky-100 text-sky-700 ring-sky-200",
-  protected: "bg-violet-100 text-violet-700 ring-violet-200",
-  archived: "bg-amber-100 text-amber-700 ring-amber-200",
+  draft: "badge-draft",
+  published: "badge-published",
+  scheduled: "badge-scheduled",
+  protected: "badge-protected",
+  archived: "badge-archived",
 };
 
 export function effectiveStatus(entry, now = new Date()) {
@@ -18,10 +20,7 @@ export function effectiveStatus(entry, now = new Date()) {
 }
 
 export function statusPillClass(status) {
-  return [
-    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset",
-    statusPillClasses[status] ?? "bg-slate-100 text-slate-600 ring-slate-200",
-  ];
+  return [statusPillClasses[status] ?? "badge-draft", "capitalize"];
 }
 
 export function orderLocales(locales, defaultLocale) {

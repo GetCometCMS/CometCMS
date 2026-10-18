@@ -1,3 +1,5 @@
+@import "@fontsource-variable/inter";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,10 +16,26 @@
 }
 
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    color: rgb(var(--color-slate-700));
+  }
+
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid rgb(var(--color-theme-500));
     outline-offset: 2px;
   }
+
+  ::selection {
+    background-color: rgb(var(--color-theme-500) / 0.2);
+  }
+
   :root,
   :root[data-theme="blue"] {
     --color-theme-50: 239 246 255;
@@ -30,30 +48,40 @@
     --color-theme-700: 29 78 216;
     --color-theme-800: 30 64 175;
     --color-theme-900: 30 58 138;
-    --color-app-bg: 241 245 249;
-    --color-sidebar: 16 32 48;
-    --color-sidebar-hover: 29 53 77;
+    --color-app-bg: 246 247 249;
+
+    /* Sidebar: a deep, theme-tinted ink with translucent states so every
+       colored theme shares one set of layering rules. */
+    --color-sidebar: 13 20 36;
+    --color-sidebar-hover: 27 35 52;
     --color-sidebar-border: 255 255 255;
-    --color-sidebar-border-alpha: 0.1;
-    --color-sidebar-text: 226 232 240;
-    --color-sidebar-muted: 148 163 184;
-    --color-sidebar-heading: 148 163 184;
-    --color-sidebar-footer: 110 125 150;
+    --color-sidebar-border-alpha: 0.08;
+    --color-sidebar-text: 203 210 222;
+    --color-sidebar-muted: 140 150 168;
+    --color-sidebar-heading: 115 126 146;
+    --color-sidebar-footer: 115 126 146;
     --color-sidebar-hover-text: 255 255 255;
     --color-sidebar-active-text: 255 255 255;
+    --sidebar-active-bg: rgb(255 255 255 / 0.09);
+    --sidebar-hover-bg: rgb(255 255 255 / 0.05);
+    --sidebar-indicator: rgb(var(--color-theme-400));
+    --sidebar-surface: rgb(255 255 255 / 0.04);
+    --sidebar-surface-border: rgb(255 255 255 / 0.08);
+    --sidebar-kbd: rgb(255 255 255 / 0.08);
 
-    /* Neutral scale behind Tailwind's slate-* utilities (see tailwind.config.js). */
-    --color-slate-50: 248 250 252;
-    --color-slate-100: 241 245 249;
-    --color-slate-200: 226 232 240;
-    --color-slate-300: 203 213 225;
-    --color-slate-400: 148 163 184;
-    --color-slate-500: 100 116 139;
-    --color-slate-600: 71 85 105;
-    --color-slate-700: 51 65 85;
-    --color-slate-800: 30 41 59;
-    --color-slate-900: 15 23 42;
-    --color-slate-950: 2 6 23;
+    /* Neutral scale behind Tailwind's slate-* utilities (see tailwind.config.js).
+       A clean, lightly cool gray instead of the bluer slate. */
+    --color-slate-50: 249 250 251;
+    --color-slate-100: 243 244 246;
+    --color-slate-200: 229 231 235;
+    --color-slate-300: 209 213 219;
+    --color-slate-400: 156 163 175;
+    --color-slate-500: 107 114 128;
+    --color-slate-600: 75 85 99;
+    --color-slate-700: 55 65 81;
+    --color-slate-800: 31 41 55;
+    --color-slate-900: 17 24 39;
+    --color-slate-950: 3 7 18;
     --color-surface: 255 255 255;
     --color-theme-text: var(--color-theme-700);
   }
@@ -69,9 +97,9 @@
     --color-theme-700: 4 120 87;
     --color-theme-800: 6 95 70;
     --color-theme-900: 6 78 59;
-    --color-app-bg: 244 249 247;
-    --color-sidebar: 0 64 45;
-    --color-sidebar-hover: 6 95 70;
+    --color-app-bg: 245 248 247;
+    --color-sidebar: 6 40 32;
+    --color-sidebar-hover: 14 58 47;
   }
 
   :root[data-theme="purple"] {
@@ -85,9 +113,9 @@
     --color-theme-700: 109 40 217;
     --color-theme-800: 91 33 182;
     --color-theme-900: 76 29 149;
-    --color-app-bg: 247 245 251;
-    --color-sidebar: 39 24 70;
-    --color-sidebar-hover: 62 39 112;
+    --color-app-bg: 247 246 250;
+    --color-sidebar: 27 19 50;
+    --color-sidebar-hover: 42 31 72;
   }
 
   :root[data-theme="orange"] {
@@ -101,17 +129,23 @@
     --color-theme-700: 194 65 12;
     --color-theme-800: 154 52 18;
     --color-theme-900: 124 45 18;
-    --color-app-bg: 250 247 244;
-    --color-sidebar: 253 250 247;
-    --color-sidebar-hover: 255 237 213;
-    --color-sidebar-border: 231 219 208;
+    --color-app-bg: 249 247 245;
+    --color-sidebar: 255 255 255;
+    --color-sidebar-hover: 255 247 237;
+    --color-sidebar-border: 234 226 218;
     --color-sidebar-border-alpha: 1;
-    --color-sidebar-text: 30 41 59;
-    --color-sidebar-muted: 71 85 105;
-    --color-sidebar-heading: 100 116 139;
-    --color-sidebar-footer: 100 116 139;
-    --color-sidebar-hover-text: 15 23 42;
-    --color-sidebar-active-text: 255 255 255;
+    --color-sidebar-text: 55 65 81;
+    --color-sidebar-muted: 107 114 128;
+    --color-sidebar-heading: 140 146 158;
+    --color-sidebar-footer: 107 114 128;
+    --color-sidebar-hover-text: 17 24 39;
+    --color-sidebar-active-text: 154 52 18;
+    --sidebar-active-bg: rgb(var(--color-theme-50));
+    --sidebar-hover-bg: rgb(0 0 0 / 0.035);
+    --sidebar-indicator: rgb(var(--color-theme-500));
+    --sidebar-surface: rgb(0 0 0 / 0.02);
+    --sidebar-surface-border: rgb(234 226 218);
+    --sidebar-kbd: rgb(0 0 0 / 0.05);
   }
 
   :root[data-theme="cyan"] {
@@ -125,9 +159,9 @@
     --color-theme-700: 14 116 144;
     --color-theme-800: 21 94 117;
     --color-theme-900: 22 78 99;
-    --color-app-bg: 243 250 251;
-    --color-sidebar: 8 51 68;
-    --color-sidebar-hover: 21 94 117;
+    --color-app-bg: 245 248 249;
+    --color-sidebar: 6 36 48;
+    --color-sidebar-hover: 14 55 70;
   }
 
   :root[data-theme="red"] {
@@ -141,9 +175,9 @@
     --color-theme-700: 185 28 28;
     --color-theme-800: 153 27 27;
     --color-theme-900: 127 29 29;
-    --color-app-bg: 250 245 245;
-    --color-sidebar: 69 10 10;
-    --color-sidebar-hover: 153 27 27;
+    --color-app-bg: 249 246 246;
+    --color-sidebar: 44 14 16;
+    --color-sidebar-hover: 66 24 27;
   }
 
 
@@ -170,12 +204,14 @@
     --color-sidebar-hover: 27 32 43;
     --color-sidebar-border: 148 163 184;
     --color-sidebar-border-alpha: 0.1;
-    --color-sidebar-text: 214 221 232;
+    --color-sidebar-text: 200 208 222;
     --color-sidebar-muted: 140 150 168;
     --color-sidebar-heading: 104 114 134;
     --color-sidebar-footer: 104 114 134;
     --color-sidebar-hover-text: 248 250 252;
     --color-sidebar-active-text: 255 255 255;
+    --sidebar-active-bg: rgb(255 255 255 / 0.06);
+    --sidebar-indicator: rgb(var(--color-theme-400));
 
     --color-slate-50: 24 28 38;
     --color-slate-100: 31 36 48;
@@ -197,26 +233,51 @@
     background-color: rgb(var(--color-app-bg));
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Sidebar                                                                 */
+  /* ---------------------------------------------------------------------- */
+
   .nav-link {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors;
+    @apply relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors;
     color: rgb(var(--color-sidebar-text));
   }
 
+  .nav-link .nav-icon {
+    @apply h-[18px] w-[18px] shrink-0 transition-colors;
+    color: rgb(var(--color-sidebar-muted));
+  }
+
   .nav-link:hover {
-    background: rgb(var(--color-sidebar-hover));
+    background: var(--sidebar-hover-bg);
     color: rgb(var(--color-sidebar-hover-text));
   }
 
-  .nav-link.router-link-active {
-    background: linear-gradient(
-      135deg,
-      rgb(var(--color-theme-500)),
-      rgb(var(--color-theme-700))
-    );
+  .nav-link:hover .nav-icon {
+    color: rgb(var(--color-sidebar-hover-text));
+  }
+
+  .nav-link.is-active {
+    background: var(--sidebar-active-bg);
     color: rgb(var(--color-sidebar-active-text));
   }
 
+  .nav-link.is-active .nav-icon {
+    color: var(--sidebar-indicator);
+  }
+
+  .nav-link.is-active::before {
+    content: "";
+    position: absolute;
+    left: -0.75rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--sidebar-indicator);
+  }
+
   .sidebar-label {
+    @apply px-2.5 pb-1.5 pt-5 text-[11px] font-semibold uppercase tracking-[0.08em];
     color: rgb(var(--color-sidebar-heading));
   }
 
@@ -241,17 +302,97 @@
     color: rgb(var(--color-sidebar-text));
   }
 
+  /* Bordered, slightly lifted controls in the sidebar (workspace switcher,
+     search trigger). */
+  .sidebar-surface {
+    background: var(--sidebar-surface);
+    border: 1px solid var(--sidebar-surface-border);
+    color: rgb(var(--color-sidebar-text));
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .sidebar-surface:hover {
+    background: var(--sidebar-hover-bg);
+  }
+
+  .sidebar-kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded px-1 font-sans text-[11px] font-medium;
+    background: var(--sidebar-kbd);
+    color: rgb(var(--color-sidebar-muted));
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Page structure                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  .page-header {
+    @apply mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-slate-900;
+  }
+
+  .page-description {
+    @apply mt-1 max-w-3xl text-sm text-slate-500;
+  }
+
+  .page-eyebrow {
+    @apply mb-2 flex flex-wrap items-center gap-1.5 text-sm text-slate-500;
+  }
+
+  .page-eyebrow a {
+    @apply inline-flex items-center gap-1 rounded transition-colors hover:text-slate-900;
+  }
+
+  .page-header-actions {
+    @apply flex shrink-0 flex-wrap items-center gap-2;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-xs;
+  }
+
+  .card-header {
+    @apply flex items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4;
+  }
+
+  .card-title {
+    @apply text-[15px] font-semibold leading-6 text-slate-900;
+  }
+
+  .card-description {
+    @apply mt-0.5 text-sm text-slate-500;
+  }
+
+  .section-title {
+    @apply text-[15px] font-semibold leading-6 text-slate-900;
+  }
+
+  /* Square, bordered icon-only button (back links, toolbars). */
+  .icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-500 focus-visible:ring-offset-2;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[11px] font-medium text-slate-500;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* API endpoint footer                                                     */
+  /* ---------------------------------------------------------------------- */
+
   .api-endpoint-footer {
-    background-color: rgb(var(--color-app-bg) / 0.92);
-    border-color: rgb(203 213 225 / 0.72);
-    color: rgb(71 85 105);
-    box-shadow: 0 -10px 24px rgb(15 23 42 / 0.04);
+    background-color: rgb(var(--color-surface) / 0.88);
+    border-color: rgb(var(--color-slate-200));
+    color: rgb(var(--color-slate-600));
+    box-shadow: 0 -8px 24px rgb(16 24 40 / 0.04);
   }
 
   .api-endpoint-footer-link,
   .api-endpoint-footer-icon,
   .api-endpoint-footer-dismiss {
-    color: rgb(71 85 105);
+    color: rgb(var(--color-slate-500));
   }
 
   .api-endpoint-footer-link:hover,
@@ -260,7 +401,7 @@
   }
 
   .api-endpoint-footer-dismiss:hover {
-    background-color: rgb(255 255 255 / 0.72);
+    background-color: rgb(var(--color-slate-100));
   }
 
   .api-endpoint-footer-badge {
@@ -270,10 +411,9 @@
   }
 
   .api-endpoint-footer-url {
-    background-color: rgb(255 255 255 / 0.78);
-    border-color: rgb(203 213 225 / 0.86);
-    color: rgb(30 41 59);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+    background-color: rgb(var(--color-slate-50));
+    border-color: rgb(var(--color-slate-200));
+    color: rgb(var(--color-slate-800));
   }
 
   .api-endpoint-footer-method {
@@ -281,10 +421,7 @@
   }
 
   .api-endpoint-footer-url .btn-secondary {
-    background-color: rgb(255 255 255 / 0.9);
-    border-color: rgb(203 213 225);
-    color: rgb(51 65 85);
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+    background-color: rgb(var(--color-surface));
   }
 
   .api-endpoint-footer-url .btn-secondary:hover {
@@ -293,57 +430,148 @@
     color: rgb(var(--color-theme-700));
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Buttons. Every variant carries a 1px border so primary and secondary    */
+  /* buttons line up at the same height.                                     */
+  /* ---------------------------------------------------------------------- */
+
   .btn {
-    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply inline-flex cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium leading-5 transition-[color,background-color,border-color,box-shadow] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
   }
 
   .btn-primary {
-    @apply btn bg-theme-600 text-white hover:bg-theme-700 focus:ring-theme-500;
+    @apply btn border-theme-600 bg-theme-600 text-white hover:border-theme-700 hover:bg-theme-700 focus-visible:ring-theme-500;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 1px 2px rgb(16 24 40 / 0.08);
   }
 
   .btn-secondary {
-    @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-400;
+    @apply btn border-slate-200 bg-white text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-400;
+  }
+
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-400;
   }
 
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply btn border-red-600 bg-red-600 text-white hover:border-red-700 hover:bg-red-700 focus-visible:ring-red-500;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 1px 2px rgb(16 24 40 / 0.08);
   }
 
   /* Routine destructive actions in lists and toolbars; solid .btn-danger is
      reserved for the final confirmation so it is never the loudest element. */
   .btn-danger-subtle {
-    @apply btn bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 focus:ring-red-500;
+    @apply btn border-red-200 bg-white text-red-600 shadow-xs hover:border-red-300 hover:bg-red-50 focus-visible:ring-red-500;
   }
 
   .btn-sm {
-    @apply px-2.5 py-1 text-xs;
+    @apply gap-1 rounded-md px-2.5 py-1 text-xs leading-5;
+  }
+
+  .btn-icon {
+    @apply px-2;
   }
 
   .btn-primary:disabled,
   .btn-secondary:disabled,
+  .btn-ghost:disabled,
   .btn-danger:disabled,
   .btn-danger-subtle:disabled {
     @apply cursor-not-allowed opacity-60 shadow-none;
   }
 
   .btn-primary:disabled {
-    @apply bg-slate-300 text-slate-500 hover:bg-slate-300 focus:ring-slate-300;
+    @apply border-slate-200 bg-slate-200 text-slate-500 hover:border-slate-200 hover:bg-slate-200;
   }
 
   .btn-secondary:disabled {
-    @apply bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-100 focus:ring-slate-300;
+    @apply border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-50;
   }
 
   .btn-danger:disabled {
-    @apply bg-red-300 text-red-50 hover:bg-red-300 focus:ring-red-300;
+    @apply border-red-300 bg-red-300 text-red-50 hover:bg-red-300;
   }
 
-  .card {
-    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  /* ---------------------------------------------------------------------- */
+  /* Forms                                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  .form-label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
   }
+
+  .form-hint {
+    @apply mt-1.5 text-xs text-slate-500;
+  }
+
+  :is(.form-input, .form-select, .form-textarea, .form-multiselect) {
+    @apply shadow-xs transition-[border-color,box-shadow] duration-150;
+    color: rgb(var(--color-slate-900));
+  }
+
+  :is(.form-input, .form-textarea)::placeholder {
+    color: rgb(var(--color-slate-400));
+  }
+
+  :is(.form-input, .form-select, .form-textarea, .form-multiselect):hover:not(:disabled):not(:focus) {
+    border-color: rgb(var(--color-slate-400));
+  }
+
+  :is(.form-input, .form-select, .form-textarea, .form-multiselect):focus {
+    border-color: rgb(var(--color-theme-500));
+    --tw-ring-color: rgb(var(--color-theme-500) / 0.18);
+    --tw-ring-offset-width: 0px;
+    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 3px var(--tw-ring-color);
+  }
+
+  :is(.form-input, .form-select, .form-textarea):disabled {
+    @apply cursor-not-allowed shadow-none;
+    background-color: rgb(var(--color-slate-50));
+    color: rgb(var(--color-slate-500));
+  }
+
+  :is(.form-checkbox, .form-radio) {
+    @apply transition-colors;
+    color: rgb(var(--color-theme-600));
+  }
+
+  :is(.form-checkbox, .form-radio):focus {
+    --tw-ring-color: rgb(var(--color-theme-500) / 0.35);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Tables                                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table thead tr {
+    @apply border-b border-slate-200 bg-slate-50/70;
+  }
+
+  .data-table th {
+    @apply px-4 py-2.5 text-left text-xs font-medium text-slate-500;
+  }
+
+  .data-table tbody tr {
+    @apply border-b border-slate-100 transition-colors last:border-b-0 hover:bg-slate-50/70;
+  }
+
+  .data-table td {
+    @apply px-4 py-3;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Sticky editor header                                                    */
+  /* ---------------------------------------------------------------------- */
 
   .editor-sticky-header {
-    @apply sticky top-0 z-30 -mx-4 -mt-6 mb-6 px-4 py-4 border-b border-slate-200 backdrop-blur sm:-mx-8 sm:-mt-8 sm:px-8;
+    @apply sticky top-0 z-30 -mx-4 -mt-6 mb-6 border-b border-slate-200 px-4 py-3.5 backdrop-blur sm:-mx-8 sm:-mt-8 sm:px-8;
     background-color: rgb(var(--color-app-bg) / 0.95);
   }
 
@@ -353,28 +581,42 @@
     }
   }
 
-  .form-label {
-    @apply block text-sm font-medium text-slate-700 mb-1;
+  .editor-sticky-header h1 {
+    @apply font-semibold tracking-tight;
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Badges: a soft tint plus a hairline ring, with a status dot.            */
+  /* ---------------------------------------------------------------------- */
+
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ring-transparent;
+  }
+
+  .badge-dot::before,
+  :is(.badge-draft, .badge-published, .badge-scheduled, .badge-protected, .badge-archived)::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background-color: currentColor;
+    opacity: 0.85;
   }
 
   .badge-draft {
-    @apply badge bg-slate-100 text-slate-600;
+    @apply badge bg-slate-100 text-slate-600 ring-slate-500/15;
   }
   .badge-published {
-    @apply badge bg-green-100 text-green-700;
+    @apply badge bg-emerald-50 text-emerald-700 ring-emerald-600/20;
   }
   .badge-scheduled {
-    @apply badge bg-theme-100 text-theme-700;
+    @apply badge bg-theme-50 text-theme-700 ring-theme-600/20;
   }
   .badge-protected {
-    @apply badge bg-purple-100 text-purple-700;
+    @apply badge bg-violet-50 text-violet-700 ring-violet-600/20;
   }
   .badge-archived {
-    @apply badge bg-yellow-100 text-yellow-700;
+    @apply badge bg-amber-50 text-amber-700 ring-amber-600/20;
   }
 
   /* Dark component surfaces. :where() keeps specificity at a single class so
@@ -386,6 +628,14 @@
       inset 0 1px 0 rgb(255 255 255 / 0.03),
       0 1px 2px rgb(0 0 0 / 0.4),
       0 8px 24px -12px rgb(0 0 0 / 0.5);
+  }
+
+  :where(:root[data-theme="dark"]) .icon-btn {
+    background-color: rgb(var(--color-raised));
+  }
+
+  :where(:root[data-theme="dark"]) .card-header {
+    border-color: rgb(255 255 255 / 0.07);
   }
 
   :where(:root[data-theme="dark"]) .btn-primary {
@@ -403,6 +653,7 @@
   :where(:root[data-theme="dark"]) .btn-secondary,
   :where(:root[data-theme="dark"]) .btn-danger-subtle {
     background-color: rgb(var(--color-raised));
+    border-color: rgb(var(--color-slate-200));
   }
 
   :where(:root[data-theme="dark"]) .btn-secondary:hover {
@@ -451,10 +702,12 @@
     background-color: rgb(var(--color-app-bg) / 0.85);
   }
 
-  :where(:root[data-theme="dark"]) .nav-link.router-link-active {
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.14),
-      0 6px 18px -8px rgb(var(--color-theme-500) / 0.8);
+  :where(:root[data-theme="dark"]) .data-table thead tr {
+    background-color: rgb(255 255 255 / 0.02);
+  }
+
+  :where(:root[data-theme="dark"]) :is(.badge-published, .badge-scheduled, .badge-protected, .badge-archived, .badge-draft) {
+    --tw-ring-color: rgb(255 255 255 / 0.08);
   }
 
   :where(:root[data-theme="dark"]) .api-endpoint-footer {
@@ -470,10 +723,6 @@
 
   :where(:root[data-theme="dark"]) :is(.api-endpoint-footer-link, .api-endpoint-footer-dismiss):hover {
     color: rgb(var(--color-slate-900));
-  }
-
-  :where(:root[data-theme="dark"]) .api-endpoint-footer-dismiss:hover {
-    background-color: rgb(var(--color-slate-100));
   }
 
   :where(:root[data-theme="dark"]) .api-endpoint-footer-badge {
@@ -652,4 +901,26 @@
 :where(:root[data-theme="dark"]) :is(.shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl) {
   --tw-shadow-color: rgb(0 0 0 / 0.45);
   --tw-shadow: var(--tw-shadow-colored);
+}
+
+/* Status badges compose their tints with @apply, so the utility remaps above
+   do not reach them. */
+:where(:root[data-theme="dark"]) .badge-published {
+  background-color: rgb(16 185 129 / 0.12);
+  color: rgb(110 231 183);
+}
+
+:where(:root[data-theme="dark"]) .badge-scheduled {
+  background-color: rgb(var(--color-theme-500) / 0.14);
+  color: rgb(var(--color-theme-text));
+}
+
+:where(:root[data-theme="dark"]) .badge-protected {
+  background-color: rgb(139 92 246 / 0.15);
+  color: rgb(196 181 253);
+}
+
+:where(:root[data-theme="dark"]) .badge-archived {
+  background-color: rgb(245 158 11 / 0.12);
+  color: rgb(252 211 77);
 }

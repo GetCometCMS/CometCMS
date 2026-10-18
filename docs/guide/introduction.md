@@ -22,7 +22,7 @@ CometCMS is a lightweight, **Page Builder and file-based CMS** built with PHP an
 | `editor` | Built-in content and media editing role.                                          |
 | `viewer` | Built-in read-oriented role.                                                      |
 
-Roles can be customized or created from **Users → Edit user roles**.
+Roles can be customized or created from **Users & roles → Roles**.
 
 ## Storage layout
 

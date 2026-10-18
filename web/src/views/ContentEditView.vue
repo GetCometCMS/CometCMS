@@ -3,13 +3,19 @@
     <div class="editor-sticky-header flex items-center gap-3">
       <router-link
         :to="backLink"
-        class="text-slate-500 hover:text-slate-800 transition-colors"
+        class="icon-btn"
+        :aria-label="t('app.back')"
       >
-        <Icon icon="mdi:chevron-left" class="w-5 h-5" />
+        <Icon icon="mdi:arrow-left" class="w-[18px] h-[18px]" />
       </router-link>
-      <h1 class="text-2xl font-bold text-slate-900 truncate">
-        {{ editorTitle }}
-      </h1>
+      <div class="min-w-0">
+        <div v-if="!isSingleton && contentTypeSchema" class="truncate text-xs font-medium text-slate-500">
+          {{ contentTypeSchema.label }}
+        </div>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-900 truncate">
+          {{ editorTitle }}
+        </h1>
+      </div>
       <div class="ml-auto flex items-center gap-2">
         <a
           v-if="!isNew && siteLinks?.url"
@@ -156,7 +162,7 @@
     >
       <!-- Core fields -->
       <div class="card p-6 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-700">
+        <h2 class="card-title">
           {{ t("contentEdit.core") }}
         </h2>
 
@@ -303,7 +309,7 @@
       <!-- Custom fields -->
       <div v-if="hasCustomFields" class="card p-6 space-y-4">
         <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-slate-700">
+          <h2 class="card-title">
             {{ t("contentEdit.fields") }}
           </h2>
           <router-link

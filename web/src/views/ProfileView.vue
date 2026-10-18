@@ -1,15 +1,11 @@
 <template>
   <div>
-    <div class="flex items-center gap-3 mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ t("profile.title") }}
-      </h1>
-    </div>
+    <PageHeader :title="t('profile.title')" :description="t('profile.description')" />
 
     <div class="space-y-6">
       <!-- Avatar -->
       <div class="card p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">
+        <h2 class="card-title mb-4">
           {{ t("profile.picture.title") }}
         </h2>
         <AvatarUpload
@@ -30,7 +26,7 @@
 
       <!-- Profile info -->
       <div class="card p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">
+        <h2 class="card-title mb-4">
           {{ t("profile.info.title") }}
         </h2>
         <form @submit.prevent="handleSaveProfile" class="space-y-4">
@@ -139,7 +135,7 @@
 
       <!-- Password change -->
       <div class="card p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">
+        <h2 class="card-title mb-4">
           {{ t("profile.password.title") }}
         </h2>
         <form @submit.prevent="handleChangePassword" class="space-y-4">
@@ -201,6 +197,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { ADMIN_API_BASE } from "../basePath.js";
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import AvatarUpload from "../components/AvatarUpload.vue";

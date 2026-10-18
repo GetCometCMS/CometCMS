@@ -83,7 +83,7 @@ Navigate to `https://yourdomain.com/admin`. The first-run setup screen will appe
 
 The URL is **auto-detected** from the HTTP request — no `base_url` setting is needed.
 
-The admin update page is opened by clicking the CometCMS version in the sidebar.
+Open the admin update page from **Administration → Updates** in the sidebar, or choose **Version** in the account menu.
 Update checks use GitHub releases. Updates are downloaded and verified first,
 then installed from the staged package. Installing an update replaces
 release-owned application files while preserving the configured paths, including

@@ -1,4 +1,5 @@
 const defaultColors = require('tailwindcss/colors')
+const defaultTheme = require('tailwindcss/defaultTheme')
 
 // Neutrals are driven by CSS variables so the dark theme can invert the scale
 // in one place (style.css) instead of overriding every slate utility.
@@ -15,6 +16,12 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Inter Variable"', 'Inter', ...defaultTheme.fontFamily.sans],
+      },
+      boxShadow: {
+        xs: '0 1px 2px 0 rgb(16 24 40 / 0.05)',
+      },
       colors: {
         slate,
         // Fixed dark neutrals for surfaces that stay dark in every theme

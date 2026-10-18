@@ -3,17 +3,21 @@
     <div class="editor-sticky-header flex items-center gap-3">
       <router-link
         to="/content-types"
-        class="text-slate-500 hover:text-slate-800 transition-colors"
+        class="icon-btn"
+        :aria-label="t('app.back')"
       >
-        <Icon icon="mdi:chevron-left" class="w-5 h-5" />
+        <Icon icon="mdi:arrow-left" class="w-[18px] h-[18px]" />
       </router-link>
-      <h1 class="text-2xl font-bold text-slate-900 truncate">
+      <div class="min-w-0">
+        <div class="truncate text-xs font-medium text-slate-500">{{ t("contentTypes.title") }}</div>
+      <h1 class="text-xl font-semibold tracking-tight text-slate-900 truncate">
         {{
           isNew
             ? t("contentTypeEdit.newTitle")
             : t("contentTypeEdit.editTitle", { name: form.name })
         }}
       </h1>
+      </div>
       <button
         type="submit"
         :disabled="saving"
@@ -43,7 +47,7 @@
     <form id="type-form" @submit.prevent="handleSave" class="space-y-6">
       <!-- Basics -->
       <div class="card p-6 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-700">
+        <h2 class="card-title">
           {{ t("contentTypeEdit.settings") }}
         </h2>
 
@@ -171,7 +175,7 @@
       <!-- Localization -->
       <div class="card p-6 space-y-4">
         <div>
-          <h2 class="text-sm font-semibold text-slate-700">
+          <h2 class="card-title">
             {{ t("contentTypeEdit.localization") }}
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
@@ -221,7 +225,7 @@
       <!-- Custom content fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-slate-700">
+          <h2 class="card-title">
             {{ t("contentTypeEdit.fields") }}
             <span class="text-slate-400 font-normal ml-1">{{
               t("contentTypeEdit.builtinFieldsHint")
