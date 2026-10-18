@@ -19,8 +19,8 @@
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         "
       >
-        <div class="px-5 pt-6 pb-4 flex items-center justify-between">
-          <img :src="logoSrc" alt="CometCMS" class="brand-logo h-8 w-auto" />
+        <div class="px-3 py-1 pb-2 flex items-center justify-between">
+          <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto" />
           <button
             type="button"
             :aria-label="t('app.actions.closeNavigation')"

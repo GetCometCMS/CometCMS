@@ -275,7 +275,7 @@ const startingPoints = [
 const loading = ref(false);
 const errorMsg = ref("");
 const logoFailed = ref(false);
-const logoSrc = adminAsset("img/cms-logo-white.png");
+const logoSrc = adminAsset("img/white-text/cms-logo-blue.png");
 
 const {
   slug: workspaceSlug,
