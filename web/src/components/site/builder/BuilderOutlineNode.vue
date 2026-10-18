@@ -64,12 +64,6 @@
         <button type="button" class="outline-action" :disabled="last" :title="t('site.builder.moveDown')" @click.stop="builder.shift(node.id, 1)">
           <Icon icon="mdi:arrow-down" class="h-3.5 w-3.5" />
         </button>
-        <button type="button" class="outline-action" :disabled="locked" :title="t('site.builder.duplicate')" @click.stop="builder.duplicate(node.id)">
-          <Icon icon="mdi:content-copy" class="h-3.5 w-3.5" />
-        </button>
-        <button type="button" class="outline-action" :disabled="locked" :title="t('common.delete')" @click.stop="builder.remove(node.id)">
-          <Icon icon="mdi:trash-can-outline" class="h-3.5 w-3.5" />
-        </button>
         <button type="button" class="outline-action" :title="t('site.menu.more')" @click.stop="openMenu">
           <Icon icon="mdi:dots-horizontal" class="h-3.5 w-3.5" />
         </button>
