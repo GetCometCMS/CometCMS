@@ -8,7 +8,7 @@
         dropPosition === 'inside' ? 'ring-2 ring-inset ring-theme-500' : '',
       ]"
       :style="{ paddingLeft: `${depth * 14 + 4}px` }"
-      draggable="true"
+      :draggable="!renaming"
       @click="builder.select(node.id)"
       @mouseenter="builder.hoverId.value = node.id"
       @mouseleave="builder.hoverId.value = null"
@@ -34,10 +34,30 @@
       <span v-else class="w-5 shrink-0"></span>
 
       <Icon :icon="icon" class="h-4 w-4 shrink-0" :class="isSelected ? 'text-white/80' : 'text-slate-400'" />
-      <span class="shrink-0 font-medium">{{ builder.nodeLabel(node) }}</span>
-      <span class="min-w-0 flex-1 truncate" :class="isSelected ? 'text-white/70' : 'text-slate-400'">{{ builder.nodeSummary(node) }}</span>
+      <input
+        v-if="renaming"
+        ref="nameInput"
+        v-model="draftName"
+        type="text"
+        class="min-w-0 flex-1 rounded border border-theme-400 bg-white px-1 py-0.5 text-xs text-slate-900 outline-none focus:ring-1 focus:ring-theme-500"
+        :maxlength="builder.spec.value?.max_node_name_length ?? 120"
+        :aria-label="t('site.builder.nodeName')"
+        :placeholder="builder.nodeLabel({ ...node, name: '' })"
+        @click.stop
+        @dblclick.stop
+        @keydown="onNameKeydown"
+        @blur="finishRename"
+        @dragstart.prevent.stop
+      />
+      <template v-else>
+        <span class="min-w-0 truncate font-medium" :title="builder.nodeLabel(node)" @dblclick.stop="startRename">{{ builder.nodeLabel(node) }}</span>
+        <span class="min-w-0 flex-1 truncate" :class="isSelected ? 'text-white/70' : 'text-slate-400'">{{ builder.nodeSummary(node) }}</span>
+      </template>
 
-      <span class="hidden shrink-0 items-center group-hover:flex" :class="{ '!flex': isSelected }">
+      <span v-if="!renaming" class="hidden shrink-0 items-center group-hover:flex group-focus-within:flex" :class="{ '!flex': isSelected }">
+        <button type="button" class="outline-action" :title="t('site.builder.rename')" :aria-label="t('site.builder.rename')" @click.stop="startRename">
+          <Icon icon="mdi:pencil-outline" class="h-3.5 w-3.5" />
+        </button>
         <button type="button" class="outline-action" :disabled="first" :title="t('site.builder.moveUp')" @click.stop="builder.shift(node.id, -1)">
           <Icon icon="mdi:arrow-up" class="h-3.5 w-3.5" />
         </button>
@@ -91,6 +111,9 @@ const { fieldTypeIcon } = useFieldTypeMeta();
 const expanded = ref(true);
 const dropPosition = ref("");
 const rowRef = ref(null);
+const renaming = ref(false);
+const draftName = ref("");
+const nameInput = ref(null);
 
 const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
@@ -122,6 +145,36 @@ watch(
 function openMenu(event) {
   const rect = event.currentTarget.getBoundingClientRect();
   builder.openContextMenu(props.node.id, rect.left, rect.bottom + 4);
+}
+
+async function startRename() {
+  builder.select(props.node.id);
+  draftName.value = props.node.name ?? "";
+  renaming.value = true;
+  await nextTick();
+  nameInput.value?.focus();
+  nameInput.value?.select();
+}
+
+function finishRename() {
+  if (!renaming.value) return;
+  renaming.value = false;
+  builder.renameNode(props.node.id, draftName.value);
+}
+
+function onNameKeydown(event) {
+  if (event.isComposing) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    finishRename();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    renaming.value = false;
+  } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    finishRename();
+  }
 }
 
 function onDragStart(event) {

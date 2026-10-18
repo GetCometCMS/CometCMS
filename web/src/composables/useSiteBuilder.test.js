@@ -56,6 +56,56 @@ describe('builder page navigation', () => {
   })
 })
 
+describe('builder element names', () => {
+  it('renames nested nodes without changing their content and restores names through undo, redo and reload', async () => {
+    const builder = await builderFixture()
+    const node = builder.nodes.value[0].children[0].children[0].children[0]
+    const props = JSON.stringify(node.props)
+    builder.select(node.id)
+    builder.renameNode(node.id, '  Intro text  ')
+    expect(builder.nodeLabel(builder.selected.value)).toBe('Intro text')
+    expect(JSON.stringify(builder.selected.value.props)).toBe(props)
+    expect(builder.isDirty.value).toBe(true)
+    builder.undo()
+    expect(builder.nodeLabel(builder.selected.value)).toBe('site.kind.text')
+    expect(builder.isDirty.value).toBe(false)
+    builder.redo()
+    expect(builder.selected.value.name).toBe('Intro text')
+    builder.markSaved(JSON.parse(JSON.stringify(builder.nodes.value)))
+    builder.load(JSON.parse(JSON.stringify(builder.nodes.value)))
+    expect(builder.selected.value.name).toBe('Intro text')
+    expect(builder.isDirty.value).toBe(false)
+    builder.renameNode(node.id, '  ')
+    expect(builder.selected.value).not.toHaveProperty('name')
+    expect(builder.nodeLabel(builder.selected.value)).toBe('site.kind.text')
+    builder.undo()
+    expect(builder.selected.value.name).toBe('Intro text')
+  })
+
+  it('keeps names on duplicates and pasted branches and ignores unchanged or invalid renames', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    builder.renameNode(section.id, 'Hero')
+    builder.renameNode(section.children[0].id, 'Hero columns')
+    builder.duplicate(section.id)
+    expect(builder.selected.value.name).toBe('Hero')
+    expect(builder.selected.value.children[0].name).toBe('Hero columns')
+    expect(builder.selected.value.id).not.toBe(section.id)
+    builder.copy(section.id)
+    builder.paste()
+    expect(builder.selected.value.name).toBe('Hero')
+    builder.markSaved(JSON.parse(JSON.stringify(builder.nodes.value)))
+    builder.load(builder.nodes.value)
+    builder.renameNode(section.id, 'Hero')
+    builder.renameNode('missing', 'Nothing')
+    builder.renameNode(section.id, null)
+    expect(builder.canUndo.value).toBe(false)
+    expect(builder.isDirty.value).toBe(false)
+    builder.renameNode(section.id, 'ä'.repeat(121))
+    expect(builder.nodes.value[0].name).toBe('ä'.repeat(120))
+  })
+})
+
 describe('builder integration with smart values', () => {
   it('retains references through undo, redo, copy, paste, save and reload', async () => {
     const builder = await builderFixture()
@@ -148,11 +198,13 @@ describe('builder components', () => {
     const { builder } = await componentFixture({ load: async () => stored })
     const instance = builder.make('component', { component: 'cabc', root: 'column', span: { mobile: 12, tablet: 4, desktop: 0 } })
     builder.insert(instance, builder.nodes.value[0].children[0].children[1].id)
+    builder.renameNode(instance.id, 'Sidebar promo')
     expect(builder.nodes.value[0].children[0].children[2].id).toBe(instance.id)
 
     expect(await builder.detach(instance.id)).toBe(true)
     const copy = builder.nodes.value[0].children[0].children[2]
     expect(copy.kind).toBe('column')
+    expect(copy.name).toBe('Sidebar promo')
     expect(copy.id).not.toBe('root')
     expect(copy.children[0].id).not.toBe('inner')
     expect(copy.children[0].props.html).toBe('Hi')
@@ -200,6 +252,7 @@ describe('builder components', () => {
     const { builder } = await componentFixture({ remove: async () => component })
     builder.components.value = [component]
     const instance = builder.make('component', { component: 'shared', root: 'column', span: { mobile: 12, tablet: 4, desktop: 3 } })
+    instance.name = 'Sidebar promo'
     const sibling = builder.make('column', {}, {}, [builder.make('text', { html: 'Before' })])
     builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [instance, sibling])])])
     const textId = sibling.children[0].id
@@ -212,6 +265,7 @@ describe('builder components', () => {
     await builder.deleteComponent('shared')
     const detached = builder.selected.value
     expect(detached).toMatchObject({ id: instance.id, kind: 'column', props: { span: { mobile: 12, tablet: 4, desktop: 3 } }, style: { background: 'primary' } })
+    expect(detached.name).toBe('Sidebar promo')
     expect(detached.children[0].props.html).toBe('Shared content')
     expect(detached.children[0].id).not.toBe('heading')
     expect(builder.components.value).toEqual([])

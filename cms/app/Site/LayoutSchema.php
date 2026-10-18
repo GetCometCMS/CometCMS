@@ -12,8 +12,9 @@ use CometCMS\Core\HtmlSanitizer;
  * A layout is a tree of nodes: section > row > column > element. Columns
  * may hold rows of their own (up to MAX_ROW_DEPTH deep), and a collection
  * holds one column as the card it repeats for each entry. Every node
- * has the same shape ({id, kind, props, style, children}); props and style
- * values are checked against this schema whenever a layout is saved or
+ * has the same shape ({id, kind, props, style, children}) and an optional
+ * editor-only name. Props and style values are checked against this schema
+ * whenever a layout is saved or
  * previewed, so the renderer only ever sees known keys and values. The admin
  * builder reads the same schema (see spec()) to draw its inspector.
  *
@@ -78,6 +79,8 @@ final class LayoutSchema
     ];
 
     public const MAX_NODES = 1500;
+
+    public const MAX_NODE_NAME_LENGTH = 120;
 
     /** How deep rows may nest inside columns (a section's own rows count as 0). */
     public const MAX_ROW_DEPTH = 3;
@@ -344,6 +347,7 @@ final class LayoutSchema
             'system_fields' => self::SYSTEM_FIELDS,
             'variants' => self::VARIANTS,
             'max_row_depth' => self::MAX_ROW_DEPTH,
+            'max_node_name_length' => self::MAX_NODE_NAME_LENGTH,
             'regions' => self::REGIONS,
             'link_types' => self::LINK_TYPES,
         ];
@@ -762,13 +766,20 @@ final class LayoutSchema
                 is_array($node['style'] ?? null) ? $node['style'] : [],
             );
 
-            $normalized[] = [
+            $entry = [
                 'id' => $id,
                 'kind' => $kind,
                 'props' => self::normalizeProps($kind, $props),
                 'style' => self::normalizeStyle($kind, $style),
                 'children' => $children,
             ];
+            $name = is_string($node['name'] ?? null)
+                ? trim(Text::limit(str_replace(["\r", "\n"], ' ', $node['name']), self::MAX_NODE_NAME_LENGTH))
+                : '';
+            if ($name !== '') {
+                $entry['name'] = $name;
+            }
+            $normalized[] = $entry;
         }
 
         return $normalized;

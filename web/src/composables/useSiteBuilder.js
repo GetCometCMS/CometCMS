@@ -316,6 +316,18 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     }, { coalesce: `${id}:${group}:${key}` })
   }
 
+  /** Editor-only name; clearing it restores the automatic label. */
+  function renameNode(id, value) {
+    const node = findNode(nodes.value, id)
+    if (!node || typeof value !== 'string') return
+    const name = Array.from(value.replace(/[\r\n]/g, ' ')).slice(0, spec.value?.max_node_name_length ?? 120).join('').trim()
+    if ((node.name ?? '') === name) return
+    mutate(() => {
+      if (name) node.name = name
+      else delete node.name
+    })
+  }
+
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
     const current = targetId ? findNode(nodes.value, targetId) : null
@@ -508,6 +520,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
           if (!copies.has(node.id)) copies.set(node.id, cloneWithNewIds(component.nodes[0]))
           const copy = clone(copies.get(node.id))
           copy.id = node.id
+          if (node.name) copy.name = node.name
           if (copy.kind === 'column') copy.props.span = clone(node.props.span ?? copy.props.span)
           return copy
         }
@@ -540,6 +553,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       const original = where.list[where.index]
       const props = component.root === 'column' ? { span: clone(original.props?.span ?? {}) } : {}
       instance = instanceNode(spec.value, component, props)
+      if (original.name) instance.name = original.name
       where.list.splice(where.index, 1, instance)
     })
     if (instance) selectedId.value = instance.id
@@ -651,6 +665,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const root = component?.nodes?.[0]
     if (!root) return false
     const copy = cloneWithNewIds(root)
+    if (node.name) copy.name = node.name
     if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(node.props.span ?? copy.props.span) }
     let replaced = false
     mutate((tree) => {
@@ -686,6 +701,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** Name of a node as the user sees it: column sets follow their arrangement. */
   function nodeLabel(node) {
     if (!node) return ''
+    if (node.name) return node.name
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
     if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
@@ -738,7 +754,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     currentAvailable, locale, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
-    updateValue, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
+    updateValue, renameNode, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,

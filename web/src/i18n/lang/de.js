@@ -1426,6 +1426,8 @@ const messages = {
   'site.builder.moveUp': 'Nach oben',
   'site.builder.moveDown': 'Nach unten',
   'site.builder.duplicate': 'Duplizieren',
+  'site.builder.rename': 'Umbenennen',
+  'site.builder.nodeName': 'Elementname',
   'site.builder.selectParent': 'Übergeordnetes Element wählen',
   'site.builder.content': 'Inhalt',
   'site.builder.style': 'Stil',

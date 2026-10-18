@@ -118,6 +118,48 @@ test('layout schema drops unknown kinds, misplaced nodes and unsafe values', fun
     assert_same([], $template[0]['children'], 'Item templates cannot nest.');
 });
 
+test('layout names survive saving and loading without changing rendered content', function (): void {
+    $site = comet_site_test_setup();
+    // Persist the header so generated menu ids stay stable between renders.
+    $site->saveRegion('header', $site->region('header'));
+    $nodes = LayoutSchema::defaultLayout($site->types()['blog'], 'detail');
+    $before = $site->saveLayout('blog', 'detail', $nodes);
+    $html = comet_site_test_get('/blog/hello')['body'];
+    $nodes[0]['name'] = '  Hero section  ';
+    $nodes[0]['children'][0]['name'] = 'Übersicht 🪐';
+    $saved = $site->saveLayout('blog', 'detail', $nodes);
+    assert_same('Hero section', $saved[0]['name']);
+    assert_same('Übersicht 🪐', $saved[0]['children'][0]['name']);
+    assert_same($saved, (new SiteRepository())->layout('blog', 'detail'));
+    assert_same($html, comet_site_test_get('/blog/hello')['body']);
+    unset($saved[0]['name'], $saved[0]['children'][0]['name']);
+    assert_same($before, $saved);
+});
+
+test('layout names are optional bounded strings on every kind of node', function (): void {
+    $nodes = LayoutSchema::normalize([
+        ['kind' => 'section', 'name' => 'ä' . str_repeat('🪐', 130), 'children' => [
+            ['kind' => 'row', 'name' => ['invalid'], 'children' => [
+                ['kind' => 'column', 'name' => " \n ", 'children' => [
+                    ['kind' => 'heading', 'name' => "Heading\nname"],
+                ]],
+            ]],
+        ]],
+        ['kind' => 'section'],
+        ['kind' => 'component', 'name' => 'Footer instance', 'props' => ['component' => 'shared', 'root' => 'section']],
+    ]);
+    assert_same('ä' . str_repeat('🪐', LayoutSchema::MAX_NODE_NAME_LENGTH - 1), $nodes[0]['name']);
+    $row = $nodes[0]['children'][0];
+    assert_false(array_key_exists('name', $row));
+    assert_false(array_key_exists('name', $row['children'][0]));
+    assert_same('Heading name', $row['children'][0]['children'][0]['name']);
+    assert_false(array_key_exists('name', $nodes[1]));
+    assert_same('Footer instance', $nodes[2]['name']);
+    assert_same($nodes, LayoutSchema::normalize($nodes));
+    $component = LayoutSchema::normalizeComponent([$nodes[0]], 'section');
+    assert_same($nodes[0]['name'], $component[0]['name']);
+});
+
 test('rows nest inside columns up to a depth and collections repeat one card', function (): void {
     $nest = static function (int $depth) use (&$nest): array {
         return LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], $depth > 1 ? [$nest($depth - 1)] : [])]);

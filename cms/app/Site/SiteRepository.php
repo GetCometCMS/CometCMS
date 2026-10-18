@@ -468,6 +468,9 @@ final class SiteRepository
             if (($node['kind'] ?? '') === 'component' && ($node['props']['component'] ?? '') === $component['id']) {
                 $copy = LayoutSchema::withNewIds($component['nodes'])[0];
                 $copy['id'] = $node['id'];
+                if (isset($node['name'])) {
+                    $copy['name'] = $node['name'];
+                }
                 if ($copy['kind'] === 'column') {
                     $copy['props']['span'] = $node['props']['span'] ?? $copy['props']['span'];
                 }
