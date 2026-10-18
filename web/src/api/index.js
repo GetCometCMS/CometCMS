@@ -1,4 +1,4 @@
-import { ADMIN_API_BASE } from '../basePath.js'
+import { ADMIN_API_BASE, ADMIN_BASE } from '../basePath.js'
 import { t } from '../i18n/index.js'
 
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
@@ -290,7 +290,7 @@ export const api = {
   me:     ()                  => request('GET',    '/me'),
   login:  (username, password, remember = false)=> request('POST', '/login', { username, password, remember }),
   logout: ()                  => request('POST',   '/logout'),
-  setup:  (username, password, workspace, workspaceSlug)=> request('POST',   '/setup',  { username, password, workspace, workspace_slug: workspaceSlug }),
+  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'website')=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate }),
   appInfo: ()                  => request('GET',    '/app'),
   workspaces: {
     list:       () => request('GET', '/workspaces'),
@@ -409,6 +409,48 @@ export const api = {
     get:    ()        => request('GET', '/webhooks'),
     update: (data)    => request('PUT', '/webhooks', data),
     run:    (webhook) => request('POST', '/webhooks/run', { webhook }),
+  },
+
+  // Website
+  site: {
+    get:          ()                     => request('GET',    '/site'),
+    status:       ()                     => request('GET',    '/site/status'),
+    links:        (type, id, params = {}) => request('GET',   withQuery(`/site/links/${type}/${encodeURIComponent(id)}`, params)),
+    saveSettings: (data)                 => request('PUT',    '/site/settings', data),
+    saveTheme:    (data)                 => request('PUT',    '/site/theme', data),
+    themeRevisions: () => request('GET', '/site/theme/revisions'),
+    restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
+    saveMenus:    (menus)                => request('PUT',    '/site/menus', { menus }),
+    cardTemplate: (type) => request('GET', `/site/card-template/${type}`),
+    layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
+    saveLayout:   (type, variant, nodes) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes }),
+    resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),
+    layoutRevisions: (type, variant) => request('GET', `/site/layouts/${type}/${variant}/revisions`),
+    restoreLayoutRevision: (type, variant, id) => request('POST', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`),
+    region:       (region)               => request('GET',    `/site/regions/${region}`),
+    saveRegion:   (region, nodes)        => request('PUT',    `/site/regions/${region}`, { nodes }),
+    resetRegion:  (region)               => request('DELETE', `/site/regions/${region}`),
+    regionRevisions: (region) => request('GET', `/site/regions/${region}/revisions`),
+    restoreRegionRevision: (region, id) => request('POST', `/site/regions/${region}/revisions/${encodeURIComponent(id)}/restore`),
+    components:   ()                     => request('GET',    '/site/components'),
+    component:    (id, entry = '')       => request('GET',    withQuery(`/site/components/${encodeURIComponent(id)}`, entry ? { entry } : {})),
+    createComponent: (data)              => request('POST',   '/site/components', data),
+    saveComponent: (id, nodes)           => request('PUT',    `/site/components/${encodeURIComponent(id)}`, { nodes }),
+    renameComponent: (id, name)          => request('PATCH',  `/site/components/${encodeURIComponent(id)}`, { name }),
+    deleteComponent: (id)                => request('DELETE', `/site/components/${encodeURIComponent(id)}`),
+    componentRevisions: (id) => request('GET', `/site/components/${encodeURIComponent(id)}/revisions`),
+    restoreComponentRevision: (id, revision) => request('POST', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}/restore`),
+    forms:        ()                     => request('GET',    '/site/forms'),
+    createForm:   (data)                 => request('POST',   '/site/forms', data),
+    updateForm:   (id, data)             => request('PUT',    `/site/forms/${encodeURIComponent(id)}`, data),
+    deleteForm:   (id)                   => request('DELETE', `/site/forms/${encodeURIComponent(id)}`),
+    preview:      (body)                 => request('POST',   '/site/preview', body),
+    /** Full-page draft preview of an entry, opened in a new tab. */
+    entryPreviewUrl: (type, id, locale = '') => {
+      const params = new URLSearchParams({ workspace: getActiveWorkspace() })
+      if (locale) params.set('locale', locale)
+      return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
+    },
   },
 
   // Profile (current user)

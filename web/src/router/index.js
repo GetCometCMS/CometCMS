@@ -94,6 +94,49 @@ const routes = [
     redirect: '/connect/api',
   },
   {
+    // Components are managed in the builder's components panel.
+    path: '/page-builder/components',
+    redirect: '/page-builder/builder/region/header?settings=components',
+  },
+  {
+    path: '/page-builder/forms',
+    redirect: '/content-types',
+  },
+  {
+    path: '/page-builder/:tab(overview|seo|menus)?',
+    component: () => import('../views/PageBuilderView.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Cards are designed in the collection element now; the list page shows them.
+  {
+    path: '/page-builder/builder/layout/:name/card',
+    redirect: (to) => ({ path: `/page-builder/builder/layout/${to.params.name}/index`, query: to.query }),
+  },
+  {
+    // Full-screen editor for a content type layout, the header/footer or a component.
+    path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',
+    component: () => import('../views/PageBuilderEditorView.vue'),
+    meta: { requiresAuth: true, bare: true },
+  },
+  // Old /website URLs (bookmarks, links in notes).
+  {
+    path: '/website/pages',
+    redirect: '/content-types',
+  },
+  {
+    // The design settings moved into the builder.
+    path: '/website/theme',
+    redirect: '/page-builder/builder/region/header?settings=design',
+  },
+  {
+    path: '/website/header-footer',
+    redirect: '/page-builder/builder/region/header',
+  },
+  {
+    path: '/website/:rest(.*)*',
+    redirect: (to) => ({ path: `/page-builder/${[].concat(to.params.rest ?? []).join('/')}`.replace(/\/$/, ''), query: to.query }),
+  },
+  {
     path: '/workspaces',
     component: () => import('../views/WorkspacesView.vue'),
     meta: { requiresAuth: true },

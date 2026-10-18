@@ -7,6 +7,7 @@ namespace CometCMS\Backups;
 use CometCMS\Auth\ApiTokenRepository;
 use CometCMS\Auth\RoleRepository;
 use CometCMS\Auth\UserRepository;
+use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Logging\Logger;
 use CometCMS\Storage\SettingsStore;
@@ -30,6 +31,7 @@ final class RestoreService
         'users',
         'api_tokens',
         'webhooks',
+        'site',
     ];
 
     private const DEFAULT_PARTS = [
@@ -38,6 +40,7 @@ final class RestoreService
         'media',
         'api_tokens',
         'webhooks',
+        'site',
     ];
 
     public function restore(string $zipPath, bool $overwrite, array $user, ?array $parts = null): array
@@ -69,6 +72,7 @@ final class RestoreService
             'restored_roles' => 0,
             'restored_tokens' => 0,
             'restored_webhooks' => 0,
+            'restored_site' => 0,
             'skipped' => 0,
             'errors' => [],
         ];
@@ -108,6 +112,8 @@ final class RestoreService
                 $summary['restored_media']++;
             } elseif (str_starts_with($name, 'media-meta/')) {
                 $summary['restored_media_meta']++;
+            } elseif (str_starts_with($name, 'site/')) {
+                $summary['restored_site']++;
             }
         }
 
@@ -125,6 +131,7 @@ final class RestoreService
         }
 
         $zip->close();
+        ApiCache::fromConfig($this->workspace)->clear();
         (new Logger())->info('backup restored', ['summary' => $summary, 'user_id' => $user['id'] ?? null]);
 
         return $summary;
@@ -158,6 +165,7 @@ final class RestoreService
             'roles' => 0,
             'tokens' => 0,
             'webhooks' => 0,
+            'site' => 0,
         ];
         $contentTypes = [];
         $errors = [];
@@ -181,6 +189,8 @@ final class RestoreService
                 $counts['media']++;
             } elseif (str_starts_with($name, 'media-meta/')) {
                 $counts['media_meta']++;
+            } elseif (str_starts_with($name, 'site/')) {
+                $counts['site']++;
             }
         }
 
@@ -249,6 +259,7 @@ final class RestoreService
                 'revisions/' => ['content', $this->workspace->path('revisions') . '/'],
                 'media/' => ['media', $this->workspace->path('media') . '/'],
                 'media-meta/' => ['media', $this->workspace->path('media-meta') . '/'],
+                'site/' => ['site', $this->workspace->path('site') . '/'],
             ] as $prefix => [$part, $target]
         ) {
             if (str_starts_with($name, $prefix)) {
@@ -307,6 +318,10 @@ final class RestoreService
 
         if (($counts['webhooks'] ?? 0) > 0) {
             $parts[] = 'webhooks';
+        }
+
+        if (($counts['site'] ?? 0) > 0) {
+            $parts[] = 'site';
         }
 
         return $parts;

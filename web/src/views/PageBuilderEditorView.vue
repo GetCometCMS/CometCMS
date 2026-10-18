@@ -1,0 +1,843 @@
+<template>
+  <div class="builder-shell flex h-screen flex-col bg-slate-100">
+    <!-- Top bar -->
+    <header class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
+      <img :src="brandIcon" alt="CometCMS" class="h-7 w-7 shrink-0" />
+      <span class="mx-1 h-6 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
+      <router-link :to="backTo" class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" :title="t('site.builder.back')">
+        <Icon icon="mdi:arrow-left" class="h-5 w-5" />
+        <span class="sr-only">{{ t("site.builder.back") }}</span>
+      </router-link>
+
+      <div class="w-64 min-w-40">
+        <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
+        <p class="truncate text-xs leading-tight text-slate-500">
+          {{ subheading }}
+          <span v-if="!customized" class="ml-1 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.pages.default") }}</span>
+        </p>
+      </div>
+
+      <nav v-if="variants.length > 1" class="ml-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+        <button
+          v-for="item in variants"
+          :key="item"
+          type="button"
+          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          :class="item === variant ? 'bg-white text-theme-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'"
+          @click="goToVariant(item)"
+        >
+          {{ t(`site.variant.${item}`) }}
+        </button>
+      </nav>
+
+      <div class="ml-auto flex items-center gap-2">
+        <select
+          v-if="showsSamples && !builder.type.value?.singleton && samples.length"
+          v-model="sampleId"
+          :disabled="saving"
+          class="form-select hidden max-w-[14rem] rounded-lg border-slate-300 py-1 text-xs lg:block"
+          :aria-label="t('site.builder.sampleEntry')"
+          :title="t('site.builder.sampleEntry')"
+        >
+          <option v-for="sample in samples" :key="sample.id" :value="sample.id">
+            {{ sample.title || sample.id }}{{ sample.status !== "published" ? ` (${t(`status.${sample.status}`)})` : "" }}
+          </option>
+        </select>
+
+        <select
+          v-if="locales.length > 1"
+          v-model="locale"
+          :disabled="saving"
+          class="form-select rounded-lg border-slate-300 py-1 text-xs"
+          :aria-label="t('site.builder.language')"
+        >
+          <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
+        </select>
+
+        <DeviceToggle v-model="device" allow-full-width />
+
+        <div class="flex items-center">
+          <button type="button" class="topbar-action" :disabled="!builder.canUndo.value" :title="`${t('site.builder.undo')} (Ctrl+Z)`" @click="builder.undo()">
+            <Icon icon="mdi:undo" class="h-5 w-5" />
+          </button>
+          <button type="button" class="topbar-action" :disabled="!builder.canRedo.value" :title="`${t('site.builder.redo')} (Ctrl+Shift+Z)`" @click="builder.redo()">
+            <Icon icon="mdi:redo" class="h-5 w-5" />
+          </button>
+        </div>
+
+        <SplitButton
+          :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
+          :menu-label="t('common.moreActions')"
+          :items="saveMenuItems"
+          @click="save"
+        >
+          {{ saving ? t("common.saving") : t("site.builder.save") }}
+          <template #badge>
+            <span v-if="(builder.isDirty.value || themeDirty || entryFields.isDirty.value) && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
+          </template>
+        </SplitButton>
+      </div>
+    </header>
+
+    <p v-if="upgradeRequired" role="status" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">{{ t("site.binding.upgrade") }}</p>
+    <p v-if="builder.hasSyntaxErrors.value" role="alert" class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ t("site.binding.invalidSyntax") }}</p>
+    <div v-if="loadError" class="m-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">{{ loadError }}</div>
+
+    <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
+
+    <div v-else ref="builderAreaRef" class="flex min-h-0 flex-1">
+
+<!-- Panel rail -->
+<nav
+  class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2"
+  :aria-label="t('site.builder.panels')"
+>
+  <template v-for="panel in panels" :key="panel.value">
+    <!-- Separator before Fields / Components -->
+    <div
+      v-if="panel.value === 'fields' || (panel.value === 'components' && !hasEntryFields)"
+      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      aria-hidden="true"
+    ></div>
+
+    <button
+      type="button"
+      class="rail-action"
+      :class="{ 'is-active': leftPanel === panel.value }"
+      :aria-pressed="leftPanel === panel.value"
+      :title="panel.label"
+      @click="togglePanel(panel.value)"
+    >
+      <Icon :icon="panel.icon" class="h-5 w-5" />
+      <span class="sr-only">{{ panel.label }}</span>
+      <span
+        v-if="panel.dirty"
+        class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
+      ></span>
+    </button>
+
+    <!-- Separator after Forms -->
+    <div
+      v-if="panel.value === 'forms'"
+      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      aria-hidden="true"
+    ></div>
+  </template>
+</nav>
+
+
+      <ResizableSidebar
+        v-if="leftPanel"
+        v-model="leftWidth"
+        side="left"
+        :label="t('site.builder.resizeLeft')"
+        :min="leftMinWidth"
+        :max="leftMaxWidth"
+        class="border-r border-slate-200"
+      >
+        <SiteDesignPanel v-if="leftPanel === 'design'" @close="leftPanel = null" />
+        <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
+        <template v-else>
+          <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
+            <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
+              <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
+              <span class="sr-only">{{ t("site.builder.closePanel") }}</span>
+            </button>
+          </div>
+          <div v-if="leftPanel === 'history'" class="border-b border-slate-200 p-2">
+            <SegmentedControl
+              v-model="historyScope"
+              :options="[
+                { value: 'layout', label: t(target === 'component' ? 'site.history.scope.component' : 'site.history.scope.layout') },
+                { value: 'theme', label: t('site.history.scope.design') },
+              ]"
+            />
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
+            <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
+            <BuilderOutline v-else-if="leftPanel === 'outline'" />
+            <BuilderForms v-else-if="leftPanel === 'forms'" />
+            <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
+            <BuilderHistory
+              v-else-if="historyScope === 'theme'"
+              :key="`theme-${historyVersion}`"
+              :fetch-revisions="api.site.themeRevisions"
+              :restore-revision="api.site.restoreThemeRevision"
+              :dirty="themeDirty"
+              :busy="saving || site.saving || site.loading"
+              @restored="onThemeRestored"
+            />
+            <BuilderHistory
+              v-else
+              :key="`layout-${historyVersion}`"
+              :fetch-revisions="fetchRevisions"
+              :restore-revision="restoreRevision"
+              :dirty="builder.isDirty.value"
+              :busy="saving"
+              @restored="onRevisionRestored"
+            />
+          </div>
+        </template>
+      </ResizableSidebar>
+
+      <!-- Canvas -->
+      <main class="builder-stage min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" @keydown="onKeydown" />
+      </main>
+
+      <!-- Inspector -->
+      <ResizableSidebar
+        v-model="rightWidth"
+        side="right"
+        :label="t('site.builder.resizeRight')"
+        :min="256"
+        :max="rightMaxWidth"
+        class="border-l border-slate-200"
+      >
+        <BuilderInspector />
+      </ResizableSidebar>
+    </div>
+
+    <BuilderContextMenu :device="device" />
+
+    <ComponentNameModal
+      :model-value="builder.componentDialog.value !== null"
+      :title="t('site.component.saveTitle')"
+      :message="t('site.component.saveMessage')"
+      :confirm-label="t('site.component.create')"
+      :loading="converting"
+      @update:model-value="(open) => { if (!open) builder.componentDialog.value = null }"
+      @confirm="convert"
+    />
+
+    <ComponentNameModal
+      :model-value="builder.fieldDialog.value !== null"
+      :title="t('site.field.convertTitle')"
+      :message="t('site.field.convertMessage', { type: builder.type.value?.label ?? builder.type.value?.name ?? '' })"
+      :confirm-label="t('site.field.create')"
+      :label="t('site.field.name')"
+      :placeholder="t('site.field.namePlaceholder')"
+      :initial="fieldDialogInitial"
+      icon="mdi:database-plus-outline"
+      :loading="creatingField"
+      @update:model-value="(open) => { if (!open) builder.fieldDialog.value = null }"
+      @confirm="convertField"
+    />
+
+    <ConfirmModal
+      v-model="leavePromptOpen"
+      :title="t('unsaved.title')"
+      :message="t('unsaved.message')"
+      :confirm-label="t('unsaved.leave')"
+      :cancel-label="t('unsaved.stay')"
+      variant="warning"
+      @confirm="confirmLeave"
+    />
+    <ConfirmModal
+      :model-value="pendingVariant !== ''"
+      :title="t('unsaved.title')"
+      :message="t('unsaved.message')"
+      :confirm-label="t('unsaved.leave')"
+      :cancel-label="t('unsaved.stay')"
+      variant="warning"
+      @update:model-value="(open) => { if (!open) pendingVariant = '' }"
+      @confirm="switchVariant(pendingVariant)"
+    />
+  </div>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { Icon } from "@iconify/vue";
+import ConfirmModal from "../components/ConfirmModal.vue";
+import LoadingSpinner from "../components/LoadingSpinner.vue";
+import SplitButton from "../components/SplitButton.vue";
+import DeviceToggle from "../components/site/DeviceToggle.vue";
+import SegmentedControl from "../components/site/SegmentedControl.vue";
+import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
+import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
+import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
+import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
+import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
+import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
+import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
+import BuilderForms from "../components/site/builder/BuilderForms.vue";
+import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
+import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
+import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
+import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
+import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
+import ComponentNameModal from "../components/site/ComponentNameModal.vue";
+import { api } from "../api/index.js";
+import { createSiteBuilder } from "../composables/useSiteBuilder.js";
+import { useBuilderEntry } from "../composables/useBuilderEntry.js";
+import { usePermissions } from "../composables/usePermissions.js";
+import { findNode } from "../composables/layoutTree.js";
+import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
+import { useAuthStore } from "../stores/auth.js";
+import { useSiteStore } from "../stores/site.js";
+import { useToastStore } from "../stores/toast.js";
+import { useI18n } from "../i18n/index.js";
+import { adminAsset } from "../basePath.js";
+
+const route = useRoute();
+const router = useRouter();
+const site = useSiteStore();
+const auth = useAuthStore();
+const { canContent } = usePermissions();
+const toast = useToastStore();
+const { t } = useI18n();
+const brandIcon = adminAsset("img/cms-icon.png");
+const builder = createSiteBuilder({
+  t,
+  componentApi: {
+    create: async (body) => (await api.site.createComponent(body)).data,
+    rename: async (id, name) => (await api.site.renameComponent(id, name)).data,
+    remove: async (id) => (await api.site.deleteComponent(id)).data.component,
+    load: async (id) => {
+      try {
+        return (await api.site.component(id)).data.component;
+      } catch (err) {
+        toast.error(err.message);
+        return null;
+      }
+    },
+    // Unsaved changes are guarded like any other way out of the builder.
+    edit: (id) => router.push({ path: `/page-builder/builder/component/${id}`, query: { back: route.fullPath } }),
+  },
+  templateApi: {
+    load: async (type) => {
+      try {
+        return (await api.site.cardTemplate(type)).data;
+      } catch (err) {
+        toast.error(err.message);
+        return null;
+      }
+    },
+  },
+  fieldApi: {
+    // Only offered to those who may change the content type.
+    can: (type) => auth.can("schema.read", `schema:${type}`) && auth.can("schema.update", `schema:${type}`),
+    create: async ({ type, key, config }) => {
+      const schema = (await api.contentTypes.get(type)).data;
+      if (schema.fields?.[key]) throw new Error(t("site.field.exists", { key }));
+      return (await api.contentTypes.update(type, { ...schema, fields: { ...schema.fields, [key]: config } })).data;
+    },
+  },
+  // Design edits are undone and redone together with layout edits.
+  linked: {
+    get: () => site.draft?.theme,
+    set: (theme) => {
+      if (site.draft) site.draft.theme = theme;
+    },
+  },
+});
+// Synchronous, so the store's own replacements while saving, loading or restoring are told apart from edits.
+let restoringTheme = false;
+watch(() => site.draft?.theme, () => {
+  if (restoringTheme) builder.rebaseLinked();
+  else builder.linkedChanged({ record: !site.saving && !site.loading });
+}, { deep: true, flush: "sync" });
+
+/**
+ * A restored design is already saved. Undo must not bring back the design it
+ * replaced, which the next save would then write over the restored one.
+ */
+function onThemeRestored(theme) {
+  restoringTheme = true;
+  try {
+    site.applyRestoredTheme(theme);
+  } finally {
+    restoringTheme = false;
+  }
+}
+/** Pending design edits belong to the whole site: they stay while moving between builder pages. */
+const themeDirty = computed(() => site.dirtyParts.includes("theme"));
+/** The pending design edits include the custom stylesheet, or are only that. */
+const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_css ?? "") !== (site.data?.theme?.custom_css ?? ""));
+const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
+const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
+  (to) => builder.isDirty.value || entryFields.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
+  { guardUpdates: true },
+);
+
+const RAIL_WIDTH = 48;
+const DESIGN_MIN_WIDTH = 320;
+/** Code reads better wide, so the stylesheet panel may grow further. */
+const CSS_MIN_WIDTH = 360;
+const CSS_MAX_WIDTH = 720;
+/** Components are managed in the builder's components panel. */
+const COMPONENTS_PATH = "/page-builder/builder/region/header?settings=components";
+/** The open left panel, or null when collapsed. */
+const leftPanel = ref(["design", "css", "components"].includes(route.query.settings) ? route.query.settings : "add");
+const historyScope = ref("layout");
+/** Bumped after saving so an open history list shows the version the save kept. */
+const historyVersion = ref(0);
+const panels = computed(() => [
+  { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
+  { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
+  ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
+  { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
+  { value: "forms", label: t("site.forms.title"), icon: "mdi:form-select" },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
+  { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
+  { value: "history", label: t("site.history.title"), icon: "mdi:history" },
+]);
+const activePanel = computed(() => panels.value.find((panel) => panel.value === leftPanel.value));
+
+const builderAreaRef = ref(null);
+const builderWidth = ref(window.innerWidth);
+const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
+const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
+const leftMinWidth = computed(() => ({ design: DESIGN_MIN_WIDTH, css: CSS_MIN_WIDTH, fields: 320 })[leftPanel.value] ?? 224);
+/** Width the left panel takes from the canvas: nothing while collapsed. */
+const leftSpace = computed(() => RAIL_WIDTH + (leftPanel.value ? leftWidth.value : 0));
+const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(leftPanel.value === "css" ? CSS_MAX_WIDTH : 480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
+const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftSpace.value - 320)));
+let builderResizeObserver = null;
+
+watch(builderAreaRef, (area) => {
+  builderResizeObserver?.disconnect();
+  if (!area) return;
+  builderResizeObserver = new ResizeObserver(([entry]) => {
+    builderWidth.value = entry.contentRect.width;
+  });
+  builderResizeObserver.observe(area);
+});
+watch([leftMaxWidth, rightMaxWidth], () => {
+  leftWidth.value = Math.min(leftWidth.value, leftMaxWidth.value);
+  rightWidth.value = Math.min(rightWidth.value, rightMaxWidth.value);
+}, { immediate: true });
+onBeforeUnmount(() => builderResizeObserver?.disconnect());
+
+const target = route.params.target;
+const name = String(route.params.name);
+const variant = String(route.params.variant || "detail");
+
+const loading = ref(true);
+const upgradeRequired = ref(false);
+const loadError = ref("");
+const saving = ref(false);
+const customized = ref(false);
+const samples = ref([]);
+const sampleId = ref("");
+const locales = ref([]);
+const locale = ref("");
+const device = ref("desktop");
+const pendingVariant = ref("");
+const canvasRef = ref(null);
+const indexUrl = ref(null);
+const homeUrl = ref(null);
+const entryUrl = ref(null);
+const component = ref(null);
+const usages = ref([]);
+const converting = ref(false);
+
+/** The layout has changes that can be saved. */
+const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.value) && !builder.hasSyntaxErrors.value);
+
+/** The entry the preview shows: the chosen sample, or the single page itself. */
+const previewEntry = computed(() => (builder.type.value?.singleton ? builder.type.value.name : sampleId.value));
+/** Layouts of single entries and components of a content type preview an entry. */
+const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
+const hasEntryFields = computed(() => showsSamples.value && !!previewEntry.value);
+const entryFields = useBuilderEntry({
+  type: builder.type,
+  entryId: computed(() => hasEntryFields.value ? previewEntry.value : ""),
+  locale,
+  contentApi: api.content,
+  canUpdate: (type, entry) => canContent("content.update", type, entry),
+});
+
+/** The live page of what is being edited, when there is one. */
+const liveUrl = computed(() => {
+  if (target === "component") return null;
+  if (target === "region") return homeUrl.value;
+  if (variant === "index") return indexUrl.value;
+  return entryUrl.value;
+});
+const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
+/** Draft preview of the sample entry with the saved layout, the same one the entry editor used to open. */
+const previewUrl = computed(() => (target === "layout" && variant === "detail" && previewEntry.value
+  ? api.site.entryPreviewUrl(name, previewEntry.value, locale.value)
+  : null));
+const saveMenuItems = computed(() => {
+  const items = [];
+  if (previewUrl.value) {
+    items.push({
+      key: "preview",
+      label: t("site.entry.preview"),
+      icon: "mdi:eye-outline",
+      href: previewUrl.value,
+      target: "_blank",
+      title: builder.isDirty.value || entryFields.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
+    });
+  }
+  if (liveUrl.value || liveHint.value) {
+    items.push({
+      key: "live",
+      label: t("site.builder.viewLive"),
+      icon: "mdi:open-in-new",
+      href: liveUrl.value,
+      target: "_blank",
+      disabled: !liveUrl.value,
+      title: liveUrl.value || liveHint.value,
+    });
+  }
+  return items;
+});
+watch(previewEntry, async (entry) => {
+  entryUrl.value = null;
+  if (target !== "layout" || !entry) return;
+  try {
+    entryUrl.value = (await api.site.links(name, entry)).data?.url ?? null;
+  } catch {
+    entryUrl.value = null;
+  }
+});
+
+const variants = computed(() => {
+  if (target !== "layout" || !builder.type.value) return [];
+  return builder.type.value.singleton ? ["detail"] : ["detail", "index"];
+});
+// Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
+const backTo = computed(() => {
+  const back = typeof route.query.back === "string" ? route.query.back : "";
+  if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
+  if (target === "component") return COMPONENTS_PATH;
+  return target === "region" ? "/page-builder/overview" : `/content-types/${name}/edit#website`;
+});
+const heading = computed(() => {
+  if (target === "component") return component.value?.name ?? "";
+  return target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name;
+});
+const subheading = computed(() => {
+  if (target === "component") {
+    const kind = t("site.component.instanceOf", { kind: builder.kindLabel(component.value?.root ?? "section") });
+    const type = builder.type.value ? ` · ${builder.type.value.label ?? builder.type.value.name}` : "";
+    return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
+  }
+  return target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`);
+});
+
+const previewBody = computed(() => {
+  if (loading.value) return null;
+  // The canvas always shows the draft design: unsaved edits, and a restored version as soon as it arrives.
+  const theme = site.draft?.theme ? { theme: site.draft.theme } : {};
+  if (target === "component") {
+    return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+  }
+  return target === "region"
+    ? { target: "region", region: name, nodes: builder.nodes.value, locale: locale.value, ...theme }
+    : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+});
+
+function isBuilderPath(path) {
+  return typeof path === "string" && path.startsWith("/page-builder/builder/");
+}
+
+function togglePanel(panel) {
+  leftPanel.value = leftPanel.value === panel ? null : panel;
+}
+
+watch(leftPanel, (panel) => {
+  if (["design", "css", "fields"].includes(panel)) leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
+}, { immediate: true });
+
+watch(locale, (value) => { builder.locale.value = value; });
+
+async function load() {
+  loading.value = true;
+  loadError.value = "";
+
+  try {
+    const entry = typeof route.query.entry === "string" ? route.query.entry : "";
+    const res = target === "region"
+      ? await api.site.region(name)
+      : target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
+    const data = res.data;
+    builder.types.value = data.types ?? [];
+    builder.menus.value = data.menus ?? [];
+    builder.forms.value = data.forms ?? [];
+    builder.settings.value = data.settings ?? null;
+    builder.type.value = data.type ?? null;
+    builder.components.value = data.components ?? [];
+    if (target === "component") {
+      component.value = data.component;
+      usages.value = data.usages ?? [];
+      builder.componentId.value = data.component.id;
+      builder.rootKind.value = data.component.root;
+      // A component's tree is its one root node.
+      builder.spec.value = { ...data.spec, root: [data.component.root] };
+      builder.currentAvailable.value = !!data.type;
+    } else {
+      builder.spec.value = data.spec;
+      builder.currentAvailable.value = target === "layout" && variant !== "index";
+    }
+    upgradeRequired.value = !!data.upgrade_required;
+    samples.value = data.samples ?? [];
+    const requested = typeof route.query.entry === "string" ? route.query.entry : "";
+    sampleId.value = samples.value.some((sample) => sample.id === requested)
+      ? requested
+      : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
+    indexUrl.value = data.index_url ?? null;
+    homeUrl.value = data.home_url ?? null;
+    locales.value = data.locales ?? [];
+    locale.value = data.default_locale ?? "";
+    customized.value = !!data.customized;
+    builder.load(data.nodes);
+  } catch (err) {
+    loadError.value = err.message;
+  } finally {
+    loading.value = false;
+  }
+}
+
+/** Save pending entry values, layout and site design together. */
+async function save() {
+  const saveLayout = layoutSavable.value;
+  const saveTheme = themeDirty.value;
+  const saveContent = entryFields.isDirty.value;
+  if (saving.value || (!saveLayout && !saveTheme && !saveContent)) return;
+  saving.value = true;
+
+  try {
+    if (saveContent) {
+      const entries = await entryFields.save();
+      for (const entry of entries) {
+        const sample = samples.value.find((item) => item.id === entry.id);
+        if (sample) sample.title = entry.title;
+      }
+    }
+    if (saveLayout) {
+      const nodes = builder.nodes.value;
+      const res = target === "region"
+        ? await api.site.saveRegion(name, nodes)
+        : target === "component" ? await api.site.saveComponent(name, nodes) : await api.site.saveLayout(name, variant, nodes);
+      builder.markSaved(res.data.nodes);
+      upgradeRequired.value = false;
+      customized.value = true;
+      if (target === "component") component.value = res.data.component;
+      else site.markCustomized(target, name, variant, true);
+    }
+    if (saveTheme) await site.save({ parts: ["theme"] });
+    historyVersion.value++;
+    const message = saveContent ? "site.builder.changesSaved" : !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
+    toast.success(t(message));
+  } catch (err) {
+    if (err.entryId) {
+      sampleId.value = err.entryId;
+      locale.value = err.locale;
+      leftPanel.value = "fields";
+    }
+    toast.error(err.message);
+  } finally {
+    if (saveContent) canvasRef.value?.refresh();
+    saving.value = false;
+  }
+}
+
+function fetchRevisions() {
+  if (target === "component") return api.site.componentRevisions(name);
+  return target === "region" ? api.site.regionRevisions(name) : api.site.layoutRevisions(name, variant);
+}
+
+function restoreRevision(id) {
+  if (target === "component") return api.site.restoreComponentRevision(name, id);
+  return target === "region" ? api.site.restoreRegionRevision(name, id) : api.site.restoreLayoutRevision(name, variant, id);
+}
+
+function onRevisionRestored(data) {
+  upgradeRequired.value = false;
+  builder.load(data.nodes);
+  customized.value = data.customized;
+  if (target === "component") component.value = data.component ?? component.value;
+  else site.markCustomized(target, name, variant, data.customized);
+}
+
+function onComponentRenamed(updated) {
+  if (target === "component" && name === updated.id && component.value) component.value = { ...component.value, name: updated.name };
+}
+
+function onComponentDeleted(id) {
+  historyVersion.value++;
+  if (target === "component" && name === id) {
+    bypass();
+    router.push(COMPONENTS_PATH);
+  }
+}
+
+/** Turn the node waiting in the name dialog into a component instance. */
+async function convert(componentName) {
+  const pending = builder.componentDialog.value;
+  if (!pending || converting.value) return;
+  converting.value = true;
+  try {
+    await builder.convertToComponent(pending.id, componentName);
+    builder.componentDialog.value = null;
+    toast.success(t("site.component.created"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    converting.value = false;
+  }
+}
+
+const creatingField = ref(false);
+/** The element's kind as a starting name, e.g. "Heading". */
+const fieldDialogInitial = computed(() => {
+  const node = builder.fieldDialog.value ? findNode(builder.nodes.value, builder.fieldDialog.value.id) : null;
+  return node ? builder.kindLabel(node.kind) : "";
+});
+
+/** Turn the element waiting in the field dialog into a field of the content type. */
+async function convertField(label) {
+  const pending = builder.fieldDialog.value;
+  if (!pending || creatingField.value) return;
+  creatingField.value = true;
+  try {
+    const key = await builder.convertToField(pending.id, label);
+    builder.fieldDialog.value = null;
+    if (key) toast.success(t("site.field.created", { key }));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    creatingField.value = false;
+  }
+}
+
+function goToVariant(next) {
+  if (next === variant) return;
+  if (builder.isDirty.value || entryFields.isDirty.value) {
+    pendingVariant.value = next;
+    return;
+  }
+  switchVariant(next);
+}
+
+function switchVariant(next) {
+  pendingVariant.value = "";
+  bypass();
+  router.push({ path: `/page-builder/builder/layout/${name}/${next}`, query: route.query });
+}
+
+function onKeydown(event) {
+  if (event.target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
+  const element = event.target;
+  const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(element?.tagName) || element?.isContentEditable;
+  const modifier = event.ctrlKey || event.metaKey;
+  const key = event.key.toLowerCase();
+
+  if (modifier && key === "s") {
+    event.preventDefault();
+    save();
+    return;
+  }
+
+  if (editing) return;
+
+  // Shift+F10 and the context-menu key open the menu for the selection.
+  if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && builder.selectedId.value) {
+    event.preventDefault();
+    const point = canvasRef.value?.positionFor(builder.selectedId.value) ?? { x: window.innerWidth / 2, y: 120 };
+    builder.openContextMenu(builder.selectedId.value, point.x, point.y);
+    return;
+  }
+
+  const hasTextSelection = !!window.getSelection()?.toString();
+
+  if (modifier && key === "c" && builder.selectedId.value && !hasTextSelection) {
+    builder.copy();
+  } else if (modifier && key === "v" && builder.clipboard.value) {
+    event.preventDefault();
+    builder.paste();
+  } else if (modifier && key === "z") {
+    event.preventDefault();
+    if (event.shiftKey) builder.redo();
+    else builder.undo();
+  } else if (modifier && key === "y") {
+    event.preventDefault();
+    builder.redo();
+  } else if (modifier && key === "d" && builder.selectedId.value) {
+    event.preventDefault();
+    builder.duplicate();
+  } else if ((event.key === "Delete" || event.key === "Backspace") && builder.selectedId.value) {
+    event.preventDefault();
+    builder.remove();
+  } else if (event.key === "Escape") {
+    if (builder.contextMenu.value) builder.closeContextMenu();
+    else builder.select(null);
+  } else if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && builder.selectedId.value) {
+    event.preventDefault();
+    builder.shift(builder.selectedId.value, event.key === "ArrowUp" ? -1 : 1);
+  }
+}
+
+onMounted(() => {
+  load();
+  // Swatches and token hints show the saved theme; refresh unless edits are pending.
+  site.load({ force: !site.isDirty }).catch(() => {});
+  window.addEventListener("keydown", onKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKeydown);
+  // Design edits the user chose to leave behind must not resurface elsewhere.
+  if (!isBuilderPath(router.currentRoute.value.path)) site.discardTheme();
+});
+</script>
+
+<style scoped>
+.topbar-action {
+  position: relative;
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: rgb(var(--color-slate-600));
+}
+.topbar-action:hover:not(:disabled) {
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
+}
+.topbar-action:disabled {
+  opacity: 0.35;
+}
+.rail-action {
+  position: relative;
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: rgb(var(--color-slate-500));
+  transition: background-color 150ms, color 150ms;
+}
+.rail-action:hover {
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
+}
+.rail-action.is-active {
+  background: rgb(var(--color-theme-50, 239 246 255));
+  color: rgb(var(--color-theme-text, 29 78 216));
+}
+.panel-close {
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: rgb(var(--color-slate-500));
+}
+.panel-close:hover {
+  background: rgb(var(--color-slate-100));
+  color: rgb(var(--color-slate-900));
+}
+</style>

@@ -45,7 +45,7 @@
       </div>
 
       <div class="bg-slate-50/60 p-5">
-        <div class="flex min-h-12 items-center gap-3 rounded-lg bg-slate-950 px-3 py-2 text-slate-100">
+        <div class="flex min-h-12 items-center gap-3 rounded-lg bg-ink-950 px-3 py-2 text-ink-100">
           <span class="shrink-0 font-mono text-xs font-semibold text-theme-300">POST</span>
           <code class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs leading-6">
             {{ mcpUrl }}
@@ -135,7 +135,7 @@ watch(activeTab, async (tab) => {
 
   try {
     const res = await api.contentTypes.list();
-    collections.value = res.data ?? [];
+    collections.value = (res.data ?? []).filter((type) => type.api_enabled);
   } catch {
     // The API explorer remains useful for manually entered endpoints.
   }

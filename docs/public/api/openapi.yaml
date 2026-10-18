@@ -103,6 +103,9 @@ components:
           label,
           icon,
           singleton,
+          api_enabled,
+          allow_submissions,
+          submission_settings,
           visibility,
           slug_field,
           slug_source,
@@ -120,11 +123,38 @@ components:
         singleton:
           type: boolean
           description: When true, the content type represents one fixed entry whose slug matches the content type name.
+        api_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in to the headless API. Enabled types expose published, unprotected entries publicly; drafts and protected entries retain their access rules.
+        allow_submissions:
+          type: boolean
+          default: false
+          description: Allow visitors to submit entries and offer this collection in the Page Builder forms sidebar.
+        submission_settings:
+          type: [object, "null"]
+          properties:
+            status:
+              type: string
+              enum: [draft, published]
+              default: draft
+            submit_label:
+              type: string
+              maxLength: 80
+            success_message:
+              type: string
+              maxLength: 1000
+            error_message:
+              type: string
+              maxLength: 1000
+            captcha:
+              type: string
+              enum: [none]
         visibility:
           type: string
           enum: [public, private]
           default: public
-          description: Private types require a bearer token with permission to read the collection.
+          description: Legacy access control. Enabling api_enabled uses public visibility. Existing private schemas retain token protection until reconfigured.
         slug_field:
           type: string
         slug_source:
@@ -153,6 +183,33 @@ components:
           type: string
         singleton:
           type: boolean
+        api_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in to the headless API. Enabled types expose published, unprotected entries publicly; drafts and protected entries retain their access rules.
+        allow_submissions:
+          type: boolean
+          default: false
+          description: Allow visitors to submit entries and offer this collection in the Page Builder forms sidebar.
+        submission_settings:
+          type: [object, "null"]
+          properties:
+            status:
+              type: string
+              enum: [draft, published]
+              default: draft
+            submit_label:
+              type: string
+              maxLength: 80
+            success_message:
+              type: string
+              maxLength: 1000
+            error_message:
+              type: string
+              maxLength: 1000
+            captcha:
+              type: string
+              enum: [none]
         visibility:
           type: string
           enum: [public, private]
@@ -180,6 +237,33 @@ components:
           type: string
         singleton:
           type: boolean
+        api_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in to the headless API. Enabled types expose published, unprotected entries publicly; drafts and protected entries retain their access rules.
+        allow_submissions:
+          type: boolean
+          default: false
+          description: Allow visitors to submit entries and offer this collection in the Page Builder forms sidebar.
+        submission_settings:
+          type: [object, "null"]
+          properties:
+            status:
+              type: string
+              enum: [draft, published]
+              default: draft
+            submit_label:
+              type: string
+              maxLength: 80
+            success_message:
+              type: string
+              maxLength: 1000
+            error_message:
+              type: string
+              maxLength: 1000
+            captcha:
+              type: string
+              enum: [none]
         visibility:
           type: string
           enum: [public, private]

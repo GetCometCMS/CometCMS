@@ -7,6 +7,8 @@ namespace CometCMS\Controllers\Admin;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Core\Security;
+use CometCMS\Setup\WebsiteStarter;
+use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
 final class WorkspacesController extends BaseController
@@ -37,15 +39,34 @@ final class WorkspacesController extends BaseController
 
     public function store(): never
     {
-        $this->requirePermission('workspaces.manage', ['resource' => 'workspaces:*']);
+        $user = $this->requirePermission('workspaces.manage', ['resource' => 'workspaces:*']);
         $this->verifyCsrf();
         $body = $this->requestJson();
 
+        // Existing API clients create an empty workspace unless they choose a starter.
+        $starterTemplate = $body['starter_template'] ?? 'empty';
+        if (!in_array($starterTemplate, ['empty', 'website'], true)) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Choose a valid starting point.']], 422);
+        }
+
+        $slug = Security::slug((string) ($body['slug'] ?? $body['label'] ?? ''));
+        if ($slug === '' || $this->workspaces->exists($slug, true)) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $slug === '' ? 'Choose a workspace slug.' : 'Workspace already exists.']], 422);
+        }
+
         try {
             $workspace = $this->workspaces->save([
-                'slug' => Security::slug((string) ($body['slug'] ?? $body['label'] ?? '')),
+                'slug' => $slug,
                 'label' => (string) ($body['label'] ?? ''),
             ]);
+            if ($starterTemplate === 'website') {
+                $activeWorkspace = WorkspaceContext::active()->slug();
+                try {
+                    (new WebsiteStarter(new WorkspaceContext($slug)))->create($user, includeEvents: false);
+                } finally {
+                    WorkspaceContext::setActive($activeWorkspace);
+                }
+            }
         } catch (\Throwable $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
         }

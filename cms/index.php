@@ -97,13 +97,14 @@ use CometCMS\Controllers\Admin\{
     DashboardController,
     MediaController,
     RolesController,
+    SiteController as AdminSiteController,
     TokensController,
     TrashController,
     UsersController,
     WebhooksController,
     WorkspacesController,
 };
-use CometCMS\Controllers\{AdminController, ApiController};
+use CometCMS\Controllers\{AdminController, ApiController, SiteController};
 use CometCMS\Core\Http;
 use CometCMS\Logging\Logger;
 use CometCMS\Mcp\McpController;
@@ -136,9 +137,6 @@ const SEG = '[A-Za-z0-9_-]+';
  * Patterns are matched against $path; named groups become positional args.
  */
 $routes = [
-    // Root redirect
-    ['GET', '#^/$#', static fn() => $http->redirect($http->url('/admin'))],
-
     // ── Auth ──────────────────────────────────────────────────────────────
     ['GET',  '#^/admin/api/me$#',     [AuthController::class, 'me']],
     ['POST', '#^/admin/api/login$#',  [AuthController::class, 'login']],
@@ -241,6 +239,47 @@ $routes = [
     ['PUT',  '#^/admin/api/webhooks$#',         [WebhooksController::class, 'update']],
     ['POST', '#^/admin/api/webhooks/run$#',     [WebhooksController::class, 'run']],
 
+    // ── Website ───────────────────────────────────────────────────────────
+    // Keep preview links without the admin prefix working. Redirect into the
+    // admin area so bootstrap starts the editor's session before rendering.
+    ['GET', '#^/site-preview/(' . SEG . ')/(' . SEG . ')$#', static function (string $type, string $id) use ($http): never {
+        $query = http_build_query($_GET);
+        $http->redirect($http->url('/admin/site-preview/' . $type . '/' . $id) . ($query !== '' ? '?' . $query : ''));
+    }],
+    ['GET',    '#^/admin/api/site$#',                                         [AdminSiteController::class, 'index']],
+    ['GET',    '#^/admin/api/site/status$#',                                  [AdminSiteController::class, 'status']],
+    ['GET',    '#^/admin/api/site/links/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'links']],
+    ['PUT',    '#^/admin/api/site/settings$#',                                [AdminSiteController::class, 'updateSettings']],
+    ['PUT',    '#^/admin/api/site/theme$#',                                   [AdminSiteController::class, 'updateTheme']],
+    ['GET',    '#^/admin/api/site/theme/revisions$#',                         [AdminSiteController::class, 'themeRevisions']],
+    ['POST',   '#^/admin/api/site/theme/revisions/(' . SEG . ')/restore$#',    [AdminSiteController::class, 'restoreThemeRevision']],
+    ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
+    ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
+    ['GET',    '#^/admin/api/site/card-template/(' . SEG . ')$#',             [AdminSiteController::class, 'cardTemplate']],
+    ['GET',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'layout']],
+    ['PUT',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'updateLayout']],
+    ['DELETE', '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'resetLayout']],
+    ['GET',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')/revisions$#', [AdminSiteController::class, 'layoutRevisions']],
+    ['POST',   '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreLayoutRevision']],
+    ['GET',    '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'region']],
+    ['PUT',    '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'updateRegion']],
+    ['DELETE', '#^/admin/api/site/regions/(' . SEG . ')$#',                   [AdminSiteController::class, 'resetRegion']],
+    ['GET',    '#^/admin/api/site/regions/(' . SEG . ')/revisions$#',          [AdminSiteController::class, 'regionRevisions']],
+    ['POST',   '#^/admin/api/site/regions/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreRegionRevision']],
+    ['GET',    '#^/admin/api/site/components$#',                              [AdminSiteController::class, 'components']],
+    ['POST',   '#^/admin/api/site/components$#',                              [AdminSiteController::class, 'createComponent']],
+    ['GET',    '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'component']],
+    ['PUT',    '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'updateComponent']],
+    ['PATCH',  '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'renameComponent']],
+    ['DELETE', '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'deleteComponent']],
+    ['GET',    '#^/admin/api/site/components/(' . SEG . ')/revisions$#',      [AdminSiteController::class, 'componentRevisions']],
+    ['POST',   '#^/admin/api/site/components/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreComponentRevision']],
+    ['GET',    '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'forms']],
+    ['POST',   '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'createForm']],
+    ['PUT',    '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'updateForm']],
+    ['DELETE', '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'deleteForm']],
+    ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
+
     // ── Profile & avatar ──────────────────────────────────────────────────
     ['POST',   '#^/admin/api/profile/avatar$#', [UsersController::class, 'avatarUpload']],
     ['DELETE', '#^/admin/api/profile/avatar$#', [UsersController::class, 'avatarDelete']],
@@ -332,6 +371,28 @@ try {
     if (preg_match('#^/media/(' . SEG . ')/(.+)$#', $path, $m) && $method === 'GET') {
         $api->useWorkspace($m[1], true);
         $api->mediaShow($m[2]);
+    }
+
+    // ── Website (opt-in per workspace) ────────────────────────────────────
+    if (preg_match('#^/_site/(' . SEG . ')/style\.css$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->stylesheet($m[1]);
+    }
+
+    if (preg_match('#^/_site/flags/([a-z]{2}(?:-[a-z]{3})?)\.svg$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->flag($m[1]);
+    }
+
+    if (preg_match('#^/_site/forms/(' . SEG . ')/(' . SEG . ')$#', $path, $m) && $method === 'POST') {
+        (new SiteController($http))->submitForm($m[1], $m[2]);
+    }
+
+    if (in_array($method, ['GET', 'HEAD'], true) && SiteController::handles($path)) {
+        // Returns when no workspace publishes a website for this host.
+        (new SiteController($http))->page($path);
+    }
+
+    if ($path === '/') {
+        (new SiteController($http))->placeholder();
     }
 
     $http->notFound();

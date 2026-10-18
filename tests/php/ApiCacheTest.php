@@ -37,6 +37,21 @@ test('api cache clear removes stored cache files', function (): void {
     assert_same(0, count(glob($path . '/*.json') ?: []));
 });
 
+test('api cache deadlines shorten but never extend the configured lifetime', function (): void {
+    $path = COMET_STORAGE . '/cache/api-deadlines';
+    $cache = new ApiCache(true, 300, $path);
+    $deadline = time() + 60;
+    $cache->put('scheduled', ['ok' => true], $deadline);
+    assert_same($deadline, json_decode(file_get_contents($path . '/scheduled.json'), true)['expires_at']);
+    assert_same(['ok' => true], $cache->get('scheduled'));
+
+    $cache->put('later', ['ok' => true], time() + 600);
+    assert_true(json_decode(file_get_contents($path . '/later.json'), true)['expires_at'] <= time() + 300);
+
+    $cache->put('now', ['ok' => true], time());
+    assert_null($cache->get('now'), 'A deadline expires at its exact second.');
+});
+
 test('api cache key generation is deterministic', function (): void {
     $cache = new ApiCache(true, 300, COMET_STORAGE . '/cache/api-key');
 

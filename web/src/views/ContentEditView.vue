@@ -11,6 +11,17 @@
         {{ editorTitle }}
       </h1>
       <div class="ml-auto flex items-center gap-2">
+        <a
+          v-if="!isNew && siteLinks?.url"
+          :href="siteLinks.url"
+          target="_blank"
+          rel="noopener"
+          class="btn-secondary"
+          :title="siteLinks.url"
+        >
+          <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.view") }}</span>
+        </a>
         <button
           v-if="!isNew"
           @click="openRevisions"
@@ -279,6 +290,15 @@
           </div>
         </div>
       </div>
+
+      <!-- Pages and collection entries keep their design action alongside their content. -->
+      <PageBuilderCta
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        :title="t('site.builderCta.title')"
+        :description="t(isSingleton ? 'site.entry.editSingletonDesignHint' : 'site.entry.editDesignHint')"
+        :to="designLink"
+        :action-label="t('site.entry.editDesign')"
+      />
 
       <!-- Custom fields -->
       <div v-if="hasCustomFields" class="card p-6 space-y-4">
@@ -550,6 +570,7 @@ import BaseField from "../components/BaseField.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { usePermissions } from "../composables/usePermissions.js";
+import PageBuilderCta from "../components/site/PageBuilderCta.vue";
 import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
@@ -963,6 +984,34 @@ const hasCustomFields = computed(
   () => Object.keys(customSchema.value).length > 0,
 );
 
+// Website preview and live links; absent when the website is off.
+const siteLinks = ref(null);
+
+// The type's page layout in the builder, previewed with this entry.
+const designLink = computed(() => ({
+  path: `/page-builder/builder/layout/${collection}/detail`,
+  query: { entry: entryId.value, back: route.fullPath },
+}));
+
+async function loadSiteLinks() {
+  if (isNew.value || !entryId.value) {
+    siteLinks.value = null;
+    return;
+  }
+
+  try {
+    const res = await api.site.links(collection, entryId.value, currentLocale.value ? { locale: currentLocale.value } : {});
+    siteLinks.value = res.data;
+  } catch {
+    siteLinks.value = null;
+  }
+}
+
+watch(
+  () => [entryId.value, currentLocale.value, fullEntry.value?.status, fullEntry.value?.updated_at],
+  loadSiteLinks,
+);
+
 onMounted(async () => {
   document.addEventListener("pointerdown", closeLocaleMenu);
   document.addEventListener("keydown", onLocaleMenuKeydown);
@@ -1071,8 +1120,12 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  apiEndpointUrl,
-  (url) => {
+  [apiEndpointUrl, () => contentTypeSchema.value?.api_enabled],
+  ([url, enabled]) => {
+    if (!enabled) {
+      apiEndpointStore.clearEndpoint(apiEndpointOwner);
+      return;
+    }
     apiEndpointStore.setEndpoint(
       {
         label: isNew.value && !isSingleton.value ? "Collection" : "Entry",

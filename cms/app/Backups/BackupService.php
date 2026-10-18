@@ -30,6 +30,7 @@ final class BackupService
         'users',
         'api_tokens',
         'webhooks',
+        'site',
     ];
 
     private const DEFAULT_PARTS = [
@@ -38,6 +39,7 @@ final class BackupService
         'media',
         'api_tokens',
         'webhooks',
+        'site',
     ];
 
     public function create(array $user, ?array $parts = null): array
@@ -63,6 +65,7 @@ final class BackupService
         $roleCount = 0;
         $tokenCount = 0;
         $webhookCount = 0;
+        $siteCount = 0;
 
         if (in_array('content_types', $parts, true)) {
             $contentTypeCount = $this->addDirectory($zip, $this->workspace->path('content-types'), 'content-types');
@@ -91,6 +94,10 @@ final class BackupService
             $webhookCount = $this->addWebhooks($zip);
         }
 
+        if (in_array('site', $parts, true)) {
+            $siteCount = $this->addDirectory($zip, $this->workspace->path('site'), 'site');
+        }
+
         $manifest = [
             'cms' => 'CometCMS',
             'version' => comet_version(),
@@ -107,6 +114,7 @@ final class BackupService
             'role_count' => $roleCount,
             'token_count' => $tokenCount,
             'webhook_count' => $webhookCount,
+            'site_count' => $siteCount,
             'includes_password_hashes' => (bool) comet_config('backups.include_password_hashes', false),
         ];
         $zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);

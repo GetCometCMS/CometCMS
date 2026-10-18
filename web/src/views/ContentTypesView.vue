@@ -54,6 +54,11 @@
             >
               {{ t("contentTypes.fields") }}
             </th>
+            <th
+              class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
+            >
+              {{ t("site.typeCard.title") }}
+            </th>
             <th class="px-4 py-3"></th>
           </tr>
         </thead>
@@ -116,6 +121,22 @@
             <td class="px-4 py-3 text-sm text-slate-600">
               {{ Object.keys(type.fields ?? {}).length }}
             </td>
+            <td class="px-4 py-3 text-sm">
+              <span v-if="type.visibility === 'private'" class="text-slate-500" :title="t('site.typeCard.private')">
+                {{ t("contentTypeEdit.private") }}
+              </span>
+              <div v-else-if="websiteStatus?.types?.[type.name]" class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="badge whitespace-nowrap"
+                    :class="websiteStatus.types[type.name].pages_enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'"
+                  >
+                    {{ websiteStatus.types[type.name].pages_enabled ? t("contentTypes.frontendEnabled") : t("contentTypes.frontendDisabled") }}
+                  </span>
+                </div>
+              </div>
+              <span v-else class="text-slate-400" :title="t('contentTypes.frontendUnavailable')">—</span>
+            </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-2" @click.stop>
                 <router-link
@@ -170,6 +191,7 @@ const apiEndpointOwner = "content-types-list";
 const draggedName = ref("");
 const dropTargetName = ref("");
 const savingOrder = ref(false);
+const websiteStatus = ref(null);
 let clickAfterDrag = false;
 
 onMounted(async () => {
@@ -182,9 +204,16 @@ onMounted(async () => {
   );
 
   try {
-    const res = await api.contentTypes.list();
-    types.value = res.data ?? [];
+    const [typeResult, siteResult] = await Promise.allSettled([
+      api.contentTypes.list(),
+      api.site.status(),
+    ]);
+    if (typeResult.status === "rejected") throw typeResult.reason;
+    types.value = typeResult.value.data ?? [];
     typesStore.setList(types.value);
+    if (siteResult.status === "fulfilled") websiteStatus.value = siteResult.value.data;
+  } catch (err) {
+    toast.error(err.message);
   } finally {
     loading.value = false;
   }

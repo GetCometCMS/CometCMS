@@ -433,7 +433,7 @@
 
   <!-- media -->
   <div v-else-if="config.type === 'media'" class="space-y-2">
-    <div class="flex items-start gap-3">
+    <div class="flex items-start" :class="compact ? 'gap-2' : 'gap-3'">
       <div
         v-if="config.multiple"
         class="grid h-24 w-24 shrink-0 grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 transition-colors"
@@ -465,7 +465,7 @@
         </button>
         <div
           v-if="mediaPreviewOverflow > 0"
-          class="rounded-md bg-slate-900/75 text-white text-xs font-semibold flex items-center justify-center"
+          class="rounded-md bg-ink-900/75 text-white text-xs font-semibold flex items-center justify-center"
         >
           +{{ mediaPreviewOverflow }}
         </div>
@@ -478,12 +478,13 @@
 
       <div
         v-else
-        class="w-24 h-24 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 transition-colors"
-        :class="
+        class="rounded-lg border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 transition-colors"
+        :class="[
+          compact ? 'h-12 w-12' : 'h-24 w-24',
           isMediaDropActive
             ? 'border-theme-400 bg-theme-50 ring-2 ring-theme-200'
-            : ''
-        "
+            : '',
+        ]"
         @dragenter.prevent="onMediaDragEnter"
         @dragover.prevent="onMediaDragOver"
         @dragleave.prevent="onMediaDragLeave"
@@ -506,13 +507,13 @@
             v-else
             class="flex h-full w-full items-center justify-center"
           >
-            <Icon v-bind="getFileIcon(mediaValues[0])" class="w-8 h-8" />
+            <Icon v-bind="getFileIcon(mediaValues[0])" :class="compact ? 'h-5 w-5' : 'h-8 w-8'" />
           </span>
         </button>
-        <Icon v-else icon="mdi:image-outline" class="w-8 h-8 text-slate-400" />
+        <Icon v-else icon="mdi:image-outline" class="text-slate-400" :class="compact ? 'h-5 w-5' : 'h-8 w-8'" />
       </div>
 
-      <div class="min-w-0 flex-1 space-y-2">
+      <div class="min-w-0 flex-1" :class="compact ? 'space-y-1' : 'space-y-2'">
         <input
           v-for="file in mediaValues"
           :key="file"
@@ -527,18 +528,20 @@
           value=""
         />
         <p
-          class="text-sm text-slate-700 truncate"
+          class="text-slate-700 truncate"
+          :class="compact ? 'text-xs' : 'text-sm'"
           :title="String(modelValue ?? '')"
         >
           {{ mediaLabel }}
         </p>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap" :class="compact ? 'gap-1' : 'gap-2'">
           <button
             type="button"
             class="btn-secondary"
-            :class="
-              isMediaDropActive ? 'ring-2 ring-theme-300 ring-offset-1' : ''
-            "
+            :class="[
+              { 'btn-sm': compact },
+              isMediaDropActive ? 'ring-2 ring-theme-300 ring-offset-1' : '',
+            ]"
             :disabled="mediaUploading"
             @click="pickerOpen = true"
             @dragenter.prevent="onMediaDragEnter"
@@ -552,6 +555,7 @@
             v-if="mediaValues.length > 0"
             type="button"
             class="btn-secondary"
+            :class="{ 'btn-sm': compact }"
             @click="$emit('update:modelValue', [])"
           >
             {{ t("fieldInput.clear") }}
@@ -771,7 +775,7 @@
 
   <div
     v-if="mediaPreviewFile"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 px-4 py-6"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/70 px-4 py-6"
     @click.self="closeMediaPreview"
   >
     <div
@@ -800,7 +804,7 @@
           <Icon icon="mdi:close" class="h-5 w-5" />
         </button>
       </div>
-      <div class="flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
+      <div class="flex min-h-0 flex-1 items-center justify-center bg-ink-950 p-4">
         <img
           v-if="mediaPreviewIsImage"
           :src="mediaPreviewUrl"
@@ -852,6 +856,8 @@ const props = defineProps({
   config: { type: Object, required: true },
   modelValue: { default: null },
   readonly: { type: Boolean, default: false },
+  /** Smaller media thumbnail and buttons, for narrow sidebars. */
+  compact: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -1432,7 +1438,7 @@ const subFieldGridCols = computed(() => {
 }
 
 .tiptap-content :deep(.ProseMirror pre) {
-  @apply bg-slate-900 text-slate-100 rounded-lg p-3 my-2 font-mono text-xs overflow-x-auto;
+  @apply bg-ink-900 text-ink-100 rounded-lg p-3 my-2 font-mono text-xs overflow-x-auto;
 }
 
 .tiptap-content :deep(.ProseMirror pre code) {

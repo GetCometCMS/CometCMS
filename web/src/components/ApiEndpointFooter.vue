@@ -60,9 +60,9 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useToastStore } from "../stores/toast.js";
@@ -75,8 +75,37 @@ const endpointStore = useApiEndpointStore();
 const auth = useAuthStore();
 const toast = useToastStore();
 const endpoint = computed(() => endpointStore.current);
+const route = useRoute();
+const pageBuilderEnabled = ref(false);
+const checkingPageBuilder = ref(false);
+
+watch(
+  () => [route.fullPath, route.params.collection],
+  async ([, collection], _, onCleanup) => {
+    let stale = false;
+    onCleanup(() => { stale = true; });
+    pageBuilderEnabled.value = false;
+    checkingPageBuilder.value = !!collection;
+    if (!collection) return;
+
+    try {
+      const res = await api.site.status();
+      if (!stale) {
+        pageBuilderEnabled.value = !!res.data?.types?.[collection]?.pages_enabled;
+      }
+    } catch {
+      // Keep the API footer available if optional website settings cannot load.
+    } finally {
+      if (!stale) checkingPageBuilder.value = false;
+    }
+  },
+  { immediate: true },
+);
+
 const canViewFooter = computed(
   () =>
+    !checkingPageBuilder.value &&
+    !pageBuilderEnabled.value &&
     auth.user?.show_api_footer !== false &&
     (auth.can("tokens.read") ||
       auth.can("tokens.create") ||

@@ -1,28 +1,46 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-bold text-slate-900">
         {{ contentTypeSchema?.label || collection }}
       </h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <router-link
           v-if="trashCount > 0 && (canContent('content.restore', collection) || canContent('content.delete', collection))"
-          :to="`/trash/${collection}`"
-          class="btn-secondary"
-        >
+          :to="`/trash/${collection}`" class="btn-secondary">
           {{ t("contentList.trash") }}
           <span
-            class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5"
-            >{{ trashCount }}</span
-          >
+            class="ml-1 inline-flex items-center justify-center rounded-full bg-slate-300 text-slate-700 text-xs w-5 h-5">{{
+              trashCount }}</span>
         </router-link>
-        <router-link
-          v-if="canContent('content.create', collection)"
-          :to="`/content/${collection}/new`"
-          class="btn-primary"
-        >
+
+        <nav v-if="canEditTemplates" class="flex flex-wrap items-center gap-1.5"
+          :aria-label="t('site.collection.templates')">
+          <span class="mr-1 text-xs font-semibold text-slate-500">
+            {{ t('site.collection.templates') }}
+          </span>
+
+          <SplitButton
+            variant="secondary"
+            :menu-label="t('site.collection.templates')"
+            :items="templateMenuItems"
+            @click="editCollectionTemplate('index')"
+            @select="editCollectionTemplate($event.key)"
+          >
+            <Icon :icon="COLLECTION_TEMPLATES[0].icon" class="h-4 w-4" />
+            {{ t('site.variant.index') }}
+          </SplitButton>
+        </nav>
+
+        <!-- Vertical separator -->
+        <div v-if="canEditTemplates && canContent('content.create', collection)"
+          class="mx-2 h-6 w-px shrink-0 bg-slate-300" aria-hidden="true"></div>
+
+        <router-link v-if="canContent('content.create', collection)" :to="`/content/${collection}/new`"
+          class="btn-primary">
           {{ t("contentList.newEntry") }}
         </router-link>
+
       </div>
     </div>
 
@@ -34,18 +52,10 @@
             t("contentList.search")
           }}</label>
           <div class="relative">
-            <Icon
-              icon="mdi:magnify"
-              class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              id="content-search"
-              v-model="filters.q"
-              type="text"
-              :placeholder="t('contentList.searchPlaceholder')"
-              class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm"
-              @keydown.enter="applyFilters"
-            />
+            <Icon icon="mdi:magnify"
+              class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input id="content-search" v-model="filters.q" type="text" :placeholder="t('contentList.searchPlaceholder')"
+              class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm" @keydown.enter="applyFilters" />
           </div>
         </div>
 
@@ -53,90 +63,50 @@
           <Icon icon="mdi:filter-outline" class="h-4 w-4" />
           {{ t("contentList.apply") }}
         </button>
-        <button
-          v-if="hasActiveFilters"
-          type="button"
-          @click="clearFilters"
-          class="btn-secondary"
-        >
+        <button v-if="hasActiveFilters" type="button" @click="clearFilters" class="btn-secondary">
           <Icon icon="mdi:close" class="h-4 w-4" />
           {{ t("contentList.clear") }}
         </button>
 
         <!-- Columns picker -->
         <div class="relative" ref="colPickerRef">
-          <button
-            type="button"
-            @click="colPickerOpen = !colPickerOpen"
-            class="btn-secondary flex items-center gap-1.5"
-          >
+          <button type="button" @click="colPickerOpen = !colPickerOpen" class="btn-secondary flex items-center gap-1.5">
             <Icon icon="mdi:table-column" class="h-4 w-4" />
             {{ t("contentList.columns") }}
-            <Icon
-              icon="mdi:chevron-down"
-              class="h-3.5 w-3.5 transition-transform duration-150"
-              :class="colPickerOpen ? 'rotate-180' : ''"
-            />
+            <Icon icon="mdi:chevron-down" class="h-3.5 w-3.5 transition-transform duration-150"
+              :class="colPickerOpen ? 'rotate-180' : ''" />
           </button>
-          <div
-            v-if="colPickerOpen"
-            class="absolute right-0 top-full mt-1 z-50 max-h-80 w-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1"
-          >
-            <label
-              v-for="column in tableColumns"
-              :key="column.key"
+          <div v-if="colPickerOpen"
+            class="absolute right-0 top-full mt-1 z-50 max-h-80 w-64 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1">
+            <label v-for="column in tableColumns" :key="column.key"
               class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
-              :class="
-                visibleColumns[column.key] && displayedColumns.length === 1
-                  ? 'opacity-40 cursor-not-allowed'
-                  : ''
-              "
-            >
-              <input
-                type="checkbox"
-                class="rounded border-slate-300 text-theme-600 cursor-pointer"
-                :checked="visibleColumns[column.key]"
-                :disabled="
-                  visibleColumns[column.key] && displayedColumns.length === 1
-                "
-                @change="toggleColumn(column.key)"
-              />
+              :class="visibleColumns[column.key] && displayedColumns.length === 1
+                ? 'opacity-40 cursor-not-allowed'
+                : ''
+                ">
+              <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
+                :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
+                  " @change="toggleColumn(column.key)" />
               {{ column.label }}
             </label>
             <template v-if="postTypeFieldColumns.length > 0">
               <div class="border-t border-slate-100 my-1"></div>
-              <label
-                v-for="column in postTypeFieldColumns"
-                :key="column.key"
+              <label v-for="column in postTypeFieldColumns" :key="column.key"
                 class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 select-none"
-                :class="
-                  visibleColumns[column.key] && displayedColumns.length === 1
-                    ? 'opacity-40 cursor-not-allowed'
-                    : ''
-                "
-              >
-                <input
-                  type="checkbox"
-                  class="rounded border-slate-300 text-theme-600 cursor-pointer"
-                  :checked="visibleColumns[column.key]"
-                  :disabled="
-                    visibleColumns[column.key] && displayedColumns.length === 1
-                  "
-                  @change="toggleColumn(column.key)"
-                />
+                :class="visibleColumns[column.key] && displayedColumns.length === 1
+                  ? 'opacity-40 cursor-not-allowed'
+                  : ''
+                  ">
+                <input type="checkbox" class="rounded border-slate-300 text-theme-600 cursor-pointer"
+                  :checked="visibleColumns[column.key]" :disabled="visibleColumns[column.key] && displayedColumns.length === 1
+                    " @change="toggleColumn(column.key)" />
                 <span class="min-w-0 flex-1 truncate">{{ column.label }}</span>
-                <span
-                  class="shrink-0 text-[10px] uppercase tracking-wide text-slate-400"
-                  >{{ column.type }}</span
-                >
+                <span class="shrink-0 text-[10px] uppercase tracking-wide text-slate-400">{{ column.type }}</span>
               </label>
             </template>
             <div class="border-t border-slate-100 mt-1 pt-1 px-3 pb-1">
-              <button
-                type="button"
-                class="text-xs text-theme-600 hover:text-theme-700 font-medium"
-                @click="resetColumns"
-              >
+              <button type="button" class="text-xs text-theme-600 hover:text-theme-700 font-medium"
+                @click="resetColumns">
                 {{ t("contentList.resetColumns") }}
               </button>
             </div>
@@ -150,10 +120,7 @@
     <template v-else>
       <!-- Selection toolbar -->
       <Transition v-bind="ht">
-        <div
-          v-if="selectedIds.size > 0"
-          class="card p-3 mb-3 border-theme-200 bg-theme-50"
-        >
+        <div v-if="selectedIds.size > 0" class="card p-3 mb-3 border-theme-200 bg-theme-50">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div class="flex items-center gap-3 shrink-0">
               <span class="text-sm font-semibold text-theme-700">
@@ -166,54 +133,32 @@
                   })
                 }}
               </span>
-              <button
-                v-if="!selectAllPages && totalEntries > sortedEntries.length"
-                type="button"
+              <button v-if="!selectAllPages && totalEntries > sortedEntries.length" type="button"
                 class="text-xs text-theme-600 hover:text-theme-700 font-medium underline-offset-2 underline"
-                @click="triggerSelectAllPages"
-              >
+                @click="triggerSelectAllPages">
                 {{ t("contentList.selectAll", { count: totalEntries }) }}
               </button>
-              <button
-                type="button"
-                class="text-xs text-slate-500 hover:text-slate-700 font-medium"
-                @click="deselectAll"
-              >
+              <button type="button" class="text-xs text-slate-500 hover:text-slate-700 font-medium"
+                @click="deselectAll">
                 {{ t("contentList.clear") }}
               </button>
             </div>
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
-            <BulkEditBar
-              v-if="canContent('content.update', collection)"
-              :content-type="contentTypeSchema"
-              :users="users"
-              :selected-count="selectAllPages ? totalEntries : selectedIds.size"
-              :applying="bulkApplying"
-              class="flex-1 min-w-0"
-              @apply="applyBulkEdit"
-            />
+            <BulkEditBar v-if="canContent('content.update', collection)" :content-type="contentTypeSchema"
+              :users="users" :selected-count="selectAllPages ? totalEntries : selectedIds.size" :applying="bulkApplying"
+              class="flex-1 min-w-0" @apply="applyBulkEdit" />
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
-            <button
-              v-if="canContent('content.create', collection)"
-              type="button"
-              :disabled="bulkDeleting || bulkDuplicating"
-              :title="t('contentList.duplicateSelected')"
+            <button v-if="canContent('content.create', collection)" type="button"
+              :disabled="bulkDeleting || bulkDuplicating" :title="t('contentList.duplicateSelected')"
               :aria-label="t('contentList.duplicateSelected')"
               class="btn-secondary py-1.5 px-3 text-sm disabled:opacity-40 whitespace-nowrap shrink-0 inline-flex items-center gap-1.5"
-              @click="duplicateSelected"
-            >
+              @click="duplicateSelected">
               <Icon icon="mdi:content-copy" class="w-4 h-4" />
             </button>
             <div class="w-px h-5 bg-theme-200 shrink-0 hidden sm:block"></div>
-            <button
-              v-if="canContent('content.delete', collection)"
-              type="button"
-              :disabled="bulkDeleting"
-              :title="t('contentList.moveToTrash')"
-              :aria-label="t('contentList.moveToTrash')"
-              class="btn-danger-subtle whitespace-nowrap shrink-0 px-3 py-1.5"
-              @click="confirmBulkDelete"
-            >
+            <button v-if="canContent('content.delete', collection)" type="button" :disabled="bulkDeleting"
+              :title="t('contentList.moveToTrash')" :aria-label="t('contentList.moveToTrash')"
+              class="btn-danger-subtle whitespace-nowrap shrink-0 px-3 py-1.5" @click="confirmBulkDelete">
               <Icon icon="mdi:trash-can-outline" class="w-4 h-4" />
             </button>
           </div>
@@ -221,52 +166,30 @@
         </div>
       </Transition>
 
-      <ConfirmModal
-        v-model="showBulkDeleteModal"
-        :title="t('contentList.moveToTrash')"
-        :message="
-          t('contentList.moveMessage', {
-            count: selectAllPages ? totalEntries : selectedIds.size,
-            itemLabel: entryLabel(
-              selectAllPages ? totalEntries : selectedIds.size,
-            ),
-          })
-        "
-        :confirm-label="t('contentList.moveToTrash')"
-        variant="danger"
-        :loading="bulkDeleting"
-        @confirm="applyBulkDelete"
-      />
+      <ConfirmModal v-model="showBulkDeleteModal" :title="t('contentList.moveToTrash')" :message="t('contentList.moveMessage', {
+        count: selectAllPages ? totalEntries : selectedIds.size,
+        itemLabel: entryLabel(
+          selectAllPages ? totalEntries : selectedIds.size,
+        ),
+      })
+        " :confirm-label="t('contentList.moveToTrash')" variant="danger" :loading="bulkDeleting"
+        @confirm="applyBulkDelete" />
 
-      <div
-        class="mb-3 px-1 flex items-center justify-between text-sm text-slate-500"
-      >
+      <div class="mb-3 px-1 flex items-center justify-between text-sm text-slate-500">
         <span>
-          {{ t("contentList.showingPrefix") }} {{ pageStart }}-<InlinePageSizeSelect
-            v-model="pageSize"
-            :display-value="pageEnd"
-            :options="pageSizeOptions"
-            :aria-label="t('contentList.rowsPerPage')"
-            @change="changePageSize"
-          />
+          {{ t("contentList.showingPrefix") }} {{ pageStart }}-
+          <InlinePageSizeSelect v-model="pageSize" :display-value="pageEnd" :options="pageSizeOptions"
+            :aria-label="t('contentList.rowsPerPage')" @change="changePageSize" />
           {{ t("contentList.showingOf") }} {{ totalEntries }}
           {{ entryLabel(totalEntries) }}
         </span>
         <div class="flex gap-2">
-          <button
-            type="button"
-            :disabled="!canPageBackward"
-            @click="changePage(-1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40"
-          >
+          <button type="button" :disabled="!canPageBackward" @click="changePage(-1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40">
             {{ t("contentList.prev") }}
           </button>
-          <button
-            type="button"
-            :disabled="!canPageForward"
-            @click="changePage(1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40"
-          >
+          <button type="button" :disabled="!canPageForward" @click="changePage(1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40">
             {{ t("contentList.next") }}
           </button>
         </div>
@@ -278,46 +201,25 @@
             <thead>
               <tr class="bg-slate-50 border-b border-slate-200 group/thead">
                 <th v-if="canSelectEntries" class="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    :aria-label="t('contentList.selectPage')"
-                    class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity"
-                    :class="
-                      selectedIds.size > 0
-                        ? 'opacity-100'
-                        : 'sm:opacity-0 sm:group-hover/thead:opacity-100 focus-visible:opacity-100'
-                    "
-                    :checked="allPageSelected"
-                    :indeterminate.prop="someSelected && !allPageSelected"
-                    @change="toggleAllPage"
-                  />
+                  <input type="checkbox" :aria-label="t('contentList.selectPage')"
+                    class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
+                      ? 'opacity-100'
+                      : 'sm:opacity-0 sm:group-hover/thead:opacity-100 focus-visible:opacity-100'
+                      " :checked="allPageSelected" :indeterminate.prop="someSelected && !allPageSelected"
+                    @change="toggleAllPage" />
                 </th>
-                <th
-                  v-for="column in displayedColumns"
-                  :key="column.key"
-                  :class="[
-                    'text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 select-none',
-                    column.sortKey
-                      ? 'cursor-pointer hover:text-slate-700'
-                      : 'cursor-default',
-                  ]"
-                  @click="column.sortKey ? setSort(column.sortKey) : undefined"
-                >
+                <th v-for="column in displayedColumns" :key="column.key" :class="[
+                  'text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 select-none',
+                  column.sortKey
+                    ? 'cursor-pointer hover:text-slate-700'
+                    : 'cursor-default',
+                ]" @click="column.sortKey ? setSort(column.sortKey) : undefined">
                   <span class="inline-flex items-center gap-1">
                     {{ column.label }}
                     <template v-if="column.sortKey">
-                      <Icon
-                        v-if="sortKey === column.sortKey"
-                        :icon="
-                          sortDir === 'asc' ? 'mdi:arrow-up' : 'mdi:arrow-down'
-                        "
-                        class="w-3.5 h-3.5"
-                      />
-                      <Icon
-                        v-else
-                        icon="mdi:unfold-more-horizontal"
-                        class="w-3.5 h-3.5 opacity-30"
-                      />
+                      <Icon v-if="sortKey === column.sortKey" :icon="sortDir === 'asc' ? 'mdi:arrow-up' : 'mdi:arrow-down'
+                        " class="w-3.5 h-3.5" />
+                      <Icon v-else icon="mdi:unfold-more-horizontal" class="w-3.5 h-3.5 opacity-30" />
                     </template>
                   </span>
                 </th>
@@ -325,55 +227,28 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="col.entries.length === 0">
-                <td
-                  :colspan="displayedColumns.length + (canSelectEntries ? 1 : 0)"
-                  class="px-4 py-8 text-left text-slate-500 text-sm sm:text-center"
-                >
+                <td :colspan="displayedColumns.length + (canSelectEntries ? 1 : 0)"
+                  class="px-4 py-8 text-left text-slate-500 text-sm sm:text-center">
                   {{ t("contentList.noEntries") }}
-                  <router-link
-                    :to="`/content/${collection}/new`"
-                    class="text-theme-600 hover:underline ml-1"
-                    >{{ t("contentList.createOne") }}</router-link
-                  >.
+                  <router-link :to="`/content/${collection}/new`" class="text-theme-600 hover:underline ml-1">{{
+                    t("contentList.createOne") }}</router-link>.
                 </td>
               </tr>
-              <tr
-                v-for="entry in sortedEntries"
-                :key="entry.id"
-                class="cursor-pointer transition-colors group"
-                :class="
-                  selectedIds.has(entry.id)
-                    ? 'bg-theme-50 hover:bg-theme-100'
-                    : 'hover:bg-slate-50'
-                "
-                @click="router.push(`/content/${collection}/${entry.id}`)"
-              >
+              <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer transition-colors group" :class="selectedIds.has(entry.id)
+                ? 'bg-theme-50 hover:bg-theme-100'
+                : 'hover:bg-slate-50'
+                " @click="router.push(`/content/${collection}/${entry.id}`)">
                 <td v-if="canSelectEntries" class="w-10 px-3 py-3" @click.stop>
-                  <input
-                    type="checkbox"
+                  <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
-                    class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity"
-                    :class="
-                      selectedIds.size > 0
-                        ? 'opacity-100'
-                        : 'sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100'
-                    "
-                    :checked="selectedIds.has(entry.id)"
-                    @change="toggleSelection(entry.id)"
-                  />
+                    class="rounded border-slate-300 text-theme-600 cursor-pointer transition-opacity" :class="selectedIds.size > 0
+                      ? 'opacity-100'
+                      : 'sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100'
+                      " :checked="selectedIds.has(entry.id)" @change="toggleSelection(entry.id)" />
                 </td>
-                <td
-                  v-for="column in displayedColumns"
-                  :key="column.key"
-                  :class="cellClass(column)"
-                >
-                  <ContentListCell
-                    :column="column"
-                    :entry="entry"
-                    :users="users"
-                    :saving="savingCell === cellSaveKey(entry.id, column)"
-                    @save="handleInlineSave"
-                  >
+                <td v-for="column in displayedColumns" :key="column.key" :class="cellClass(column)">
+                  <ContentListCell :column="column" :entry="entry" :users="users"
+                    :saving="savingCell === cellSaveKey(entry.id, column)" @save="handleInlineSave">
                     <template v-if="column.kind === 'core'">
                       <template v-if="column.key === 'title'">
                         {{ entry.title ?? entry.id }}
@@ -384,28 +259,16 @@
                         </span>
                       </template>
                       <template v-else-if="column.key === 'locales'">
-                        <div
-                          v-if="entryLocaleBadges(entry).length > 0"
-                          class="flex items-center gap-1 flex-wrap"
-                        >
-                          <span
-                            v-for="loc in entryLocaleBadges(entry)"
-                            :key="loc"
-                            class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset"
-                          >
-                            <span
-                              v-if="localeFlagCountry(loc)"
+                        <div v-if="entryLocaleBadges(entry).length > 0" class="flex items-center gap-1 flex-wrap">
+                          <span v-for="loc in entryLocaleBadges(entry)" :key="loc"
+                            class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset">
+                            <span v-if="localeFlagCountry(loc)"
                               :class="['fi', `fi-${localeFlagCountry(loc)}`, 'shrink-0 rounded-sm']"
-                              aria-hidden="true"
-                            />
+                              aria-hidden="true" />
                             <span>({{ loc }})</span>
-                            <Icon
-                              v-if="loc === contentTypeSchema?.default_locale"
-                              icon="mdi:home"
-                              class="h-3 w-3 shrink-0 text-slate-400"
-                              :aria-label="t('contentEdit.default')"
-                              :title="t('contentEdit.default')"
-                            />
+                            <Icon v-if="loc === contentTypeSchema?.default_locale" icon="mdi:home"
+                              class="h-3 w-3 shrink-0 text-slate-400" :aria-label="t('contentEdit.default')"
+                              :title="t('contentEdit.default')" />
                           </span>
                         </div>
                         <span v-else class="text-slate-400">—</span>
@@ -414,14 +277,10 @@
                         <template v-if="userMap[entry.author_id]">
                           <div class="flex items-center gap-2">
                             <div
-                              class="w-6 h-6 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-xs font-semibold select-none shrink-0"
-                            >
-                              <img
-                                v-if="userMap[entry.author_id].has_avatar"
+                              class="w-6 h-6 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-xs font-semibold select-none shrink-0">
+                              <img v-if="userMap[entry.author_id].has_avatar"
                                 :src="`${ADMIN_API_BASE}/users/${entry.author_id}/avatar`"
-                                class="w-full h-full object-cover"
-                                :alt="userMap[entry.author_id].username"
-                              />
+                                class="w-full h-full object-cover" :alt="userMap[entry.author_id].username" />
                               <span v-else>{{
                                 userMap[
                                   entry.author_id
@@ -450,39 +309,22 @@
 
                     <template v-else>
                       <template v-if="column.type === 'media'">
-                        <div
-                          v-if="
-                            mediaValuesFor(entry, column.fieldKey).length > 0
-                          "
-                          class="flex items-center gap-1.5"
-                        >
-                          <div
-                            v-for="file in mediaValuesFor(
-                              entry,
-                              column.fieldKey,
-                            ).slice(0, 3)"
-                            :key="file"
+                        <div v-if="
+                          mediaValuesFor(entry, column.fieldKey).length > 0
+                        " class="flex items-center gap-1.5">
+                          <div v-for="file in mediaValuesFor(
+                            entry,
+                            column.fieldKey,
+                          ).slice(0, 3)" :key="file"
                             class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-100"
-                            :title="file"
-                          >
-                            <img
-                              v-if="isImage(file)"
-                              :src="mediaThumbUrl(file)"
-                              :alt="file"
-                              class="h-full w-full object-cover"
-                            />
-                            <Icon
-                              v-else
-                              v-bind="getFileIcon(file)"
-                              class="h-5 w-5"
-                            />
+                            :title="file">
+                            <img v-if="isImage(file)" :src="mediaThumbUrl(file)" :alt="file"
+                              class="h-full w-full object-cover" />
+                            <Icon v-else v-bind="getFileIcon(file)" class="h-5 w-5" />
                           </div>
-                          <span
-                            v-if="
-                              mediaValuesFor(entry, column.fieldKey).length > 3
-                            "
-                            class="text-xs font-semibold text-slate-500"
-                          >
+                          <span v-if="
+                            mediaValuesFor(entry, column.fieldKey).length > 3
+                          " class="text-xs font-semibold text-slate-500">
                             +{{
                               mediaValuesFor(entry, column.fieldKey).length - 3
                             }}
@@ -491,40 +333,27 @@
                         <span v-else class="text-slate-400">—</span>
                       </template>
                       <template v-else-if="column.type === 'boolean'">
-                        <span
-                          v-if="
-                            fieldValue(entry, column.fieldKey) === null ||
-                            fieldValue(entry, column.fieldKey) === undefined ||
-                            fieldValue(entry, column.fieldKey) === ''
-                          "
-                          class="text-slate-400"
-                          >—</span
-                        >
-                        <span
-                          v-else
-                          :class="
-                            booleanPillClass(fieldValue(entry, column.fieldKey))
-                          "
-                        >
+                        <span v-if="
+                          fieldValue(entry, column.fieldKey) === null ||
+                          fieldValue(entry, column.fieldKey) === undefined ||
+                          fieldValue(entry, column.fieldKey) === ''
+                        " class="text-slate-400">—</span>
+                        <span v-else :class="booleanPillClass(fieldValue(entry, column.fieldKey))
+                          ">
                           {{
                             formatBoolean(fieldValue(entry, column.fieldKey))
                           }}
                         </span>
                       </template>
-                      <template
-                        v-else-if="
-                          column.type === 'number' || column.type === 'range'
-                        "
-                      >
-                        <span
-                          :title="
-                            formatNumberField(
-                              fieldValue(entry, column.fieldKey),
-                              column.config,
-                              locale,
-                            )
-                          "
-                        >
+                      <template v-else-if="
+                        column.type === 'number' || column.type === 'range'
+                      ">
+                        <span :title="formatNumberField(
+                          fieldValue(entry, column.fieldKey),
+                          column.config,
+                          locale,
+                        )
+                          ">
                           {{
                             formatNumberField(
                               fieldValue(entry, column.fieldKey),
@@ -534,11 +363,9 @@
                           }}
                         </span>
                       </template>
-                      <template
-                        v-else-if="
-                          column.type === 'date' || column.type === 'datetime'
-                        "
-                      >
+                      <template v-else-if="
+                        column.type === 'date' || column.type === 'datetime'
+                      ">
                         {{
                           formatFieldDate(
                             fieldValue(entry, column.fieldKey),
@@ -547,16 +374,12 @@
                         }}
                       </template>
                       <template v-else-if="column.type === 'select'">
-                        <span
-                          class="block max-w-72 truncate"
-                          :title="
-                            formatSelectField(
-                              fieldValue(entry, column.fieldKey),
-                              column.config,
-                              false,
-                            )
-                          "
-                        >
+                        <span class="block max-w-72 truncate" :title="formatSelectField(
+                          fieldValue(entry, column.fieldKey),
+                          column.config,
+                          false,
+                        )
+                          ">
                           {{
                             formatSelectField(
                               fieldValue(entry, column.fieldKey),
@@ -566,15 +389,11 @@
                         </span>
                       </template>
                       <template v-else>
-                        <span
-                          class="block max-w-72 truncate"
-                          :title="
-                            fieldTextValue(
-                              fieldValue(entry, column.fieldKey),
-                              false,
-                            )
-                          "
-                        >
+                        <span class="block max-w-72 truncate" :title="fieldTextValue(
+                          fieldValue(entry, column.fieldKey),
+                          false,
+                        )
+                          ">
                           {{
                             fieldTextValue(fieldValue(entry, column.fieldKey))
                           }}
@@ -592,31 +411,19 @@
       <!-- Pagination -->
       <div class="flex px-1 items-center justify-between text-sm text-slate-500">
         <span>
-          {{ t("contentList.showingPrefix") }} {{ pageStart }}-<InlinePageSizeSelect
-            v-model="pageSize"
-            :display-value="pageEnd"
-            :options="pageSizeOptions"
-            :aria-label="t('contentList.rowsPerPage')"
-            @change="changePageSize"
-          />
+          {{ t("contentList.showingPrefix") }} {{ pageStart }}-
+          <InlinePageSizeSelect v-model="pageSize" :display-value="pageEnd" :options="pageSizeOptions"
+            :aria-label="t('contentList.rowsPerPage')" @change="changePageSize" />
           {{ t("contentList.showingOf") }} {{ totalEntries }}
           {{ entryLabel(totalEntries) }}
         </span>
         <div class="flex gap-2">
-          <button
-            type="button"
-            :disabled="!canPageBackward"
-            @click="changePage(-1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40"
-          >
+          <button type="button" :disabled="!canPageBackward" @click="changePage(-1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40">
             {{ t("contentList.prev") }}
           </button>
-          <button
-            type="button"
-            :disabled="!canPageForward"
-            @click="changePage(1)"
-            class="btn-secondary py-1 px-3 disabled:opacity-40"
-          >
+          <button type="button" :disabled="!canPageForward" @click="changePage(1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40">
             {{ t("contentList.next") }}
           </button>
         </div>
@@ -632,6 +439,7 @@ import BulkEditBar from "../components/BulkEditBar.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import ContentListCell from "../components/ContentListCell.vue";
 import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
+import SplitButton from "../components/SplitButton.vue";
 import { Icon } from "@iconify/vue";
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -692,6 +500,43 @@ const userMap = computed(() =>
 
 // ── Content type schema (for BulkEditBar field list) ─────────────────────────
 const contentTypeSchema = ref(null);
+const websiteStatus = ref(null);
+const COLLECTION_TEMPLATES = [
+  { variant: "index", icon: "mdi:view-grid-outline" },
+  { variant: "card", icon: "mdi:card-text-outline" },
+  { variant: "detail", icon: "mdi:file-document-outline" },
+];
+const templateMenuItems = computed(() => COLLECTION_TEMPLATES.slice(1).map((template) => ({
+  key: template.variant,
+  label: t(`site.variant.${template.variant}`),
+  icon: template.icon,
+  title: t('site.collection.editTemplate', { template: t(`site.variant.${template.variant}`) }),
+})));
+
+function editCollectionTemplate(variant) {
+  router.push({
+    path: `/page-builder/builder/layout/${collection.value}/${variant}`,
+    query: { back: route.fullPath },
+  });
+}
+
+const canEditTemplates = computed(() =>
+  contentTypeSchema.value && !isSingleton.value
+  && contentTypeSchema.value.visibility !== "private"
+  && websiteStatus.value?.can_manage
+  && websiteStatus.value.types?.[collection.value]?.routed,
+);
+
+async function loadWebsiteStatus() {
+  websiteStatus.value = null;
+  const workspace = getActiveWorkspace();
+  try {
+    const res = await api.site.status();
+    if (workspace === getActiveWorkspace()) websiteStatus.value = res.data;
+  } catch {
+    // Website controls are optional; content remains editable if this request fails.
+  }
+}
 
 async function loadContentType() {
   contentTypeSchema.value = null;
@@ -1293,6 +1138,7 @@ function onColPickerClickOutside(e) {
 
 onMounted(async () => {
   visibleColumns.value = loadColumnPrefs(collection.value);
+  loadWebsiteStatus();
   // Load schema first so default_locale is available when load() sends ?locale=
   await loadContentType();
   load();
@@ -1306,8 +1152,12 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  apiEndpointUrl,
-  (url) => {
+  [apiEndpointUrl, () => contentTypeSchema.value?.api_enabled],
+  ([url, enabled]) => {
+    if (!enabled) {
+      apiEndpointStore.clearEndpoint(apiEndpointOwner);
+      return;
+    }
     apiEndpointStore.setEndpoint(
       {
         label: "Collection",
@@ -1358,6 +1208,7 @@ async function duplicateSelected() {
 watch(
   () => route.params.collection,
   async () => {
+    loadWebsiteStatus();
     visibleColumns.value = loadColumnPrefs(collection.value);
     pageOffset.value = 0;
     resetSort();

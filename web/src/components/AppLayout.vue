@@ -19,8 +19,8 @@
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         "
       >
-        <div class="px-5 pt-6 pb-4 flex items-center justify-between">
-          <img :src="logoSrc" alt="CometCMS" class="brand-logo h-8 w-auto" />
+        <div class="px-3 py-1 pb-2 flex items-center justify-between">
+          <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto" />
           <button
             type="button"
             :aria-label="t('app.actions.closeNavigation')"
@@ -132,7 +132,10 @@
           </Transition>
         </div>
 
-        <nav :aria-label="t('app.actions.primaryNavigation')" class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
+        <nav
+          :aria-label="t('app.actions.primaryNavigation')"
+          class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4"
+        >
           <router-link
             to="/dashboard"
             class="nav-link"
@@ -204,34 +207,42 @@
             {{ t("app.nav.system") }}
           </div>
 
-            <router-link
-              v-if="auth.can('users.read')"
-              to="/users"
-              class="nav-link"
-              @click="sidebarOpen = false"
-            >
-              <Icon
-                icon="mdi:account-group-outline"
-                class="w-4 h-4 opacity-60"
-              />
-              {{ t("app.nav.users") }}
-            </router-link>
+          <router-link
+            v-if="showPageBuilder"
+            to="/page-builder"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:web" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.website") }}
+          </router-link>
 
-            <router-link
-              v-if="auth.can('backups.read')"
-              to="/backups"
-              class="nav-link"
-              @click="sidebarOpen = false"
-            >
-              <Icon icon="mdi:backup-restore" class="w-4 h-4 opacity-60" />
-              {{ t("app.nav.backupRestore") }}
-            </router-link>
+          <router-link
+            v-if="auth.can('users.read')"
+            to="/users"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:account-group-outline" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.users") }}
+          </router-link>
+
+          <router-link
+            v-if="auth.can('backups.read')"
+            to="/backups"
+            class="nav-link"
+            @click="sidebarOpen = false"
+          >
+            <Icon icon="mdi:backup-restore" class="w-4 h-4 opacity-60" />
+            {{ t("app.nav.backupRestore") }}
+          </router-link>
 
           <router-link
             to="/connect/access-tokens"
             class="nav-link"
             :class="{
-              'router-link-active': router.currentRoute.value.path.startsWith('/connect'),
+              'router-link-active':
+                router.currentRoute.value.path.startsWith('/connect'),
             }"
             @click="sidebarOpen = false"
           >
@@ -241,7 +252,10 @@
         </nav>
 
         <!-- User footer -->
-        <div ref="accountMenuRef" class="relative border-t border-sidebar-border px-3 py-3">
+        <div
+          ref="accountMenuRef"
+          class="relative border-t border-sidebar-border px-3 py-3"
+        >
           <Transition name="ws-dropdown">
             <div
               v-if="accountMenuOpen"
@@ -254,9 +268,28 @@
                 class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                 @click="closeAccountMenu"
               >
-                <Icon icon="mdi:account-outline" class="h-4 w-4 text-slate-400" />
+                <Icon
+                  icon="mdi:account-outline"
+                  class="h-4 w-4 text-slate-400"
+                />
                 {{ t("app.account.profile") }}
               </RouterLink>
+              <RouterLink
+                to="/update"
+                role="menuitem"
+                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                @click="closeAccountMenu"
+              >
+                <Icon
+                  icon="mdi:information-outline"
+                  class="h-4 w-4 text-slate-400"
+                />
+                <span class="flex-1">{{ t("app.account.version") }}</span>
+                <span v-if="appVersion" class="text-xs text-slate-400"
+                  >v{{ appVersion }}</span
+                >
+              </RouterLink>
+              <div class="my-1 border-t border-slate-100" />
               <button
                 type="button"
                 role="menuitem"
@@ -266,17 +299,6 @@
                 <Icon icon="mdi:logout" class="h-4 w-4 text-slate-400" />
                 {{ t("app.actions.logout") }}
               </button>
-              <div class="my-1 border-t border-slate-100" />
-              <RouterLink
-                to="/update"
-                role="menuitem"
-                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
-                @click="closeAccountMenu"
-              >
-                <Icon icon="mdi:information-outline" class="h-4 w-4 text-slate-400" />
-                <span class="flex-1">{{ t("app.account.version") }}</span>
-                <span v-if="appVersion" class="text-xs text-slate-400">v{{ appVersion }}</span>
-              </RouterLink>
             </div>
           </Transition>
 
@@ -287,27 +309,25 @@
             :aria-expanded="accountMenuOpen"
             @click="accountMenuOpen = !accountMenuOpen"
           >
-              <div
-                class="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-xs font-semibold select-none"
-              >
-                <img
-                  v-if="auth.user?.has_avatar"
-                  :src="`${ADMIN_API_BASE}/users/${auth.user.id}/avatar?v=${avatarVersion}`"
-                  class="w-full h-full object-cover"
-                  :alt="auth.user?.username"
-                />
-                <span v-else>{{
-                  auth.user?.username?.[0]?.toUpperCase()
-                }}</span>
-              </div>
-              <span class="truncate">{{
-                auth.user?.display_name || auth.user?.username
-              }}</span>
-              <Icon
-                icon="mdi:chevron-up"
-                class="ml-auto h-4 w-4 shrink-0 opacity-50 transition-transform"
-                :class="{ 'rotate-180': accountMenuOpen }"
+            <div
+              class="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-xs font-semibold select-none"
+            >
+              <img
+                v-if="auth.user?.has_avatar"
+                :src="`${ADMIN_API_BASE}/users/${auth.user.id}/avatar?v=${avatarVersion}`"
+                class="w-full h-full object-cover"
+                :alt="auth.user?.username"
               />
+              <span v-else>{{ auth.user?.username?.[0]?.toUpperCase() }}</span>
+            </div>
+            <span class="truncate">{{
+              auth.user?.display_name || auth.user?.username
+            }}</span>
+            <Icon
+              icon="mdi:chevron-up"
+              class="ml-auto h-4 w-4 shrink-0 opacity-50 transition-transform"
+              :class="{ 'rotate-180': accountMenuOpen }"
+            />
           </button>
         </div>
       </aside>
@@ -332,33 +352,7 @@
         <img :src="logoSrc" alt="CometCMS" class="brand-logo h-7 w-auto" />
       </header>
 
-      <!-- Toast notifications -->
-      <div class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
-        <transition-group name="toast">
-          <div
-            v-for="toast in toastStore.toasts"
-            :key="toast.id"
-            :role="toast.type === 'error' ? 'alert' : 'status'"
-            :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
-            class="pointer-events-auto flex max-w-sm items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
-            :class="
-              toast.type === 'error'
-                ? 'bg-red-600 text-white'
-                : 'bg-slate-900 text-white'
-            "
-          >
-            <span class="min-w-0 flex-1">{{ toast.message }}</span>
-            <button
-              type="button"
-              class="-mr-1 shrink-0 rounded-md p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
-              :aria-label="t('common.dismiss')"
-              @click="toastStore.remove(toast.id)"
-            >
-              <Icon icon="mdi:close" class="h-4 w-4" />
-            </button>
-          </div>
-        </transition-group>
-      </div>
+      <ToastStack />
 
       <main class="flex-1 overflow-y-auto">
         <div class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-8 sm:py-8">
@@ -372,12 +366,12 @@
 
 <script setup>
 import { ADMIN_API_BASE, adminAsset } from "../basePath.js";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "../stores/auth.js";
-import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
+import { useSiteStore } from "../stores/site.js";
 import {
   api,
   getActiveWorkspace,
@@ -387,11 +381,12 @@ import {
 import { logoForTheme } from "../theme.js";
 import { useI18n } from "../i18n/index.js";
 import ApiEndpointFooter from "./ApiEndpointFooter.vue";
+import ToastStack from "./ToastStack.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
-const toastStore = useToastStore();
 const typesStore = useContentTypesStore();
+const site = useSiteStore();
 const { t } = useI18n();
 const defaultCollectionIcon = "mdi:file-document-outline";
 const defaultPageIcon = "mdi:file-document-edit-outline";
@@ -456,8 +451,22 @@ const allSidebarTypes = computed(() =>
     : (auth.user?.accessible_content_types ?? []),
 );
 const contentNavTypes = computed(() =>
-  allSidebarTypes.value
-    .filter((type) => auth.can("content.read", `content:${type.name}:*`)),
+  allSidebarTypes.value.filter((type) =>
+    auth.can("content.read", `content:${type.name}:*`),
+  ),
+);
+
+// Only offered once a content type has the Page Builder enabled.
+const showPageBuilder = computed(
+  () => auth.can("site.manage") && site.pageBuilderActive,
+);
+// Types are refetched after creating, deleting or switching workspaces.
+watch(
+  () => typesStore.list,
+  () => {
+    if (auth.can("site.manage")) site.loadStatus().catch(() => {});
+  },
+  { immediate: true },
 );
 
 function defaultContentIcon(type) {
@@ -529,17 +538,6 @@ async function handleLogout() {
 </script>
 
 <style scoped>
-.toast-enter-active,
-.toast-leave-active {
-  transition: all 0.25s ease;
-}
-
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
 /* Sidebar slide animation (mobile) */
 .sidebar-enter-active,
 .sidebar-leave-active {
@@ -575,7 +573,6 @@ async function handleLogout() {
 .backdrop-leave-to {
   opacity: 0;
 }
-
 
 /* Modern sidebar scrollbar */
 .nav-scrollbar {

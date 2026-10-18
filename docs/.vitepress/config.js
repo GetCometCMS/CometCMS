@@ -33,6 +33,7 @@ export default defineConfig({
           { text: 'Field Types', link: '/guide/field-types' },
           { text: 'Content Entries', link: '/guide/content-entries' },
           { text: 'Media Library', link: '/guide/media' },
+          { text: 'Website', link: '/guide/website' },
         ],
       },
       {

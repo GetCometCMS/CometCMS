@@ -101,6 +101,36 @@ The `initialize` response advertises the server identity:
 
 ---
 
+## Website design readiness
+
+**Assessment:** the page builder is a good foundation for MCP design tools, but AI clients cannot currently inspect or edit website designs through MCP. `McpServer` exposes content types, entries and media only. Website layouts, header/footer regions, theme, menus, settings, previews and design history are available through the session-authenticated admin API; they are absent from MCP tool discovery and dispatch. A bearer token with `site.manage` alone does not add these capabilities.
+
+### What can be reused
+
+| Existing component | Value for AI design tools |
+| --- | --- |
+| `LayoutSchema::spec()` | Shared vocabulary for node kinds, allowed children, property types, defaults, limits, styles, links and field displays. The builder inspector consumes the same schema. |
+| Layout JSON | Nodes have `{id, kind, props, style, children}`. Saved node IDs make targeted edits possible without manipulating HTML. Layouts are shared per content type and variant; editing one affects every entry using it. |
+| `SiteRepository` | Workspace-scoped reads and writes for settings, theme, menus, regions and layouts; saves invalidate the public cache. Layout, region and theme saves record restorable history. |
+| `SiteContext` and `PageRenderer` | Unsaved layout, region, theme and menu overrides can be rendered using the same code as published pages. Builder annotations associate rendered elements with node IDs. |
+| Existing MCP server | Bearer authentication, permission checks, tool schemas, annotations and recoverable tool errors already exist. |
+
+The new controls also belong to the shared schema: rows have independent boolean `reverse_mobile` and `reverse_tablet` properties; sections, columns and elements have a `background_image` style (bindable like image sources) with size, position, repeat, overlay and integer `background_blur` (0–40 pixels) options. A future design tool can discover and edit these properties through the same contract as the inspector.
+
+### Gaps to address before enabling AI writes
+
+1. **Expose design tools.** Add authenticated discovery/context, layout and region reads, validation/preview, targeted edits, and revision inspection/restore. Extend to theme tokens, menus and settings using the same repository methods. Require workspace-scoped `site.manage` on `site:*` in discovery and execution; keep design configuration out of anonymous reads. Preserve the administrator-only custom CSS restriction and define access rules for draft/private preview content.
+2. **Report invalid edits.** `LayoutSchema::normalize()` intentionally drops unknown or misplaced nodes/properties, clamps numbers, repairs IDs and sanitizes HTML. This is useful for rendering older layouts, but AI write tools should return field/path diagnostics for rejected changes before saving. Validate field bindings against the selected content type and repeater template, and verify referenced media/menu/link targets. Do not silently convert a malformed request into a successful destructive edit.
+3. **Detect concurrent changes.** Layout and region saves replace the full tree and have no expected-version check. Atomic JSON file replacement prevents partial files, but does not prevent a stale AI edit from overwriting a newer human edit. Add a revision/content-hash precondition checked under the same lock as the write, and return a conflict requiring a fresh read. Apply it to both admin and MCP writes. Generated default layouts currently receive fresh node IDs on each read; use deterministic IDs or materialize a versioned snapshot before editing them by ID.
+4. **Separate preview from save.** Preview/validation should be read-only and return the normalized proposal plus diagnostics and rendered HTML. Saving should explicitly describe its live effect: current saves take effect on published pages immediately; the builder has no separate persisted design draft/publish stage. Use existing revision history for rollback and identify the access token in the revision/audit record.
+5. **Make tool contracts precise.** Convert the shared layout vocabulary into JSON Schema for MCP arguments instead of accepting an unrestricted object. Prefer operations such as updating a node's props/style or moving it by ID. Return the resulting tree, version and diagnostics as `structuredContent` with a text fallback; label read/preview and write tools appropriately. See the [MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) for input/output schemas, structured results and annotations.
+
+An initial workflow would be: **discover schema and design context → read the current layout and version → propose node edits → validate/render without saving → save against the expected version → inspect or restore history**. Browser screenshots can support visual review, but are an additional client/browser capability; the PHP preview currently returns HTML.
+
+This assessment documents remaining work; it does not introduce new MCP tools or change MCP access permissions.
+
+---
+
 ## Available Tools
 
 ### `comet_health`

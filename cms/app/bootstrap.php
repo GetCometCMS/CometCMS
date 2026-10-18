@@ -138,12 +138,9 @@ if ($scriptBase !== '' && $scriptBase !== '/' && str_starts_with($requestPath, $
 }
 
 $requestPath = '/' . ltrim($requestPath, '/');
-$needsSession = !str_starts_with($requestPath, '/api/')
-    && $requestPath !== '/api'
-    && !str_starts_with($requestPath, '/mcp/')
-    && $requestPath !== '/mcp'
-    && !str_starts_with($requestPath, '/media/')
-    && !str_starts_with($requestPath, '/media-thumbs/');
+// Only the admin needs a session. API, MCP, media and public website requests
+// stay cookie-free so they can be cached and never lock session files.
+$needsSession = $requestPath === '/admin' || str_starts_with($requestPath, '/admin/');
 
 session_name((string) comet_config('security.session_name', 'cometcms_admin'));
 

@@ -199,6 +199,7 @@ final class PermissionService
         'tokens' => 'tokens',
         'roles' => 'roles',
         'workspaces' => 'workspaces',
+        'site' => 'site',
     ];
 
     public static function preset(string $role): array

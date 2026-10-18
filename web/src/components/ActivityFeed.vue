@@ -34,6 +34,7 @@
           <option value="media">{{ t("media.title") }}</option>
           <option value="user">{{ t("activity.usersTokens") }}</option>
           <option value="auth">{{ t("activity.auth") }}</option>
+          <option value="site">{{ t("site.title") }}</option>
           <option value="system">{{ t("activity.system") }}</option>
         </select>
 
@@ -242,6 +243,22 @@ const EVENT_LABELS = {
   "update installed": "activity.updateInstalled",
   "webhook failed": "activity.webhookFailed",
   "content purged": "activity.contentPurged",
+  "site.settings_updated": "activity.siteSettingsUpdated",
+  "site.theme_updated": "activity.siteThemeUpdated",
+  "site.menus_updated": "activity.siteMenusUpdated",
+  "site.layout_updated": "activity.siteLayoutUpdated",
+  "site.layout_reset": "activity.siteLayoutReset",
+  "site.region_updated": "activity.siteRegionUpdated",
+  "site.region_reset": "activity.siteRegionReset",
+  "site.component_created": "activity.siteComponentCreated",
+  "site.component_updated": "activity.siteComponentUpdated",
+  "site.component_renamed": "activity.siteComponentRenamed",
+  "site.component_deleted": "activity.siteComponentDeleted",
+  "site.form_created": "activity.siteFormCreated",
+  "site.form_updated": "activity.siteFormUpdated",
+  "site.form_deleted": "activity.siteFormDeleted",
+  "site.form_submitted": "activity.siteFormSubmitted",
+  "site.revision_restored": "activity.siteRevisionRestored",
 };
 
 function label(item) {
@@ -253,6 +270,10 @@ function label(item) {
 function sub(item) {
   const ctx = item.context ?? {};
   if (ctx.type && ctx.slug) return `${ctx.type} / ${ctx.slug}`;
+  if (ctx.type && ctx.variant) return `${ctx.type} · ${t(`site.variant.${ctx.variant}`)}`;
+  if (ctx.region) return t(`site.region.${ctx.region}`);
+  if (ctx.target === "theme") return t("activity.siteTheme");
+  if (ctx.component) return ctx.component;
   if (ctx.name) return ctx.name;
   if (ctx.file) return ctx.file;
   if (ctx.role) return ctx.role;

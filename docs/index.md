@@ -4,7 +4,7 @@ layout: home
 hero:
   name: CometCMS
   text: The CMS that fits on any PHP host
-  tagline: File-based, headless, zero-dependency. Upload a ZIP, open /admin — you're done.
+  tagline: Visual pages, structured content, zero dependencies. Upload a ZIP, open /admin — you're done.
   image:
     light: /cms-logo-black.png
     dark: /cms-logo-white.png
@@ -27,10 +27,10 @@ features:
     link: /guide/content-types
     linkText: Content types
   - icon: 🔌
-    title: Headless & API-first
-    details: A clean public REST API lets you consume content from any frontend — Next.js, Astro, SvelteKit, or plain fetch.
-    link: /api/public-api
-    linkText: API reference
+    title: Visual pages & content fields
+    details: Design consistent pages with shared layouts and structured content fields. Developers can also enable the headless API.
+    link: /guide/website
+    linkText: Page Builder
   - icon: 🧩
     title: Flexible field types
     details: Build schemas with text, rich text, media, relations, selects, dates, and more.

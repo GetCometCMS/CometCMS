@@ -29,34 +29,53 @@
       </h2>
       <form
         @submit.prevent="handleCreate"
-        class="flex flex-col gap-4 sm:flex-row sm:items-end"
+        class="space-y-4"
       >
-        <div class="flex-1">
-          <label class="form-label">{{ t("workspaces.label") }}</label>
-          <input
-            v-model="createLabel"
-            type="text"
-            required
-            :placeholder="t('workspaces.labelPlaceholder')"
-            class="form-input w-full rounded-lg border-slate-300 text-sm"
-          />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="flex-1">
+            <label class="form-label">{{ t("workspaces.label") }}</label>
+            <input
+              v-model="createLabel"
+              type="text"
+              required
+              :placeholder="t('workspaces.labelPlaceholder')"
+              class="form-input w-full rounded-lg border-slate-300 text-sm"
+            />
+          </div>
+          <div class="flex-1">
+            <label class="form-label"
+              >{{ t("workspaces.slug") }}
+              <span class="text-slate-400 font-normal text-xs">{{
+                t("workspaces.slugHint")
+              }}</span></label
+            >
+            <input
+              v-model="createSlug"
+              type="text"
+              :placeholder="t('workspaces.slugPlaceholder')"
+              class="form-input w-full rounded-lg border-slate-300 text-sm font-mono"
+              @input="onCreateSlugInput"
+            />
+          </div>
         </div>
-        <div class="flex-1">
-          <label class="form-label"
-            >{{ t("workspaces.slug") }}
-            <span class="text-slate-400 font-normal text-xs">{{
-              t("workspaces.slugHint")
-            }}</span></label
-          >
-          <input
-            v-model="createSlug"
-            type="text"
-            :placeholder="t('workspaces.slugPlaceholder')"
-            class="form-input w-full rounded-lg border-slate-300 text-sm font-mono"
-            @input="onCreateSlugInput"
-          />
-        </div>
-        <div class="flex gap-2 shrink-0">
+        <fieldset class="space-y-2">
+          <legend class="form-label">{{ t("setup.startingPoint") }}</legend>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label
+              v-for="option in startingPoints"
+              :key="option.value"
+              class="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+              :class="createStarterTemplate === option.value ? 'border-theme-300 bg-theme-50' : 'border-slate-200'"
+            >
+              <input v-model="createStarterTemplate" type="radio" name="workspace-starter-template" :value="option.value" class="mt-0.5 text-theme-600 focus:ring-theme-500" />
+              <span>
+                <span class="block text-sm font-medium text-slate-800">{{ t(option.title) }}</span>
+                <span class="mt-1 block text-xs text-slate-500">{{ t(option.description) }}</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <div class="flex justify-end gap-2">
           <button type="submit" :disabled="creating" class="btn-primary">
             {{ creating ? t("common.saving") : t("workspaces.create") }}
           </button>
@@ -244,6 +263,11 @@ const showCreateForm = ref(false);
 const creating = ref(false);
 const createError = ref("");
 const createLabel = ref("");
+const createStarterTemplate = ref("website");
+const startingPoints = [
+  { value: "website", title: "setup.startWebsite", description: "workspaces.startWebsiteBody" },
+  { value: "empty", title: "setup.startEmpty", description: "workspaces.startEmptyBody" },
+];
 const {
   slug: createSlug,
   onSlugInput: onCreateSlugInput,
@@ -302,9 +326,11 @@ async function handleCreate() {
     await api.workspaces.create({
       label: createLabel.value,
       slug: createSlug.value || undefined,
+      starter_template: createStarterTemplate.value,
     });
     toast.success(t("workspaces.created"));
     createLabel.value = "";
+    createStarterTemplate.value = "website";
     resetCreateSlug();
     showCreateForm.value = false;
     await load();

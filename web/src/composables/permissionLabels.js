@@ -31,6 +31,7 @@ export const PERMISSION_ACTIONS = {
     'content.revisions.restore',
   ],
   media: ['media.read', 'media.upload', 'media.update', 'media.delete'],
+  site: ['site.manage'],
   users: [
     'users.read',
     'users.create',
@@ -59,6 +60,7 @@ const ACTION_AREA = {
   schema: 'schema',
   content: 'content',
   media: 'media',
+  site: 'site',
   users: 'users',
   tokens: 'users',
   roles: 'users',

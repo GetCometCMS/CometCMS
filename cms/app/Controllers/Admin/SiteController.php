@@ -1,0 +1,692 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CometCMS\Controllers\Admin;
+
+use CometCMS\Auth\Auth;
+use CometCMS\Content\ContentRepository;
+use CometCMS\Core\Http;
+use CometCMS\Core\ValidationException;
+use CometCMS\Site\FormRepository;
+use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\PageRenderer;
+use CometCMS\Site\SiteContext;
+use CometCMS\Site\SiteRepository;
+use CometCMS\Site\SiteService;
+use CometCMS\Site\Theme;
+use CometCMS\Workspaces\WorkspaceContext;
+
+/**
+ * Admin API for the optional website: settings, theme, menus, header and
+ * footer, per-type layouts, reusable components and the live previews used
+ * by the builder.
+ */
+final class SiteController extends BaseController
+{
+    private SiteRepository $site;
+    private FormRepository $forms;
+
+    public function __construct(Http $http)
+    {
+        parent::__construct($http);
+        $this->site = new SiteRepository(WorkspaceContext::active());
+        $this->forms = new FormRepository($this->site);
+    }
+
+    public function index(): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+
+        $layouts = [];
+        foreach ($this->site->types() as $name => $type) {
+            foreach ($this->site->variantsFor($type) as $variant) {
+                $layouts[$name][$variant] = $this->site->layoutCustomized($name, $variant);
+            }
+        }
+
+        $this->json(['data' => [
+            'settings' => $this->site->settings(),
+            'theme' => $this->site->theme(),
+            'menus' => $this->site->menus(),
+            'menu_limits' => SiteRepository::MENU_LIMITS,
+            'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
+            'layouts' => $layouts,
+            'types' => array_values($this->site->types()),
+            'available_locales' => $this->site->availableLocales(),
+            'fonts' => array_keys(Theme::FONT_STACKS),
+            'font_stacks' => Theme::FONT_STACKS,
+            'theme_defaults' => Theme::defaults(),
+            'site_url' => $this->siteUrl(),
+            'workspace' => $this->site->workspace()->slug(),
+            'workspace_label' => $this->site->workspaceLabel(),
+            'can_edit_css' => Auth::allows($user, 'admin'),
+        ]]);
+    }
+
+    /** Lightweight summary for editors: is the website live, which types are published. */
+    public function status(): never
+    {
+        $user = $this->requireUser();
+        $settings = $this->site->settings();
+        $types = [];
+
+        foreach ($settings['routes'] as $name => $route) {
+            $types[$name] = [
+                // A type with frontend pages always makes the website live.
+                'enabled' => $route['enabled'],
+                'pages_enabled' => $route['enabled'],
+                'routed' => $route['enabled'] || ($settings['homepage']['type'] ?? '') === $name,
+                'pattern' => $route['pattern'],
+                'index_path' => $route['index_path'],
+            ];
+        }
+
+        $this->json(['data' => [
+            'enabled' => $settings['enabled'],
+            'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
+            'site_url' => $this->siteUrl(),
+            'homepage_editor' => $this->homepageEditor($settings),
+            'types' => $types,
+        ]]);
+    }
+
+    /** Start editing the actual homepage, including its selected entry. */
+    private function homepageEditor(array $settings): ?string
+    {
+        $homepage = $settings['homepage'];
+        $type = $this->site->types()[$homepage['type']] ?? null;
+        if ($type === null || ($type['visibility'] ?? 'public') === 'private') {
+            return null;
+        }
+
+        $variant = !empty($type['singleton']) || $homepage['entry'] !== '' ? 'detail' : 'index';
+        $path = '/page-builder/builder/layout/' . rawurlencode($type['name']) . '/' . $variant;
+        if (empty($type['singleton']) && $homepage['entry'] !== '') {
+            $entry = ContentRepository::make($this->site->workspace())->findByIdentifier($type['name'], $homepage['entry']);
+            if ($entry === null) {
+                return null;
+            }
+            // Builder samples are selected by slug, even when settings use a stable ID.
+            $path .= '?entry=' . rawurlencode((string) ($entry['slug'] ?? $entry['id']));
+        }
+
+        return $path;
+    }
+
+    /** Live URL and draft preview URL for one entry. */
+    public function links(string $type, string $id): never
+    {
+        $user = $this->requireUser();
+        $settings = $this->site->settings();
+        $context = $this->context();
+        $entry = $context->content->findByIdentifier($type, $id);
+        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
+        $url = null;
+
+        if ($settings['enabled'] && $entry !== null && $context->content->isPubliclyVisible($entry)) {
+            $locale = (string) ($_GET['locale'] ?? '');
+            $url = $this->liveUrl($context->entryUrl($type, $entry, in_array($locale, $context->locales(), true) ? $locale : null), $context);
+        }
+
+        $routed = $context->route($type) !== null || ($settings['homepage']['type'] ?? '') === $type;
+
+        $this->json(['data' => [
+            'enabled' => $settings['enabled'],
+            'routed' => $routed,
+            'url' => $url,
+            'previewable' => $entry !== null && $context->isPublicType($type),
+            'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
+        ]]);
+    }
+
+    public function updateSettings(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+
+        try {
+            $settings = $this->site->saveSettings($this->requestJson());
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
+
+        $this->logger->info('site.settings_updated', ['workspace' => $this->site->workspace()->slug()]);
+        $this->json(['data' => $settings]);
+    }
+
+    public function updateTheme(): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $input = $this->requestJson();
+        $current = $this->site->theme();
+
+        // Custom CSS is a free-form value; only administrators may change it.
+        if (!Auth::allows($user, 'admin')) {
+            $input['custom_css'] = $current['custom_css'];
+        }
+
+        $theme = $this->site->saveTheme($input, $user);
+        $this->logger->info('site.theme_updated', ['workspace' => $this->site->workspace()->slug()]);
+        $this->json(['data' => $theme]);
+    }
+
+    public function updateMenus(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        try {
+            $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? []);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
+        $this->logger->info('site.menus_updated', ['count' => count($menus)]);
+        $this->json(['data' => $menus]);
+    }
+
+    /** The standard card of a type, for a collection that gets a card of its own. */
+    public function cardTemplate(string $type): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, 'detail');
+
+        $this->json(['data' => ['nodes' => LayoutSchema::withNewIds($this->site->cardTemplate($type))]]);
+    }
+
+    public function layout(string $type, string $variant): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $schema = $this->requireType($type, $variant);
+
+        $context = $this->context();
+
+        $this->json(['data' => [
+            'nodes' => $this->site->layout($type, $variant),
+            'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
+            'customized' => $this->site->layoutCustomized($type, $variant),
+            'type' => $schema,
+            'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
+            'index_url' => $this->liveUrl($context->indexUrl($type), $context),
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
+            ...$this->builderContext(),
+        ]]);
+    }
+
+    public function updateLayout(string $type, string $variant): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user));
+        $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
+    }
+
+    public function resetLayout(string $type, string $variant): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $nodes = $this->site->resetLayout($type, $variant, $user);
+        $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
+    }
+
+    public function region(string $region): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireRegion($region);
+
+        $context = $this->context();
+
+        $this->json(['data' => [
+            'nodes' => $this->site->region($region),
+            'upgrade_required' => $this->site->needsRegionUpgrade($region),
+            'customized' => $this->site->regionCustomized($region),
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
+            ...$this->builderContext(),
+        ]]);
+    }
+
+    public function updateRegion(string $region): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireRegion($region);
+        $nodes = $this->validated(fn() => $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user));
+        $this->logger->info('site.region_updated', ['region' => $region]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
+    }
+
+    public function resetRegion(string $region): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireRegion($region);
+        $nodes = $this->site->resetRegion($region, $user);
+        $this->logger->info('site.region_reset', ['region' => $region]);
+        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
+    }
+
+    /** Components with the number of places each one is used. */
+    public function components(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => array_map(fn(array $component): array => $component + [
+            'usages' => count($this->site->componentUsages($component['id'])),
+        ], $this->site->components())]);
+    }
+
+    /** Body: {name, nodes: [one section, row or column], type}. */
+    public function createComponent(): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $input = $this->requestJson();
+        $component = $this->validated(fn() => $this->site->createComponent($input['name'] ?? '', $input['nodes'] ?? [], $input['type'] ?? '', $user));
+        $this->logger->info('site.component_created', ['component' => $component['id']]);
+        $this->json(['data' => $component], 201);
+    }
+
+    public function component(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $component = $this->requireComponent($id);
+        $type = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
+        $context = $this->context();
+
+        $this->json(['data' => [
+            'component' => $component,
+            'nodes' => $component['nodes'],
+            'customized' => true,
+            'usages' => $this->site->componentUsages($id),
+            'type' => $type,
+            'samples' => $type !== null ? $this->samples((string) $type['name'], LayoutSchema::key($_GET['entry'] ?? '')) : [],
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
+            ...$this->builderContext(),
+        ]]);
+    }
+
+    public function updateComponent(string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $component = $this->validated(fn() => $this->site->saveComponent($id, $this->requestJson()['nodes'] ?? [], $user));
+        $this->logger->info('site.component_updated', ['component' => $id]);
+        $this->json(['data' => ['nodes' => $component['nodes'], 'customized' => true, 'component' => $component]]);
+    }
+
+    public function renameComponent(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $component = $this->validated(fn() => $this->site->renameComponent($id, $this->requestJson()['name'] ?? ''));
+        $this->logger->info('site.component_renamed', ['component' => $id]);
+        $this->json(['data' => $component]);
+    }
+
+    public function deleteComponent(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $component = $this->site->deleteComponent($id);
+        $this->logger->info('site.component_deleted', ['component' => $id]);
+        $this->json(['data' => ['deleted' => true, 'component' => $component]]);
+    }
+
+    public function componentRevisions(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireComponent($id);
+        $this->json(['data' => $this->site->componentRevisions($id)]);
+    }
+
+    public function restoreComponentRevision(string $id, string $revision): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireComponent($id);
+        $result = $this->validated(fn() => $this->site->restoreComponentRevision($id, $revision, $user));
+        $this->sendRestoredRevision($result, ['target' => 'component', 'component' => $id, 'revision' => $revision]);
+    }
+
+    // ─── Forms ───────────────────────────────────────────────────────────────
+
+    /** Forms with the places each one is used, and the content types they can submit to. */
+    public function forms(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => [
+            'forms' => array_map(fn(array $form): array => $form + ['usages' => $this->site->formUsages($form['id'])], $this->forms->all()),
+            'types' => array_values($this->forms->types()),
+            'field_types' => FormRepository::FIELD_TYPES,
+            'statuses' => FormRepository::STATUSES,
+            'captchas' => FormRepository::CAPTCHAS,
+        ]]);
+    }
+
+    public function createForm(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $form = $this->validated(fn() => $this->forms->create($this->requestJson()));
+        $this->logger->info('site.form_created', ['form' => $form['id']]);
+        $this->json(['data' => $form + ['usages' => []]], 201);
+    }
+
+    public function updateForm(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireForm($id);
+        $form = $this->validated(fn() => $this->forms->update($id, $this->requestJson()));
+        $this->logger->info('site.form_updated', ['form' => $id]);
+        $this->json(['data' => $form + ['usages' => $this->site->formUsages($id)]]);
+    }
+
+    public function deleteForm(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireForm($id);
+        $form = $this->validated(fn() => $this->forms->delete($id));
+        $this->logger->info('site.form_deleted', ['form' => $id]);
+        $this->json(['data' => ['deleted' => true, 'form' => $form]]);
+    }
+
+    private function requireForm(string $id): array
+    {
+        $form = $this->forms->find($id);
+
+        if ($form === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Form not found.']], 404);
+        }
+
+        return $form;
+    }
+
+    public function themeRevisions(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => $this->site->themeRevisions()]);
+    }
+
+    public function restoreThemeRevision(string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $theme = $this->site->restoreThemeRevision($id, $user, Auth::allows($user, 'admin'));
+        $this->sendRestoredRevision($theme, ['target' => 'theme', 'revision' => $id]);
+    }
+
+    public function layoutRevisions(string $type, string $variant): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, $variant);
+        $this->json(['data' => $this->site->layoutRevisions($type, $variant)]);
+    }
+
+    public function restoreLayoutRevision(string $type, string $variant, string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $result = $this->site->restoreLayoutRevision($type, $variant, $id, $user);
+        $this->sendRestoredRevision($result, ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'revision' => $id]);
+    }
+
+    public function regionRevisions(string $region): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireRegion($region);
+        $this->json(['data' => $this->site->regionRevisions($region)]);
+    }
+
+    public function restoreRegionRevision(string $region, string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireRegion($region);
+        $result = $this->site->restoreRegionRevision($region, $id, $user);
+        $this->sendRestoredRevision($result, ['target' => 'region', 'region' => $region, 'revision' => $id]);
+    }
+
+    private function sendRestoredRevision(?array $result, array $details): never
+    {
+        if ($result === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
+        }
+        $this->logger->info('site.revision_restored', $details);
+        $this->json(['data' => $result]);
+    }
+
+    /**
+     * Render unsaved work. Body: {target: layout|region|component|page, type,
+     * variant, region, component, nodes, entry, locale, theme, menus, path}.
+     */
+    public function preview(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $body = $this->requestJson();
+        $context = $this->context();
+        $context->preview = true;
+
+        if (is_array($body['theme'] ?? null)) {
+            $context->override('theme', Theme::normalize($body['theme']));
+        }
+        if (is_array($body['menus'] ?? null)) {
+            try {
+                $this->site->validateMenus($body['menus'], false);
+            } catch (ValidationException $e) {
+                $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+            }
+            $context->override('menus', $this->site->normalizeMenus($body['menus']));
+        }
+
+        $locale = (string) ($body['locale'] ?? '');
+        $target = (string) ($body['target'] ?? 'page');
+
+        if ($target === 'page') {
+            $response = (new SiteService($context))->respond((string) ($body['path'] ?? '/'), []);
+            $this->json(['data' => ['html' => $response['body']]]);
+        }
+
+        $context->annotate = true;
+        $renderer = new PageRenderer($context);
+
+        if ($target === 'region') {
+            $region = (string) ($body['region'] ?? '');
+            $this->requireRegion($region);
+            if (array_key_exists('nodes', $body)) {
+                $context->override('region:' . $region, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
+            }
+            $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
+
+            $this->json(['data' => ['html' => $renderer->regionPreview($region)]]);
+        }
+
+        if ($target === 'component') {
+            $component = $this->requireComponent((string) ($body['component'] ?? ''));
+            if (array_key_exists('nodes', $body)) {
+                $component['nodes'] = $this->validated(static fn() => LayoutSchema::normalizeComponent($body['nodes'], $component['root']));
+            }
+            // Instances inside other components show the unsaved edit, too.
+            $context->override('component:' . $component['id'], $component);
+            $schema = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
+            $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
+            $entry = null;
+            if ($schema !== null) {
+                $identifier = LayoutSchema::key($body['entry'] ?? '');
+                $entry = $identifier !== '' ? $context->findEntry((string) $schema['name'], $identifier, true) : null;
+                if ($entry === null && !empty($schema['singleton'])) {
+                    $entry = $context->singletonEntry((string) $schema['name'], true);
+                }
+            }
+
+            $this->json(['data' => ['html' => $renderer->componentPreview($component, $schema, $entry)]]);
+        }
+
+        $type = (string) ($body['type'] ?? '');
+        $variant = (string) ($body['variant'] ?? 'detail');
+        $schema = $this->requireType($type, $variant);
+
+        if (array_key_exists('nodes', $body)) {
+            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
+        }
+
+        if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
+            $context->locale = $locale;
+        }
+
+        $identifier = LayoutSchema::key($body['entry'] ?? '');
+        $entry = $identifier !== '' ? $context->findEntry($type, $identifier, true) : null;
+        if ($entry === null && !empty($schema['singleton'])) {
+            $entry = $context->singletonEntry($type, true);
+        }
+
+        $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry)]]);
+    }
+
+    /** Full-page draft preview of one entry, opened from the entry editor. */
+    public function previewEntry(string $type, string $id): never
+    {
+        $this->requireUser();
+        $context = $this->context();
+        $entry = $context->content->findByIdentifier($type, $id);
+        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
+        $html = (new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? ''));
+
+        if ($html === null) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'This entry cannot be previewed on the website.';
+            exit;
+        }
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: private, no-store');
+        header('X-Robots-Tag: noindex, nofollow');
+        header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
+        echo $html;
+        exit;
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private function validated(callable $action): mixed
+    {
+        try {
+            return $action();
+        } catch (ValidationException $error) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $error->getMessage(), 'fields' => $error->fields()]], 422);
+        }
+    }
+
+    private function context(): SiteContext
+    {
+        return SiteContext::make($this->site, rtrim($this->http->url('/'), '/'), $this->requestOrigin());
+    }
+
+    private function builderContext(): array
+    {
+        return [
+            'settings' => $this->site->settings(),
+            'types' => array_values($this->site->types()),
+            'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
+            'locales' => $this->site->settings()['locales'],
+            'default_locale' => $this->site->settings()['default_locale'],
+            'spec' => LayoutSchema::spec(),
+            'components' => $this->site->components(),
+            'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
+        ];
+    }
+
+    private function requireComponent(string $id): array
+    {
+        $component = $this->site->component($id);
+
+        if ($component === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Component not found.']], 404);
+        }
+
+        return $component;
+    }
+
+    /** Recent entries to preview with; `$ensure` keeps a requested entry in the list. */
+    private function samples(string $type, string $ensure = ''): array
+    {
+        $content = ContentRepository::make($this->site->workspace());
+        $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
+
+        if ($ensure !== '' && !in_array($ensure, array_map(static fn(array $entry): string => (string) ($entry['slug'] ?? $entry['id'] ?? ''), $entries), true)) {
+            $requested = $content->findByIdentifier($type, $ensure);
+            if ($requested !== null) {
+                array_unshift($entries, $requested);
+            }
+        }
+
+        return array_map(static fn(array $entry): array => [
+            'id' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
+            'title' => (string) ($entry['title'] ?? ''),
+            'status' => (string) ($entry['status'] ?? 'draft'),
+        ], $entries);
+    }
+
+    private function requireType(string $type, string $variant): array
+    {
+        $schema = $this->site->types()[$type] ?? null;
+
+        if ($schema === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Content type not found.']], 404);
+        }
+
+        if (!in_array($variant, $this->site->variantsFor($schema), true)) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Unknown layout variant.']], 404);
+        }
+
+        return $schema;
+    }
+
+    private function requireRegion(string $region): void
+    {
+        if (!in_array($region, LayoutSchema::REGIONS, true)) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Unknown region.']], 404);
+        }
+    }
+
+    /** Absolute live URL for a site path, or null while the website is headless. */
+    private function liveUrl(?string $path, SiteContext $context): ?string
+    {
+        if ($path === null || !$this->site->settings()['enabled']) {
+            return null;
+        }
+
+        return $this->siteUrl() . substr($path, strlen($context->basePath));
+    }
+
+    /** Public address of the website: its first domain, or this server. */
+    private function siteUrl(): string
+    {
+        $domains = $this->site->settings()['domains'];
+        $base = rtrim($this->http->url('/'), '/');
+
+        return $domains !== [] ? 'https://' . $domains[0] . $base : $this->requestOrigin() . $base;
+    }
+
+    private function requestOrigin(): string
+    {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+
+        if ($host === '' || !preg_match('/^[A-Za-z0-9.-]+(:\d+)?$/', $host)) {
+            return '';
+        }
+
+        return ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . $host;
+    }
+}

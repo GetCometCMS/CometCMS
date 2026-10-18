@@ -3,7 +3,7 @@
     <Transition name="modal">
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/50"
         @mousedown.self="close"
       >
         <div

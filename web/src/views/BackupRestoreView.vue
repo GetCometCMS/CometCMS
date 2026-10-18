@@ -547,6 +547,12 @@ const partOptions = [
     descriptionKey: "backup.partMediaDescription",
   },
   {
+    value: "site",
+    parts: ["site"],
+    labelKey: "backup.website",
+    descriptionKey: "backup.partWebsiteDescription",
+  },
+  {
     value: "webhooks",
     parts: ["webhooks"],
     labelKey: "backup.webhooks",
@@ -569,6 +575,7 @@ const partOptions = [
 const backupParts = reactive({
   content_bundle: true,
   media: false,
+  site: true,
   webhooks: true,
   users: false,
   api_tokens: false,
@@ -576,6 +583,7 @@ const backupParts = reactive({
 const restoreParts = reactive({
   content_bundle: false,
   media: false,
+  site: false,
   webhooks: false,
   users: false,
   api_tokens: false,
@@ -596,6 +604,7 @@ const countItems = computed(() => {
     { label: t("backup.users"), value: counts.users ?? 0 },
     { label: t("backup.tokens"), value: counts.tokens ?? 0 },
     { label: t("backup.webhooks"), value: counts.webhooks ?? 0 },
+    { label: t("backup.website"), value: counts.site ?? 0 },
   ];
 });
 
@@ -612,6 +621,7 @@ const summaryRows = computed(() => {
     [t("backup.users"), "restored_users"],
     [t("backup.tokens"), "restored_tokens"],
     [t("backup.webhooks"), "restored_webhooks"],
+    [t("backup.website"), "restored_site"],
     [t("backup.skipped"), "skipped"],
   ].map(([label, key]) => ({ label, value: restoreSummary.value[key] ?? 0 }));
 });
@@ -849,6 +859,7 @@ function partCount(part) {
   if (part === "users")
     return (counts.users ?? 0) + (counts.roles ?? 0) + (counts.tokens ?? 0);
   if (part === "webhooks") return counts.webhooks ?? 0;
+  if (part === "site") return counts.site ?? 0;
   return 0;
 }
 

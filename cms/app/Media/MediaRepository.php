@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Media;
 
+use CometCMS\Cache\ApiCache;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Workspaces\WorkspaceContext;
 
@@ -448,8 +449,8 @@ final class MediaRepository
         if (is_array($fileMeta)) {
             $metadata['files'][$newName] = $fileMeta;
             unset($metadata['files'][$file]);
-            $this->writeMetadata($metadata);
         }
+        $this->writeMetadata($metadata);
 
         return $this->item($newName, $metadata);
     }
@@ -1266,6 +1267,7 @@ final class MediaRepository
 
         file_put_contents($tmp, $json . PHP_EOL, LOCK_EX);
         rename($tmp, $this->metadataPath);
+        ApiCache::fromConfig($this->workspace)->clear();
     }
 
     private function normalizeCategory(string $category): string

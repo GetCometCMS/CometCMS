@@ -2,7 +2,9 @@
   <div class="relative" ref="containerRef">
     <!-- Trigger -->
     <button
+      :id="id"
       type="button"
+      :aria-expanded="isOpen"
       @click="toggle"
       class="form-input w-full text-left flex items-center gap-2 rounded-lg border-slate-300 text-sm cursor-pointer"
     >
@@ -26,7 +28,7 @@
     <!-- Dropdown panel -->
     <div
       v-if="isOpen"
-      class="absolute z-50 left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+      class="absolute z-50 left-0 mt-1 w-80 max-w-full bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
     >
       <!-- Search -->
       <div class="p-2 border-b border-slate-100">
@@ -49,7 +51,7 @@
         >
           {{ t("iconPicker.noResults") }}
         </div>
-        <div v-else class="grid grid-cols-9 gap-0.5">
+        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(2rem,1fr))] gap-0.5">
           <button
             v-for="icon in filteredIcons"
             :key="icon"
@@ -69,7 +71,7 @@
       </div>
 
       <!-- Manual / custom icon input -->
-      <div class="p-2 border-t border-slate-100">
+      <div v-if="allowCustom" class="p-2 border-t border-slate-100">
         <input
           :value="modelValue"
           type="text"
@@ -92,9 +94,12 @@ import { useI18n } from "../i18n/index.js";
 
 const { t } = useI18n();
 
-defineProps({
+const props = defineProps({
+  id: { type: String, default: undefined },
   modelValue: { type: String, default: "" },
   placeholder: { type: String, default: "mdi:file-document-outline" },
+  icons: { type: Array, default: null },
+  allowCustom: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -221,8 +226,9 @@ const query = ref("");
 
 const filteredIcons = computed(() => {
   const q = query.value.trim().toLowerCase();
-  if (!q) return ALL_ICONS;
-  return ALL_ICONS.filter((icon) => icon.toLowerCase().includes(q));
+  const icons = props.icons ?? ALL_ICONS;
+  if (!q) return icons;
+  return icons.filter((icon) => icon.toLowerCase().includes(q));
 });
 
 // ── open / close ──────────────────────────────────────────────────────────────

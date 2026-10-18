@@ -36,6 +36,9 @@ return [
         'max_revisions' => 50,
     ],
     'content_types' => [],
+    'site' => [
+        'max_revisions' => 50,
+    ],
     'cache' => [
         'enabled' => true,
         'ttl' => 300,

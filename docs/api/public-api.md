@@ -113,7 +113,7 @@ Returns entries in a collection. For single page content types, this route retur
 
 Without a token, only `published` entries and `scheduled` entries whose `published_at` is in the past are returned. With a token that has `content.read` on the collection, drafts and protected entries are included.
 
-Content types are **public** by default. A type set to **private** requires a bearer token with `content.read` permission for that collection on list and single-entry endpoints. Private types are omitted from unauthenticated content-type listings; reading their schema directly requires `schema.read`. Relations to private types are omitted unless the token can read the related type.
+New content types have `api_enabled: false`. Explicitly enable API exposure to make published, unprotected entries publicly readable. Disabled types are omitted from schema discovery, their content and schema read endpoints return 404, and relations cannot expose their entries. Website pages are independent of this setting. Existing legacy schemas retain their prior public or token-protected access until reconfigured.
 
 **Query parameters:**
 
