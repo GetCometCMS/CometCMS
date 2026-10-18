@@ -117,6 +117,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (selectedId.value && !findNode(nodes.value, selectedId.value)) selectedId.value = null
   }
 
+  function loadRevision(tree) {
+    mutate(() => { nodes.value = clone(tree ?? []) })
+    keepSelection()
+  }
+
   function markSaved(tree) {
     nodes.value = clone(tree)
     savedSnapshot.value = JSON.stringify(nodes.value)
@@ -754,7 +759,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const api = {
     nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
-    load, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
+    load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,

@@ -982,7 +982,7 @@ final class McpServer
 
     private function version(): string
     {
-        return function_exists('comet_version') ? \comet_version() : (string) $this->config('app.version', '1.0.2');
+        return function_exists('comet_version') ? \comet_version() : (string) $this->config('app.version', '1.1.0');
     }
 }
 

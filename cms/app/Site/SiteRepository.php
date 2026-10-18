@@ -737,6 +737,46 @@ final class SiteRepository
         return $this->listRevisions(['layouts', $type, $variant]);
     }
 
+    /** Read a revision without changing the saved website or its history. */
+    public function themeRevision(string $id, bool $canEditCss = true): ?array
+    {
+        $theme = $this->revisions->read('theme', $id)['snapshot']['theme'] ?? null;
+        if (!is_array($theme)) {
+            return null;
+        }
+        if (!$canEditCss) {
+            $theme['custom_css'] = $this->theme()['custom_css'];
+        }
+        return $theme;
+    }
+
+    public function layoutRevision(string $type, string $variant, string $id): ?array
+    {
+        $this->assertVariant($this->requireType($type), $variant);
+        return $this->readLayoutRevision(['layouts', $type, $variant, $id]);
+    }
+
+    public function regionRevision(string $region, string $id): ?array
+    {
+        $this->assertRegion($region);
+        return $this->readLayoutRevision(['regions', $region, $id]);
+    }
+
+    public function componentRevision(string $component, string $id): ?array
+    {
+        $this->requireComponent($component);
+        return $this->readLayoutRevision(['components', $component, $id]);
+    }
+
+    private function readLayoutRevision(array $path): ?array
+    {
+        $snapshot = $this->revisions->read(...$path)['snapshot'] ?? null;
+        if (($snapshot['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($snapshot['nodes'] ?? null)) {
+            return null;
+        }
+        return ['nodes' => $snapshot['nodes'], 'customized' => $snapshot['customized'] ?? true];
+    }
+
     public function restoreThemeRevision(string $id, array $user = [], bool $canEditCss = true): ?array
     {
         $revision = $this->revisions->read('theme', $id);

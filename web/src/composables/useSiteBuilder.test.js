@@ -454,3 +454,28 @@ describe('builder content fields', () => {
     expect(builder.nodes.value[0].children[0].children[0].children[0].children).toHaveLength(1)
   })
 })
+
+
+describe('loading layout revisions', () => {
+  it('keeps the saved baseline and unsaved edits, supports undo/redo, and only becomes saved explicitly', async () => {
+    const builder = await builderFixture()
+    const saved = builder.savedSnapshot.value
+    builder.mutate((nodes) => { nodes[0].name = 'Unsaved work' })
+    const draft = JSON.parse(JSON.stringify(builder.nodes.value))
+    const revision = [builder.make('section')]
+
+    builder.loadRevision(revision)
+    expect(builder.nodes.value).toEqual(revision)
+    expect(builder.savedSnapshot.value).toBe(saved)
+    expect(builder.isDirty.value).toBe(true)
+    builder.undo()
+    expect(builder.nodes.value).toEqual(draft)
+    builder.redo()
+    expect(builder.nodes.value).toEqual(revision)
+    builder.loadRevision(draft)
+    expect(builder.nodes.value).toEqual(draft)
+    expect(builder.isDirty.value).toBe(true)
+    builder.markSaved(draft)
+    expect(builder.isDirty.value).toBe(false)
+  })
+})

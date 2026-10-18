@@ -415,6 +415,41 @@ final class SiteController extends BaseController
         $this->json(['data' => $this->site->themeRevisions()]);
     }
 
+    public function themeRevision(string $id): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->sendRevision($this->site->themeRevision($id, Auth::allows($user, 'admin')));
+    }
+
+    public function layoutRevision(string $type, string $variant, string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, $variant);
+        $this->sendRevision($this->site->layoutRevision($type, $variant, $id));
+    }
+
+    public function regionRevision(string $region, string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireRegion($region);
+        $this->sendRevision($this->site->regionRevision($region, $id));
+    }
+
+    public function componentRevision(string $component, string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireComponent($component);
+        $this->sendRevision($this->site->componentRevision($component, $id));
+    }
+
+    private function sendRevision(?array $result): never
+    {
+        if ($result === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
+        }
+        $this->json(['data' => $result]);
+    }
+
     public function restoreThemeRevision(string $id): never
     {
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);

@@ -79,6 +79,10 @@
       </div>
     </header>
 
+    <div v-for="scope in ['layout', 'theme'].filter((scope) => loadedRevisions[scope])" :key="scope" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+      <p>{{ t('site.history.loadedBanner', { scope: t(scope === 'theme' ? 'site.history.scope.design' : target === 'component' ? 'site.history.scope.component' : 'site.history.scope.layout'), date: formatRevisionDate(loadedRevisions[scope].revision.created_at) }) }}</p>
+      <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="saving" @click="cancelRevision(scope)">{{ t('common.cancel') }}</button>
+    </div>
     <p v-if="upgradeRequired" role="status" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">{{ t("site.binding.upgrade") }}</p>
     <p v-if="builder.hasSyntaxErrors.value" role="alert" class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ t("site.binding.invalidSyntax") }}</p>
     <div v-if="loadError" class="m-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">{{ loadError }}</div>
@@ -164,19 +168,17 @@
               v-else-if="historyScope === 'theme'"
               :key="`theme-${historyVersion}`"
               :fetch-revisions="api.site.themeRevisions"
-              :restore-revision="api.site.restoreThemeRevision"
-              :dirty="themeDirty"
+              :fetch-revision="api.site.themeRevision"
               :busy="saving || site.saving || site.loading"
-              @restored="onThemeRestored"
+              @loaded="onThemeRevisionLoaded"
             />
             <BuilderHistory
               v-else
               :key="`layout-${historyVersion}`"
               :fetch-revisions="fetchRevisions"
-              :restore-revision="restoreRevision"
-              :dirty="builder.isDirty.value"
+              :fetch-revision="fetchRevision"
               :busy="saving"
-              @restored="onRevisionRestored"
+              @loaded="onRevisionLoaded"
             />
           </div>
         </template>
@@ -289,7 +291,7 @@ const site = useSiteStore();
 const auth = useAuthStore();
 const { canContent } = usePermissions();
 const toast = useToastStore();
-const { t } = useI18n();
+const { t, locale: uiLocale } = useI18n();
 const brandIcon = adminAsset("img/cms-icon.png");
 const builder = createSiteBuilder({
   t,
@@ -335,25 +337,43 @@ const builder = createSiteBuilder({
     },
   },
 });
-// Synchronous, so the store's own replacements while saving, loading or restoring are told apart from edits.
-let restoringTheme = false;
+// Record design edits together with layout edits, including revision loading.
+let changingRevisionTheme = false;
 watch(() => site.draft?.theme, () => {
-  if (restoringTheme) builder.rebaseLinked();
-  else builder.linkedChanged({ record: !site.saving && !site.loading });
+  builder.linkedChanged({ record: !changingRevisionTheme && !site.saving && !site.loading });
 }, { deep: true, flush: "sync" });
 
-/**
- * A restored design is already saved. Undo must not bring back the design it
- * replaced, which the next save would then write over the restored one.
- */
-function onThemeRestored(theme) {
-  restoringTheme = true;
+const loadedRevisions = ref({ layout: null, theme: null });
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+function formatRevisionDate(value) {
+  return new Date(value).toLocaleString(uiLocale.value, { dateStyle: "medium", timeStyle: "medium" });
+}
+
+function changeRevisionTheme(theme) {
+  changingRevisionTheme = true;
   try {
-    site.applyRestoredTheme(theme);
+    builder.mutate(() => { site.draft.theme = clone(theme); });
   } finally {
-    restoringTheme = false;
+    changingRevisionTheme = false;
   }
 }
+
+function onThemeRevisionLoaded(theme, revision) {
+  if (!site.draft) return;
+  const before = loadedRevisions.value.theme?.before ?? clone(site.draft.theme);
+  loadedRevisions.value.theme = { before, revision };
+  changeRevisionTheme(theme);
+}
+
+function cancelRevision(scope) {
+  const pending = loadedRevisions.value[scope];
+  if (!pending) return;
+  if (scope === "theme") changeRevisionTheme(pending.before);
+  else builder.loadRevision(pending.before);
+  loadedRevisions.value[scope] = null;
+}
+
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
 /** The pending design edits include the custom stylesheet, or are only that. */
@@ -552,6 +572,7 @@ watch(locale, (value) => { builder.locale.value = value; });
 async function load() {
   loading.value = true;
   loadError.value = "";
+  loadedRevisions.value.layout = null;
 
   try {
     const entry = typeof route.query.entry === "string" ? route.query.entry : "";
@@ -614,16 +635,31 @@ async function save() {
     }
     if (saveLayout) {
       const nodes = builder.nodes.value;
-      const res = target === "region"
-        ? await api.site.saveRegion(name, nodes)
-        : target === "component" ? await api.site.saveComponent(name, nodes) : await api.site.saveLayout(name, variant, nodes);
+      const pending = loadedRevisions.value.layout;
+      const restoreDefault = pending?.customized === false && JSON.stringify(nodes) === pending.nodes;
+      let res;
+      if (restoreDefault) {
+        res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
+      } else if (target === "region") {
+        res = await api.site.saveRegion(name, nodes);
+      } else if (target === "component") {
+        res = await api.site.saveComponent(name, nodes);
+      } else {
+        res = await api.site.saveLayout(name, variant, nodes);
+      }
       builder.markSaved(res.data.nodes);
       upgradeRequired.value = false;
-      customized.value = true;
+      customized.value = res.data.customized;
+      loadedRevisions.value.layout = null;
       if (target === "component") component.value = res.data.component;
-      else site.markCustomized(target, name, variant, true);
+      else site.markCustomized(target, name, variant, res.data.customized);
     }
-    if (saveTheme) await site.save({ parts: ["theme"] });
+    if (saveTheme) {
+      await site.save({ parts: ["theme"] });
+      loadedRevisions.value.theme = null;
+    }
+    if (!builder.isDirty.value) loadedRevisions.value.layout = null;
+    if (!themeDirty.value) loadedRevisions.value.theme = null;
     historyVersion.value++;
     const message = saveContent ? "site.builder.changesSaved" : !saveLayout ? "site.builder.designSaved" : target === "component" ? "site.component.saved" : "site.builder.saved";
     toast.success(t(message));
@@ -645,17 +681,15 @@ function fetchRevisions() {
   return target === "region" ? api.site.regionRevisions(name) : api.site.layoutRevisions(name, variant);
 }
 
-function restoreRevision(id) {
-  if (target === "component") return api.site.restoreComponentRevision(name, id);
-  return target === "region" ? api.site.restoreRegionRevision(name, id) : api.site.restoreLayoutRevision(name, variant, id);
+function fetchRevision(id) {
+  if (target === "component") return api.site.componentRevision(name, id);
+  return target === "region" ? api.site.regionRevision(name, id) : api.site.layoutRevision(name, variant, id);
 }
 
-function onRevisionRestored(data) {
-  upgradeRequired.value = false;
-  builder.load(data.nodes);
-  customized.value = data.customized;
-  if (target === "component") component.value = data.component ?? component.value;
-  else site.markCustomized(target, name, variant, data.customized);
+function onRevisionLoaded(data, revision) {
+  const before = loadedRevisions.value.layout?.before ?? clone(builder.nodes.value);
+  loadedRevisions.value.layout = { before, revision, customized: data.customized, nodes: JSON.stringify(data.nodes) };
+  builder.loadRevision(data.nodes);
 }
 
 function onComponentRenamed(updated) {
