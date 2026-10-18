@@ -128,6 +128,7 @@ final class LayoutSchema
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
             'font_family' => ['type' => 'enum', 'options' => ['', 'body', 'heading'], 'default' => ''],
+            'text_shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
             'radius' => ['type' => 'enum', 'options' => ['', 'none', 'theme', 'sm', 'md', 'lg', 'full'], 'default' => ''],
             'shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
             'border' => ['type' => 'set', 'options' => ['left', 'top', 'right', 'bottom'], 'default' => []],
@@ -155,7 +156,7 @@ final class LayoutSchema
             'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
             'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 

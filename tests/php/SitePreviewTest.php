@@ -122,6 +122,38 @@ test('headless public roots show the placeholder in root and subdirectory instal
     }
 });
 
+test('custom theme stylesheets are served separately in root and subdirectory installs', function (): void {
+    $root = comet_site_preview_test_install();
+    comet_test_run_php(['-r', 'require ' . var_export($root . '/app/bootstrap.php', true) . ';' . <<<'PHP'
+(new \CometCMS\Workspaces\WorkspaceRepository())->all();
+(new \CometCMS\Site\SiteRepository())->saveTheme(['custom_css' => '.custom-file { color: red; }']);
+PHP]);
+    $version = substr(sha1('.custom-file { color: red; }'), 0, 12);
+    $port = 22080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $root . '/router.php');
+    try {
+        usleep(300000);
+        foreach (['', '/cms'] as $base) {
+            $path = $base . '/_site/default/theme/style.css?v=' . $version;
+            [$status, $css, $headers] = comet_site_preview_test_request($port, $path);
+            assert_same(200, $status);
+            assert_same('.custom-file { color: red; }', $css);
+            assert_same('text/css; charset=utf-8', $headers['content-type']);
+            assert_same('nosniff', $headers['x-content-type-options']);
+            assert_same('"' . $version . '"', $headers['etag']);
+            assert_true(str_contains($headers['cache-control'], 'immutable'));
+            [$status, $baseCss] = comet_site_preview_test_request($port, $base . '/_site/default/style.css');
+            assert_same(200, $status);
+            assert_true(str_contains($baseCss, '--c-primary:'));
+            assert_false(str_contains($baseCss, '.custom-file'));
+            assert_same(200, comet_site_preview_test_request($port, $path, '', 'HEAD')[0]);
+        }
+        assert_same(404, comet_site_preview_test_request($port, '/_site/missing/theme/style.css')[0]);
+    } finally {
+        comet_test_stop_process($server);
+    }
+});
+
 test('website history routes protect revisions and restore saved layouts regions and themes', function (): void {
     $root = comet_site_preview_test_install();
     $sessionPrefix = 'history-' . bin2hex(random_bytes(6));
@@ -155,6 +187,15 @@ PHP .
         assert_same(2, count($history['data']));
         assert_same('history-admin', $history['data'][0]['created_by']);
         $id = $history['data'][0]['id'];
+        $readPath = '/layouts/about/detail/revisions/' . $id;
+        assert_same(401, $request($readPath, 'GET', [], '')[0]);
+        assert_same(403, $request($readPath, 'GET', [], 'viewer')[0]);
+        [$status, $loaded] = $request($readPath);
+        assert_same(200, $status);
+        assert_same('accent', $loaded['data']['nodes'][0]['style']['background']);
+        assert_same([], $request('/layouts/about/detail')[1]['data']['nodes']);
+        assert_same($history, $request('/layouts/about/detail/revisions')[1], 'Reading must not create revisions.');
+        assert_same(404, $request('/layouts/about/detail/revisions/missing')[0]);
         $restorePath = '/layouts/about/detail/revisions/' . $id . '/restore';
         assert_same(419, $request($restorePath, 'POST', [], 'admin', 'wrong')[0]);
         assert_same(403, $request($restorePath, 'POST', [], 'viewer')[0]);
@@ -168,15 +209,40 @@ PHP .
         $request('/regions/header', 'DELETE');
         [, $history] = $request('/regions/header/revisions');
         $id = $history['data'][0]['id'];
+        [$status, $loaded] = $request('/regions/header/revisions/' . $id);
+        assert_same(200, $status);
+        assert_same('accent', $loaded['data']['nodes'][0]['style']['background']);
+        assert_same($history, $request('/regions/header/revisions')[1]);
+        assert_same(404, $request('/regions/footer/revisions/' . $id)[0]);
         [$status, $restored] = $request('/regions/header/revisions/' . $id . '/restore', 'POST');
         assert_same(200, $status);
         assert_true($restored['data']['customized']);
         assert_same(404, $request('/regions/footer/revisions/' . $id . '/restore', 'POST')[0]);
 
+        [, $created] = $request('/components', 'POST', ['name' => 'History component', 'nodes' => $nodes]);
+        $componentPath = '/components/' . $created['data']['id'];
+        $request($componentPath, 'PUT', ['nodes' => [\CometCMS\Site\LayoutSchema::node('section')]]);
+        [, $componentHistory] = $request($componentPath . '/revisions');
+        $componentRevisionPath = $componentPath . '/revisions/' . $componentHistory['data'][0]['id'];
+        [$status, $loaded] = $request($componentRevisionPath);
+        assert_same(200, $status);
+        assert_same('accent', $loaded['data']['nodes'][0]['style']['background']);
+        assert_same($componentHistory, $request($componentPath . '/revisions')[1]);
+        assert_false(($request($componentPath)[1]['data']['nodes'][0]['style']['background'] ?? '') === 'accent');
+        assert_same(403, $request($componentRevisionPath, 'GET', [], 'viewer')[0]);
+        assert_same(404, $request($componentPath . '/revisions/missing')[0]);
+
         $request('/theme', 'PUT', ['base_size' => 14, 'custom_css' => '.old {color:red}']);
         $request('/theme', 'PUT', ['base_size' => 20, 'custom_css' => '.new {color:blue}']);
         [, $history] = $request('/theme/revisions');
         $id = $history['data'][0]['id'];
+        [$status, $loaded] = $request('/theme/revisions/' . $id, 'GET', [], 'designer');
+        assert_same(200, $status);
+        assert_same(14, $loaded['data']['base_size']);
+        assert_same('.new {color:blue}', $loaded['data']['custom_css']);
+        assert_same('.old {color:red}', $request('/theme/revisions/' . $id)[1]['data']['custom_css']);
+        assert_same(20, $request('')[1]['data']['theme']['base_size']);
+        assert_same($history, $request('/theme/revisions')[1]);
         [$status, $restored] = $request('/theme/revisions/' . $id . '/restore', 'POST', [], 'designer');
         assert_same(200, $status);
         assert_same(14, $restored['data']['base_size']);

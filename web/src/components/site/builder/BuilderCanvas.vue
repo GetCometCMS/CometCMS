@@ -3,6 +3,7 @@
     ref="frameRef"
     :body="body"
     :device="device"
+    :head-css="BUILDER_CSS"
     :title="t('site.builder.canvas')"
     interactive
     @ready="attach"
@@ -31,6 +32,12 @@ let indicator = null;
 let badge = null;
 let dropTargetState = null;
 let selectedFromCanvas = false;
+let resizeHandle = null;
+let resizeLabel = null;
+/** Column edge the grip sits on: { el, side }. */
+let resizeEdge = null;
+/** Running resize: { el, id, side, startX, start, span, unit, device }. */
+let resizing = null;
 
 
 const BUILDER_CSS = `
@@ -119,14 +126,74 @@ const BUILDER_CSS = `
   white-space:nowrap;
   box-shadow:0 -1px 3px rgba(0,0,0,.06);
 }
+
+/* Column resizing: a grip on the edge under the pointer */
+[data-builder-resize]{
+  outline:2px solid var(--builder-color)!important;
+  outline-offset:-2px;
+}
+
+.cometcms-resize{
+  position:absolute;
+  z-index:2147483646;
+  width:14px;
+  margin-left:-7px;
+  cursor:col-resize;
+  touch-action:none;
+}
+
+.cometcms-resize::before{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:50%;
+  width:4px;
+  transform:translateX(-50%);
+  background:var(--builder-color,#5875c9);
+  border-radius:2px;
+}
+
+.cometcms-resize::after{
+  content:"";
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:6px;
+  height:28px;
+  transform:translate(-50%,-50%);
+  background:#fff;
+  border:2px solid var(--builder-color,#5875c9);
+  border-radius:4px;
+  box-shadow:0 1px 3px rgba(0,0,0,.18);
+}
+
+.cometcms-resize-label{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,calc(-100% - 22px));
+  background:color-mix(in srgb,var(--builder-color,#5875c9) 85%,#111827);
+  color:#fff;
+  font:600 11px/1 system-ui,sans-serif;
+  padding:5px 7px;
+  border-radius:5px;
+  white-space:nowrap;
+  pointer-events:none;
+}
+
+html.cometcms-resizing,html.cometcms-resizing *{
+  cursor:col-resize!important;
+  user-select:none!important;
+}
 `;
+
+/** Distance in px from a column edge within which its resize grip appears. */
+const RESIZE_EDGE = 8;
 
 
 function attach(document) {
   doc = document;
-  const style = doc.createElement("style");
-  style.textContent = BUILDER_CSS;
-  doc.head.appendChild(style);
 
   indicator = doc.createElement("div");
   indicator.className = "cometcms-drop";
@@ -134,7 +201,21 @@ function attach(document) {
   badge = doc.createElement("div");
   badge.className = "cometcms-badge";
   badge.hidden = true;
-  doc.body.append(indicator, badge);
+  resizeHandle = doc.createElement("div");
+  resizeHandle.className = "cometcms-resize";
+  resizeHandle.hidden = true;
+  resizeLabel = doc.createElement("span");
+  resizeLabel.className = "cometcms-resize-label";
+  resizeLabel.hidden = true;
+  resizeHandle.append(resizeLabel);
+  resizeEdge = null;
+  resizing = null;
+  doc.body.append(indicator, badge, resizeHandle);
+
+  resizeHandle.addEventListener("pointerdown", onResizeStart);
+  resizeHandle.addEventListener("pointermove", onResizeMove);
+  resizeHandle.addEventListener("pointerup", onResizeEnd);
+  resizeHandle.addEventListener("pointercancel", onResizeEnd);
 
   doc.querySelectorAll("[data-drop-root]").forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
@@ -147,10 +228,15 @@ function attach(document) {
   doc.addEventListener("pointerdown", (event) => {
     if (!event.target.closest?.(".cometcms-badge")) builder.closeContextMenu();
   });
-  doc.defaultView?.addEventListener("scroll", () => builder.closeContextMenu(), { passive: true });
+  doc.defaultView?.addEventListener("scroll", () => {
+    builder.closeContextMenu();
+    if (!resizing) showResizeEdge(null);
+  }, { passive: true });
   doc.addEventListener("mouseover", onMouseOver);
+  doc.addEventListener("pointermove", onPointerMove);
   doc.documentElement.addEventListener("mouseleave", () => {
     builder.hoverId.value = null;
+    if (!resizing) showResizeEdge(null);
   });
   doc.addEventListener("dragstart", onDragStart);
   doc.addEventListener("dragover", onDragOver);
@@ -229,6 +315,9 @@ function onClick(event) {
   if (!event.target.closest?.('.c-accordion-title')) event.preventDefault();
   event.stopPropagation();
 
+  // Releasing a resize grip keeps the column selected.
+  if (event.target.closest?.(".cometcms-resize")) return;
+
   // The badge on the selection opens its menu.
   if (event.target.closest?.(".cometcms-badge") && builder.selectedId.value) {
     const rect = badge.getBoundingClientRect();
@@ -250,6 +339,7 @@ function onMouseOver(event) {
 function onDragStart(event) {
   const el = event.target.closest?.("[data-node]");
   if (!el) return;
+  showResizeEdge(null);
   builder.drag.value = { source: "move", id: el.dataset.node };
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", el.dataset.node);
@@ -264,6 +354,113 @@ function isHorizontalColumn(el) {
   const siblings = Array.from(el.parentElement?.children ?? []).filter((child) => child !== el && isColumnElement(child));
   const top = el.getBoundingClientRect().top;
   return siblings.some((sibling) => Math.abs(sibling.getBoundingClientRect().top - top) < 4);
+}
+
+/** The column whose left or right edge is next to the pointer, innermost first. */
+function resizableEdgeAt(target, x) {
+  for (let el = target?.closest?.("[data-node]"); el; el = el.parentElement?.closest("[data-node]")) {
+    if (!isColumnElement(el) || !el.parentElement?.classList.contains("c-row")) continue;
+    const node = findNode(builder.nodes.value, el.dataset.node);
+    if (!node || builder.isCard(node)) continue;
+    const rect = el.getBoundingClientRect();
+    if (x - rect.left <= RESIZE_EDGE) return { el, side: "left" };
+    if (rect.right - x <= RESIZE_EDGE) return { el, side: "right" };
+  }
+  return null;
+}
+
+function placeResizeHandle() {
+  const { el, side } = resizeEdge;
+  const win = doc.defaultView;
+  const rect = el.getBoundingClientRect();
+  const x = (side === "left" ? rect.left : rect.right) + win.scrollX;
+  resizeHandle.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
+  Object.assign(resizeHandle.style, { left: `${x}px`, top: `${rect.top + win.scrollY}px`, height: `${rect.height}px` });
+}
+
+function showResizeEdge(edge) {
+  if (!resizeHandle) return;
+  if (edge?.el === resizeEdge?.el && edge?.side === resizeEdge?.side) return;
+  resizeEdge?.el.removeAttribute("data-builder-resize");
+  resizeEdge = edge;
+  resizeHandle.hidden = !edge;
+  if (!edge) return;
+  edge.el.setAttribute("data-builder-resize", "");
+  placeResizeHandle();
+}
+
+function onPointerMove(event) {
+  if (resizing || event.target === resizeHandle) return;
+  showResizeEdge(builder.drag.value ? null : resizableEdgeAt(event.target, event.clientX));
+}
+
+function contentWidth(el) {
+  const style = doc.defaultView.getComputedStyle(el);
+  return el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+}
+
+/**
+ * The device whose span a column shows: by the screen width, or for a nested
+ * row by the row's own width (see the grid in site.css).
+ */
+function spanDeviceOf(row) {
+  const width = row.classList.contains("c-row-nested") ? contentWidth(row) : doc.defaultView.innerWidth;
+  return width >= 1024 ? "desktop" : width >= 768 ? "tablet" : "mobile";
+}
+
+function onResizeStart(event) {
+  if (!resizeEdge || event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  builder.closeContextMenu();
+
+  const { el, side } = resizeEdge;
+  const row = el.parentElement;
+  const gap = parseFloat(doc.defaultView.getComputedStyle(row).columnGap) || 0;
+  // One step: a twelfth of the row, with the gap it brings along.
+  const unit = (contentWidth(row) + gap) / 12;
+  if (unit <= 0) return;
+  const start = Math.min(12, Math.max(1, Math.round((el.getBoundingClientRect().width + gap) / unit)));
+
+  resizing = { el, id: el.dataset.node, side, startX: event.clientX, start, span: start, unit, device: spanDeviceOf(row) };
+  resizeHandle.setPointerCapture(event.pointerId);
+  doc.documentElement.classList.add("cometcms-resizing");
+  resizeLabel.textContent = t("site.builder.spanOf", { span: start });
+  resizeLabel.hidden = false;
+
+  selectedFromCanvas = true;
+  builder.select(resizing.id);
+}
+
+function onResizeMove(event) {
+  if (!resizing) return;
+  const { el, side, startX, start, unit } = resizing;
+  const distance = (event.clientX - startX) * (side === "left" ? -1 : 1);
+  const span = Math.min(12, Math.max(1, start + Math.round(distance / unit)));
+  if (span === resizing.span) return;
+
+  // Preview the width right away; the saved span re-renders the page.
+  resizing.span = span;
+  el.style.gridColumn = `span ${span}`;
+  resizeLabel.textContent = t("site.builder.spanOf", { span });
+  placeResizeHandle();
+  applySelection(false);
+}
+
+function onResizeEnd(event) {
+  if (!resizing) return;
+  const { el, id, start, span, device } = resizing;
+  resizing = null;
+  if (resizeHandle.hasPointerCapture(event.pointerId)) resizeHandle.releasePointerCapture(event.pointerId);
+  doc.documentElement.classList.remove("cometcms-resizing");
+  resizeLabel.hidden = true;
+
+  if (span === start) {
+    el.style.gridColumn = "";
+    return;
+  }
+  const node = findNode(builder.nodes.value, id);
+  if (node) builder.updateValue(id, "props", "span", { ...(node.props?.span ?? {}), [device]: span });
 }
 
 /** The node under the pointer and where a drop would go relative to it. */

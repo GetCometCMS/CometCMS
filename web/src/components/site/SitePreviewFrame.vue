@@ -36,6 +36,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api } from "../../api/index.js";
 import { useI18n } from "../../i18n/index.js";
+import { withPreviewStyles } from "../../composables/previewDocument.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -47,6 +48,8 @@ const props = defineProps({
   title: { type: String, default: "Website preview" },
   /** Let the parent handle link clicks (the builder selects nodes instead). */
   interactive: { type: Boolean, default: false },
+  /** Trusted editor CSS included before the iframe's first paint. */
+  headCss: { type: String, default: "" },
 });
 
 const emit = defineEmits(["ready", "rendered"]);
@@ -87,7 +90,7 @@ async function render() {
     const res = await api.site.preview(props.body);
     if (current !== sequence) return;
     pendingScroll = iframeRef.value?.contentWindow?.scrollY ?? 0;
-    srcdoc.value = res.data?.html ?? "";
+    srcdoc.value = withPreviewStyles(res.data?.html ?? "", props.headCss);
     error.value = "";
     emit("rendered");
   } catch (err) {

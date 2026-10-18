@@ -88,8 +88,8 @@ const position = ref({ x: 0, y: 0 });
 const menu = computed(() => builder.contextMenu.value);
 const node = computed(() => (menu.value ? findNode(builder.nodes.value, menu.value.id) : null));
 const where = computed(() => (node.value ? locate(builder.nodes.value, node.value.id) : null));
-// A column sets its own width instead; sections and column sets pick a preset.
-const showColumns = computed(() => isStructure(node.value?.kind) && node.value.kind !== "column");
+// Grids pick a preset; columns set their own width.
+const showColumns = computed(() => node.value?.kind === "row");
 const spanDevice = computed(() => (props.device === "full" ? "desktop" : props.device));
 
 const quick = computed(() => {
@@ -108,8 +108,6 @@ const actions = computed(() => {
   const current = node.value;
   if (!current) return [];
   const parent = where.value?.parent ?? null;
-  const index = where.value?.index ?? 0;
-  const siblings = where.value?.list.length ?? 0;
   const structure = isStructure(current.kind);
   const instance = current.kind === COMPONENT;
   const locked = builder.isLockedRoot(current.id);
@@ -118,13 +116,10 @@ const actions = computed(() => {
   const groups = [
     [
       parent && { key: "parent", icon: "mdi:arrow-up-left", label: t("site.menu.selectParent", { name: builder.nodeLabel(parent) }), action: () => builder.select(parent.id) },
-      { key: "up", icon: "mdi:arrow-up", label: t("site.builder.moveUp"), shortcut: "Alt+↑", disabled: index === 0, action: () => builder.shift(current.id, -1) },
-      { key: "down", icon: "mdi:arrow-down", label: t("site.builder.moveDown"), shortcut: "Alt+↓", disabled: index >= siblings - 1, action: () => builder.shift(current.id, 1) },
     ],
     [
       !locked && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
       { key: "copy", icon: "mdi:clipboard-outline", label: t("site.menu.copy"), shortcut: "Ctrl+C", action: () => builder.copy(current.id) },
-      { key: "paste", icon: "mdi:content-paste", label: t("site.menu.paste"), shortcut: "Ctrl+V", disabled: !builder.clipboard.value, action: () => builder.paste(current.id) },
       !instance && { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
       !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
     ],

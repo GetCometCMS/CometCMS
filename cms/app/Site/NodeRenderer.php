@@ -1323,6 +1323,7 @@ final class NodeRenderer
             'font_size' => 'c-fs-',
             'font_weight' => 'c-fw-',
             'font_family' => 'c-ff-',
+            'text_shadow' => 'c-ts-',
             'radius' => 'c-r-',
             'shadow' => 'c-sh-',
             'max_width' => 'c-mw-',

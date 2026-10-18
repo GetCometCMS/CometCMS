@@ -209,7 +209,7 @@ test('collections without a card of their own show the standard card', function 
     ])])]);
     assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Hello &lt;script&gt;'), 'The generated card shows the title.');
 
-    $store = new JsonStore(comet_test_workspace_path() . '/site');
+    $store = new JsonStore(comet_test_workspace_path() . '/site/theme');
     $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [
         LayoutSchema::node('section', [], ['background' => 'accent', 'padding_y' => 'xl'], [LayoutSchema::node('row', [], [], [
             LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Legacy card</p>'])]),
@@ -523,6 +523,68 @@ test('layout previews of a draft resolve its publish date', function (): void {
     assert_true(str_contains($html, '<time'), 'The draft previews with the date it would get when published.');
 });
 
+test('theme stores custom css separately and reads direct stylesheet edits', function (): void {
+    $site = comet_site_test_setup();
+    $saved = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.custom { color: red; }']);
+    $path = $site->workspace()->path('site') . '/theme/style.css';
+    $tokens = (new JsonStore($site->workspace()->path('site') . '/theme'))->read('theme');
+    assert_same($saved['custom_css'], file_get_contents($path));
+    assert_false(array_key_exists('custom_css', $tokens));
+    assert_same('#123456', $tokens['colors']['primary']);
+    assert_same($saved, (new SiteRepository())->theme());
+    $version = $site->customStylesheetVersion();
+    $fullVersion = $site->stylesheetVersion();
+
+    file_put_contents($path, '.edited { color: blue; }');
+    assert_same('.edited { color: blue; }', $site->theme()['custom_css']);
+    assert_false($version === $site->customStylesheetVersion());
+    assert_false($fullVersion === $site->stylesheetVersion());
+    file_put_contents($path, '');
+    assert_same('', $site->theme()['custom_css'], 'An empty stylesheet clears custom CSS.');
+});
+
+test('legacy themes migrate on save and restored legacy themes take precedence', function (): void {
+    $site = comet_site_test_setup();
+    $store = new JsonStore($site->workspace()->path('site'));
+    $legacy = ['colors' => ['primary' => '#abcdef'], 'custom_css' => '.legacy { color: red; }'];
+    $store->write($legacy, 'theme');
+    assert_same($legacy['custom_css'], $site->theme()['custom_css']);
+    $site->saveTheme($site->theme());
+    assert_null($store->read('theme'));
+    assert_same($legacy['custom_css'], file_get_contents($site->workspace()->path('site') . '/theme/style.css'));
+    assert_false(array_key_exists('custom_css', $store->read('theme', 'theme')));
+
+    $store->write([...$legacy, 'custom_css' => '.restored {}'], 'theme');
+    assert_same('.restored {}', $site->theme()['custom_css'], 'Older backups override existing migrated files.');
+    $site->saveTheme($site->theme());
+    assert_same('.restored {}', (new SiteRepository())->theme()['custom_css']);
+});
+
+test('custom stylesheet edits update cached page links while previews keep draft css inline', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveTheme(['custom_css' => '.saved { color: red; }']);
+    $context = comet_site_test_context($site);
+    $service = new SiteService($context);
+    $before = $service->respondCached('/blog/hello', []);
+    assert_same('MISS', $before['cache_status']);
+    assert_same('HIT', $service->respondCached('/blog/hello', [])['cache_status']);
+    assert_true(strpos($before['body'], $context->stylesheetUrl()) < strpos($before['body'], $context->customStylesheetUrl()));
+    assert_false(str_contains($before['body'], '.saved {'));
+
+    file_put_contents($site->workspace()->path('site') . '/theme/style.css', '.edited {}');
+    $after = $service->respondCached('/blog/hello', []);
+    assert_same('MISS', $after['cache_status']);
+    assert_false($before['body'] === $after['body']);
+    assert_true(str_contains($after['body'], $context->customStylesheetUrl()));
+
+    $context->preview = true;
+    $context->override('theme', [...$site->theme(), 'custom_css' => '.draft { color: blue; }']);
+    $preview = $service->respond('/blog/hello', [])['body'];
+    assert_true(str_contains($preview, '.draft { color: blue; }'));
+    assert_false(str_contains($preview, '/theme/style.css'));
+    assert_same('.edited {}', $site->theme()['custom_css'], 'Previewing does not write draft CSS.');
+});
+
 test('theme normalizes values and keeps custom css inside its style element', function (): void {
     $theme = Theme::normalize([
         'colors' => ['primary' => '#ABC', 'text' => 'red; background:url(x)'],
@@ -657,12 +719,13 @@ test('deleting a content type removes its website layouts and route', function (
     $site->saveLayout('blog', 'index', []);
     assert_true($site->layoutCustomized('blog', 'index'));
     $store = new JsonStore(comet_test_workspace_path() . '/site');
-    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
+    $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
+    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
 
     (new ContentTypeRepository())->delete('blog');
 
-    assert_null($store->read('layouts', 'blog', 'index'));
-    assert_null($store->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
+    assert_null($theme->read('layouts', 'blog', 'index'));
+    assert_null($theme->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });
@@ -912,6 +975,34 @@ test('background blur renders a separate decorative layer for public images only
         assert_false(str_contains($html, 'c-background-blur'), 'Missing, private and non-image backgrounds have no blur layer.');
         assert_false(str_contains($html, '--c-background-image'));
     }
+});
+
+test('text shadows survive layout normalization and render in preview and public output', function (): void {
+    comet_site_test_setup();
+    foreach (['text', 'heading'] as $kind) {
+        assert_true(in_array('text_shadow', LayoutSchema::spec()['kinds'][$kind]['style'], true));
+        foreach (['', 'none', 'sm', 'md', 'lg', 'invalid'] as $shadow) {
+            $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [
+                LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+                    LayoutSchema::node($kind, ['text' => 'Heading', 'html' => '<p>Text</p>'], ['text_shadow' => $shadow]),
+                ])]),
+            ])]);
+            $style = $nodes[0]['children'][0]['children'][0]['children'][0]['style'];
+            $expected = in_array($shadow, ['none', 'sm', 'md', 'lg'], true) ? $shadow : '';
+            assert_same($expected, $style['text_shadow'] ?? '');
+            assert_same($nodes, LayoutSchema::normalize($nodes));
+            foreach ([false, true] as $annotate) {
+                $ctx = comet_site_test_context();
+                $ctx->annotate = $annotate;
+                $html = (new NodeRenderer($ctx))->render($nodes);
+                assert_same($expected !== '', str_contains($html, 'c-ts-'));
+                if ($expected !== '') {
+                    assert_true(str_contains($html, 'c-ts-' . $expected));
+                }
+            }
+        }
+    }
+    assert_false(in_array('text_shadow', LayoutSchema::styleKeys('image'), true));
 });
 
 test('image elements use media library metadata instead of layout overrides', function (): void {

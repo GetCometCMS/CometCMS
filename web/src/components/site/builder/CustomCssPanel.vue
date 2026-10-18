@@ -26,12 +26,6 @@
         :label="t('site.theme.customCss')"
         placeholder=".c-site-name { letter-spacing: 0.05em; }"
       />
-      <div v-if="classes.length" class="shrink-0">
-        <p class="mb-1.5 text-[11px] font-medium text-slate-600">{{ t("site.builder.customCssClasses") }}</p>
-        <div class="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
-          <code v-for="name in classes" :key="name" class="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">.{{ name }}</code>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -41,7 +35,6 @@ import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import CssCodeEditor from "../../CssCodeEditor.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
-import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -51,8 +44,6 @@ const emit = defineEmits(["close"]);
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-/** Classes the stylesheet defines; the inspector offers them on every element. */
-const classes = computed(() => themeCssClasses(theme.value?.custom_css ?? ""));
 </script>
 
 <style scoped>

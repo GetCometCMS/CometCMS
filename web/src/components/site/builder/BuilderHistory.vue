@@ -14,43 +14,30 @@
           </p>
           <p v-if="revision.customized === false" class="text-xs text-slate-500">{{ t('site.history.defaultLayout') }}</p>
         </div>
-        <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="busy || restoring" @click="pending = revision">{{ t('site.history.restore') }}</button>
+        <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="busy || loadingRevision" @click="loadRevision(revision)">{{ t('site.history.load') }}</button>
       </article>
     </div>
   </div>
-  <ConfirmModal
-    :model-value="!!pending"
-    :title="t('site.history.restoreTitle')"
-    :message="t(dirty ? 'site.history.restoreDirtyMessage' : 'site.history.restoreMessage')"
-    :confirm-label="t('site.history.restore')"
-    :loading="restoring"
-    variant="warning"
-    @update:model-value="(value) => { if (!value) pending = null; }"
-    @confirm="restore"
-  />
 </template>
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import ConfirmModal from "../../ConfirmModal.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import { useToastStore } from "../../../stores/toast.js";
 import { useI18n } from "../../../i18n/index.js";
 
 const props = defineProps({
   fetchRevisions: { type: Function, required: true },
-  restoreRevision: { type: Function, required: true },
-  dirty: { type: Boolean, default: false },
+  fetchRevision: { type: Function, required: true },
   busy: { type: Boolean, default: false },
 });
-const emit = defineEmits(["restored"]);
+const emit = defineEmits(["loaded"]);
 const { t, locale } = useI18n();
 const toast = useToastStore();
 const loading = ref(false);
-const restoring = ref(false);
+const loadingRevision = ref(false);
 const revisions = ref([]);
 const error = ref("");
-const pending = ref(null);
 let sequence = 0;
 
 function formatDate(value) {
@@ -61,8 +48,7 @@ async function load() {
   loading.value = true;
   error.value = "";
   revisions.value = [];
-  pending.value = null;
-  restoring.value = false;
+  loadingRevision.value = false;
   const request = ++sequence;
   try {
     const result = await props.fetchRevisions();
@@ -74,27 +60,20 @@ async function load() {
   }
 }
 
-async function restore() {
-  if (!pending.value || restoring.value || props.busy) return;
+async function loadRevision(revision) {
+  if (loadingRevision.value || props.busy) return;
   const request = ++sequence;
-  restoring.value = true;
+  loadingRevision.value = true;
   error.value = "";
   try {
-    const result = await props.restoreRevision(pending.value.id);
-    if (request !== sequence) return;
-    emit("restored", result.data);
-    toast.success(t("site.history.restored"));
-    pending.value = null;
-    restoring.value = false;
-    // Restoring keeps the replaced version as a new revision.
-    load();
+    const result = await props.fetchRevision(revision.id);
+    if (request !== sequence || props.busy) return;
+    emit("loaded", result.data, revision);
+    toast.success(t("site.history.loaded"));
   } catch (err) {
-    if (request === sequence) {
-      error.value = err.message;
-      pending.value = null;
-    }
+    if (request === sequence) error.value = err.message;
   } finally {
-    if (request === sequence) restoring.value = false;
+    if (request === sequence) loadingRevision.value = false;
   }
 }
 

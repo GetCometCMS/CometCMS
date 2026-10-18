@@ -2,7 +2,6 @@
   <section class="space-y-2.5" :class="compact ? '' : 'rounded-xl border border-slate-200 bg-slate-50/70 p-3'">
     <div v-if="!compact" class="flex items-center justify-between gap-2">
       <h4 class="text-xs font-semibold text-slate-700">{{ title }}</h4>
-      <span v-if="node.kind !== 'row'" class="truncate text-[10px] text-slate-400">{{ t("site.builder.columnLayoutTarget") }}</span>
     </div>
 
     <!-- Direction: side by side or underneath each other -->
@@ -60,7 +59,7 @@ import { useI18n } from "../../../i18n/index.js";
 const PRESETS = [[12], [6, 6], [4, 4, 4], [3, 3, 3, 3], [4, 8], [8, 4]];
 
 const props = defineProps({
-  /** A section, row or column; the picker edits the row it belongs to. */
+  /** A row or column; the picker edits the row it belongs to. */
   node: { type: Object, required: true },
   /** Without heading and hint, for the context menu. */
   compact: { type: Boolean, default: false },

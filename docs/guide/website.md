@@ -153,6 +153,27 @@ The theme also defines the **tokens** the builder offers, so one change reshapes
 
 Administrators can add **custom CSS**. Every class the website uses starts with `c-`, e.g. `.c-site-name` or `.c-button-primary`. Elements also accept extra CSS classes in the builder.
 
+### Theme folder
+
+Each workspace keeps the whole design of its website in one folder, `storage/workspaces/{workspace}/site/theme/`, so it can be versioned with git or copied on its own:
+
+```
+theme/
+  theme.json                    design settings
+  style.css                     custom CSS
+  regions/header.json           header and footer
+  regions/footer.json
+  layouts/{type}/detail.json    page layout of a content type
+  layouts/{type}/index.json     its list page
+  components/{name}.json        reusable components
+```
+
+Public pages load `style.css` after the generated theme styles. The builder previews unsaved CSS immediately, and theme revisions include both settings and CSS. You can also edit `style.css` directly; stylesheet versions and page caches account for its contents.
+
+Components are stored under their name, e.g. `components/hero-banner.json`, and layouts refer to them by that name. Renaming a component in the builder keeps its file name, so placements stay intact. The files contain no save times: saving without changes leaves them untouched, and the time shown as "last changed" is the file's modification time. Revisions are kept outside the folder, in `storage/workspaces/{workspace}/revisions/site/`. Settings, menus and forms belong to the site rather than its design and stay in `site/`. Website backups include all of it.
+
+Workspaces from earlier versions move their headers, footers, layouts and components into the theme folder on the first request after updating. Components with generated names such as `ce1f4a17586` get readable names, and every placement, also in revisions, is updated. Backups made before this change can still be restored. Existing `site/theme.json` files remain readable and move into the folder the next time the theme is saved.
+
 ## Languages
 
 Content types with locales can be published in several languages. Choose the website languages in **Overview**: the default language lives at the root (`/blog/hello`), others under their code (`/de/blog/hello`). Pages link their translations with `hreflang`.
