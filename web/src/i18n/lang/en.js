@@ -1363,7 +1363,7 @@ const messages = {
     'site.theme.corners': 'Corners',
     'site.theme.cornersHint': 'S, M and L are offered in the builder. The default corner is used by buttons, images, cards and “Theme default”; “Round” makes buttons pills and gives images and cards the L radius.',
     'site.theme.motion': 'Animations',
-    'site.theme.motionHint': 'How long entrance animations take, and how much later each stagger step starts. While scrolling, 0.1 s equals a tenth of the element coming into view.',
+    'site.theme.motionHint': 'How long entrance and hover effects take, and how much later each stagger step starts.',
     'site.theme.motionStagger': 'Delay per stagger step',
     'site.theme.motionPreview': 'Preview',
     'site.theme.defaultCorner': 'Default corner',

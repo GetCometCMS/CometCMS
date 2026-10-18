@@ -1368,7 +1368,7 @@ const messages = {
   'site.theme.corners': 'Ecken',
   'site.theme.cornersHint': 'S, M und L stehen im Builder zur Auswahl. Die Standard-Ecke nutzen Buttons, Bilder, Karten und „Theme-Standard“; „Rund“ macht Buttons zu Pillen und gibt Bildern und Karten den L-Radius.',
   'site.theme.motion': 'Animationen',
-  'site.theme.motionHint': 'Wie lange Einblend-Animationen dauern und wie viel später jede Staffelstufe beginnt. Beim Scrollen entsprechen 0,1 s einem Zehntel des Wegs, bis das Element sichtbar ist.',
+  'site.theme.motionHint': 'Wie lange Einblend- und Hover-Effekte dauern und wie viel später jede Staffelstufe beginnt.',
   'site.theme.motionStagger': 'Verzögerung pro Staffelstufe',
   'site.theme.motionPreview': 'Vorschau',
   'site.theme.defaultCorner': 'Standard-Ecke',

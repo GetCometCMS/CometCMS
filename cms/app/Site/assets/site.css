@@ -576,12 +576,11 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-mw-prose { max-width: 68ch; }
 
 /*
- * Entrance animations, CSS only. "Scroll" ties the animation to the element
- * entering the viewport where scroll timelines are supported and otherwise
- * plays on load. "Hover" transitions from the element's resting appearance
- * to a subtle effect and back. Theme speeds and stagger are unitless ms; while
- * scrolling, 100ms stand for 10% of the element's entry. Every animated
- * element resets its timing, so it never inherits a parent's.
+ * Entrance animations, CSS only. "Scroll" plays once on viewport entry where
+ * animation triggers are supported. Older browsers animate with entry scroll
+ * progress, or on load if view timelines are unsupported. "Hover" transitions
+ * from the resting appearance to a subtle effect and back. Theme speeds and
+ * stagger are unitless ms; every element resets its own timing.
  */
 .c-anim {
   --c-anim-ms: var(--motion-normal, 700);
@@ -626,13 +625,22 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
   .c-anim-hover.c-anim-zoom-out:hover { scale: 0.96; }
   .c-anim-hover.c-anim-blur:hover { filter: blur(1.5px); }
 }
-@supports (animation-timeline: view()) {
+@supports (animation-trigger: --c-anim-entry play-once) {
   .c-anim:not(.c-anim-load):not(.c-anim-hover) {
-    --c-anim-start: calc(var(--c-anim-step) * var(--motion-stagger, 120) * 0.1%);
+    /* Each element watches its own entry, including nested animated nodes. */
+    trigger-scope: --c-anim-entry;
+    timeline-trigger: --c-anim-entry view() entry 0% exit 100%;
+    animation-trigger: --c-anim-entry play-once;
+  }
+}
+@supports (animation-timeline: view()) and (not (animation-trigger: --c-anim-entry play-once)) {
+  .c-anim:not(.c-anim-load):not(.c-anim-hover) {
+    /* Even long theme timings must finish by the time entry is complete. */
+    --c-anim-start: min(60%, calc(var(--c-anim-step) * var(--motion-stagger, 120) * 0.1%));
     animation-duration: auto;
     animation-delay: 0s;
     animation-timeline: view();
-    animation-range: entry var(--c-anim-start) entry calc(var(--c-anim-start) + var(--c-anim-ms) * 0.1%);
+    animation-range: entry var(--c-anim-start) entry min(100%, calc(var(--c-anim-start) + var(--c-anim-ms) * 0.1%));
   }
 }
 /* Sideways entrances must not widen the page. */

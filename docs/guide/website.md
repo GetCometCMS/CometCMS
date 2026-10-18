@@ -60,6 +60,12 @@ Give elements descriptive names to find your way around larger layouts. In the *
 
 If a field is renamed or removed, elements bound to it render nothing and the builder marks them.
 
+### Animations
+
+Under **Style → Animation**, choose an effect and when it plays. **When scrolled into view** plays the entrance once as the element first appears in the viewport, using the theme's speed and stagger delay. **When the page opens** plays on load. **On Hover** starts from the element's current appearance, gently moves, scales, dims or blurs it, and returns when the pointer leaves. Reduced-motion preferences disable these effects.
+
+Scroll inside the preview to test entry animations. Each preview update creates a new page and restores its scroll position, so elements already in view can play immediately. In browsers without [CSS scroll-triggered animations](https://developer.chrome.com/blog/scroll-triggered-animations), entrances progress with scrolling instead; an element already fully in view then looks finished when the effect is enabled. Browsers without view timelines play entrances on page load.
+
 ### Responsive column order
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
