@@ -29,7 +29,7 @@
           </router-link>
         </div>
         <p class="px-2 text-[11px] text-slate-400">
-          {{ typeLabel(form.type) }} · {{ t("site.forms.fieldCount", { count: form.fields }) }}
+          {{ typeLabel(form.type) }}
         </p>
       </li>
     </ul>

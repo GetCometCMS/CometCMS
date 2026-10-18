@@ -75,17 +75,15 @@
           </button>
         </div>
 
-        <span class="mx-0.5 hidden h-6 w-px bg-slate-200 xl:block" aria-hidden="true"></span>
-
         <span
+          v-if="saveStatus !== 'saved'"
           class="hidden items-center gap-1.5 whitespace-nowrap text-xs xl:flex"
           :class="saveStatus === 'unsaved' ? 'font-medium text-amber-700' : 'text-slate-500'"
           role="status"
           :title="saveStatus === 'unsaved' ? t('site.builder.status.unsavedHint') : undefined"
         >
           <Icon v-if="saveStatus === 'saving'" icon="mdi:loading" class="h-3.5 w-3.5 animate-spin" />
-          <span v-else-if="saveStatus === 'unsaved'" class="h-2 w-2 rounded-full bg-amber-400"></span>
-          <Icon v-else icon="mdi:check-circle-outline" class="h-3.5 w-3.5 text-emerald-500" />
+          <span v-else class="h-2 w-2 rounded-full bg-amber-400"></span>
           {{ t(`site.builder.status.${saveStatus}`) }}
         </span>
 

@@ -11,16 +11,6 @@
           <p class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ description }}</p>
         </div>
       </div>
-      <div class="mt-4 grid grid-cols-2 gap-2">
-        <div class="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-inset ring-slate-200">
-          <p class="text-lg font-semibold leading-6 tabular-nums text-slate-900">{{ counts.sections }}</p>
-          <p class="text-xs text-slate-500">{{ t("site.builder.overview.sections") }}</p>
-        </div>
-        <div class="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-inset ring-slate-200">
-          <p class="text-lg font-semibold leading-6 tabular-nums text-slate-900">{{ counts.elements }}</p>
-          <p class="text-xs text-slate-500">{{ t("site.builder.overview.elements") }}</p>
-        </div>
-      </div>
     </section>
 
     <section class="p-4">
@@ -62,7 +52,6 @@
 <script setup>
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
-import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
 const props = defineProps({
@@ -74,24 +63,7 @@ const props = defineProps({
 });
 defineEmits(["open-panel", "open-guide"]);
 
-const builder = useSiteBuilder();
 const { t } = useI18n();
-
-const STRUCTURE_KINDS = new Set(["section", "row", "column"]);
-
-const counts = computed(() => {
-  let sections = 0;
-  let elements = 0;
-  const walk = (nodes) => {
-    for (const node of nodes ?? []) {
-      if (node.kind === "section") sections++;
-      else if (!STRUCTURE_KINDS.has(node.kind)) elements++;
-      walk(node.children);
-    }
-  };
-  walk(builder.nodes.value);
-  return { sections, elements };
-});
 
 const actions = computed(() => [
   { key: "add", panel: "add", icon: "mdi:plus-box-outline" },

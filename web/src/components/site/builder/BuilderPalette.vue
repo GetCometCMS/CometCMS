@@ -19,15 +19,15 @@
           :key="preset.join('-')"
           type="button"
           draggable="true"
-          class="group flex flex-col items-stretch gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 shadow-xs transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
+          class="group/preset flex flex-col items-stretch gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 shadow-xs transition hover:border-theme-300 hover:bg-theme-50/40 hover:text-theme-700"
           style="cursor: grab"
           :title="t('site.builder.presetHint')"
           @click="builder.insert(sectionPreset(builder.spec.value, preset))"
           @dragstart="start($event, () => sectionPreset(builder.spec.value, preset))"
           @dragend="end"
         >
-          <span class="flex h-6 w-full gap-1 rounded-md bg-slate-50 p-1 ring-1 ring-inset ring-slate-200 group-hover:bg-white">
-            <span v-for="(span, index) in preset" :key="index" class="rounded-[3px] bg-theme-200 group-hover:bg-theme-300" :style="{ flex: span }"></span>
+          <span class="flex h-6 w-full gap-1 rounded-md bg-slate-50 p-1 ring-1 ring-inset ring-slate-200 group-hover/preset:bg-white">
+            <span v-for="(span, index) in preset" :key="index" class="rounded-[3px] bg-theme-200 group-hover/preset:bg-theme-300" :style="{ flex: span }"></span>
           </span>
           <span class="text-left">{{ t(`site.builder.preset.${preset.join("-")}`) }}</span>
         </button>
