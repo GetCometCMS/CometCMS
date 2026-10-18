@@ -10,7 +10,7 @@ The headless API is disabled for new types. Enable **Expose content fields throu
 
 ## Creating a content type
 
-1. In the sidebar, click **Content types**.
+1. In the sidebar, under **Administration**, click **Content types**.
 2. Click **New content type**.
 3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
 4. Choose the **Content model**:
@@ -21,7 +21,7 @@ The headless API is disabled for new types. Enable **Expose content fields throu
 7. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
 8. Click **Save**.
 
-Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
+Single page content types appear under **Content** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
 
 ## Editing a content type
 

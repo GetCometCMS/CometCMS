@@ -1,9 +1,6 @@
 <template>
   <div>
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-950">{{ t("connect.title") }}</h1>
-      <p class="mt-1 text-sm text-slate-500">{{ t("connect.description") }}</p>
-    </div>
+    <PageHeader :title="t('connect.title')" :description="t('connect.description')" />
 
     <TabNavigation
       class="mb-6"
@@ -32,7 +29,7 @@
         <div>
           <div class="flex items-center gap-2">
             <Icon icon="mdi:server-network" class="h-5 w-5 text-theme-600" />
-            <h2 class="text-base font-semibold text-slate-900">
+            <h2 class="card-title">
               {{ t("connect.mcpEndpoint") }}
             </h2>
           </div>
@@ -79,6 +76,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { computed, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useRoute } from "vue-router";

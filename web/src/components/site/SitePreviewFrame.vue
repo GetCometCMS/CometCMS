@@ -36,7 +36,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api } from "../../api/index.js";
 import { useI18n } from "../../i18n/index.js";
-import { withPreviewStyles } from "../../composables/previewDocument.js";
+import { patchDocument, withPreviewStyles } from "../../composables/previewDocument.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -52,7 +52,8 @@ const props = defineProps({
   headCss: { type: String, default: "" },
 });
 
-const emit = defineEmits(["ready", "rendered"]);
+/** ready: a new document loaded; updated: the loaded one was patched in place. */
+const emit = defineEmits(["ready", "updated", "rendered"]);
 const { t } = useI18n();
 const containerRef = ref(null);
 const iframeRef = ref(null);
@@ -64,6 +65,8 @@ const containerHeight = ref(0);
 let timer = null;
 let sequence = 0;
 let pendingScroll = 0;
+/** Whether the iframe holds a loaded document that renders can patch. */
+let documentLoaded = false;
 let resizeObserver = null;
 
 const deviceWidth = computed(() => DEVICE_WIDTHS[props.device] ?? DEVICE_WIDTHS.desktop);
@@ -81,6 +84,16 @@ const frameBoxStyle = computed(() => ({
   height: `${Math.max(320, containerHeight.value)}px`,
 }));
 
+/**
+ * The frame is scaled down to fit; editor overlays inside it (labels, grips)
+ * divide their sizes by this so they stay readable at any zoom.
+ */
+function applyScale() {
+  iframeRef.value?.contentDocument?.documentElement?.style.setProperty("--cometcms-ui-scale", String(1 / scale.value));
+}
+
+watch(scale, applyScale);
+
 async function render() {
   if (!props.body) return;
   const current = ++sequence;
@@ -89,8 +102,18 @@ async function render() {
   try {
     const res = await api.site.preview(props.body);
     if (current !== sequence) return;
-    pendingScroll = iframeRef.value?.contentWindow?.scrollY ?? 0;
-    srcdoc.value = withPreviewStyles(res.data?.html ?? "", props.headCss);
+    const html = withPreviewStyles(res.data?.html ?? "", props.headCss);
+    const doc = documentLoaded ? iframeRef.value?.contentDocument : null;
+    if (doc?.body && html) {
+      // Reloading the iframe would blank it for a frame on every edit.
+      patchDocument(doc, html);
+      applyScale();
+      emit("updated", doc);
+    } else {
+      pendingScroll = iframeRef.value?.contentWindow?.scrollY ?? 0;
+      documentLoaded = false;
+      srcdoc.value = html;
+    }
     error.value = "";
     emit("rendered");
   } catch (err) {
@@ -108,6 +131,8 @@ function schedule(immediate = false) {
 function onLoad() {
   const doc = iframeRef.value?.contentDocument;
   if (!doc || !srcdoc.value) return;
+  documentLoaded = true;
+  applyScale();
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);

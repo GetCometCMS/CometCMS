@@ -1,15 +1,7 @@
 <template>
   <div class="space-y-6">
-    <div
-      class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
-    >
-      <div>
-        <h1 class="text-2xl font-bold text-slate-950">
-          {{ t("media.title") }}
-        </h1>
-        <p class="mt-1 text-sm text-slate-500">{{ t("media.description") }}</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
+    <PageHeader class="!mb-0" :title="t('media.title')" :description="t('media.description')">
+      <template #actions>
         <button
           v-if="canUpload"
           type="button"
@@ -19,8 +11,8 @@
           <Icon icon="mdi:upload" class="h-4 w-4" />
           {{ t("media.addFiles") }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 lg:grid-cols-4">
       <MediaCategorySidebar
@@ -50,7 +42,7 @@
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <h2 class="text-base font-semibold text-slate-900">
+              <h2 class="card-title">
                 {{ t("media.filesTitle") }}
               </h2>
               <p class="mt-1 text-xs text-slate-500">
@@ -898,6 +890,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { ADMIN_API_BASE } from "../basePath.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";

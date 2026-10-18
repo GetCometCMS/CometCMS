@@ -1,24 +1,19 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">
-          {{ t("updates.title") }}
-        </h1>
-        <p class="mt-1 text-sm text-slate-500">
-          {{ t("updates.description") }}
-        </p>
-      </div>
-      <button
-        v-if="auth.can('updates.check')"
-        type="button"
-        class="btn-primary"
-        :disabled="checking || !status?.enabled"
-        @click="checkForUpdates"
-      >
-        {{ checking ? t("updates.checking") : t("updates.check") }}
-      </button>
-    </div>
+    <PageHeader :title="t('updates.title')" :description="t('updates.description')">
+      <template #actions>
+        <button
+          v-if="auth.can('updates.check')"
+          type="button"
+          class="btn-primary"
+          :disabled="checking || !status?.enabled"
+          @click="checkForUpdates"
+        >
+          <Icon icon="mdi:refresh" class="h-4 w-4" :class="{ 'animate-spin': checking }" />
+          {{ checking ? t("updates.checking") : t("updates.check") }}
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="space-y-6">
       <div class="card p-6">
@@ -71,7 +66,7 @@
           <div v-if="status.latest" class="border-t border-slate-100 pt-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 class="text-base font-semibold text-slate-800">
+                <h2 class="card-title">
                   {{ status.latest.name }}
                 </h2>
                 <p
@@ -182,7 +177,7 @@
       </div>
 
       <div class="card p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-3">
+        <h2 class="card-title mb-3">
           {{ t("updates.preservedContent") }}
         </h2>
         <ul class="space-y-2 text-sm text-slate-600">
@@ -200,7 +195,7 @@
       </div>
 
       <div class="card p-6">
-        <h2 class="text-sm font-semibold text-slate-700 mb-3">
+        <h2 class="card-title mb-3">
           {{ t("updates.getHelp") }}
         </h2>
         <p class="text-sm text-slate-600">
@@ -232,6 +227,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";

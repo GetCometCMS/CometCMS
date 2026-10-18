@@ -1,9 +1,8 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">{{ t("backup.title") }}</h1>
-      <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+    <PageHeader :title="t('backup.title')" :description="t('backup.description')">
+      <template #actions>
         <button
           type="button"
           class="btn-secondary"
@@ -37,8 +36,8 @@
           <Icon icon="mdi:archive-plus-outline" class="w-4 h-4" />
           {{ t("backup.newBackup") }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Collapsible: Create Backup -->
     <div v-if="activePanel === 'create'" class="card p-6 mb-6">
@@ -502,6 +501,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { computed, onMounted, reactive, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";

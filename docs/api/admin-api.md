@@ -65,7 +65,7 @@ Workspace creation accepts `label`, `slug`, and optional `starter_template` (`we
 
 List and reorder responses include available field type names in `meta.field_types`.
 
-Content type schemas include `singleton`. When `singleton` is `true`, the type represents one fixed entry instead of a repeatable collection. Reordering applies to both collections and single page types; the admin sidebar keeps their relative order within the **Collections** and **Single** sections.
+Content type schemas include `singleton`. When `singleton` is `true`, the type represents one fixed entry instead of a repeatable collection. Reordering applies to both collections and single page types; the admin sidebar lists them in this order under **Content**.
 
 ---
 

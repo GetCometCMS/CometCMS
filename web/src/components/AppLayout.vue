@@ -14,13 +14,15 @@
     <Transition name="sidebar">
       <aside
         id="primary-navigation"
-        class="fixed inset-y-0 left-0 z-40 w-56 flex-shrink-0 bg-sidebar flex flex-col lg:static lg:translate-x-0 lg:z-auto"
+        class="fixed inset-y-0 left-0 z-40 w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col lg:static lg:translate-x-0 lg:z-auto"
         :class="
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         "
       >
-        <div class="px-3 py-1 pb-2 flex items-center justify-between">
-          <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto" />
+        <div class="flex h-16 shrink-0 items-center justify-between px-5">
+          <router-link to="/dashboard" class="flex items-center" @click="sidebarOpen = false">
+            <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto" />
+          </router-link>
           <button
             type="button"
             :aria-label="t('app.actions.closeNavigation')"
@@ -40,10 +42,10 @@
             :aria-expanded="workspaceSwitcherOpen"
             aria-haspopup="menu"
             @click="workspaceSwitcherOpen = !workspaceSwitcherOpen"
-            class="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-colors hover:bg-white/10 group"
+            class="sidebar-surface w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 group"
           >
             <div
-              class="w-7 h-7 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none"
+              class="w-7 h-7 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none shadow-sm"
             >
               <img
                 v-if="activeWorkspace.has_icon"
@@ -54,17 +56,16 @@
               <span v-else>{{ workspaceInitials }}</span>
             </div>
             <div class="flex-1 min-w-0 text-left">
-              <div
-                class="text-xs font-semibold truncate leading-tight"
-                style="color: rgb(var(--color-sidebar-text))"
-              >
+              <div class="sidebar-label !p-0 !text-[10px] leading-tight">
+                {{ t("app.nav.workspace") }}
+              </div>
+              <div class="text-[13px] font-semibold truncate leading-tight">
                 {{ activeWorkspaceLabel }}
               </div>
             </div>
             <Icon
               icon="mdi:unfold-more-horizontal"
-              class="w-4 h-4 opacity-40 shrink-0 group-hover:opacity-70 transition-opacity"
-              style="color: rgb(var(--color-sidebar-text))"
+              class="w-4 h-4 opacity-50 shrink-0 group-hover:opacity-80 transition-opacity"
             />
           </button>
 
@@ -72,200 +73,133 @@
             <div
               v-if="workspaceSwitcherOpen"
               role="menu"
-              class="absolute left-1 right-1 top-full z-50 mt-0.5 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden"
+              class="absolute left-3 right-3 top-full z-50 mt-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             >
-              <div class="py-1">
-                <button
-                  v-for="workspace in workspaces"
-                  :key="workspace.slug"
-                  type="button"
-                  role="menuitemradio"
-                  :aria-checked="workspace.slug === selectedWorkspace"
-                  @click="switchWorkspace(workspace.slug)"
-                  class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors"
-                  :class="
-                    workspace.slug === selectedWorkspace
-                      ? 'bg-theme-50 text-theme-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  "
-                >
-                  <div
-                    class="w-6 h-6 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none"
-                  >
-                    <img
-                      v-if="workspace.has_icon"
-                      :src="`${ADMIN_API_BASE}/workspaces/${workspace.slug}/icon?v=${iconVersions[workspace.slug] ?? 0}`"
-                      class="w-full h-full object-cover"
-                      :alt="workspace.label"
-                    />
-                    <span v-else>{{
-                      workspaceInitials_(workspace.label)
-                    }}</span>
-                  </div>
-                  <span class="flex-1 truncate font-medium">{{
-                    workspace.label
-                  }}</span>
-                  <Icon
-                    v-if="workspace.slug === selectedWorkspace"
-                    icon="mdi:check"
-                    class="w-3.5 h-3.5 shrink-0 text-theme-600"
-                  />
-                </button>
+              <div class="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                {{ t("app.nav.switchWorkspace") }}
               </div>
-              <template v-if="auth.can('workspaces.manage')">
-                <div class="border-t border-slate-100" />
-                <div class="py-1">
-                  <router-link
-                    to="/workspaces"
-                    @click="
-                      workspaceSwitcherOpen = false;
-                      sidebarOpen = false;
-                    "
-                    class="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    <Icon icon="mdi:cog-outline" class="w-3.5 h-3.5" />
-                    {{ t("workspaces.manageCta") }}
-                  </router-link>
+              <button
+                v-for="workspace in workspaces"
+                :key="workspace.slug"
+                type="button"
+                role="menuitemradio"
+                :aria-checked="workspace.slug === selectedWorkspace"
+                @click="switchWorkspace(workspace.slug)"
+                class="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-left transition-colors"
+                :class="
+                  workspace.slug === selectedWorkspace
+                    ? 'bg-theme-50 text-theme-700'
+                    : 'text-slate-700 hover:bg-slate-50'
+                "
+              >
+                <div
+                  class="w-6 h-6 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none"
+                >
+                  <img
+                    v-if="workspace.has_icon"
+                    :src="`${ADMIN_API_BASE}/workspaces/${workspace.slug}/icon?v=${iconVersions[workspace.slug] ?? 0}`"
+                    class="w-full h-full object-cover"
+                    :alt="workspace.label"
+                  />
+                  <span v-else>{{
+                    workspaceInitials_(workspace.label)
+                  }}</span>
                 </div>
+                <span class="flex-1 truncate font-medium">{{
+                  workspace.label
+                }}</span>
+                <Icon
+                  v-if="workspace.slug === selectedWorkspace"
+                  icon="mdi:check"
+                  class="w-4 h-4 shrink-0 text-theme-600"
+                />
+              </button>
+              <template v-if="auth.can('workspaces.manage')">
+                <div class="my-1 border-t border-slate-100" />
+                <router-link
+                  to="/workspaces"
+                  @click="
+                    workspaceSwitcherOpen = false;
+                    sidebarOpen = false;
+                  "
+                  class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                >
+                  <Icon icon="mdi:cog-outline" class="w-4 h-4 text-slate-400" />
+                  {{ t("workspaces.manageCta") }}
+                </router-link>
               </template>
             </div>
           </Transition>
         </div>
 
+        <div class="px-3 pb-1">
+          <button
+            type="button"
+            class="sidebar-surface flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm"
+            aria-haspopup="dialog"
+            @click="paletteOpen = true; sidebarOpen = false"
+          >
+            <Icon icon="mdi:magnify" class="h-[18px] w-[18px] shrink-0 sidebar-muted" />
+            <span class="flex-1 text-left sidebar-muted">{{ t("app.search.open") }}</span>
+            <span class="sidebar-kbd">{{ shortcutLabel }}</span>
+          </button>
+        </div>
+
         <nav
           :aria-label="t('app.actions.primaryNavigation')"
-          class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4"
+          class="nav-scrollbar flex-1 overflow-y-auto px-3 pb-4"
         >
-          <router-link
-            to="/dashboard"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:home-outline" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.dashboard") }}
-          </router-link>
-
-          <router-link
-            v-if="auth.can('schema.read')"
-            to="/content-types"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:view-list-outline" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.contentTypes") }}
-          </router-link>
-
-          <router-link
-            to="/media"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon
-              icon="mdi:image-multiple-outline"
-              class="w-4 h-4 opacity-60"
-            />
-            {{ t("app.nav.media") }}
-          </router-link>
-
-          <template
-            v-if="contentNavTypes.length > 0 || allSidebarTypes.length === 0"
-          >
-            <div
-              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-theme-500"
-            >
-              {{ t("app.nav.content") }}
+          <div v-for="group in navGroups" :key="group.key" role="group" :aria-label="group.label">
+            <div v-if="group.label" class="sidebar-label" aria-hidden="true">{{ group.label }}</div>
+            <div class="space-y-0.5" :class="{ 'pt-2': !group.label }">
+              <router-link
+                v-for="item in group.items"
+                :key="item.key"
+                :to="item.to"
+                class="nav-link"
+                :class="{ 'is-active': isActive(item, route.path) }"
+                :aria-current="isActive(item, route.path) ? 'page' : undefined"
+                @click="sidebarOpen = false"
+              >
+                <Icon :icon="item.icon" class="nav-icon" />
+                <span class="truncate">{{ item.label }}</span>
+              </router-link>
+              <router-link
+                v-if="group.key === 'content' && allTypes.length === 0 && auth.can('schema.create')"
+                to="/content-types/new"
+                class="nav-link opacity-70"
+                @click="sidebarOpen = false"
+              >
+                <Icon icon="mdi:plus" class="nav-icon" />
+                <span class="truncate">{{ t("app.nav.addType") }}</span>
+              </router-link>
             </div>
-
-            <router-link
-              v-for="type in contentNavTypes"
-              :key="type.name"
-              :to="`/content/${type.name}`"
-              class="nav-link"
-              @click="sidebarOpen = false"
-            >
-              <Icon
-                :icon="type.icon || defaultContentIcon(type)"
-                class="w-4 h-4 opacity-60 shrink-0"
-              />
-              {{ type.label }}
-            </router-link>
-
-            <router-link
-              v-if="allSidebarTypes.length === 0 && auth.can('schema.create')"
-              to="/content-types/new"
-              class="nav-link text-slate-400 italic"
-              @click="sidebarOpen = false"
-            >
-              <Icon icon="mdi:plus" class="w-4 h-4 opacity-60 shrink-0" />
-              {{ t("app.nav.addType") }}
-            </router-link>
-          </template>
-
-          <div
-            class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
-          >
-            {{ t("app.nav.system") }}
           </div>
-
-          <router-link
-            v-if="showPageBuilder"
-            to="/page-builder"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:web" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.website") }}
-          </router-link>
-
-          <router-link
-            v-if="auth.can('users.read')"
-            to="/users"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:account-group-outline" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.users") }}
-          </router-link>
-
-          <router-link
-            v-if="auth.can('backups.read')"
-            to="/backups"
-            class="nav-link"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:backup-restore" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.backupRestore") }}
-          </router-link>
-
-          <router-link
-            to="/connect/access-tokens"
-            class="nav-link"
-            :class="{
-              'router-link-active':
-                router.currentRoute.value.path.startsWith('/connect'),
-            }"
-            @click="sidebarOpen = false"
-          >
-            <Icon icon="mdi:connection" class="w-4 h-4 opacity-60" />
-            {{ t("app.nav.connect") }}
-          </router-link>
         </nav>
 
         <!-- User footer -->
         <div
           ref="accountMenuRef"
-          class="relative border-t border-sidebar-border px-3 py-3"
+          class="relative border-t border-sidebar-border p-3"
         >
           <Transition name="ws-dropdown">
             <div
               v-if="accountMenuOpen"
               role="menu"
-              class="absolute bottom-full left-3 right-3 z-50 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+              class="absolute bottom-full left-3 right-3 z-50 mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             >
+              <div class="border-b border-slate-100 px-2.5 pb-2.5 pt-1.5 mb-1">
+                <div class="truncate text-sm font-semibold text-slate-900">
+                  {{ auth.user?.display_name || auth.user?.username }}
+                </div>
+                <div class="truncate text-xs text-slate-500">
+                  {{ auth.user?.email || auth.user?.username }}
+                </div>
+              </div>
               <RouterLink
                 to="/profile"
                 role="menuitem"
-                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                 @click="closeAccountMenu"
               >
                 <Icon
@@ -277,7 +211,7 @@
               <RouterLink
                 to="/update"
                 role="menuitem"
-                class="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                 @click="closeAccountMenu"
               >
                 <Icon
@@ -293,7 +227,7 @@
               <button
                 type="button"
                 role="menuitem"
-                class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
                 @click="handleLogout"
               >
                 <Icon icon="mdi:logout" class="h-4 w-4 text-slate-400" />
@@ -304,7 +238,7 @@
 
           <button
             type="button"
-            class="sidebar-profile-link flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-xs transition-colors hover:bg-sidebar-hover"
+            class="sidebar-profile-link flex w-full min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-sidebar-hover"
             aria-haspopup="menu"
             :aria-expanded="accountMenuOpen"
             @click="accountMenuOpen = !accountMenuOpen"
@@ -320,12 +254,17 @@
               />
               <span v-else>{{ auth.user?.username?.[0]?.toUpperCase() }}</span>
             </div>
-            <span class="truncate">{{
-              auth.user?.display_name || auth.user?.username
-            }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium leading-tight">{{
+                auth.user?.display_name || auth.user?.username
+              }}</span>
+              <span class="sidebar-muted block truncate text-xs leading-tight">{{
+                roleLabel
+              }}</span>
+            </span>
             <Icon
               icon="mdi:chevron-up"
-              class="ml-auto h-4 w-4 shrink-0 opacity-50 transition-transform"
+              class="h-4 w-4 shrink-0 opacity-50 transition-transform"
               :class="{ 'rotate-180': accountMenuOpen }"
             />
           </button>
@@ -350,12 +289,21 @@
           <Icon icon="mdi:menu" class="w-6 h-6" />
         </button>
         <img :src="logoSrc" alt="CometCMS" class="brand-logo h-7 w-auto" />
+        <button
+          type="button"
+          class="sidebar-action ml-auto p-1 transition-colors"
+          :aria-label="t('app.search.open')"
+          @click="paletteOpen = true"
+        >
+          <Icon icon="mdi:magnify" class="h-6 w-6" />
+        </button>
       </header>
 
       <ToastStack />
+      <CommandPalette v-model:open="paletteOpen" />
 
       <main class="flex-1 overflow-y-auto">
-        <div class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-8 sm:py-8">
+        <div class="max-w-7xl mx-auto w-full px-4 py-6 sm:px-8 sm:py-10">
           <slot />
         </div>
       </main>
@@ -367,7 +315,7 @@
 <script setup>
 import { ADMIN_API_BASE, adminAsset } from "../basePath.js";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "../stores/auth.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
@@ -382,14 +330,24 @@ import { logoForTheme } from "../theme.js";
 import { useI18n } from "../i18n/index.js";
 import ApiEndpointFooter from "./ApiEndpointFooter.vue";
 import ToastStack from "./ToastStack.vue";
+import CommandPalette from "./CommandPalette.vue";
+import { useNavigation } from "../composables/useNavigation.js";
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const { groups: navGroups, allTypes, isActive } = useNavigation();
+const paletteOpen = ref(false);
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const shortcutLabel = isMac ? "⌘K" : "Ctrl K";
+const roleLabel = computed(() => {
+  const role = auth.user?.role;
+  if (!role) return "";
+  return typeof role === "string" ? role.charAt(0).toUpperCase() + role.slice(1) : role.label ?? "";
+});
 const typesStore = useContentTypesStore();
 const site = useSiteStore();
 const { t } = useI18n();
-const defaultCollectionIcon = "mdi:file-document-outline";
-const defaultPageIcon = "mdi:file-document-edit-outline";
 const avatarVersion = ref(Date.now());
 const appVersion = ref("");
 const sidebarOpen = ref(false);
@@ -433,6 +391,13 @@ function handleSwitcherOutsideClick(e) {
   }
 }
 
+function handleGlobalShortcut(event) {
+  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    paletteOpen.value = !paletteOpen.value;
+  }
+}
+
 function closeAccountMenu() {
   accountMenuOpen.value = false;
   sidebarOpen.value = false;
@@ -445,21 +410,7 @@ function handleWorkspaceSync() {
 // PHP serves the document from a different port.
 const assetBase = adminAsset("");
 const logoSrc = computed(() => logoForTheme(auth.user?.theme, assetBase));
-const allSidebarTypes = computed(() =>
-  typesStore.list.length > 0
-    ? typesStore.list
-    : (auth.user?.accessible_content_types ?? []),
-);
-const contentNavTypes = computed(() =>
-  allSidebarTypes.value.filter((type) =>
-    auth.can("content.read", `content:${type.name}:*`),
-  ),
-);
 
-// Only offered once a content type has the Page Builder enabled.
-const showPageBuilder = computed(
-  () => auth.can("site.manage") && site.pageBuilderActive,
-);
 // Types are refetched after creating, deleting or switching workspaces.
 watch(
   () => typesStore.list,
@@ -469,9 +420,6 @@ watch(
   { immediate: true },
 );
 
-function defaultContentIcon(type) {
-  return type.singleton ? defaultPageIcon : defaultCollectionIcon;
-}
 
 onMounted(() => {
   if (auth.can("workspaces.read")) {
@@ -480,11 +428,13 @@ onMounted(() => {
   typesStore.fetch();
   fetchAppInfo();
   document.addEventListener("click", handleSwitcherOutsideClick);
+  document.addEventListener("keydown", handleGlobalShortcut);
   window.addEventListener(workspaceSyncEvent, handleWorkspaceSync);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleSwitcherOutsideClick);
+  document.removeEventListener("keydown", handleGlobalShortcut);
   window.removeEventListener(workspaceSyncEvent, handleWorkspaceSync);
 });
 

@@ -11,7 +11,6 @@
         @keydown.esc.stop.prevent="search = ''"
       />
     </div>
-    <p class="px-1 text-xs text-slate-500">{{ t("site.builder.paletteHint") }}</p>
     <ul class="space-y-2">
       <li v-for="form in forms" :key="form.id" class="space-y-1">
         <div class="flex items-center gap-1">
@@ -30,7 +29,7 @@
           </router-link>
         </div>
         <p class="px-2 text-[11px] text-slate-400">
-          {{ typeLabel(form.type) }} · {{ t("site.forms.fieldCount", { count: form.fields }) }}
+          {{ typeLabel(form.type) }}
         </p>
       </li>
     </ul>

@@ -1,31 +1,26 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <router-link
-          to="/users"
-          class="text-sm text-slate-500 hover:text-slate-800 transition-colors"
+    <PageHeader :title="t('app.nav.usersRoles')" :description="t('roles.description')">
+      <template #actions>
+        <button
+          v-if="auth.can('roles.create')"
+          type="button"
+          @click="openCreate"
+          class="btn-primary"
         >
-          {{ t("roles.usersTokens") }}
-        </router-link>
-        <h1 class="text-2xl font-bold text-slate-900 mt-1">
-          {{ t("roles.title") }}
-        </h1>
-      </div>
-      <button
-        v-if="auth.can('roles.create')"
-        @click="openCreate"
-        class="btn-primary"
-      >
-        {{ t("roles.new") }}
-      </button>
-    </div>
+          <Icon icon="mdi:plus" class="h-4 w-4" />
+          {{ t("roles.new") }}
+        </button>
+      </template>
+    </PageHeader>
+
+    <UsersRolesTabs active="roles" />
 
     <LoadingSpinner v-if="loading" />
 
     <div v-else class="space-y-4">
       <div v-if="showCreate" class="card p-5">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">
+        <h2 class="card-title mb-4">
           {{ t("roles.createTitle") }}
         </h2>
         <div class="grid gap-4 md:grid-cols-2">
@@ -73,12 +68,12 @@
                 class="badge bg-slate-100 text-slate-600"
                 :title="t('roles.lockedHint')"
               >
-                <Icon icon="mdi:lock-outline" class="mr-1 h-3 w-3" aria-hidden="true" />
+                <Icon icon="mdi:lock-outline" class="h-3 w-3" aria-hidden="true" />
                 {{ t("roles.locked") }}
               </span>
             </h2>
             <p v-if="role.locked" class="sr-only">{{ t("roles.lockedHint") }}</p>
-            <p class="text-xs text-slate-400">{{ role.id }}</p>
+            <p class="font-mono text-xs text-slate-500">{{ role.id }}</p>
           </div>
           <div class="flex gap-2">
             <button
@@ -165,6 +160,8 @@
 import { onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import PageHeader from "../components/PageHeader.vue";
+import UsersRolesTabs from "../components/UsersRolesTabs.vue";
 import PermissionBadges from "../components/PermissionBadges.vue";
 import PermissionGrantsEditor from "../components/PermissionGrantsEditor.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";

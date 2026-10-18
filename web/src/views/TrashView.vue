@@ -1,24 +1,22 @@
 <template>
   <div>
-    <div class="flex items-center gap-3 mb-6">
-      <router-link
-        :to="`/content/${collection}`"
-        class="text-slate-500 hover:text-slate-800 transition-colors"
-      >
-        <Icon icon="mdi:chevron-left" class="w-5 h-5" />
-      </router-link>
-      <h1 class="text-2xl font-bold text-slate-900 capitalize">
-        {{ t("trash.title", { collection }) }}
-      </h1>
-      <button
-        v-if="items.length > 0"
-        type="button"
-        class="btn-danger ml-auto"
-        @click="showEmptyModal = true"
-      >
-        {{ t("trash.emptyAction") }}
-      </button>
-    </div>
+    <PageHeader
+      :title="t('trash.heading')"
+      :description="t('trash.description')"
+      :back="{ to: `/content/${collection}`, label: typeLabel }"
+    >
+      <template #actions>
+        <button
+          v-if="items.length > 0"
+          type="button"
+          class="btn-danger-subtle"
+          @click="showEmptyModal = true"
+        >
+          <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
+          {{ t("trash.emptyAction") }}
+        </button>
+      </template>
+    </PageHeader>
 
     <LoadingSpinner v-if="loading" />
 
@@ -30,48 +28,35 @@
     </div>
 
     <template v-else>
-      <div class="card overflow-hidden">
-        <table class="w-full">
+      <div v-if="items.length === 0" class="card">
+        <EmptyState
+          icon="mdi:trash-can-outline"
+          :title="t('trash.emptyForCollection')"
+          :description="t('trash.emptyHint')"
+        />
+      </div>
+      <div v-else class="card overflow-x-auto">
+        <table class="data-table">
           <thead>
-            <tr class="bg-slate-50 border-b border-slate-200">
-              <th
-                class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-              >
-                {{ t("trash.titleColumn") }}
-              </th>
-              <th
-                class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-              >
-                {{ t("trash.deleted") }}
-              </th>
-              <th
-                class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3"
-              >
-                {{ t("trash.status") }}
-              </th>
-              <th class="px-4 py-3"></th>
+            <tr>
+              <th>{{ t("trash.titleColumn") }}</th>
+              <th>{{ t("trash.deleted") }}</th>
+              <th>{{ t("trash.status") }}</th>
+              <th><span class="sr-only">{{ t("common.moreActions") }}</span></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="items.length === 0">
-              <td
-                colspan="4"
-                class="px-4 py-10 text-center text-slate-500 text-sm"
-              >
-                {{ t("trash.emptyForCollection") }}
-              </td>
-            </tr>
-            <tr v-for="item in items" :key="item.id" class="hover:bg-slate-50">
-              <td class="px-4 py-3 text-sm font-medium text-slate-900">
+          <tbody>
+            <tr v-for="item in items" :key="item.id">
+              <td class="font-medium text-slate-900">
                 {{ item.title ?? item.id }}
               </td>
-              <td class="px-4 py-3 text-sm text-slate-500">
+              <td class="whitespace-nowrap text-slate-500">
                 {{ formatDate(item.deleted_at) }}
               </td>
-              <td class="px-4 py-3 text-sm">
+              <td>
                 <span :class="`badge-${item.status}`">{{ formatStatus(item.status) }}</span>
               </td>
-              <td class="px-4 py-3 text-right">
+              <td class="text-right">
                 <div class="flex items-center justify-end gap-2">
                   <button
                     type="button"
@@ -79,6 +64,7 @@
                     :disabled="restoringId === item.id"
                     @click="restore(item)"
                   >
+                    <Icon icon="mdi:restore" class="h-3.5 w-3.5" />
                     {{
                       restoringId === item.id
                         ? t("trash.restoring")
@@ -87,7 +73,7 @@
                   </button>
                   <button
                     type="button"
-                    class="btn-danger py-1 px-3 text-xs"
+                    class="btn-danger-subtle btn-sm"
                     @click="confirmPurge(item)"
                   >
                     {{ t("trash.deletePermanently") }}
@@ -128,8 +114,11 @@
 </template>
 
 <script setup>
+import EmptyState from "../components/EmptyState.vue";
+import { useContentTypesStore } from "../stores/contentTypes.js";
+import PageHeader from "../components/PageHeader.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -141,6 +130,10 @@ const route = useRoute();
 const toast = useToastStore();
 const { t } = useI18n();
 const collection = route.params.collection;
+const typesStore = useContentTypesStore();
+const typeLabel = computed(
+  () => typesStore.list.find((type) => type.name === collection)?.label ?? collection,
+);
 
 const loading = ref(true);
 const error = ref("");

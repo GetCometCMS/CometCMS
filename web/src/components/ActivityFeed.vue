@@ -2,7 +2,7 @@
   <section class="card p-5 flex flex-col gap-4">
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 class="text-sm font-semibold text-slate-900">
+      <h2 class="card-title">
         {{ t("activity.title") }}
       </h2>
 

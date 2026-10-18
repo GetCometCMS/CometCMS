@@ -2,7 +2,7 @@
   <section id="submissions" class="scroll-mt-24 space-y-6">
     <div class="card space-y-4 p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.forms.title") }}</h2>
+        <h2 class="card-title">{{ t("site.forms.title") }}</h2>
         <router-link v-if="name" :to="`/content/${name}`" class="text-sm text-theme-600 hover:underline">{{ t("site.forms.viewSubmissions") }}</router-link>
       </div>
       <div>
@@ -19,7 +19,7 @@
     </div>
     <!-- Texts -->
     <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.forms.texts") }}</h2>
+      <h2 class="card-title">{{ t("site.forms.texts") }}</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="form-submit">{{ t("site.forms.submitLabel") }}</label>
@@ -39,7 +39,7 @@
 
     <!-- Spam protection -->
     <section class="card space-y-4 p-6">
-      <h2 class="text-sm font-semibold text-slate-700">{{ t("site.forms.spam") }}</h2>
+      <h2 class="card-title">{{ t("site.forms.spam") }}</h2>
       <ul class="space-y-2 text-sm text-slate-600">
         <li class="flex items-start gap-2">
           <Icon icon="mdi:check-circle" class="mt-0.5 h-4 w-4 shrink-0 text-green-600" />

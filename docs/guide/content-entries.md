@@ -4,7 +4,7 @@
 
 Select a collection from the **sidebar** to see a list of all entries in that collection. The list shows the title/slug, status, author, and last-updated date.
 
-Single page content types appear under **Single** in the sidebar. They open directly in the editor instead of showing a list.
+Single page content types appear under **Content** in the sidebar like collections. They open directly in the editor instead of showing a list.
 
 ## Creating an entry
 

@@ -1,48 +1,58 @@
 <template>
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
-    <header class="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
-      <img :src="brandIcon" alt="CometCMS" class="h-7 w-7 shrink-0" />
-      <span class="mx-1 h-6 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
-      <router-link :to="backTo" class="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" :title="t('site.builder.back')">
-        <Icon icon="mdi:arrow-left" class="h-5 w-5" />
+    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3">
+      <router-link :to="backTo" class="icon-btn" :title="t('site.builder.back')">
+        <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
       </router-link>
 
-      <div class="w-64 min-w-40">
+      <div class="min-w-40 max-w-72">
         <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
-        <p class="truncate text-xs leading-tight text-slate-500">
-          {{ subheading }}
-          <span v-if="!customized" class="ml-1 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.pages.default") }}</span>
+        <p class="flex min-w-0 items-center gap-1.5 text-xs leading-tight text-slate-500">
+          <span class="truncate">{{ subheading }}</span>
+          <span
+            v-if="target !== 'component' && !customized"
+            class="shrink-0 cursor-help rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200"
+            :title="t('site.builder.defaultBadgeHint')"
+          >{{ t("site.builder.defaultBadge") }}</span>
         </p>
       </div>
 
-      <nav v-if="variants.length > 1" class="ml-3 hidden rounded-lg border border-slate-200 bg-slate-50 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+      <nav v-if="variants.length > 1" class="hidden rounded-lg bg-slate-100 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
         <button
           v-for="item in variants"
           :key="item"
           type="button"
-          class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-          :class="item === variant ? 'bg-white text-theme-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'"
+          class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          :class="item === variant ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+          :aria-pressed="item === variant"
           @click="goToVariant(item)"
         >
+          <Icon :icon="item === 'index' ? 'mdi:view-grid-outline' : 'mdi:file-document-outline'" class="h-3.5 w-3.5" />
           {{ t(`site.variant.${item}`) }}
         </button>
       </nav>
 
       <div class="ml-auto flex items-center gap-2">
-        <select
+        <label
           v-if="showsSamples && !builder.type.value?.singleton && samples.length"
+          class="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white pl-2.5 shadow-xs lg:flex"
+          :title="t('site.builder.sampleEntry')"
+        >
+          <Icon icon="mdi:eye-outline" class="h-4 w-4 shrink-0 text-slate-400" />
+          <span class="text-xs font-medium text-slate-500">{{ t("site.builder.previewWith") }}</span>
+        <select
           v-model="sampleId"
           :disabled="saving"
-          class="form-select hidden max-w-[14rem] rounded-lg border-slate-300 py-1 text-xs lg:block"
+          class="max-w-[12rem] border-0 bg-transparent py-1 pl-1 pr-7 text-xs font-medium text-slate-800 focus:ring-0"
           :aria-label="t('site.builder.sampleEntry')"
-          :title="t('site.builder.sampleEntry')"
         >
           <option v-for="sample in samples" :key="sample.id" :value="sample.id">
             {{ sample.title || sample.id }}{{ sample.status !== "published" ? ` (${t(`status.${sample.status}`)})` : "" }}
           </option>
         </select>
+        </label>
 
         <select
           v-if="locales.length > 1"
@@ -64,6 +74,23 @@
             <Icon icon="mdi:redo" class="h-5 w-5" />
           </button>
         </div>
+
+        <span
+          v-if="saveStatus !== 'saved'"
+          class="hidden items-center gap-1.5 whitespace-nowrap text-xs xl:flex"
+          :class="saveStatus === 'unsaved' ? 'font-medium text-amber-700' : 'text-slate-500'"
+          role="status"
+          :title="saveStatus === 'unsaved' ? t('site.builder.status.unsavedHint') : undefined"
+        >
+          <Icon v-if="saveStatus === 'saving'" icon="mdi:loading" class="h-3.5 w-3.5 animate-spin" />
+          <span v-else class="h-2 w-2 rounded-full bg-amber-400"></span>
+          {{ t(`site.builder.status.${saveStatus}`) }}
+        </span>
+
+        <button type="button" class="topbar-action" :title="`${t('site.builder.help')} (?)`" @click="guideOpen = true">
+          <Icon icon="mdi:help-circle-outline" class="h-5 w-5" />
+          <span class="sr-only">{{ t("site.builder.help") }}</span>
+        </button>
 
         <SplitButton
           :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
@@ -93,14 +120,14 @@
 
 <!-- Panel rail -->
 <nav
-  class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2"
+  class="flex w-[76px] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-slate-200 bg-white py-2"
   :aria-label="t('site.builder.panels')"
 >
   <template v-for="panel in panels" :key="panel.value">
     <!-- Separator before Fields / Components -->
     <div
       v-if="panel.value === 'fields' || (panel.value === 'components' && !hasEntryFields)"
-      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
       aria-hidden="true"
     ></div>
 
@@ -109,11 +136,12 @@
       class="rail-action"
       :class="{ 'is-active': leftPanel === panel.value }"
       :aria-pressed="leftPanel === panel.value"
+      :aria-label="panel.label"
+      :title="panel.label"
       @click="togglePanel(panel.value)"
     >
       <Icon :icon="panel.icon" class="h-5 w-5" />
-      <span class="sr-only">{{ panel.label }}</span>
-      <span class="rail-tooltip" aria-hidden="true">{{ panel.label }}</span>
+      <span class="rail-label" aria-hidden="true">{{ panel.short }}</span>
       <span
         v-if="panel.dirty"
         class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
@@ -123,7 +151,7 @@
     <!-- Separator after Forms -->
     <div
       v-if="panel.value === 'forms'"
-      class="my-1.5 h-px w-6 shrink-0 bg-slate-200"
+      class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
       aria-hidden="true"
     ></div>
   </template>
@@ -142,8 +170,11 @@
         <SiteDesignPanel v-if="leftPanel === 'design'" @close="leftPanel = null" />
         <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
         <template v-else>
-          <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
-            <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
+          <div class="flex items-start gap-2 border-b border-slate-200 px-4 py-3">
+            <div class="min-w-0 flex-1">
+              <h2 class="truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
+              <p v-if="activePanelHint" class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ activePanelHint }}</p>
+            </div>
             <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
               <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
               <span class="sr-only">{{ t("site.builder.closePanel") }}</span>
@@ -198,11 +229,24 @@
         :max="rightMaxWidth"
         class="border-l border-slate-200"
       >
-        <BuilderInspector />
+        <BuilderInspector>
+          <template #empty>
+            <BuilderOverview
+              :title="overview.title"
+              :description="overview.description"
+              :icon="overview.icon"
+              :with-fields="hasEntryFields"
+              @open-panel="(panel) => (leftPanel = panel)"
+              @open-guide="guideOpen = true"
+            />
+          </template>
+        </BuilderInspector>
       </ResizableSidebar>
     </div>
 
     <BuilderContextMenu :device="device" />
+
+    <BuilderGuide v-model="guideOpen" />
 
     <ComponentNameModal
       :model-value="builder.componentDialog.value !== null"
@@ -272,6 +316,8 @@ import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
+import BuilderGuide from "../components/site/builder/BuilderGuide.vue";
+import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
@@ -283,7 +329,6 @@ import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
-import { adminAsset } from "../basePath.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -292,7 +337,6 @@ const auth = useAuthStore();
 const { canContent } = usePermissions();
 const toast = useToastStore();
 const { t, locale: uiLocale } = useI18n();
-const brandIcon = adminAsset("img/cms-icon.png");
 const builder = createSiteBuilder({
   t,
   componentApi: {
@@ -384,7 +428,7 @@ const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
   { guardUpdates: true },
 );
 
-const RAIL_WIDTH = 48;
+const RAIL_WIDTH = 76;
 const DESIGN_MIN_WIDTH = 320;
 /** Code reads better wide, so the stylesheet panel may grow further. */
 const CSS_MIN_WIDTH = 360;
@@ -405,8 +449,25 @@ const panels = computed(() => [
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
-]);
+].map((panel) => ({ ...panel, short: t(`site.builder.rail.${panel.value}`) })));
 const activePanel = computed(() => panels.value.find((panel) => panel.value === leftPanel.value));
+const activePanelHint = computed(() => {
+  const key = `site.builder.panelHint.${leftPanel.value}`;
+  const text = t(key);
+  return text === key ? "" : text;
+});
+
+const GUIDE_SEEN_KEY = "cometcms-builder-guide-seen";
+const guideOpen = ref(false);
+// First visit: explain the builder once.
+try {
+  if (!localStorage.getItem(GUIDE_SEEN_KEY)) {
+    guideOpen.value = true;
+    localStorage.setItem(GUIDE_SEEN_KEY, "1");
+  }
+} catch {
+  // Storage may be unavailable (private mode); the guide stays one click away.
+}
 
 const builderAreaRef = ref(null);
 const builderWidth = ref(window.innerWidth);
@@ -541,6 +602,35 @@ const subheading = computed(() => {
     return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
   }
   return target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`);
+});
+
+const saveStatus = computed(() => {
+  if (saving.value) return "saving";
+  return builder.isDirty.value || themeDirty.value || entryFields.isDirty.value ? "unsaved" : "saved";
+});
+
+/** What the inspector shows while nothing is selected. */
+const overview = computed(() => {
+  if (target === "component") {
+    return {
+      title: heading.value,
+      description: t("site.builder.overview.component", { count: usages.value.length }),
+      icon: "mdi:puzzle-outline",
+    };
+  }
+  if (target === "region") {
+    return {
+      title: heading.value,
+      description: t(`site.region.${name}Hint`),
+      icon: name === "footer" ? "mdi:page-layout-footer" : "mdi:page-layout-header",
+    };
+  }
+  const type = builder.type.value?.label ?? name;
+  return {
+    title: `${type} · ${t(`site.variant.${variant}`)}`,
+    description: t(variant === "index" ? "site.builder.overview.index" : "site.builder.overview.detail", { type }),
+    icon: builder.type.value?.icon || (variant === "index" ? "mdi:view-grid-outline" : "mdi:file-document-outline"),
+  };
 });
 
 const previewBody = computed(() => {
@@ -773,6 +863,12 @@ function onKeydown(event) {
 
   if (editing) return;
 
+  if (event.key === "?" && !modifier) {
+    event.preventDefault();
+    guideOpen.value = true;
+    return;
+  }
+
   // Shift+F10 and the context-menu key open the menu for the selection.
   if ((event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) && builder.selectedId.value) {
     event.preventDefault();
@@ -844,12 +940,13 @@ onBeforeUnmount(() => {
 }
 .rail-action {
   position: relative;
-  display: inline-flex;
-  height: 2.25rem;
-  width: 2.25rem;
+  display: flex;
+  width: 4.25rem;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 0.1875rem;
   border-radius: 0.5rem;
+  padding: 0.4375rem 0.125rem 0.375rem;
   color: rgb(var(--color-slate-500));
   transition: background-color 150ms, color 150ms;
 }
@@ -861,39 +958,15 @@ onBeforeUnmount(() => {
   background: rgb(var(--color-theme-50, 239 246 255));
   color: rgb(var(--color-theme-text, 29 78 216));
 }
-.rail-tooltip {
-  pointer-events: none;
-  position: absolute;
-  left: calc(100% + 0.625rem);
-  top: 50%;
-  z-index: 50;
+.rail-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 0.375rem;
-  background: rgb(var(--color-slate-900));
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  font-size: 10px;
   font-weight: 500;
-  line-height: 1rem;
-  color: rgb(var(--color-slate-50));
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
-  opacity: 0;
-  transform: translate(-0.25rem, -50%);
-  transition: opacity 120ms, transform 120ms;
-}
-.rail-tooltip::before {
-  content: "";
-  position: absolute;
-  right: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 0.3125rem solid transparent;
-  border-right-color: rgb(var(--color-slate-900));
-}
-.rail-action:hover .rail-tooltip,
-.rail-action:focus-visible .rail-tooltip {
-  opacity: 1;
-  transform: translate(0, -50%);
-  transition-delay: 150ms;
+  letter-spacing: -0.01em;
+  line-height: 0.875rem;
 }
 .panel-close {
   display: inline-flex;

@@ -15,7 +15,7 @@
     </div>
 
     <div v-if="showTokenForm" class="card p-6 mb-6 space-y-4">
-      <h2 class="text-sm font-semibold text-slate-700">
+      <h2 class="card-title">
         {{ t("tokens.createToken") }}
       </h2>
       <div class="grid gap-4 md:grid-cols-2">

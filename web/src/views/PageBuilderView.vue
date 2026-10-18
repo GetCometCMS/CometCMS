@@ -3,11 +3,11 @@
     <div class="editor-sticky-header flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-bold text-slate-900">{{ t("site.title") }}</h1>
+          <h1 class="page-title">{{ t("site.title") }}</h1>
           <span
             v-if="site.data"
-            class="badge"
-            :class="site.data.settings.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'"
+            class="badge badge-dot"
+            :class="site.data.settings.enabled ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/15'"
           >
             {{ site.data.settings.enabled ? t("site.status.live") : t("site.status.off") }}
           </span>

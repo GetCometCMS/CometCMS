@@ -1,6 +1,6 @@
 <template>
   <section class="card p-6 space-y-4" :aria-labelledby="headingId">
-    <h2 :id="headingId" class="text-sm font-semibold text-slate-700">{{ title }}</h2>
+    <h2 :id="headingId" class="card-title">{{ title }}</h2>
 
     <div class="flex flex-col items-center gap-4 py-2 text-center">
       <p v-if="description" :id="hintId" class="max-w-2xl text-sm text-slate-500">{{ description }}</p>

@@ -5,7 +5,7 @@
         <Icon icon="mdi:web" class="h-5 w-5" />
       </div>
       <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-semibold text-slate-700">{{ t("site.typeCard.title") }}</h2>
+        <h2 class="card-title">{{ t("site.typeCard.title") }}</h2>
         <p class="mt-0.5 text-sm text-slate-500">{{ summary }}</p>
       </div>
     </div>

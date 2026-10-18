@@ -1,30 +1,22 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ t("workspaces.title") }}
-      </h1>
-      <button
-        v-if="auth.can('workspaces.manage')"
-        @click="showCreateForm = !showCreateForm"
-        class="btn-primary"
-      >
-        {{ t("workspaces.new") }}
-      </button>
-    </div>
-
-    <!-- Default workspace notice -->
-    <div class="card p-4 mb-6 flex items-start gap-3 text-sm text-slate-600">
-      <Icon
-        icon="mdi:information-outline"
-        class="w-4 h-4 mt-0.5 shrink-0 text-slate-400"
-      />
-      <p>{{ t("workspaces.defaultNotice") }}</p>
-    </div>
+    <PageHeader :title="t('workspaces.title')" :description="t('workspaces.defaultNotice')">
+      <template #actions>
+        <button
+          v-if="auth.can('workspaces.manage')"
+          type="button"
+          @click="showCreateForm = !showCreateForm"
+          class="btn-primary"
+        >
+          <Icon icon="mdi:plus" class="h-4 w-4" />
+          {{ t("workspaces.new") }}
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Create form -->
     <div v-if="showCreateForm" class="card p-6 mb-6">
-      <h2 class="text-sm font-semibold text-slate-700 mb-4">
+      <h2 class="card-title mb-4">
         {{ t("workspaces.createTitle") }}
       </h2>
       <form
@@ -138,18 +130,18 @@
                   />
                 </template>
                 <template v-else>
-                  <span class="font-medium text-slate-800">{{
+                  <span class="font-medium text-slate-900">{{
                     workspace.label
                   }}</span>
                   <span
                     v-if="workspace.slug === activeWorkspace"
-                    class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-theme-100 text-theme-700"
+                    class="badge badge-dot ml-2 bg-theme-50 text-theme-700 ring-theme-600/20"
                   >
                     {{ t("workspaces.active") }}
                   </span>
                   <span
                     v-if="workspace.default"
-                    class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700"
+                    class="badge ml-2 bg-emerald-50 text-emerald-700 ring-emerald-600/20"
                   >
                     {{ t("workspaces.default") }}
                   </span>
@@ -233,6 +225,7 @@
 </template>
 
 <script setup>
+import PageHeader from "../components/PageHeader.vue";
 import { ADMIN_API_BASE } from "../basePath.js";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";

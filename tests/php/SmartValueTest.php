@@ -103,6 +103,41 @@ test('empty fields fall back without a warning and rich text falls back to marku
     assert_false(str_contains($html, 'c-placeholder-warning'));
 });
 
+test('unresolved binding warnings belong to the selectable node including empty text and fallbacks', function (): void {
+    comet_site_test_setup();
+    [$context, $state] = smart_test_state();
+    $missing = SmartValue::reference('missing');
+    $fallback = $missing;
+    $fallback['filters'][] = ['name' => 'fallback', 'value' => 'Fallback content'];
+    $nodes = [
+        LayoutSchema::node('text', ['html' => $missing]),
+        LayoutSchema::node('text', ['html' => $fallback]),
+        LayoutSchema::node('heading', ['text' => $missing]),
+        LayoutSchema::node('image', ['media' => $missing]),
+        LayoutSchema::node('column', [], ['background_image' => $missing]),
+    ];
+    $context->annotate = true;
+    $renderer = new NodeRenderer($context);
+
+    foreach ($nodes as $node) {
+        $html = $renderer->render([$node], $state);
+        $document = new DOMDocument();
+        $document->loadHTML('<html><body>' . $html . '</body></html>');
+        $xpath = new DOMXPath($document);
+        assert_same(1, $xpath->query('/html/body/*')->length, 'The warning must not be a sibling of the selectable node.');
+        assert_same(1, $xpath->query('//*[@data-node="' . $node['id'] . '"]/*[@role="status"]')->length, 'The warning must contribute to the selectable node bounds.');
+        assert_same(1, $xpath->query('//*[@data-node]')->length);
+        assert_false(str_contains($renderer->renderPlain([$node], $state), 'c-placeholder-warning'));
+    }
+
+    assert_true(str_contains($renderer->render([$nodes[1]], $state), 'Fallback content'));
+    $context->annotate = false;
+    assert_same('', $renderer->render([$nodes[0]], $state));
+    $live = $renderer->render([$nodes[1]], $state);
+    assert_true(str_contains($live, 'Fallback content'));
+    assert_false(str_contains($live, 'c-placeholder-warning'));
+});
+
 test('smart rich text preserves whole values and escapes inline references', function (): void {
     comet_site_test_setup();
     [$context, $state] = smart_test_state();

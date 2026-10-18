@@ -8,7 +8,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with the **Page Builder enabled**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
-Open **Page Builder** under **System** in the admin sidebar (permission `site.manage`; shown once a content type has the Page Builder enabled or the website is online) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
+Open **Page Builder** under **Website** in the admin sidebar (permission `site.manage`; shown once a content type has the Page Builder enabled or the website is online) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -26,12 +26,20 @@ The homepage can be a single page, one entry, or a collection's list page, or **
 
 The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to two layouts:
 
-- **Page** — a single entry.
+- **Entry page** — a single entry.
 - **List page** — the page at the list URL.
 
 How entries look inside an entry list is designed in that list itself (see [Entry cards](#entry-cards)).
 
-Layouts are generated from the content type's fields until you change them, so a new type looks reasonable immediately.
+Layouts are generated from the content type's fields until you change them, so a new type looks reasonable immediately. The top bar marks such a page as **Default layout**; your first saved change creates your own version.
+
+### Finding your way in the builder
+
+- The **left rail** opens the panels: **Add**, **Outline**, **Content** (the preview entry's fields), **Components**, **Forms**, **Design**, **CSS** and **History**. Each panel explains what it does at the top.
+- The **canvas** in the middle is the live preview. Click any element to select it; sections, grids, columns and components are outlined in their own colors.
+- The **inspector** on the right shows the selected element's settings, a short explanation of the element type, and a path to its parent elements. With nothing selected, it summarizes the page you are editing and suggests next steps.
+- The **top bar** shows the preview entry, language, device, undo/redo and whether all changes are saved.
+- Press <kbd>?</kbd> or click the help icon to open the **builder guide** with the basics and all keyboard shortcuts. It opens automatically the first time you use the builder.
 
 The builder shows a live preview rendered by the same code as the real site. Layouts are built from **sections → rows → columns → elements**. A column can also hold column sets of its own (up to three levels deep), for example a card with an image beside its text. Columns of such a nested set switch between stacked and side by side by the width of the column they sit in, not by the screen width:
 
@@ -86,7 +94,7 @@ To use the same card in several lists, right-click it and choose **Save as compo
 
 ### Reusable components
 
-A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Open the **Components** panel using the puzzle icon in the left bar to search all components, drag or click them into the page, edit them, or delete them.
+A section, column set or column can be saved as a **component**, which reuses it, with everything inside it, on many pages. Right-click it on the preview or in the **Outline**, choose **Save as component…** and give it a name. That spot then shows the component; save the layout to keep it. Open the **Components** panel from the left rail to search all components, drag or click them into the page, edit them, or delete them.
 
 A component is edited in one place. Choose **Edit component** in the inspector or the context menu, or open it from the **Components** tab of the website settings. Saving it updates every page that uses it. A placed component is one unit in the builder: its contents cannot be selected there. A column component placed in a column set keeps its own width. **Detach** replaces a placed component with an ordinary copy that you can change on its own, while the other places keep following the component.
 
@@ -109,7 +117,7 @@ Disabling **Allow Submissions** removes the type from the forms sidebar and bloc
 
 Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
 
-To place a form, open the **Forms** panel in the builder's left bar and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+To place a form, open the **Forms** panel in the builder's left rail and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
 
 Forms work without JavaScript. After sending, the visitor returns to the same page, where the form is replaced by the success message, or shows the error message above it. Spam protection uses a hidden trap field, and a limit of 5 submissions per visitor and form in 10 minutes (`site.forms.rate_limit_attempts` and `site.forms.rate_limit_window_seconds` in the configuration). Cloudflare Turnstile and Google reCAPTCHA are planned.
 
