@@ -109,11 +109,13 @@
       class="rail-action"
       :class="{ 'is-active': leftPanel === panel.value }"
       :aria-pressed="leftPanel === panel.value"
-      :title="panel.label"
+      :title="leftPanel ? panel.label : undefined"
       @click="togglePanel(panel.value)"
     >
       <Icon :icon="panel.icon" class="h-5 w-5" />
       <span class="sr-only">{{ panel.label }}</span>
+      <!-- Hover label while the rail is collapsed -->
+      <span v-if="!leftPanel" class="rail-tooltip" aria-hidden="true">{{ panel.label }}</span>
       <span
         v-if="panel.dirty"
         class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
@@ -860,6 +862,40 @@ onBeforeUnmount(() => {
 .rail-action.is-active {
   background: rgb(var(--color-theme-50, 239 246 255));
   color: rgb(var(--color-theme-text, 29 78 216));
+}
+.rail-tooltip {
+  pointer-events: none;
+  position: absolute;
+  left: calc(100% + 0.625rem);
+  top: 50%;
+  z-index: 50;
+  white-space: nowrap;
+  border-radius: 0.375rem;
+  background: rgb(var(--color-slate-900));
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+  color: rgb(var(--color-slate-50));
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  opacity: 0;
+  transform: translate(-0.25rem, -50%);
+  transition: opacity 120ms, transform 120ms;
+}
+.rail-tooltip::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0.3125rem solid transparent;
+  border-right-color: rgb(var(--color-slate-900));
+}
+.rail-action:hover .rail-tooltip,
+.rail-action:focus-visible .rail-tooltip {
+  opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 150ms;
 }
 .panel-close {
   display: inline-flex;
