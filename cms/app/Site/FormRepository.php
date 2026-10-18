@@ -1,0 +1,257 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CometCMS\Site;
+
+use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
+use CometCMS\Storage\JsonStore;
+
+/**
+ * Website forms, stored as site/forms/{id}.json.
+ *
+ * A form belongs to one content type: every submission becomes a new entry
+ * of that type, and the form shows every field of that type a visitor can
+ * fill in, in the type's order. Labels, help texts, required flags, options
+ * and widths all come from the type's field builder, so the form and the
+ * entries it creates always match. Title and slug are not asked for: entries
+ * are titled with the form's name and the time they arrived.
+ * Layouts place a form with a "form" element.
+ *
+ * Spam protection: a honeypot field and a per-visitor rate limit. The
+ * `captcha` setting is reserved for Cloudflare Turnstile and Google
+ * reCAPTCHA; only "none" is accepted until they are supported (both need
+ * a script, so the site's Content-Security-Policy changes with them).
+ */
+final class FormRepository
+{
+    /** Field types a visitor can fill in with a plain HTML input. */
+    public const FIELD_TYPES = ['text', 'textarea', 'markdown', 'number', 'range', 'boolean', 'select', 'date', 'datetime', 'color'];
+
+    public const STATUSES = ['draft', 'published'];
+
+    public const CAPTCHAS = ['none'];
+
+    public const MAX_FORMS = 100;
+
+    private JsonStore $store;
+
+    public function __construct(private readonly SiteRepository $site)
+    {
+        $this->store = new JsonStore($site->workspace()->path('site') . '/forms');
+    }
+
+    /** @return list<array> forms sorted by name */
+    public function all(): array
+    {
+        $forms = [];
+
+        foreach ($this->store->all() as $stored) {
+            $form = $this->read($stored);
+            if ($form !== null) {
+                $forms[] = $form;
+            }
+        }
+        usort($forms, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+        return $forms;
+    }
+
+    public function find(string $id): ?array
+    {
+        if ($id === '' || LayoutSchema::key($id) !== $id) {
+            return null;
+        }
+
+        return $this->read($this->store->read($id));
+    }
+
+    public function create(array $input): array
+    {
+        if (count($this->store->all()) >= self::MAX_FORMS) {
+            throw new ValidationException(['name' => 'A website can have at most ' . self::MAX_FORMS . ' forms.']);
+        }
+
+        $form = $this->validate($input);
+        $form['id'] = 'f' . bin2hex(random_bytes(5));
+        $form['created_at'] = Security::now();
+
+        return $this->write($form);
+    }
+
+    public function update(string $id, array $input): array
+    {
+        $current = $this->require($id);
+        $form = $this->validate($input);
+        $form['id'] = $current['id'];
+        $form['created_at'] = $current['created_at'];
+
+        return $this->write($form);
+    }
+
+    public function delete(string $id): array
+    {
+        $form = $this->require($id);
+        $this->store->delete($id);
+        $this->site->clearCache();
+
+        return $form;
+    }
+
+    public function require(string $id): array
+    {
+        $form = $this->find($id);
+        if ($form === null) {
+            throw new \RuntimeException('Form not found.');
+        }
+
+        return $form;
+    }
+
+    /**
+     * The inputs a form shows, in order: every field of its content type
+     * that visitors can fill in.
+     *
+     * @return list<array{key: string, config: array, label: string}>
+     */
+    public function inputs(array $form): array
+    {
+        $type = $this->site->types()[$form['type']] ?? null;
+        $inputs = [];
+
+        foreach (is_array($type['fields'] ?? null) ? $type['fields'] : [] as $key => $config) {
+            $key = (string) $key;
+            if (is_array($config) && self::accepts($key, $config, $type)) {
+                $inputs[] = ['key' => $key, 'config' => $config, 'label' => self::fieldLabel($key, $config)];
+            }
+        }
+
+        return $inputs;
+    }
+
+    /** Fields of $type a form cannot ask for, keyed by field key; required ones break every submission. */
+    public static function unsupported(array $type): array
+    {
+        $fields = [];
+
+        foreach (is_array($type['fields'] ?? null) ? $type['fields'] : [] as $key => $config) {
+            $key = (string) $key;
+            if (is_array($config) && !self::isSystemField($key, $type) && !self::accepts($key, $config, $type)) {
+                $fields[$key] = $config;
+            }
+        }
+
+        return $fields;
+    }
+
+    /** Whether a field of $type can be filled in by visitors. */
+    public static function accepts(string $key, array $config, ?array $type = null): bool
+    {
+        return !self::isSystemField($key, $type) && in_array((string) ($config['type'] ?? 'text'), self::FIELD_TYPES, true);
+    }
+
+    /** Title and slug are filled in by the form itself. */
+    private static function isSystemField(string $key, ?array $type): bool
+    {
+        return in_array($key, ['title', 'slug', (string) ($type['slug_field'] ?? 'slug')], true);
+    }
+
+    public static function fieldLabel(string $key, array $config): string
+    {
+        $label = trim((string) ($config['label'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
+
+        return $key === 'title' ? 'Title' : ucfirst(str_replace(['_', '-'], ' ', $key));
+    }
+
+    /** Content types a form can submit to: single pages already have their one entry. */
+    public function types(): array
+    {
+        return array_filter($this->site->types(), static fn(array $type): bool => empty($type['singleton']));
+    }
+
+    private function validate(array $input): array
+    {
+        $errors = [];
+        $name = self::line($input['name'] ?? '', 120);
+        if ($name === '') {
+            $errors['name'] = 'Give the form a name.';
+        }
+
+        $typeName = LayoutSchema::key($input['type'] ?? '');
+        $type = $this->types()[$typeName] ?? null;
+        if ($type === null) {
+            $errors['type'] = 'Choose the content type that receives the submissions.';
+        } else {
+            foreach (self::unsupported($type) as $key => $config) {
+                if (!empty($config['required'])) {
+                    $errors['type'] = 'The required field “' . self::fieldLabel((string) $key, $config) . '” cannot be filled in on a form. Make it optional or choose another content type.';
+                    break;
+                }
+            }
+            if (!isset($errors['type']) && $this->inputs(['type' => $typeName]) === []) {
+                $errors['type'] = 'This content type has no fields a form can show.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw new ValidationException($errors);
+        }
+
+        $status = (string) ($input['status'] ?? 'draft');
+        $captcha = (string) ($input['captcha'] ?? 'none');
+
+        return [
+            'name' => $name,
+            'type' => $typeName,
+            'submit_label' => self::line($input['submit_label'] ?? '', 80),
+            'success_message' => self::text($input['success_message'] ?? '', 1000),
+            'error_message' => self::text($input['error_message'] ?? '', 1000),
+            'status' => in_array($status, self::STATUSES, true) ? $status : 'draft',
+            'captcha' => in_array($captcha, self::CAPTCHAS, true) ? $captcha : 'none',
+        ];
+    }
+
+    private function read(?array $stored): ?array
+    {
+        $id = LayoutSchema::key($stored['id'] ?? '');
+        if (!is_array($stored) || $id === '') {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'name' => self::line($stored['name'] ?? '', 120) ?: $id,
+            'type' => LayoutSchema::key($stored['type'] ?? ''),
+            'submit_label' => self::line($stored['submit_label'] ?? '', 80),
+            'success_message' => self::text($stored['success_message'] ?? '', 1000),
+            'error_message' => self::text($stored['error_message'] ?? '', 1000),
+            'status' => in_array($stored['status'] ?? '', self::STATUSES, true) ? (string) $stored['status'] : 'draft',
+            'captcha' => in_array($stored['captcha'] ?? '', self::CAPTCHAS, true) ? (string) $stored['captcha'] : 'none',
+            'created_at' => (string) ($stored['created_at'] ?? ''),
+            'updated_at' => (string) ($stored['updated_at'] ?? ''),
+        ];
+    }
+
+    private function write(array $form): array
+    {
+        $form['updated_at'] = Security::now();
+        $this->store->write($form, $form['id']);
+        $this->site->clearCache();
+
+        return $this->read($form) ?? $form;
+    }
+
+    private static function line(mixed $value, int $max): string
+    {
+        return is_scalar($value) ? trim(Text::limit(str_replace(["\r", "\n"], ' ', (string) $value), $max)) : '';
+    }
+
+    private static function text(mixed $value, int $max): string
+    {
+        return is_scalar($value) ? trim(Text::limit(str_replace("\r\n", "\n", (string) $value), $max)) : '';
+    }
+}

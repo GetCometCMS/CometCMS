@@ -48,6 +48,7 @@ final class LayoutSchema
         'spacer',
         'divider',
         'collection',
+        'form',
         'menu',
         'site_title',
         'language_switcher',
@@ -268,6 +269,13 @@ final class LayoutSchema
                 'exclude_current' => ['type' => 'bool', 'default' => true],
                 'paginate' => ['type' => 'bool', 'default' => false],
                 'empty_text' => ['type' => 'string', 'max' => 300, 'default' => ''],
+            ],
+            // A website form (see FormRepository); its fields and texts belong to the form.
+            'form' => [
+                'form' => ['type' => 'form', 'default' => ''],
+                'labels' => ['type' => 'enum', 'options' => ['above', 'hidden'], 'default' => 'above'],
+                'button_variant' => ['type' => 'enum', 'options' => ['primary', 'secondary', 'outline'], 'default' => 'primary'],
+                'button_full_width' => ['type' => 'bool', 'default' => false],
             ],
             'menu' => [
                 'menu' => ['type' => 'menu', 'default' => 'main'],
@@ -868,7 +876,7 @@ final class LayoutSchema
             'spans' => self::normalizeSpans($value),
             'class' => self::cssClasses($value),
             'sort_field' => self::key($value) !== '' ? self::key($value) : $default,
-            'field', 'display', 'content_type', 'menu', 'key' => self::key($value),
+            'field', 'display', 'content_type', 'menu', 'form', 'key' => self::key($value),
             default => $default,
         };
     }

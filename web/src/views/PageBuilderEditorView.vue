@@ -136,6 +136,7 @@
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
+            <BuilderForms v-else-if="leftPanel === 'forms'" />
             <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
@@ -241,6 +242,7 @@ import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
+import BuilderForms from "../components/site/builder/BuilderForms.vue";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
@@ -357,6 +359,7 @@ const panels = computed(() => [
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
   ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
   { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
+  { value: "forms", label: t("site.forms.title"), icon: "mdi:form-select" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
@@ -536,6 +539,7 @@ async function load() {
     const data = res.data;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
+    builder.forms.value = data.forms ?? [];
     builder.settings.value = data.settings ?? null;
     builder.type.value = data.type ?? null;
     builder.components.value = data.components ?? [];

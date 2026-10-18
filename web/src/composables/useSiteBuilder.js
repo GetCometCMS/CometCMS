@@ -69,6 +69,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const type = ref(null)
   const types = ref([])
   const menus = ref([])
+  /** Website forms ({ id, name, type, fields }) a form element can show. */
+  const forms = ref([])
   const settings = ref(null)
   /** Types with editable website pages; all types remain available for data bindings. */
   const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
@@ -726,6 +728,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return types.value.find((item) => item.name === props.type)?.label ?? t('site.builder.noType')
       case 'menu':
         return menus.value.find((item) => item.name === props.menu)?.label ?? props.menu
+      case 'form':
+        return forms.value.find((item) => item.id === props.form)?.name ?? t('site.forms.none')
       case 'image':
         return smartSummary(props.media) || t('site.builder.noImage')
       case 'text':
@@ -748,7 +752,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   const api = {
-    nodes, spec, type, types, pageTypes, menus, settings, selectedId, selected, hoverId, drag,
+    nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, hasSyntaxErrors,

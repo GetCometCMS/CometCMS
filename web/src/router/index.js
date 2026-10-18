@@ -99,7 +99,7 @@ const routes = [
     redirect: '/page-builder/builder/region/header?settings=components',
   },
   {
-    path: '/page-builder/:tab(overview|seo|menus)?',
+    path: '/page-builder/:tab(overview|seo|menus|forms)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },

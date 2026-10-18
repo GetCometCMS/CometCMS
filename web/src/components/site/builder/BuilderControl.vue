@@ -394,6 +394,11 @@ const selectOptions = computed(() => {
       ];
     case "menu":
       return builder.menus.value.map((menu) => ({ value: menu.name, label: menu.label }));
+    case "form":
+      return [
+        { value: "", label: t("site.forms.choose") },
+        ...builder.forms.value.map((form) => ({ value: form.id, label: form.name })),
+      ];
     case "sort_field":
       return [
         { value: "published_at", label: t("site.systemField.published_at") },

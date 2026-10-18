@@ -274,6 +274,10 @@ $routes = [
     ['DELETE', '#^/admin/api/site/components/(' . SEG . ')$#',                [AdminSiteController::class, 'deleteComponent']],
     ['GET',    '#^/admin/api/site/components/(' . SEG . ')/revisions$#',      [AdminSiteController::class, 'componentRevisions']],
     ['POST',   '#^/admin/api/site/components/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreComponentRevision']],
+    ['GET',    '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'forms']],
+    ['POST',   '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'createForm']],
+    ['PUT',    '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'updateForm']],
+    ['DELETE', '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'deleteForm']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
 
     // ── Profile & avatar ──────────────────────────────────────────────────
@@ -376,6 +380,10 @@ try {
 
     if (preg_match('#^/_site/flags/([a-z]{2}(?:-[a-z]{3})?)\.svg$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
         (new SiteController($http))->flag($m[1]);
+    }
+
+    if (preg_match('#^/_site/forms/(' . SEG . ')/(' . SEG . ')$#', $path, $m) && $method === 'POST') {
+        (new SiteController($http))->submitForm($m[1], $m[2]);
     }
 
     if (in_array($method, ['GET', 'HEAD'], true) && SiteController::handles($path)) {

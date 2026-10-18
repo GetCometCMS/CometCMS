@@ -22,6 +22,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *   regions/{header,footer}.json
  *   layouts/{type}/{variant}.json
  *   components/{id}.json        reusable blocks placed in layouts and regions
+ *   forms/{id}.json             website forms (see FormRepository)
  *
  * Layouts and regions that were never customized are generated from the
  * content type on the fly, so publishing a first page works without setup.
@@ -405,6 +406,53 @@ final class SiteRepository
         foreach ($this->store->all('components') as $stored) {
             if (($stored['id'] ?? '') !== $id && $uses($stored)) {
                 $usages[] = ['target' => 'component', 'id' => (string) $stored['id'], 'name' => (string) ($stored['name'] ?? $stored['id'])];
+            }
+        }
+
+        return $usages;
+    }
+
+    /**
+     * Where a website form is placed: stored layouts, regions and components.
+     *
+     * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
+     */
+    public function formUsages(string $id): array
+    {
+        $usages = [];
+        $uses = static function (?array $stored) use ($id): bool {
+            $found = false;
+            $scan = static function (array $nodes) use (&$scan, &$found, $id): void {
+                foreach ($nodes as $node) {
+                    if (is_array($node) && ($node['kind'] ?? '') === 'form' && ($node['props']['form'] ?? '') === $id) {
+                        $found = true;
+                        return;
+                    }
+                    $scan(is_array($node['children'] ?? null) ? $node['children'] : []);
+                }
+            };
+            if (($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION && is_array($stored['nodes'] ?? null)) {
+                $scan($stored['nodes']);
+            }
+
+            return $found;
+        };
+
+        foreach ($this->types() as $name => $type) {
+            foreach ($this->variantsFor($type) as $variant) {
+                if ($uses($this->store->read('layouts', (string) $name, $variant))) {
+                    $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
+                }
+            }
+        }
+        foreach (LayoutSchema::REGIONS as $region) {
+            if ($uses($this->store->read('regions', $region))) {
+                $usages[] = ['target' => 'region', 'region' => $region];
+            }
+        }
+        foreach ($this->store->all('components') as $stored) {
+            if ($uses($stored)) {
+                $usages[] = ['target' => 'component', 'id' => (string) ($stored['id'] ?? ''), 'name' => (string) ($stored['name'] ?? $stored['id'] ?? '')];
             }
         }
 

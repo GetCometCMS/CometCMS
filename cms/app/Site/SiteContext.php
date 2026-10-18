@@ -35,6 +35,8 @@ final class SiteContext
     private array $entries = [];
     private array $components = [];
     private array $cardTemplates = [];
+    private ?FormRepository $forms = null;
+    private array $formCache = [];
 
     public function __construct(
         public readonly SiteRepository $site,
@@ -111,6 +113,30 @@ final class SiteContext
         }
 
         return $this->components[$id];
+    }
+
+    /** A website form; null when it does not exist (any more). */
+    public function form(string $id): ?array
+    {
+        if ($id === '') {
+            return null;
+        }
+        if (!array_key_exists($id, $this->formCache)) {
+            $this->formCache[$id] = $this->forms()->find($id);
+        }
+
+        return $this->formCache[$id];
+    }
+
+    public function forms(): FormRepository
+    {
+        return $this->forms ??= new FormRepository($this->site);
+    }
+
+    /** Where a form posts to (see SiteController::submitForm()). */
+    public function formAction(string $id): string
+    {
+        return $this->basePath . '/_site/forms/' . rawurlencode($this->site->workspace()->slug()) . '/' . rawurlencode($id);
     }
 
     public function siteTitle(): string

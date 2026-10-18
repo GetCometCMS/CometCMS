@@ -8,6 +8,7 @@ use CometCMS\Auth\Auth;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Core\Http;
 use CometCMS\Core\ValidationException;
+use CometCMS\Site\FormRepository;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PageRenderer;
 use CometCMS\Site\SiteContext;
@@ -24,11 +25,13 @@ use CometCMS\Workspaces\WorkspaceContext;
 final class SiteController extends BaseController
 {
     private SiteRepository $site;
+    private FormRepository $forms;
 
     public function __construct(Http $http)
     {
         parent::__construct($http);
         $this->site = new SiteRepository(WorkspaceContext::active());
+        $this->forms = new FormRepository($this->site);
     }
 
     public function index(): never
@@ -327,6 +330,61 @@ final class SiteController extends BaseController
         $this->sendRestoredRevision($result, ['target' => 'component', 'component' => $id, 'revision' => $revision]);
     }
 
+    // ─── Forms ───────────────────────────────────────────────────────────────
+
+    /** Forms with the places each one is used, and the content types they can submit to. */
+    public function forms(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => [
+            'forms' => array_map(fn(array $form): array => $form + ['usages' => $this->site->formUsages($form['id'])], $this->forms->all()),
+            'types' => array_values($this->forms->types()),
+            'field_types' => FormRepository::FIELD_TYPES,
+            'statuses' => FormRepository::STATUSES,
+            'captchas' => FormRepository::CAPTCHAS,
+        ]]);
+    }
+
+    public function createForm(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $form = $this->validated(fn() => $this->forms->create($this->requestJson()));
+        $this->logger->info('site.form_created', ['form' => $form['id']]);
+        $this->json(['data' => $form + ['usages' => []]], 201);
+    }
+
+    public function updateForm(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireForm($id);
+        $form = $this->validated(fn() => $this->forms->update($id, $this->requestJson()));
+        $this->logger->info('site.form_updated', ['form' => $id]);
+        $this->json(['data' => $form + ['usages' => $this->site->formUsages($id)]]);
+    }
+
+    public function deleteForm(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireForm($id);
+        $form = $this->forms->delete($id);
+        $this->logger->info('site.form_deleted', ['form' => $id]);
+        $this->json(['data' => ['deleted' => true, 'form' => $form]]);
+    }
+
+    private function requireForm(string $id): array
+    {
+        $form = $this->forms->find($id);
+
+        if ($form === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Form not found.']], 404);
+        }
+
+        return $form;
+    }
+
     public function themeRevisions(): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
@@ -521,6 +579,7 @@ final class SiteController extends BaseController
             'default_locale' => $this->site->settings()['default_locale'],
             'spec' => LayoutSchema::spec(),
             'components' => $this->site->components(),
+            'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
         ];
     }
 

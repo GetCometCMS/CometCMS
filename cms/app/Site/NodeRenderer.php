@@ -38,6 +38,8 @@ final class NodeRenderer
 
     private int $menuSequence = 0;
 
+    private int $formSequence = 0;
+
     private SmartValue $smart;
 
     public function __construct(private readonly SiteContext $ctx)
@@ -109,6 +111,7 @@ final class NodeRenderer
             'spacer' => $this->element($node, '', ['c-spacer', 'c-spacer-' . $node['props']['size']]),
             'divider' => $this->element($node, '<hr class="c-divider' . (!empty($node['style']['text_color']) ? ' c-divider-colored' : '') . '">'),
             'collection' => $this->collection($node, $state),
+            'form' => $this->form($node, $state),
             'menu' => $this->menu($node, $state),
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
@@ -498,6 +501,139 @@ final class NodeRenderer
         }
 
         return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="Language"><ul>' . $items . '</ul></nav>');
+    }
+
+    /**
+     * A website form. It posts to SiteController::submitForm(), which sends
+     * the visitor back to #{anchor}-sent or #{anchor}-error; the matching
+     * message is shown with :target, so this works without scripts and the
+     * page stays cacheable.
+     */
+    private function form(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $form = $this->ctx->form($props['form']);
+        $inputs = $form !== null ? $this->ctx->forms()->inputs($form) : [];
+
+        if ($inputs === []) {
+            $message = $form === null ? 'Choose a form' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">' . $message . '</div>') : '';
+        }
+
+        $german = str_starts_with($this->ctx->htmlLang(), 'de');
+        $anchor = 'form-' . $node['id'] . (++$this->formSequence > 1 ? '-' . $this->formSequence : '');
+        $success = $form['success_message'] !== '' ? $form['success_message'] : ($german ? 'Vielen Dank! Ihre Nachricht wurde gesendet.' : 'Thank you! Your message has been sent.');
+        $failure = $form['error_message'] !== '' ? $form['error_message'] : ($german ? 'Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.' : 'Your message could not be sent. Please check your input and try again later.');
+        $submit = $form['submit_label'] !== '' ? $form['submit_label'] : ($german ? 'Senden' : 'Send');
+        $fields = '';
+
+        foreach ($inputs as $input) {
+            $fields .= $this->formField($anchor, $input, $props['labels'] === 'hidden');
+        }
+
+        $hidden = '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
+            . '<input type="hidden" name="_anchor" value="' . Security::e($anchor) . '">'
+            . ($this->ctx->locale !== '' ? '<input type="hidden" name="_locale" value="' . Security::e($this->ctx->locale) . '">' : '');
+        // Hidden from people and assistive technology; bots filling in every input give themselves away.
+        $honeypot = '<div class="c-form-hp" aria-hidden="true"><label>Website <input type="text" name="' . FormSubmission::HONEYPOT . '" value="" tabindex="-1" autocomplete="off"></label></div>';
+        $button = '<button type="' . ($this->annotating() ? 'button' : 'submit') . '" class="c-button c-button-' . $props['button_variant'] . ' c-button-md' . ($props['button_full_width'] ? ' c-button-block' : '') . '">' . Security::e($submit) . '</button>';
+
+        return $this->element($node,
+            '<div id="' . Security::e($anchor) . '-sent" class="c-form-status c-form-sent" role="status">' . $this->paragraphs($success) . '</div>'
+            . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
+            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8">'
+            . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot
+            . '<div class="c-form-actions">' . $button . '</div></form>'
+        );
+    }
+
+    /** @param array{key: string, config: array, label: string} $input */
+    private function formField(string $anchor, array $input, bool $hiddenLabels): string
+    {
+        $config = $input['config'];
+        $type = (string) ($config['type'] ?? 'text');
+        $key = $input['key'];
+        $id = $anchor . '-' . $key;
+        $name = 'fields[' . $key . ']';
+        $required = !empty($config['required']);
+        $default = $config['default'] ?? null;
+        $width = (string) ($config['layout']['width'] ?? 'full');
+        $width = in_array($width, ['1/3', '1/2', '2/3'], true) ? str_replace('/', '-', $width) : 'full';
+        $help = trim((string) ($config['description'] ?? ''));
+        $describedBy = $help !== '' ? ' aria-describedby="' . Security::e($id) . '-help"' : '';
+        // Without visible labels, the label doubles as the placeholder.
+        $attributes = ' id="' . Security::e($id) . '" name="' . Security::e($name) . '"' . ($required ? ' required' : '') . $describedBy
+            . ($hiddenLabels ? ' placeholder="' . Security::e($input['label']) . '"' : '');
+        $label = Security::e($input['label']) . ($required ? '<span class="c-form-required" aria-hidden="true">*</span>' : '');
+        $labelClass = $hiddenLabels ? ' class="c-form-label c-visually-hidden"' : ' class="c-form-label"';
+        $helpHtml = $help !== '' ? '<p id="' . Security::e($id) . '-help" class="c-form-help">' . Security::e($help) . '</p>' : '';
+
+        if ($type === 'boolean') {
+            return '<div class="c-form-field c-form-w-' . $width . ' c-form-check">'
+                . '<label><input type="checkbox" id="' . Security::e($id) . '" name="' . Security::e($name) . '" value="1"' . ($required ? ' required' : '') . $describedBy . (!empty($default) ? ' checked' : '') . '> <span>' . $label . '</span></label>'
+                . $helpHtml . '</div>';
+        }
+
+        $options = [];
+        if ($type === 'select') {
+            $raw = is_array($config['options'] ?? null) ? $config['options'] : [];
+            foreach ($raw as $optionKey => $optionLabel) {
+                $options[array_is_list($raw) ? (string) $optionLabel : (string) $optionKey] = (string) $optionLabel;
+            }
+        }
+
+        if ($type === 'select' && !empty($config['multiple'])) {
+            $defaults = array_map('strval', is_array($default) ? $default : []);
+            $boxes = '';
+            foreach ($options as $value => $text) {
+                $boxes .= '<label><input type="checkbox" name="' . Security::e($name) . '[]" value="' . Security::e($value) . '"' . (in_array($value, $defaults, true) ? ' checked' : '') . '> <span>' . Security::e($text) . '</span></label>';
+            }
+
+            return '<fieldset class="c-form-field c-form-w-' . $width . ' c-form-choices"' . $describedBy . '><legend' . $labelClass . '>' . $label . '</legend>' . $boxes . $helpHtml . '</fieldset>';
+        }
+
+        $value = is_scalar($default) ? (string) $default : '';
+        $control = match ($type) {
+            'textarea', 'markdown' => '<textarea' . $attributes . ' rows="5">' . Security::e($value) . '</textarea>',
+            'select' => '<select' . $attributes . '><option value="">' . Security::e($hiddenLabels ? $input['label'] : '–') . '</option>'
+                . implode('', array_map(static fn(string $option, string $text): string => '<option value="' . Security::e($option) . '"' . ($option === $value ? ' selected' : '') . '>' . Security::e($text) . '</option>', array_keys($options), $options))
+                . '</select>',
+            'number', 'range' => '<input type="number"' . $attributes . ' value="' . Security::e($value) . '"'
+                . (is_numeric($config['min'] ?? null) ? ' min="' . Security::e((string) $config['min']) . '"' : '')
+                . (is_numeric($config['max'] ?? null) ? ' max="' . Security::e((string) $config['max']) . '"' : '')
+                . ' step="' . (is_numeric($config['step'] ?? null) && (float) $config['step'] > 0 ? Security::e((string) $config['step']) : 'any') . '">',
+            'date' => '<input type="date"' . $attributes . ' value="' . Security::e(substr($value, 0, 10)) . '">',
+            'datetime' => '<input type="datetime-local"' . $attributes . ' value="' . Security::e($value) . '">',
+            'color' => '<input type="color"' . $attributes . ' value="' . Security::e(preg_match('/^#[0-9a-fA-F]{6}$/', $value) ? $value : '#000000') . '">',
+            default => '<input type="' . $this->textInputType($key) . '"' . $attributes . ' value="' . Security::e($value) . '"' . $this->autocomplete($key) . '>',
+        };
+
+        return '<div class="c-form-field c-form-w-' . $width . '"><label for="' . Security::e($id) . '"' . $labelClass . '>' . $label . '</label>' . $control . $helpHtml . '</div>';
+    }
+
+    /** Text fields named like an email address, phone number or link get the matching keyboard and checks. */
+    private function textInputType(string $key): string
+    {
+        $key = strtolower($key);
+
+        return match (true) {
+            (bool) preg_match('/e-?mail/', $key) => 'email',
+            (bool) preg_match('/(^|[_-])(phone|tel|telefon|mobile|handy)($|[_-])/', $key) => 'tel',
+            (bool) preg_match('/(^|[_-])(url|website|homepage)($|[_-])/', $key) => 'url',
+            default => 'text',
+        };
+    }
+
+    private function autocomplete(string $key): string
+    {
+        $hint = match ($this->textInputType($key)) {
+            'email' => 'email',
+            'tel' => 'tel',
+            'url' => 'url',
+            default => in_array(strtolower($key), ['name', 'full_name', 'fullname'], true) ? 'name' : '',
+        };
+
+        return $hint !== '' ? ' autocomplete="' . $hint . '"' : '';
     }
 
     private function menu(array $node, array $state): string

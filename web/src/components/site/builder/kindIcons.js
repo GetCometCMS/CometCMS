@@ -13,6 +13,7 @@ export const KIND_ICONS = {
   spacer: 'mdi:arrow-expand-vertical',
   divider: 'mdi:minus',
   collection: 'mdi:view-grid-outline',
+  form: 'mdi:form-select',
   menu: 'mdi:menu',
   site_title: 'mdi:home-variant-outline',
   language_switcher: 'mdi:translate',

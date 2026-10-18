@@ -88,6 +88,23 @@ Components may show fields of the entry a page displays (for example its title o
 
 Deleting a component turns all its instances into independent, editable copies, preserving their content, styling and column widths. This applies to layouts, headers, footers and instances inside other components, as well as the open builder draft. Older revisions also restore detached copies. The component and its own version history are permanently removed. Deletion is available in both the builder's **Components** panel and the **Components** tab of the website settings.
 
+### Forms
+
+Forms let visitors send messages, sign-ups or requests. Every submission is saved as a new entry of a content type you choose, so the content type defines what the form asks for. A private content type, for example "Contact inquiries", keeps submissions out of the public API and the website.
+
+Set forms up in the **Forms** tab of the Page Builder settings:
+
+- **Save submissions to** picks the content type. Single pages cannot receive submissions.
+- The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time and colour fields are shown; media, relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
+- **Status of new entries** is *Draft* by default, so submissions wait for review.
+- The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
+
+Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
+
+To place a form, open the **Forms** panel in the builder's left bar and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+
+Forms work without JavaScript. After sending, the visitor returns to the same page, where the form is replaced by the success message, or shows the error message above it. Spam protection uses a hidden trap field, and a limit of 5 submissions per visitor and form in 10 minutes (`site.forms.rate_limit_attempts` and `site.forms.rate_limit_window_seconds` in the configuration). Cloudflare Turnstile and Google reCAPTCHA are planned.
+
 ### AI and MCP access
 
 The builder stores layouts as structured JSON and shares its schema with the server renderer. This is a suitable foundation for AI design tools. The current MCP endpoint exposes content, schemas and media; website design tools have not been added yet. See the [MCP website design assessment](../api/mcp#website-design-readiness) for the current capabilities and remaining integration work.

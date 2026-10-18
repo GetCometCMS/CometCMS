@@ -6,6 +6,9 @@ namespace CometCMS\Controllers;
 
 use CometCMS\Core\Http;
 use CometCMS\Site\Flags;
+use CometCMS\Site\FormRepository;
+use CometCMS\Site\FormSubmission;
+use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -80,6 +83,50 @@ final class SiteController
 
         echo $css;
         exit;
+    }
+
+    /**
+     * A website form was sent: store it as an entry of the form's content
+     * type, then send the visitor back to the page the form is on. The
+     * outcome travels in the URL fragment (#{anchor}-sent or -error), where
+     * the form shows it with CSS alone, so the page itself stays cacheable.
+     * Requests that accept JSON get the outcome as JSON instead.
+     */
+    public function submitForm(string $workspace, string $formId): never
+    {
+        if (!(new WorkspaceRepository())->exists($workspace)) {
+            $this->http->notFound();
+        }
+
+        $site = new SiteRepository(new WorkspaceContext($workspace));
+        $form = (new FormRepository($site))->find($formId);
+        if ($form === null) {
+            $this->http->notFound();
+        }
+
+        $maxBytes = max(1024, (int) comet_config('site.forms.max_body_bytes', 262144));
+        $result = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes
+            ? ['status' => FormSubmission::ERROR, 'errors' => ['form' => 'The submission is too large.']]
+            : FormSubmission::make($site)->submit($form, $_POST, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), LayoutSchema::key($_POST['_locale'] ?? ''));
+
+        if (str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+            $sent = $result['status'] === FormSubmission::SENT;
+            $this->http->json($sent ? ['data' => ['status' => 'sent']] : ['error' => ['code' => 'submission_failed', 'fields' => $result['errors'] ?? []]], $sent ? 200 : 422);
+        }
+
+        $anchor = LayoutSchema::key($_POST['_anchor'] ?? '');
+        $this->http->redirect($this->returnPath($_POST['_return'] ?? null) . ($anchor !== '' ? '#' . $anchor . '-' . $result['status'] : ''), 303);
+    }
+
+    /** Only a path on this site is followed, never another host. */
+    private function returnPath(mixed $path): string
+    {
+        $path = is_string($path) ? strtok($path, '#') : '';
+        if (!is_string($path) || !str_starts_with($path, '/') || str_starts_with($path, '//') || preg_match('/[\\\\\x00-\x1f]/', $path)) {
+            return $this->http->url('/');
+        }
+
+        return $path;
     }
 
     /** A language flag of the language switcher; the same for every workspace. */
