@@ -160,8 +160,8 @@ import { useI18n } from "../../../i18n/index.js";
 
 const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
-  { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
-  { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
+  { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
+  { key: "text", keys: ["text_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
@@ -225,6 +225,7 @@ const ANIMATION_OPTIONS = ["animation_trigger", "animation_duration", "animation
 
 function styleVisible(key) {
   const style = node.value?.style ?? {};
+  if (style.background_gradient?.type && ["background_image", ...BACKGROUND_IMAGE_OPTIONS].includes(key)) return false;
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
   if (ANIMATION_OPTIONS.includes(key) && (style.animation ?? "none") === "none") return false;

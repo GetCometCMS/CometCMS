@@ -85,11 +85,15 @@ Scroll inside the preview to test entry animations. Each preview update creates 
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
 
-### Background images
+### Backgrounds and gradients
 
 Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, and **Background blur (px)** from 0 to 40. Like other images, it can be bound to a media field of the entry.
 
 Zero blur keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+Choose **Background gradient** in the same group for a two-color **Linear** or **Radial** gradient. Pick its start and end colors from the theme palette (including custom colors); linear gradients also have an angle from 0 to 360 degrees. The colors follow the site's light/dark mode. A gradient takes precedence over a background image; choose **None** to show the saved image again. The background color remains underneath as a fallback. Image blur, sizing and overlays apply to images only.
+
+Headings and Text elements also offer **Text gradient** in the **Text** style group, with the same controls. It colors the text block, including linked and bound text, and works alongside a background color, gradient or image. Code blocks, highlighted text and table headers keep a solid text color for readability on their own backgrounds. **None** restores the regular text color. Browsers without text clipping support keep the regular text color.
 
 Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 

@@ -116,6 +116,7 @@ final class LayoutSchema
             'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+            'background_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             // An image is layered over the background color, which shows
             // through transparent images and while the image loads.
             'background_image' => ['type' => 'media', 'default' => ''],
@@ -125,6 +126,7 @@ final class LayoutSchema
             'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
             'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
             'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+            'text_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             'align' => ['type' => 'enum', 'options' => ['', 'left', 'center', 'right'], 'default' => ''],
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
@@ -153,11 +155,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
-            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -903,6 +905,7 @@ final class LayoutSchema
         $default = $spec['default'];
 
         return match ($spec['type']) {
+            'gradient' => Gradient::normalize($value),
             'color' => is_string($value) && (in_array($value, $spec['options'], true) || Theme::isCustomColorKey($value)) ? $value : $default,
             'enum', 'icon' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
             'set' => array_values(array_intersect($spec['options'], array_map('strval', is_array($value) ? $value : []))),

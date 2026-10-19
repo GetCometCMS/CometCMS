@@ -224,6 +224,17 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 :where(.c-row) { margin-bottom: 0; }
 :where(.c-row + .c-row) { margin-top: var(--space-md); }
 .c-el > .c-heading { margin-bottom: 0; }
+/* The inner text layer leaves the element's own background and borders intact. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .c-text-gradient {
+    /* Fit short text while keeping long text wrapping and parent text alignment. */
+    display: inline-block; max-width: 100%; vertical-align: top;
+    background-image: var(--c-text-gradient); background-clip: text; -webkit-background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+  /* Filled rich-text surfaces cover the parent's gradient; keep their text readable. */
+  .c-prose.c-text-gradient :is(pre, mark, th) { color: var(--c-text); -webkit-text-fill-color: currentColor; }
+}
 .c-field-label { font-size: var(--fs-sm); font-weight: 600; color: var(--c-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25em; }
 .c-muted { color: var(--c-muted); }
 .c-icon { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }

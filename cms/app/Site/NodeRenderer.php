@@ -11,8 +11,8 @@ use CometCMS\Core\Security;
  * Turns layout trees into HTML.
  *
  * Every dynamic value is escaped with Security::e() or passed through the
- * HTML allow-list; style values only ever become class names from a fixed
- * vocabulary (see LayoutSchema), so layouts cannot inject markup.
+ * HTML allow-list; style values use a fixed vocabulary (see LayoutSchema)
+ * and generated CSS declarations, so layouts cannot inject markup.
  *
  * Render state ($state) carries what the nodes are bound to:
  *   entry      the entry the layout shows (null for header/footer without one)
@@ -365,7 +365,7 @@ final class NodeRenderer
             $text = $this->anchor($link, $text);
         }
 
-        return $this->element($node, '<' . $level . ' class="c-heading">' . $text . '</' . $level . '>');
+        return $this->element($node, '<' . $level . $this->textGradientAttributes($node, 'c-heading') . '>' . $text . '</' . $level . '>');
     }
 
     private function text(array $node, array $state): string
@@ -373,7 +373,7 @@ final class NodeRenderer
         $html = HtmlSanitizer::sanitize($node['props']['html']);
         if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
-        return $this->element($node, '<div class="c-prose">' . $html . '</div>');
+        return $this->element($node, '<div' . $this->textGradientAttributes($node, 'c-prose') . '>' . $html . '</div>');
     }
 
     private function accordion(array $node): string
@@ -1320,14 +1320,26 @@ final class NodeRenderer
         return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';
     }
 
+    private function textGradientAttributes(array $node, string $class): string
+    {
+        $gradient = Gradient::css($node['style']['text_gradient'] ?? []);
+
+        return ' class="' . $class . ($gradient !== '' ? ' c-text-gradient' : '') . '"'
+            . ($gradient !== '' ? ' style="--c-text-gradient:' . Security::e($gradient) . '"' : '');
+    }
+
     /**
-     * Classes, inline style and decorative blur layer for a background image.
-     * Only public images are used; anything else renders no background.
+     * Classes, inline style and decorative blur layer for a background.
+     * Image backgrounds only use public images.
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
     private function background(array $style): array
     {
+        $gradient = Gradient::css($style['background_gradient'] ?? []);
+        if ($gradient !== '') {
+            return ['classes' => [], 'style' => 'background-image:' . $gradient, 'layer' => ''];
+        }
         $file = (string) ($style['background_image'] ?? '');
         $item = $file !== '' ? $this->ctx->mediaItem($file) : null;
 

@@ -53,6 +53,8 @@
       @update:model-value="emitValue"
     />
 
+    <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
+
     <template v-else-if="def.type === 'enum' || def.type === 'display'">
       <div v-if="isPositionGrid" class="grid w-24 grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" :aria-label="label">
         <button
@@ -240,6 +242,7 @@ import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
 import CssClassInput from "./CssClassInput.vue";
 import ThemeColorPicker from "./ThemeColorPicker.vue";
+import GradientEditor from "./GradientEditor.vue";
 import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
