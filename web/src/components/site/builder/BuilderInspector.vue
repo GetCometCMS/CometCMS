@@ -25,30 +25,11 @@
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-1">
           <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
-          <span
-            v-if="helpHints.length"
-            class="inline-flex shrink-0"
-            @mouseenter="helpOpen = true"
-            @mouseleave="helpOpen = false"
-            @focusin="helpOpen = true"
-            @focusout="helpOpen = false"
-            @keydown.esc.stop="helpOpen = false"
-          >
-            <button
-              type="button"
-              :aria-label="`${builder.nodeLabel(node)} — ${t('site.builder.elementHelp')}`"
-              :aria-describedby="helpOpen ? helpId : undefined"
-              class="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-theme-50 hover:text-theme-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
-              @click="helpOpen = true"
-            >
-              <Icon icon="mdi:help-circle-outline" class="h-4 w-4" aria-hidden="true" />
-            </button>
-            <span v-if="helpOpen" class="absolute inset-x-3 top-[calc(100%-1.5rem)] pt-8">
-              <span :id="helpId" role="tooltip" class="block space-y-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-3 text-xs font-normal leading-relaxed text-slate-100 shadow-xl shadow-slate-900/20">
-                <span v-for="hint in helpHints" :key="hint" class="block">{{ hint }}</span>
-              </span>
-            </span>
-          </span>
+          <BuilderHelp
+            :key="node.id"
+            :label="`${builder.nodeLabel(node)} — ${t('site.builder.elementHelp')}`"
+            :hints="helpHints"
+          />
         </div>
         <p class="min-h-[1rem] truncate text-xs text-slate-500">{{ builder.nodeSummary(node) }}</p>
       </div>
@@ -164,9 +145,10 @@
 </template>
 
 <script setup>
-import { computed, ref, useId, watch } from "vue";
+import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
+import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
@@ -201,8 +183,6 @@ const kindHint = computed(() => {
   const text = t(key);
   return text === key ? "" : text;
 });
-const helpId = useId();
-const helpOpen = ref(false);
 const helpHints = computed(() => {
   const current = node.value;
   if (!current) return [];
@@ -211,7 +191,6 @@ const helpHints = computed(() => {
   if (["heading", "text", "button"].includes(current.kind)) hints.push(t("site.builder.placeholderHint"));
   return hints.filter(Boolean);
 });
-watch(() => node.value?.id, () => { helpOpen.value = false; });
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);

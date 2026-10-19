@@ -170,10 +170,15 @@
         <SiteDesignPanel v-if="leftPanel === 'design'" :draft-nodes="builder.nodes.value" @close="leftPanel = null" />
         <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
         <template v-else>
-          <div class="flex items-start gap-2 border-b border-slate-200 px-4 py-3">
-            <div class="min-w-0 flex-1">
+          <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <div class="flex min-w-0 flex-1 items-center gap-1">
               <h2 class="truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
-              <p v-if="activePanelHint" class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ activePanelHint }}</p>
+              <BuilderHelp
+                v-if="activePanelHint"
+                :key="leftPanel"
+                :label="`${activePanel.label} — ${t('site.builder.help')}`"
+                :hints="[activePanelHint]"
+              />
             </div>
             <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
               <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
@@ -189,7 +194,7 @@
               ]"
             />
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto">
+          <div class="relative z-0 min-h-0 flex-1 overflow-y-auto">
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
@@ -306,6 +311,7 @@ import SegmentedControl from "../components/site/SegmentedControl.vue";
 import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
 import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
+import BuilderHelp from "../components/site/builder/BuilderHelp.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";

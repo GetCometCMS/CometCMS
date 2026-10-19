@@ -1,10 +1,10 @@
 <template>
   <div class="flex h-full flex-col">
-    <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
       <Icon icon="mdi:language-css3" class="h-5 w-5 shrink-0 text-theme-600" />
-      <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-semibold text-slate-900">{{ t("site.theme.customCss") }}</h2>
-        <p class="truncate text-xs text-slate-500">{{ t("site.builder.customCssPanelHint") }}</p>
+      <div class="flex min-w-0 flex-1 items-center gap-1">
+        <h2 class="truncate text-sm font-semibold text-slate-900">{{ t("site.theme.customCss") }}</h2>
+        <BuilderHelp :label="`${t('site.theme.customCss')} — ${t('site.builder.help')}`" :hints="[t('site.builder.customCssPanelHint')]" />
       </div>
       <button type="button" class="panel-action" :title="t('site.builder.closePanel')" @click="emit('close')">
         <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
@@ -33,6 +33,7 @@
 <script setup>
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
+import BuilderHelp from "./BuilderHelp.vue";
 import CssCodeEditor from "../../CssCodeEditor.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import { useSiteStore } from "../../../stores/site.js";
