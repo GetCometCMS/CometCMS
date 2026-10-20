@@ -35,6 +35,7 @@ const frameRef = ref(null);
 let doc = null;
 let indicator = null;
 let badge = null;
+let badgeLabel = null;
 let templateHighlight = null;
 let templateLabel = null;
 let hoveredTemplatePart = null;
@@ -157,19 +158,54 @@ const BUILDER_CSS = `
 
 /* Node badges */
 .cometcms-badge{
+  all:initial;
   --s:var(--cometcms-ui-scale,1);
   position:absolute;
   z-index:2147483647;
+  display:inline-flex;
+  align-items:stretch;
   cursor:pointer;
   transform:translateY(-100%);
   background:color-mix(in srgb,var(--builder-color,#5875c9) 88%,#111827);
   color:#fff;
   font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
   letter-spacing:.01em;
-  padding:calc(5px * var(--s)) calc(8px * var(--s));
   border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
   white-space:nowrap;
   box-shadow:0 -1px 3px rgba(0,0,0,.08);
+}
+
+.cometcms-badge[hidden]{display:none;}
+
+.cometcms-badge-label{
+  padding:calc(6px * var(--s)) calc(8px * var(--s));
+}
+
+.cometcms-badge-menu{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:calc(26px * var(--s));
+  border-left:1px solid rgba(255,255,255,.25);
+  border-radius:0 calc(5px * var(--s)) 0 0;
+  background:rgba(255,255,255,.1);
+}
+
+.cometcms-badge-menu svg{
+  display:block;
+  width:calc(16px * var(--s));
+  height:calc(16px * var(--s));
+  fill:currentColor;
+}
+
+.cometcms-badge:hover .cometcms-badge-menu{
+  background:rgba(255,255,255,.25);
+}
+
+.cometcms-badge:focus-visible{
+  outline:calc(2px * var(--s)) solid #fff;
+  outline-offset:calc(2px * var(--s));
+  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#5875c9);
 }
 
 /* Column resizing: a grip on the edge under the pointer */
@@ -243,9 +279,19 @@ function attach(document) {
   indicator = doc.createElement("div");
   indicator.className = "cometcms-drop";
   indicator.hidden = true;
-  badge = doc.createElement("div");
+  badge = doc.createElement("button");
+  badge.type = "button";
   badge.className = "cometcms-badge";
+  badge.setAttribute("aria-haspopup", "menu");
   badge.hidden = true;
+  badgeLabel = doc.createElement("span");
+  badgeLabel.className = "cometcms-badge-label";
+  const badgeMenu = doc.createElement("span");
+  badgeMenu.className = "cometcms-badge-menu";
+  badgeMenu.setAttribute("aria-hidden", "true");
+  badgeMenu.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+  badge.append(badgeLabel);
+  badge.append(badgeMenu);
   templateHighlight = doc.createElement("div");
   templateHighlight.className = "cometcms-template-highlight";
   templateHighlight.hidden = true;
@@ -348,8 +394,9 @@ function applySelection(scroll) {
   revealTabPanel(el);
   const rect = el.getBoundingClientRect();
   const win = doc.defaultView;
-  badge.textContent = `${builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node))}  ⋯`;
+  badgeLabel.textContent = builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node));
   badge.title = t("site.menu.more");
+  badge.setAttribute("aria-label", `${badgeLabel.textContent}: ${t("site.menu.more")}`);
   badge.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
   badge.style.left = `${rect.left + win.scrollX}px`;
   badge.style.top = `${Math.max(16, rect.top + win.scrollY)}px`;
