@@ -1430,6 +1430,13 @@ final class NodeRenderer
         $prefixes = [
             'padding_y' => 'c-py-',
             'padding_x' => 'c-px-',
+            'padding_top' => 'c-pt-',
+            'padding_right' => 'c-pr-',
+            'padding_bottom' => 'c-pb-',
+            'padding_left' => 'c-pl-',
+            'margin_top' => 'c-mt-',
+            'margin_right' => 'c-mr-',
+            'margin_left' => 'c-ml-',
             'margin_bottom' => 'c-mb-',
             'background' => 'c-bg-',
             'text_color' => 'c-fg-',

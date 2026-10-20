@@ -118,6 +118,37 @@ test('layout schema drops unknown kinds, misplaced nodes and unsafe values', fun
     assert_same([], $template[0]['children'], 'Item templates cannot nest.');
 });
 
+test('individual spacing survives saving and renders alongside legacy paired padding', function (): void {
+    $site = comet_site_test_setup();
+    $style = [
+        'padding_y' => 'lg', 'padding_x' => 'md',
+        'padding_top' => 'none', 'padding_right' => '2xl', 'padding_bottom' => 'sm', 'padding_left' => 'xs',
+        'margin_top' => 'xs', 'margin_right' => 'sm', 'margin_bottom' => 'md', 'margin_left' => 'lg',
+    ];
+    $nodes = [LayoutSchema::node('section', [], $style, [
+        LayoutSchema::node('row', [], $style, [LayoutSchema::node('column', [], $style, [
+            LayoutSchema::node('text', ['html' => '<p>Spaced</p>'], $style),
+        ])]),
+    ])];
+    $saved = $site->saveLayout('about', 'detail', $nodes);
+    $reloaded = (new SiteRepository())->layout('about', 'detail');
+    assert_same($saved, $reloaded);
+    $current = $reloaded[0];
+    foreach (['section', 'row', 'column', 'text'] as $kind) {
+        assert_same($kind, $current['kind']);
+        foreach ($style as $key => $value) {
+            assert_same($value, $current['style'][$key]);
+        }
+        $current = $current['children'][0] ?? [];
+    }
+    $html = (new NodeRenderer(comet_site_test_context($site)))->render($reloaded);
+    foreach (['py-lg', 'px-md', 'pt-none', 'pr-2xl', 'pb-sm', 'pl-xs', 'mt-xs', 'mr-sm', 'mb-md', 'ml-lg'] as $class) {
+        assert_same(4, substr_count($html, 'c-' . $class));
+    }
+    $invalid = LayoutSchema::normalize([LayoutSchema::node('section', [], ['padding_top' => '999px', 'margin_left' => '-1', 'margin_right' => 'none'])]);
+    assert_same(['margin_right' => 'none'], $invalid[0]['style']);
+});
+
 test('layout names survive saving and loading without changing rendered content', function (): void {
     $site = comet_site_test_setup();
     // Persist the header so generated menu ids stay stable between renders.

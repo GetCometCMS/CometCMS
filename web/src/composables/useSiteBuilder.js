@@ -316,6 +316,18 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       const node = findNode(tree, id)
       if (!node) return
       node[group] = { ...(node[group] ?? {}), [key]: value }
+      // Split legacy paired padding on the first edge edit, keeping its opposite.
+      if (group === 'style' && /^padding_(top|right|bottom|left)$/.test(key)) {
+        const vertical = ['padding_top', 'padding_bottom'].includes(key)
+        const pair = vertical ? 'padding_y' : 'padding_x'
+        if (node.style[pair]) {
+          for (const side of vertical ? ['top', 'bottom'] : ['left', 'right']) {
+            const edge = `padding_${side}`
+            if (edge !== key && !node.style[edge]) node.style[edge] = node.style[pair]
+          }
+          delete node.style[pair]
+        }
+      }
       // Like the server, style keeps only values that differ from their default.
       if (group === 'style' && isDefaultStyle(key, value)) {
         delete node.style[key]

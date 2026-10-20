@@ -139,16 +139,25 @@
           :title="t(`site.styleGroup.${group.key}`)"
           content-class="mt-3 space-y-3"
         >
-          <BuilderControl
-            v-for="key in group.keys"
-            :key="`${node.id}-s-${key}`"
+          <SpacingControl
+            v-if="group.key === 'spacing'"
             :node="node"
-            :name="key"
-            group="style"
-            :def="styleSpec[key]"
-            :value="node.style?.[key] ?? styleSpec[key].default"
-            @update="(value) => builder.updateValue(node.id, 'style', key, value)"
+            :spec="styleSpec"
+            :keys="group.keys"
+            @update="(key, value) => builder.updateValue(node.id, 'style', key, value)"
           />
+          <template v-else>
+            <BuilderControl
+              v-for="key in group.keys"
+              :key="`${node.id}-s-${key}`"
+              :node="node"
+              :name="key"
+              group="style"
+              :def="styleSpec[key]"
+              :value="node.style?.[key] ?? styleSpec[key].default"
+              @update="(value) => builder.updateValue(node.id, 'style', key, value)"
+            />
+          </template>
         </BuilderGroup>
       </template>
     </div>
@@ -169,6 +178,7 @@
 import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
+import SpacingControl from "./SpacingControl.vue";
 import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import BuilderTabs from "./BuilderTabs.vue";
@@ -186,7 +196,7 @@ defineProps({
 defineEmits(["edit-template-part"]);
 
 const STYLE_GROUPS = [
-  { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
+  { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
   { key: "text", keys: ["text_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },

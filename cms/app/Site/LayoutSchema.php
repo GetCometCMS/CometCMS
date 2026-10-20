@@ -96,6 +96,8 @@ final class LayoutSchema
 
     private const SPACE = ['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
+    private const SPACING_KEYS = ['padding_y', 'padding_x', 'padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left'];
+
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
     /** Background image options; older layouts stored them as section props. */
@@ -116,6 +118,13 @@ final class LayoutSchema
             'padding_y' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'padding_top' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'padding_right' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'padding_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'padding_left' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'margin_top' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'margin_right' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
+            'margin_left' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
             'background_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             // An image is layered over the background color, which shows
@@ -156,11 +165,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
-            'column' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
+            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 

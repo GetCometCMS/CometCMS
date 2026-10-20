@@ -52,6 +52,28 @@ async function builderFixture() {
   return builder
 }
 
+describe('builder spacing', () => {
+  it('splits paired padding in one undo step and resets individual edges to the default', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    section.style = { padding_y: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' }
+    builder.load(builder.nodes.value)
+    builder.updateValue(section.id, 'style', 'padding_top', 'sm')
+    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' })
+    builder.undo()
+    expect(builder.nodes.value[0].style).toEqual(section.style)
+    builder.redo()
+    builder.updateValue(section.id, 'style', 'padding_left', '')
+    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_right: 'xs', background: 'accent' })
+    builder.undo()
+    expect(builder.nodes.value[0].style.padding_x).toBe('md')
+    builder.updateValue(section.id, 'style', 'margin_bottom', 'none')
+    expect(builder.nodes.value[0].style.margin_bottom).toBe('none')
+    builder.updateValue(section.id, 'style', 'margin_bottom', '')
+    expect(builder.nodes.value[0].style).not.toHaveProperty('margin_bottom')
+  })
+})
+
 describe('builder page navigation', () => {
   it('removes disabled types from navigation while retaining their layouts and data bindings', async () => {
     const builder = await builderFixture()
