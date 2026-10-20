@@ -1,9 +1,9 @@
 <template>
-  <div class="spacing-box" role="group" :aria-label="t('site.styleGroup.spacing')">
-    <span class="spacing-label spacing-margin-label">{{ t('site.spacing.margin') }}</span>
-    <div class="spacing-padding">
-      <span class="spacing-label">{{ t('site.spacing.padding') }}</span>
-      <div class="spacing-content" aria-hidden="true"></div>
+  <div class="relative h-56 rounded-[10px] border border-slate-200 bg-slate-100/75" role="group" :aria-label="t('site.styleGroup.spacing')">
+    <span class="pointer-events-none absolute left-[9px] top-[3px] text-[10px] leading-[14px] text-slate-500">{{ t('site.spacing.margin') }}</span>
+    <div class="absolute inset-x-[34px] inset-y-[42px] rounded-md border border-dashed border-slate-300 bg-[rgb(var(--color-surface))]">
+      <span class="pointer-events-none absolute left-[9px] top-[7px] text-[10px] leading-[14px] text-slate-500">{{ t('site.spacing.padding') }}</span>
+      <div class="absolute inset-x-[35px] inset-y-[47px] min-w-3 rounded border border-slate-200 bg-slate-50" aria-hidden="true"></div>
     </div>
     <button
       v-for="control in controls"
@@ -16,16 +16,16 @@
       :aria-expanded="activeKey === control.key"
       :aria-controls="activeKey === control.key ? listId : undefined"
       :aria-activedescendant="activeKey === control.key ? `${listId}-${activeIndex}` : undefined"
-      class="spacing-value"
-      :class="[`spacing-${control.group}-${control.side}`, { 'spacing-value-set': control.value !== '', 'spacing-value-open': activeKey === control.key }]"
+      class="absolute flex h-7 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[5px] text-[11px] font-semibold hover:bg-theme-50 hover:text-theme-700 hover:ring-1 hover:ring-theme-300 focus-visible:bg-theme-50 focus-visible:text-theme-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-theme-300 aria-expanded:bg-theme-50 aria-expanded:text-theme-700 aria-expanded:outline-none aria-expanded:ring-1 aria-expanded:ring-theme-300"
+      :class="[positionClasses[control.key], control.value !== '' ? 'text-slate-700' : 'text-slate-400']"
       :title="`${control.label}: ${optionLabel(control.value)}`"
       @click="toggle(control, $event.currentTarget)"
       @keydown="onKeydown($event, control)"
       @blur="close()"
     >{{ shortLabel(control.value) }}</button>
     <Teleport to="body">
-      <div v-if="activeControl" ref="popup" class="spacing-picker" :style="popupStyle">
-        <p :id="`${listId}-label`" class="spacing-picker-label">{{ activeControl.label }}</p>
+      <div v-if="activeControl" ref="popup" class="fixed z-[1000] overflow-y-auto overscroll-contain rounded-[10px] border border-slate-200 bg-[rgb(var(--color-surface))] p-[5px] text-slate-700 shadow-[0_12px_28px_-6px_rgb(0_0_0_/_0.18),0_3px_8px_-3px_rgb(0_0_0_/_0.1)]" :style="popupStyle">
+        <p :id="`${listId}-label`" class="px-[7px] pb-2 pt-[5px] text-[10px] font-medium leading-4 text-slate-500">{{ activeControl.label }}</p>
         <div :id="listId" role="listbox" :aria-labelledby="`${listId}-label`">
           <button
             v-for="(value, index) in activeControl.options"
@@ -35,19 +35,19 @@
             role="option"
             tabindex="-1"
             :aria-selected="activeControl.value === value"
-            class="spacing-option"
-            :class="{ 'spacing-option-active': activeIndex === index, 'spacing-option-default': value === '' }"
+            class="flex h-[30px] w-full items-center gap-2 rounded-[5px] px-[7px] text-left text-[11px] leading-4 aria-selected:bg-theme-50 aria-selected:text-theme-700"
+            :class="{ 'bg-slate-100': activeIndex === index, 'mb-[5px]': value === '' }"
             @pointermove="activeIndex = index"
             @pointerdown.prevent
             @click="select(value)"
           >
-            <span v-if="value === ''" class="spacing-option-default-label">{{ t('site.option.default') }}</span>
+            <span v-if="value === ''" class="flex-1">{{ t('site.option.default') }}</span>
             <template v-else>
-              <span class="spacing-token">{{ shortLabel(value) }}</span>
-              <span v-if="pixelValue(value) !== undefined" class="spacing-pixels">{{ pixelValue(value) }}<span>px</span></span>
+              <span class="flex-1 font-semibold">{{ shortLabel(value) }}</span>
+              <span v-if="pixelValue(value) !== undefined" class="flex gap-0.5 tabular-nums text-slate-500">{{ pixelValue(value) }}<span class="text-[10px] text-slate-400">px</span></span>
             </template>
-            <svg v-if="activeControl.value === value" viewBox="0 0 16 16" fill="none" class="spacing-check" aria-hidden="true"><path d="m3 8 3 3 7-7" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            <span v-else class="spacing-check" aria-hidden="true"></span>
+            <svg v-if="activeControl.value === value" viewBox="0 0 16 16" fill="none" class="h-3 w-3 shrink-0 text-theme-600" aria-hidden="true"><path d="m3 8 3 3 7-7" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            <span v-else class="h-3 w-3 shrink-0 text-theme-600" aria-hidden="true"></span>
           </button>
         </div>
       </div>
@@ -78,6 +78,17 @@ const activeIndex = ref(0);
 const popup = ref(null);
 const popupStyle = ref({});
 let trigger = null;
+
+const positionClasses = {
+  margin_top: 'left-1/2 top-[30px]',
+  margin_right: 'left-[calc(100%-18px)] top-1/2',
+  margin_bottom: 'left-1/2 top-[calc(100%-22px)]',
+  margin_left: 'left-[18px] top-1/2',
+  padding_top: 'left-1/2 top-20',
+  padding_right: 'left-[calc(100%-53px)] top-1/2',
+  padding_bottom: 'left-1/2 top-[calc(100%-67px)]',
+  padding_left: 'left-[53px] top-1/2',
+};
 
 const controls = computed(() => ["margin", "padding"].flatMap((group) =>
   ["top", "right", "bottom", "left"].flatMap((side) => {
@@ -188,105 +199,3 @@ function optionLabel(value) {
   return pixels === undefined ? shortLabel(value) : `${shortLabel(value)} · ${pixels}px`;
 }
 </script>
-
-<style scoped>
-.spacing-box {
-  position: relative;
-  height: 224px;
-  border: 1px solid rgb(var(--color-slate-200));
-  border-radius: 10px;
-  background: rgb(var(--color-slate-100) / 0.75);
-}
-.spacing-label {
-  position: absolute;
-  top: 7px;
-  left: 9px;
-  color: rgb(var(--color-slate-500));
-  font-size: 10px;
-  line-height: 14px;
-  pointer-events: none;
-}
-.spacing-padding {
-  position: absolute;
-  inset: 42px 34px;
-  border: 1px dashed rgb(var(--color-slate-300));
-  border-radius: 6px;
-  background: rgb(var(--color-surface));
-}
-.spacing-content {
-  position: absolute;
-  inset: 47px 35px;
-  min-width: 12px;
-  border: 1px solid rgb(var(--color-slate-200));
-  border-radius: 4px;
-  background: rgb(var(--color-slate-50));
-}
-.spacing-value {
-  position: absolute;
-  display: flex;
-  width: 36px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  color: rgb(var(--color-slate-400));
-  font-size: 11px;
-  font-weight: 600;
-  transform: translate(-50%, -50%);
-}
-.spacing-value-set { color: rgb(var(--color-slate-700)); }
-.spacing-value:hover, .spacing-value:focus-visible, .spacing-value-open {
-  outline: none;
-  background: rgb(var(--color-theme-50));
-  color: rgb(var(--color-theme-700));
-  box-shadow: 0 0 0 1px rgb(var(--color-theme-300));
-}
-.spacing-picker {
-  position: fixed;
-  z-index: 1000;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: 1px solid rgb(var(--color-slate-200));
-  border-radius: 10px;
-  padding: 5px;
-  background: rgb(var(--color-surface));
-  color: rgb(var(--color-slate-700));
-  box-shadow: 0 12px 28px -6px rgb(0 0 0 / 0.18), 0 3px 8px -3px rgb(0 0 0 / 0.1);
-}
-.spacing-picker-label {
-  padding: 5px 7px 8px;
-  color: rgb(var(--color-slate-500));
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 16px;
-}
-.spacing-option {
-  display: flex;
-  width: 100%;
-  height: 30px;
-  align-items: center;
-  gap: 8px;
-  border-radius: 5px;
-  padding: 0 7px;
-  text-align: left;
-  font-size: 11px;
-  line-height: 16px;
-}
-.spacing-option-active { background: rgb(var(--color-slate-100)); }
-.spacing-option[aria-selected="true"] { color: rgb(var(--color-theme-700)); background: rgb(var(--color-theme-50)); }
-.spacing-option-default { margin-bottom: 5px; }
-.spacing-option-default-label { flex: 1; }
-.spacing-token { flex: 1; font-weight: 600; }
-.spacing-pixels { display: flex; gap: 2px; color: rgb(var(--color-slate-500)); font-variant-numeric: tabular-nums; }
-.spacing-pixels > span { color: rgb(var(--color-slate-400)); font-size: 10px; }
-.spacing-check { width: 12px; height: 12px; flex-shrink: 0; color: rgb(var(--color-theme-600)); }
-.spacing-margin-label { top: 3px; }
-.spacing-margin-top { top: 30px; left: 50%; }
-.spacing-margin-right { top: 50%; left: calc(100% - 18px); }
-.spacing-margin-bottom { top: calc(100% - 22px); left: 50%; }
-.spacing-margin-left { top: 50%; left: 18px; }
-.spacing-padding-top { top: 80px; left: 50%; }
-.spacing-padding-right { top: 50%; left: calc(100% - 53px); }
-.spacing-padding-bottom { top: calc(100% - 67px); left: 50%; }
-.spacing-padding-left { top: 50%; left: 53px; }
-</style>

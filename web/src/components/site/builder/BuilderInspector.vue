@@ -70,7 +70,7 @@
       />
     </div>
 
-    <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+    <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4 pb-32">
       <template v-if="isInstance">
         <div class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p v-if="!component" class="text-amber-800">{{ t("site.component.missingHint") }}</p>
