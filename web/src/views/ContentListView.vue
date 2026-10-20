@@ -242,7 +242,13 @@
                     :saving="savingCell === cellSaveKey(entry.id, column)" @save="handleInlineSave">
                     <template v-if="column.kind === 'core'">
                       <template v-if="column.key === 'title'">
-                        {{ entry.title ?? entry.id }}
+                        <span class="inline-flex items-center gap-1.5">
+                          {{ entry.title ?? entry.id }}
+                          <Icon v-if="homepageEntry && homepageEntry === (entry.slug ?? entry.id)"
+                            icon="mdi:home" class="h-3.5 w-3.5 shrink-0 text-slate-400"
+                            role="img" :aria-label="t('site.overview.homepage')"
+                            :title="t('site.overview.homepage')" />
+                        </span>
                       </template>
                       <template v-else-if="column.key === 'status'">
                         <span :class="statusPillClass(effectiveStatus(entry))">
@@ -495,6 +501,17 @@ const userMap = computed(() =>
 // ── Content type schema (for BulkEditBar field list) ─────────────────────────
 const contentTypeSchema = ref(null);
 const websiteStatus = ref(null);
+// Status resolves homepage settings stored by either slug or stable ID.
+const homepageEntry = computed(() => {
+  const path = websiteStatus.value?.homepage_editor;
+  if (!path) return null;
+  const homepage = router.resolve(path);
+  return homepage.params.target === 'layout'
+    && homepage.params.name === collection.value
+    && homepage.params.variant === 'detail'
+    ? homepage.query.entry || null
+    : null;
+});
 const COLLECTION_TEMPLATES = [
   { variant: "index", icon: "mdi:view-grid-outline" },
   { variant: "card", icon: "mdi:card-text-outline" },
