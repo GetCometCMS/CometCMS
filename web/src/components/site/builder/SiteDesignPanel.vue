@@ -1,10 +1,13 @@
 <template>
   <div :class="layout === 'page' ? 'card' : 'flex h-full flex-col'">
-    <div class="flex items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
+    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
       <Icon icon="mdi:palette-outline" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
-        <h2 :class="layout === 'page' ? 'card-title' : 'text-sm font-semibold text-slate-900'">{{ t("site.builder.designSettings") }}</h2>
-        <p :class="layout === 'page' ? 'card-description' : 'text-xs text-slate-500'">{{ t("site.builder.designSettingsHint") }}</p>
+        <div :class="layout === 'sidebar' ? 'flex min-w-0 items-center gap-1' : ''">
+          <h2 :class="layout === 'page' ? 'card-title' : 'truncate text-sm font-semibold text-slate-900'">{{ t("site.builder.designSettings") }}</h2>
+          <BuilderHelp v-if="layout === 'sidebar'" :label="`${t('site.builder.designSettings')} — ${t('site.builder.help')}`" :hints="[t('site.builder.designSettingsHint')]" />
+        </div>
+        <p v-if="layout === 'page'" class="card-description">{{ t("site.builder.designSettingsHint") }}</p>
       </div>
       <button v-if="layout === 'sidebar'" type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
@@ -223,6 +226,7 @@
 import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderGroup from "./BuilderGroup.vue";
+import BuilderHelp from "./BuilderHelp.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import ToggleSwitch from "../../ToggleSwitch.vue";
 import RangeRow from "../RangeRow.vue";
@@ -304,7 +308,7 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
+const expanded = ref({ presets: false, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
 const motionPreview = ref(0);
 
 const palettes = computed(() => {

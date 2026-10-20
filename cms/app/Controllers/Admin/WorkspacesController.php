@@ -181,7 +181,7 @@ final class WorkspacesController extends BaseController
         $target = COMET_STORAGE . '/workspaces/' . $slug . '/icon.png';
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
         $saved = imagepng($image, $tmp);
-        imagedestroy($image);
+        unset($image);
 
         if (!$saved || !rename($tmp, $target)) {
             if (is_file($tmp)) {

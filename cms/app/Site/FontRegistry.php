@@ -136,7 +136,7 @@ final class FontRegistry
         $uses = [];
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
-            $relative = substr($file->getPathname(), strlen($root) + 1);
+            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1));
             if ($file->isLink() || $file->getExtension() !== 'json' || str_starts_with($relative, 'theme/fonts/')) {
                 continue;
             }

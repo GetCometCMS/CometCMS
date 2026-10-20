@@ -35,7 +35,7 @@ Layouts are generated from the content type's fields until you change them, so a
 
 ### Finding your way in the builder
 
-- The **left rail** opens the panels: **Add**, **Outline**, **Content** (the preview entry's fields), **Components**, **Forms**, **Design**, **CSS** and **History**. Each panel explains what it does at the top.
+- The **left rail** opens the panels: **Add**, **Outline**, **Content** (the preview entry's fields), **Components**, **Design**, **CSS** and **History**. Each panel explains what it does at the top.
 - The **canvas** in the middle is the live preview. Click any element to select it; sections, grids, columns and components are outlined in their own colors.
 - The **inspector** on the right shows the selected element's settings, a short explanation of the element type, and a path to its parent elements. With nothing selected, it summarizes the page you are editing and suggests next steps.
 - The **top bar** shows the preview entry, language, device, undo/redo and whether all changes are saved.
@@ -85,11 +85,15 @@ Scroll inside the preview to test entry animations. Each preview update creates 
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
 
-### Background images
+### Backgrounds and gradients
 
 Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, and **Background blur (px)** from 0 to 40. Like other images, it can be bound to a media field of the entry.
 
 Zero blur keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+Choose **Background gradient** in the same group for a two-color **Linear** or **Radial** gradient. Pick its start and end colors from the theme palette (including custom colors); linear gradients also have an angle from 0 to 360 degrees. The colors follow the site's light/dark mode. A gradient takes precedence over a background image; choose **None** to show the saved image again. The background color remains underneath as a fallback. Image blur, sizing and overlays apply to images only.
+
+Headings and Text elements also offer **Text gradient** in the **Text** style group, with the same controls. It colors the text block, including linked and bound text, and works alongside a background color, gradient or image. Code blocks, highlighted text and table headers keep a solid text color for readability on their own backgrounds. **None** restores the regular text color. Browsers without text clipping support keep the regular text color.
 
 Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 
@@ -109,22 +113,30 @@ Components may show fields of the entry a page displays (for example its title o
 
 Deleting a component turns all its instances into independent, editable copies, preserving their content, styling and column widths. This applies to layouts, headers, footers and instances inside other components, as well as the open builder draft. Older revisions also restore detached copies. The component and its own version history are permanently removed. Deletion is available in both the builder's **Components** panel and the **Components** tab of the website settings.
 
+### Tabs
+
+Add **Tabs** from **Add → Elements** to organize content into switchable panels. A new Tabs element starts with two tabs. In the inspector, rename tabs, change their order, add or remove tabs, and choose the **Default tab** shown when the page opens. **Title** provides the tab group's accessible name.
+
+Choose **Edit content** or click a tab heading in the canvas to edit that panel. Each tab holds normal builder elements, including images, buttons, forms, collections and nested column layouts. Use the outline or the inspector's breadcrumb to return to the Tabs element; selecting an element inside a hidden tab reveals it automatically.
+
+Visitors can switch tabs with a mouse or with Left/Right Arrow, Home and End on the tab headings, following the [WAI-ARIA Tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/). Headings scroll horizontally when space is limited. Without JavaScript, all panels remain readable; printed pages include every panel.
+
 ### Forms
 
 Forms let visitors send messages, sign-ups or requests. Every submission is saved as a new entry of a content type you choose, so the content type defines what the form asks for. For private inquiries, disable API exposure and the Page Builder on the receiving type.
 
 Set forms up on the **content type edit page** by enabling **Allow Submissions**:
 
-- The current content type receives the submissions and automatically appears in the builder’s **Forms** sidebar. Single pages cannot receive submissions.
+- The current content type receives the submissions and becomes available in the **Form** element's **Content type** selector. Single pages cannot receive submissions.
 - The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time, colour and media fields are shown; relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
 - **Status of new entries** is *Draft* by default, so submissions wait for review.
 - The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
 
-Disabling **Allow Submissions** removes the type from the forms sidebar and blocks submissions from existing placements; saved entries and form settings are retained.
+Disabling **Allow Submissions** removes the type from the Form element's selector and blocks submissions from existing placements; saved entries and form settings are retained.
 
 Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
 
-To place a form, open the **Forms** panel in the builder's left rail and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+To place a form, click or drag **Form** from **Add → Elements** into the page, then select the **Content type** in the inspector. The form renders that type's fields and saves submissions as entries of the same type. The inspector also lets you hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
 
 Media fields accept file uploads and respect **Allow multiple** and **Required**. Attachments are stored privately in the receiving workspace’s media library and linked to the new entry; downloading them requires authenticated media access. Visitors cannot attach existing media by posting filenames.
 
@@ -226,7 +238,7 @@ The default workspace's website answers on the server's own address. To serve an
 - Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
 - Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
-- Pages are sent with a `Content-Security-Policy` that forbids scripts. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
+- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery and Tabs modules when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.

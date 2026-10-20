@@ -28,14 +28,16 @@ final class Fontsource
             }]);
             $ok = curl_exec($handle);
             $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-            curl_close($handle);
             if ($ok === false || $status !== 200) {
                 throw new \RuntimeException('Could not download font data. Check outbound HTTPS access and retry.');
             }
         } else {
             $context = stream_context_create(['http' => ['timeout' => 10, 'follow_location' => 0, 'ignore_errors' => true, 'header' => "User-Agent: CometCMS-Fonts\r\n"], 'ssl' => ['verify_peer' => true, 'verify_peer_name' => true]]);
             $body = @file_get_contents($url, false, $context, 0, $limit + 1);
-            if ($body === false || !preg_match('~^HTTP/\S+ 200(?: |$)~', ($http_response_header ?? [])[0] ?? '')) {
+            $responseHeaders = function_exists('http_get_last_response_headers')
+                ? (http_get_last_response_headers() ?? [])
+                : (${'http_response_header'} ?? []);
+            if ($body === false || !preg_match('~^HTTP/\S+ 200(?: |$)~', $responseHeaders[0] ?? '')) {
                 throw new \RuntimeException('Could not download font data. Check outbound HTTPS access and retry, or upload WOFF2 files.');
             }
         }

@@ -192,9 +192,12 @@ PHP]));
             'header' => "Content-Type: application/x-www-form-urlencoded\r\nAccept: " . $accept . "\r\n",
             'content' => http_build_query($body),
         ]]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         $location = '';
-        foreach ($http_response_header ?? [] as $header) {
+        foreach ($responseHeaders as $header) {
             if (stripos($header, 'Location:') === 0) {
                 $location = trim(substr($header, 9));
             }
@@ -358,7 +361,10 @@ PHP]));
             'header' => 'Content-Type: multipart/form-data; boundary=' . $boundary . "\r\nAccept: application/json\r\n",
             'content' => $body,
         ]]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         return [(int) ($match[1] ?? 0), json_decode((string) $response, true)];
     };
     $state = static fn(): array => json_decode(comet_test_run_php(['-r', $bootstrap . <<<'PHP'
@@ -369,7 +375,8 @@ PHP]), true);
         usleep(300000);
         $valid = ['fields[email]' => 'ada@example.com'];
         $file = ['fields[attachment]', 'notes.txt', 'A useful attachment.'];
-        assert_same(200, $post($valid, [$file, ['fields[extras][]', 'one.txt', 'First attachment'], ['fields[extras][]', 'two.txt', 'Second attachment'], ['fields[unknown]', 'ignored.txt', 'Ignored']])[0]);
+        [$status, $result] = $post($valid, [$file, ['fields[extras][]', 'one.txt', 'First attachment'], ['fields[extras][]', 'two.txt', 'Second attachment'], ['fields[unknown]', 'ignored.txt', 'Ignored']]);
+        assert_same(200, $status, 'Valid multipart upload: ' . json_encode($result));
         $stored = $state();
         assert_same(3, count($stored['files']));
         assert_same(1, count($stored['entries']));
@@ -382,7 +389,10 @@ PHP]), true);
         assert_false(is_file($root . '/storage/workspaces/default/media/' . $name));
         assert_false(is_file($root . '/storage/media/' . $name));
         file_get_contents('http://127.0.0.1:' . $port . '/cms/media/form-uploads/' . rawurlencode($name), false, stream_context_create(['http' => ['ignore_errors' => true]]));
-        assert_true(str_contains($http_response_header[0], '401'), 'Private attachments must require authentication.');
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        assert_true(str_contains($responseHeaders[0] ?? '', '401'), 'Private attachments must require authentication.');
 
         $cases = [
             [$valid, [], 'attachment'],
@@ -403,12 +413,17 @@ PHP]), true);
             assert_true(isset($result['error']['fields'][$error]), 'Expected error for ' . $error);
             assert_same(3, count($state()['files']), 'Failed submissions must leave no uploaded files.');
         }
-        assert_same(200, $post($valid + [FormSubmission::HONEYPOT => 'bot'], [$file])[0]);
+        [$status, $result] = $post($valid + [FormSubmission::HONEYPOT => 'bot'], [$file]);
+        assert_same(200, $status, 'Honeypot submission: ' . json_encode($result));
         assert_same(3, count($state()['files']));
         assert_same(422, $post($valid + ['padding' => str_repeat('x', 264000)], [$file])[0]);
         assert_same(3, count($state()['files']));
         // A file exactly at the configured limit is accepted.
-        assert_same(200, $post($valid, [['fields[attachment]', 'boundary.txt', str_repeat('x', 1024)]])[0]);
+        // Repeated characters without line breaks can be detected as binary on Linux.
+        $boundaryText = str_pad("A plain text attachment.\n", 1024, "More plain text.\n");
+        assert_same(1024, strlen($boundaryText));
+        [$status, $result] = $post($valid, [['fields[attachment]', 'boundary.txt', $boundaryText]]);
+        assert_same(200, $status, 'Upload at the size limit: ' . json_encode($result));
         assert_same(4, count($state()['files']));
         // Exhaust the same visitor/form limiter before sending another genuine upload.
         comet_test_run_php(['-r', $bootstrap . '$limiter = new \\CometCMS\\Core\\RateLimiter((new \\CometCMS\\Site\\SiteRepository())->workspace()->path("cache") . "/form-limits"); for ($i = 0; $i < 100; $i++) { $limiter->hit(' . var_export('form:' . $formId, true) . ', "127.0.0.1", 100, 600); }']);

@@ -15,16 +15,19 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import SitePreviewFrame from "../SitePreviewFrame.vue";
 import { PREVIEW_KEEP } from "../../../composables/previewDocument.js";
+import { templatePartBounds } from "../../../composables/builderTemplateParts.js";
 import { findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
+import { activateTab, revealTabPanel } from "../../../../../cms/app/Site/assets/tabs.js";
 
-defineProps({
+const props = defineProps({
   body: { type: Object, default: null },
   device: { type: String, default: "desktop" },
+  selectedTemplatePart: { type: String, default: null },
 });
 
-const emit = defineEmits(["keydown"]);
+const emit = defineEmits(["keydown", "select-template-part"]);
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const frameRef = ref(null);
@@ -32,6 +35,10 @@ const frameRef = ref(null);
 let doc = null;
 let indicator = null;
 let badge = null;
+let badgeLabel = null;
+let templateHighlight = null;
+let templateLabel = null;
+let hoveredTemplatePart = null;
 let dropTargetState = null;
 let selectedFromCanvas = false;
 let resizeHandle = null;
@@ -79,6 +86,29 @@ const BUILDER_CSS = `
   outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
 }
 
+/* A separate overlay stays visible above shared template part content. */
+.cometcms-template-highlight{
+  --builder-color:#e2a0ce;
+  position:fixed;
+  z-index:2147483647;
+  pointer-events:none;
+  outline:calc(2px * var(--cometcms-ui-scale,1)) dashed var(--builder-color);
+  outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
+}
+
+.cometcms-template-label{
+  --s:var(--cometcms-ui-scale,1);
+  position:absolute;
+  top:0;
+  left:0;
+  background:var(--builder-color);
+  color:#54223f;
+  font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
+  padding:calc(5px * var(--s)) calc(8px * var(--s));
+  border-radius:0 0 calc(5px * var(--s)) 0;
+  white-space:nowrap;
+}
+
 /* Empty drop area */
 [data-drop-root]:empty{
   min-height:180px;
@@ -95,6 +125,18 @@ const BUILDER_CSS = `
   content:attr(data-empty-label);
   font:500 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
   color:#64748b;
+}
+
+[data-kind="tab"]:empty{
+  min-height:100px;
+  border:1px dashed #cbd5e1;
+}
+[data-kind="tab"]:empty::before{
+  content:attr(data-empty-label);
+  display:block;
+  padding:24px;
+  color:#64748b;
+  font:500 13px/1.4 system-ui,sans-serif;
 }
 
 /* Drag and drop indicators */
@@ -116,19 +158,54 @@ const BUILDER_CSS = `
 
 /* Node badges */
 .cometcms-badge{
+  all:initial;
   --s:var(--cometcms-ui-scale,1);
   position:absolute;
   z-index:2147483647;
+  display:inline-flex;
+  align-items:stretch;
   cursor:pointer;
   transform:translateY(-100%);
   background:color-mix(in srgb,var(--builder-color,#5875c9) 88%,#111827);
   color:#fff;
   font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
   letter-spacing:.01em;
-  padding:calc(5px * var(--s)) calc(8px * var(--s));
   border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
   white-space:nowrap;
   box-shadow:0 -1px 3px rgba(0,0,0,.08);
+}
+
+.cometcms-badge[hidden]{display:none;}
+
+.cometcms-badge-label{
+  padding:calc(6px * var(--s)) calc(8px * var(--s));
+}
+
+.cometcms-badge-menu{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:calc(26px * var(--s));
+  border-left:1px solid rgba(255,255,255,.25);
+  border-radius:0 calc(5px * var(--s)) 0 0;
+  background:rgba(255,255,255,.1);
+}
+
+.cometcms-badge-menu svg{
+  display:block;
+  width:calc(16px * var(--s));
+  height:calc(16px * var(--s));
+  fill:currentColor;
+}
+
+.cometcms-badge:hover .cometcms-badge-menu{
+  background:rgba(255,255,255,.25);
+}
+
+.cometcms-badge:focus-visible{
+  outline:calc(2px * var(--s)) solid #fff;
+  outline-offset:calc(2px * var(--s));
+  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#5875c9);
 }
 
 /* Column resizing: a grip on the edge under the pointer */
@@ -202,9 +279,27 @@ function attach(document) {
   indicator = doc.createElement("div");
   indicator.className = "cometcms-drop";
   indicator.hidden = true;
-  badge = doc.createElement("div");
+  badge = doc.createElement("button");
+  badge.type = "button";
   badge.className = "cometcms-badge";
+  badge.setAttribute("aria-haspopup", "menu");
   badge.hidden = true;
+  badgeLabel = doc.createElement("span");
+  badgeLabel.className = "cometcms-badge-label";
+  const badgeMenu = doc.createElement("span");
+  badgeMenu.className = "cometcms-badge-menu";
+  badgeMenu.setAttribute("aria-hidden", "true");
+  badgeMenu.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+  badge.append(badgeLabel);
+  badge.append(badgeMenu);
+  templateHighlight = doc.createElement("div");
+  templateHighlight.className = "cometcms-template-highlight";
+  templateHighlight.hidden = true;
+  templateHighlight.setAttribute("aria-hidden", "true");
+  templateLabel = doc.createElement("span");
+  templateLabel.className = "cometcms-template-label";
+  templateHighlight.append(templateLabel);
+  hoveredTemplatePart = null;
   resizeHandle = doc.createElement("div");
   resizeHandle.className = "cometcms-resize";
   resizeHandle.hidden = true;
@@ -212,7 +307,7 @@ function attach(document) {
   resizeLabel.className = "cometcms-resize-label";
   resizeLabel.hidden = true;
   resizeHandle.append(resizeLabel);
-  for (const overlay of [indicator, badge, resizeHandle]) overlay.setAttribute(PREVIEW_KEEP, "");
+  for (const overlay of [indicator, badge, resizeHandle, templateHighlight]) overlay.setAttribute(PREVIEW_KEEP, "");
   resizeEdge = null;
   resizing = null;
 
@@ -222,6 +317,10 @@ function attach(document) {
   resizeHandle.addEventListener("pointercancel", onResizeEnd);
 
   doc.addEventListener("click", onClick, true);
+  doc.addEventListener("focusin", (event) => {
+    const tab = event.target.closest?.('[data-tabs] > .c-tabs-list > [role="tab"]');
+    if (tab && findNode(builder.nodes.value, tab.dataset.tabKey)) builder.select(tab.dataset.tabKey);
+  });
   doc.addEventListener("contextmenu", onContextMenu);
   doc.addEventListener("pointerdown", (event) => {
     if (!event.target.closest?.(".cometcms-badge")) builder.closeContextMenu();
@@ -229,11 +328,14 @@ function attach(document) {
   doc.defaultView?.addEventListener("scroll", () => {
     builder.closeContextMenu();
     if (!resizing) showResizeEdge(null);
-  }, { passive: true });
+    applyTemplatePartHover();
+  }, { passive: true, capture: true });
   doc.addEventListener("mouseover", onMouseOver);
   doc.addEventListener("pointermove", onPointerMove);
   doc.documentElement.addEventListener("mouseleave", () => {
     builder.hoverId.value = null;
+    hoveredTemplatePart = null;
+    applyTemplatePartHover();
     if (!resizing) showResizeEdge(null);
   });
   doc.addEventListener("dragstart", onDragStart);
@@ -244,7 +346,10 @@ function attach(document) {
   doc.addEventListener("keydown", (event) => {
     if (!event.target.closest?.('.c-lightbox')) emit("keydown", event);
   });
-  doc.defaultView?.addEventListener("resize", () => applySelection(false));
+  doc.defaultView?.addEventListener("resize", () => {
+    applySelection(false);
+    applyTemplatePartHover();
+  });
 
   prepare(document);
 }
@@ -252,9 +357,9 @@ function attach(document) {
 /** Editor markup for the rendered page, on load and after each in-place update. */
 function prepare(document) {
   if (document !== doc) return;
-  doc.body.append(indicator, badge, resizeHandle);
+  doc.body.append(indicator, badge, resizeHandle, templateHighlight);
 
-  doc.querySelectorAll("[data-drop-root]").forEach((element) => {
+  doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
   doc.querySelectorAll("[data-node]").forEach((element) => element.setAttribute("draggable", "true"));
@@ -263,6 +368,7 @@ function prepare(document) {
   // Restore the editor state the update cleared before layout is read, so outlines don't blink.
   applySelection(false);
   applyHover();
+  applyTemplatePartHover();
   if (!resizing) {
     const edge = resizeEdge;
     resizeEdge = null;
@@ -285,10 +391,12 @@ function applySelection(scroll) {
   }
 
   el.setAttribute("data-builder-selected", "");
+  revealTabPanel(el);
   const rect = el.getBoundingClientRect();
   const win = doc.defaultView;
-  badge.textContent = `${builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node))}  ⋯`;
+  badgeLabel.textContent = builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node));
   badge.title = t("site.menu.more");
+  badge.setAttribute("aria-label", `${badgeLabel.textContent}: ${t("site.menu.more")}`);
   badge.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
   badge.style.left = `${rect.left + win.scrollX}px`;
   badge.style.top = `${Math.max(16, rect.top + win.scrollY)}px`;
@@ -302,6 +410,20 @@ function applyHover() {
   doc.querySelectorAll("[data-builder-hover]").forEach((el) => el.removeAttribute("data-builder-hover"));
   const el = element(builder.hoverId.value);
   if (el && builder.hoverId.value !== builder.selectedId.value) el.setAttribute("data-builder-hover", "");
+}
+
+function applyTemplatePartHover() {
+  if (!doc || !templateHighlight) return;
+  const name = hoveredTemplatePart || props.selectedTemplatePart;
+  const part = name && doc.querySelector(`.c-${name}:not([data-drop-root])`);
+  const rect = part && templatePartBounds(part);
+  templateHighlight.hidden = !rect;
+  if (!rect) return;
+  templateLabel.textContent = `${t(`site.region.${name}`)} · ${t("site.builder.templatePart")}`;
+  Object.assign(templateHighlight.style, {
+    left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+    outlineStyle: name === props.selectedTemplatePart ? "solid" : "dashed",
+  });
 }
 
 /** Viewport coordinates in the admin for a point inside the (scaled) preview. */
@@ -331,6 +453,15 @@ function onContextMenu(event) {
 }
 
 function onClick(event) {
+  const tab = event.target.closest?.('[data-tabs] > .c-tabs-list > [role="tab"]');
+  if (tab) {
+    event.preventDefault();
+    event.stopPropagation();
+    activateTab(tab);
+    const key = tab.dataset.tabKey;
+    if (findNode(builder.nodes.value, key)) builder.select(key);
+    return;
+  }
   if (event.target.closest?.('.c-lightbox')) return;
   // A second click on the selected gallery previews its viewer.
   if (event.target.closest?.('[data-gallery-image]') && event.target.closest?.('[data-node]')?.dataset.node === builder.selectedId.value) return;
@@ -350,11 +481,20 @@ function onClick(event) {
   }
 
   const el = event.target.closest?.("[data-node]");
+  const part = templatePartAt(event.target);
   selectedFromCanvas = true;
-  builder.select(el?.dataset.node ?? null);
+  builder.select(part ? null : el?.dataset.node ?? null);
+  emit("select-template-part", part);
+}
+
+function templatePartAt(target) {
+  const part = target.closest?.(".c-region:not([data-drop-root])");
+  return part?.classList.contains("c-header") ? "header" : part?.classList.contains("c-footer") ? "footer" : null;
 }
 
 function onMouseOver(event) {
+  hoveredTemplatePart = templatePartAt(event.target);
+  applyTemplatePartHover();
   const el = event.target.closest?.("[data-node]");
   builder.hoverId.value = el?.dataset.node ?? null;
 }
@@ -589,6 +729,7 @@ watch(
   },
 );
 watch(() => builder.hoverId.value, applyHover);
+watch(() => props.selectedTemplatePart, applyTemplatePartHover);
 // Labels follow the arrangement (Column ↔ Row) before the preview re-renders.
 watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));
 

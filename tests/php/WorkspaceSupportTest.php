@@ -38,7 +38,7 @@ test('workspace repository migrates legacy icons into the workspace', function (
     $legacy = COMET_STORAGE . '/workspaces/icons/site-a.png';
     $image = imagecreatetruecolor(16, 16);
     imagepng($image, $legacy);
-    imagedestroy($image);
+    unset($image);
 
     $workspace = $repository->find('site-a');
 

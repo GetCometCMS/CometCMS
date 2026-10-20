@@ -340,7 +340,7 @@ final class WorkspaceRepository
                 if (@imagepng($image, $target)) {
                     @unlink($legacy);
                 }
-                imagedestroy($image);
+                unset($image);
             } elseif ($extension === 'png' && @rename($legacy, $target)) {
                 // PNG icons can still be migrated on installations without GD.
             }

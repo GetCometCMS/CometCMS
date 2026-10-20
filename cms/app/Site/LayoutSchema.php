@@ -45,6 +45,7 @@ final class LayoutSchema
         'gallery',
         'button',
         'accordion',
+        'tabs',
         'icon',
         'spacer',
         'divider',
@@ -116,6 +117,7 @@ final class LayoutSchema
             'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+            'background_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             // An image is layered over the background color, which shows
             // through transparent images and while the image loads.
             'background_image' => ['type' => 'media', 'default' => ''],
@@ -125,6 +127,7 @@ final class LayoutSchema
             'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
             'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
             'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+            'text_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             'align' => ['type' => 'enum', 'options' => ['', 'left', 'center', 'right'], 'default' => ''],
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
@@ -153,11 +156,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'row' => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT => [],
-            'column' => ['padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => ['padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
+            default => ['margin_bottom', 'padding_y', 'padding_x', 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -263,6 +266,13 @@ final class LayoutSchema
                 'html' => ['type' => 'html', 'default' => '<p>Accordion content</p>'],
                 'open' => ['type' => 'bool', 'default' => false],
             ],
+            'tabs' => [
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Tabs'],
+                'initial_tab' => ['type' => 'int', 'min' => 1, 'max' => self::MAX_NODES, 'default' => 1],
+            ],
+            'tab' => [
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Tab'],
+            ],
             'icon' => [
                 'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:star-outline'],
                 'size' => ['type' => 'int', 'min' => 12, 'max' => 240, 'unit' => 'px', 'default' => 48],
@@ -286,7 +296,7 @@ final class LayoutSchema
                 'paginate' => ['type' => 'bool', 'default' => false],
                 'empty_text' => ['type' => 'string', 'max' => 300, 'default' => ''],
             ],
-            // A website form (see FormRepository); its fields and texts belong to the form.
+            // A content type's form; retain form IDs for existing placements (see FormRepository).
             'form' => [
                 'form' => ['type' => 'form', 'default' => ''],
                 'labels' => ['type' => 'enum', 'options' => ['above', 'hidden'], 'default' => 'above'],
@@ -325,7 +335,8 @@ final class LayoutSchema
             'root' => ['section'],
             'section' => ['row'],
             'row' => ['column'],
-            'column' => [...self::ELEMENTS, 'row'],
+            'column', 'tab' => [...self::ELEMENTS, 'row'],
+            'tabs' => ['tab'],
             'field' => self::ITEM_ELEMENTS,
             // The card a collection repeats for each entry.
             'collection' => ['column'],
@@ -342,7 +353,7 @@ final class LayoutSchema
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, self::COMPONENT] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT] as $kind) {
             $props = self::propSpec($kind);
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
                 $props[$key]['binding'] = $binding;
@@ -788,7 +799,7 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection'], true) && is_array($node['children'] ?? null)
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab'], true) && is_array($node['children'] ?? null)
                 ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $rows + ($kind === 'row' ? 1 : 0))
                 : [];
             // A collection repeats a single card.
@@ -903,6 +914,7 @@ final class LayoutSchema
         $default = $spec['default'];
 
         return match ($spec['type']) {
+            'gradient' => Gradient::normalize($value),
             'color' => is_string($value) && (in_array($value, $spec['options'], true) || Theme::isCustomColorKey($value)) ? $value : $default,
             'enum', 'icon' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
             'set' => array_values(array_intersect($spec['options'], array_map('strval', is_array($value) ? $value : []))),

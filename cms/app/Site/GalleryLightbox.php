@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace CometCMS\Site;
 
-/** The only executable page code: a bundled viewer, allowed by its exact CSP hash. */
+/** Bundled gallery interactions, allowed by their exact CSP hash. */
 final class GalleryLightbox
 {
     public static function script(): string

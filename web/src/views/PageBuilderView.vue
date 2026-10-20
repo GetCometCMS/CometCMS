@@ -25,10 +25,6 @@
         <Icon icon="mdi:open-in-new" class="h-4 w-4" />
         {{ t("site.openWebsite") }}
       </a>
-      <router-link :to="DESIGN_PATH" class="btn-secondary">
-        <Icon icon="mdi:palette-outline" class="h-4 w-4" />
-        {{ t("site.design.open") }}
-      </router-link>
       <button
         v-if="site.draft"
         type="button"
@@ -132,7 +128,6 @@ const toast = useToastStore();
 const { t } = useI18n();
 /** Settings, global design and menus share a draft across these tabs. */
 const PARTS = ["settings", "theme", "menus"];
-const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 

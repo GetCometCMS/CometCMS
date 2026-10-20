@@ -189,6 +189,8 @@ export function cloneWithNewIds(node) {
  * Returns null when no wrapping helps (a section cannot go into a column).
  */
 export function wrapFor(spec, parentKind, node) {
+  // Individual tabs only belong to a Tabs element, never to an implicit column.
+  if (node.kind === 'tab' && parentKind !== 'tabs') return null
   let current = node
   for (let i = 0; i < 4; i += 1) {
     const kind = placementKind(current)

@@ -37,6 +37,18 @@ describe('builder icon controls', () => {
   })
 })
 
+describe('builder gradient controls', () => {
+  it('uses the shared gradient editor for backgrounds and text', async () => {
+    for (const name of ['background_gradient', 'text_gradient']) {
+      const html = await renderControl(name, { type: 'gradient', options: ['primary', 'accent'], default: [] }, { type: 'linear', from: 'primary', to: 'accent', angle: 135 }, { group: 'style' })
+      expect(html).toContain(`id="builder-icon1-style-${name}"`)
+      expect(html).toContain('linear-gradient(135deg,')
+      expect(html).toContain('Start color')
+      expect(html).toContain('End color')
+    }
+  })
+})
+
 describe('builder hover effects', () => {
   it('describes movement for hover and entrances for other triggers', async () => {
     const def = { type: 'enum', options: ['none', 'fade', 'fade-left', 'zoom-in', 'blur'] }

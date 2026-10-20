@@ -113,7 +113,6 @@ const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
 const isHovered = computed(() => builder.hoverId.value === props.node.id);
 const isContainer = computed(() => builder.isDropContainer(props.node));
-const locked = computed(() => builder.isLockedRoot(props.node.id));
 const icon = computed(() => {
   if (props.node.kind === "field") {
     const config = builder.fieldConfig(props.node);

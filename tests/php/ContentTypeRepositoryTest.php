@@ -84,7 +84,10 @@ test('admin content type create rejects normalized name conflicts', function ():
             ])
         );
 
-        assert_true(str_contains($http_response_header[0] ?? '', '422'));
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        assert_true(str_contains($responseHeaders[0] ?? '', '422'));
         assert_true(str_contains($response, '"code":"validation_failed"'));
         assert_true(str_contains($response, 'already exists'));
     } finally {

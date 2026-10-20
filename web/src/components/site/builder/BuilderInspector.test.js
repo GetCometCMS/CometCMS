@@ -25,6 +25,21 @@ const menuControls = (props) => elementControls('menu', [
   'menu', 'always_button', 'orientation', 'collapse_mobile', 'panel', 'panel_side', 'panel_background', 'panel_text_color',
 ], { collapse_mobile: true, panel: 'dropdown', ...props })
 
+describe('template part inspector', () => {
+  it.each(['header', 'footer'])('shows an edit CTA and shared template explanation for the %s', async (templatePart) => {
+    const app = createSSRApp({ setup() {
+      createSiteBuilder({ t })
+      return () => h(BuilderInspector, { templatePart }, { empty: () => 'Page overview' })
+    } })
+    const html = await renderToString(app)
+    expect(html).toContain(t('site.builder.templatePart'))
+    expect(html).toContain(t('site.builder.templatePartHint'))
+    expect(html).toContain(t('site.builder.editTemplatePart', { name: t(`site.region.${templatePart}`) }))
+    expect(html).not.toContain('Page overview')
+    expect(html).not.toContain('data-control=')
+  })
+})
+
 describe('gallery masonry controls', () => {
   it('offers navigation only with the modal enabled and restores entry links when disabled', async () => {
     const keys = ['media', 'lightbox', 'lightbox_navigation', 'link', 'masonry']

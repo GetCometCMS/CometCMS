@@ -1,5 +1,24 @@
 <template>
-  <div v-if="node" class="flex h-full flex-col">
+  <div v-if="templatePart" class="flex h-full flex-col overflow-y-auto">
+    <div class="flex items-center gap-3 border-b border-slate-200 p-4">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f8eaf3] text-[#8c3b73] ring-1 ring-inset ring-[#e2a0ce]/50">
+        <Icon :icon="templatePart === 'header' ? 'mdi:page-layout-header' : 'mdi:page-layout-footer'" class="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div class="min-w-0">
+        <p class="text-xs text-slate-500">{{ t("site.builder.templatePart") }}</p>
+        <h2 class="text-sm font-semibold text-slate-900">{{ t(`site.region.${templatePart}`) }}</h2>
+      </div>
+    </div>
+    <div class="space-y-4 p-4">
+      <p class="text-sm leading-relaxed text-slate-600">{{ t("site.builder.templatePartHint") }}</p>
+      <button type="button" class="btn-primary w-full justify-between" @click="$emit('edit-template-part', templatePart)">
+        <span>{{ t("site.builder.editTemplatePart", { name: t(`site.region.${templatePart}`) }) }}</span>
+        <Icon icon="mdi:arrow-right" class="h-4 w-4 shrink-0" aria-hidden="true" />
+      </button>
+    </div>
+  </div>
+
+  <div v-else-if="node" class="flex h-full flex-col">
     <nav :aria-label="t('site.builder.hierarchy')" class="shrink-0 border-b border-slate-200 bg-slate-50/60 px-3 py-2">
       <ol class="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-xs">
         <li v-for="(ancestor, index) in nodePath" :key="ancestor.id" class="flex min-w-0 max-w-full items-center gap-0.5">
@@ -25,30 +44,11 @@
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-1">
           <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
-          <span
-            v-if="helpHints.length"
-            class="inline-flex shrink-0"
-            @mouseenter="helpOpen = true"
-            @mouseleave="helpOpen = false"
-            @focusin="helpOpen = true"
-            @focusout="helpOpen = false"
-            @keydown.esc.stop="helpOpen = false"
-          >
-            <button
-              type="button"
-              :aria-label="`${builder.nodeLabel(node)} — ${t('site.builder.elementHelp')}`"
-              :aria-describedby="helpOpen ? helpId : undefined"
-              class="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-theme-50 hover:text-theme-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
-              @click="helpOpen = true"
-            >
-              <Icon icon="mdi:help-circle-outline" class="h-4 w-4" aria-hidden="true" />
-            </button>
-            <span v-if="helpOpen" class="absolute inset-x-3 top-[calc(100%-1.5rem)] pt-8">
-              <span :id="helpId" role="tooltip" class="block space-y-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-3 text-xs font-normal leading-relaxed text-slate-100 shadow-xl shadow-slate-900/20">
-                <span v-for="hint in helpHints" :key="hint" class="block">{{ hint }}</span>
-              </span>
-            </span>
-          </span>
+          <BuilderHelp
+            :key="node.id"
+            :label="`${builder.nodeLabel(node)} — ${t('site.builder.elementHelp')}`"
+            :hints="helpHints"
+          />
         </div>
         <p class="min-h-[1rem] truncate text-xs text-slate-500">{{ builder.nodeSummary(node) }}</p>
       </div>
@@ -108,6 +108,8 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
+        <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
+        <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
         <div v-if="node.kind === 'collection' && node.props.display === 'cards'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
           <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
@@ -164,10 +166,12 @@
 </template>
 
 <script setup>
-import { computed, ref, useId, watch } from "vue";
+import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
+import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
+import BuilderTabs from "./BuilderTabs.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
@@ -176,10 +180,15 @@ import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumb
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
+defineProps({
+  templatePart: { type: String, default: null },
+});
+defineEmits(["edit-template-part"]);
+
 const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "margin_bottom"] },
-  { key: "background", keys: ["background", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
-  { key: "text", keys: ["text_color", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
+  { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
+  { key: "text", keys: ["text_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
@@ -201,8 +210,6 @@ const kindHint = computed(() => {
   const text = t(key);
   return text === key ? "" : text;
 });
-const helpId = useId();
-const helpOpen = ref(false);
 const helpHints = computed(() => {
   const current = node.value;
   if (!current) return [];
@@ -211,7 +218,6 @@ const helpHints = computed(() => {
   if (["heading", "text", "button"].includes(current.kind)) hints.push(t("site.builder.placeholderHint"));
   return hints.filter(Boolean);
 });
-watch(() => node.value?.id, () => { helpOpen.value = false; });
 const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
@@ -246,6 +252,7 @@ const ANIMATION_OPTIONS = ["animation_trigger", "animation_duration", "animation
 
 function styleVisible(key) {
   const style = node.value?.style ?? {};
+  if (style.background_gradient?.type && ["background_image", ...BACKGROUND_IMAGE_OPTIONS].includes(key)) return false;
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
   if (ANIMATION_OPTIONS.includes(key) && (style.animation ?? "none") === "none") return false;

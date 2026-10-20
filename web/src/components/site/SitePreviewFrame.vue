@@ -38,6 +38,7 @@ import { api } from "../../api/index.js";
 import { useI18n } from "../../i18n/index.js";
 import { patchDocument, withPreviewStyles } from "../../composables/previewDocument.js";
 import { initGalleryLightbox } from "../../../../cms/app/Site/assets/gallery.js";
+import { initTabs } from "../../../../cms/app/Site/assets/tabs.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -108,6 +109,7 @@ async function render() {
     if (doc?.body && html) {
       // Reloading the iframe would blank it for a frame on every edit.
       patchDocument(doc, html);
+      initTabs(doc);
       applyScale();
       emit("updated", doc);
     } else {
@@ -135,6 +137,7 @@ function onLoad() {
   documentLoaded = true;
   applyScale();
   initGalleryLightbox(doc);
+  initTabs(doc);
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);

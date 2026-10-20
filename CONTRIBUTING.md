@@ -2,7 +2,8 @@
 
 ## Local Development
 
-PHP 8.2+ and Node 18+ must be installed locally. No Composer or database needed.
+PHP 8.2+ and Node 24 LTS must be installed locally. No Composer or database needed.
+The Node version is pinned in `.nvmrc`, which is also used by the CI, release, and documentation workflows. If you use a Node version manager, select that version before installing dependencies.
 I'm primarily a JavaScript developer so the setup is done with npm scripts and Makefile commands, but the PHP code is vanilla and does not require a local server to run tests or build.
 
 ```bash

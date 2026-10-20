@@ -77,11 +77,11 @@
         </component>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      <div class="grid gap-4 lg:grid-cols-2">
         <!-- Recent Activity -->
         <ActivityFeed />
 
-        <div class="space-y-6">
+        <div class="min-w-0 space-y-4">
           <DashboardSiteWidget :status="websiteStatus" />
 
           <!-- Quick actions -->

@@ -53,6 +53,8 @@
       @update:model-value="emitValue"
     />
 
+    <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
+
     <template v-else-if="def.type === 'enum' || def.type === 'display'">
       <div v-if="isPositionGrid" class="grid w-24 grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" :aria-label="label">
         <button
@@ -88,6 +90,17 @@
     </template>
 
     <ToggleSwitch v-else-if="def.type === 'bool'" :id="inputId" :model-value="!!value" @update:model-value="emitValue" />
+
+    <select
+      v-else-if="node.kind === 'tabs' && name === 'initial_tab'"
+      :id="inputId"
+      :value="Math.min(value || 1, node.children.length)"
+      class="form-select w-full rounded-lg border-slate-300 py-1.5 text-xs"
+      :disabled="!node.children.length"
+      @change="emitNumber($event.target.value)"
+    >
+      <option v-for="(child, index) in node.children" :key="child.id" :value="index + 1">{{ child.props.title || t('site.tabs.tabTitle', { number: index + 1 }) }}</option>
+    </select>
 
     <OptionBar
       v-else-if="def.type === 'int' && numberOptions"
@@ -222,6 +235,9 @@
     >
       <option v-for="option in selectOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
     </select>
+    <p v-if="def.type === 'form' && selectOptions.length === 1" class="mt-2 text-xs text-slate-500">
+      {{ t("site.forms.noEligibleTypes") }}
+    </p>
   </div>
 </template>
 
@@ -240,6 +256,7 @@ import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
 import CssClassInput from "./CssClassInput.vue";
 import ThemeColorPicker from "./ThemeColorPicker.vue";
+import GradientEditor from "./GradientEditor.vue";
 import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
@@ -398,11 +415,18 @@ const selectOptions = computed(() => {
       ];
     case "menu":
       return builder.menus.value.map((menu) => ({ value: menu.name, label: menu.label }));
-    case "form":
+    case "form": {
+      // Show one choice per content type, retaining existing placement IDs.
+      const forms = new Map();
+      for (const form of builder.forms.value) {
+        if (!forms.has(form.type) || form.id === props.value) forms.set(form.type, form);
+      }
       return [
         { value: "", label: t("site.forms.choose") },
-        ...builder.forms.value.map((form) => ({ value: form.id, label: form.name })),
+        ...builder.types.value.filter((type) => forms.has(type.name))
+          .map((type) => ({ value: forms.get(type.name).id, label: type.label })),
       ];
+    }
     case "sort_field":
       return [
         { value: "published_at", label: t("site.systemField.published_at") },

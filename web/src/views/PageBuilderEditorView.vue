@@ -9,14 +9,7 @@
 
       <div class="min-w-40 max-w-72">
         <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
-        <p class="flex min-w-0 items-center gap-1.5 text-xs leading-tight text-slate-500">
-          <span class="truncate">{{ subheading }}</span>
-          <span
-            v-if="target !== 'component' && !customized"
-            class="shrink-0 cursor-help rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200"
-            :title="t('site.builder.defaultBadgeHint')"
-          >{{ t("site.builder.defaultBadge") }}</span>
-        </p>
+        <p class="truncate text-xs leading-tight text-slate-500">{{ subheading }}</p>
       </div>
 
       <nav v-if="variants.length > 1" class="hidden rounded-lg bg-slate-100 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
@@ -148,9 +141,9 @@
       ></span>
     </button>
 
-    <!-- Separator after Forms -->
+    <!-- Separator before design settings -->
     <div
-      v-if="panel.value === 'forms'"
+      v-if="panel.value === 'components'"
       class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
       aria-hidden="true"
     ></div>
@@ -170,10 +163,15 @@
         <SiteDesignPanel v-if="leftPanel === 'design'" :draft-nodes="builder.nodes.value" @close="leftPanel = null" />
         <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
         <template v-else>
-          <div class="flex items-start gap-2 border-b border-slate-200 px-4 py-3">
-            <div class="min-w-0 flex-1">
+          <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <div class="flex min-w-0 flex-1 items-center gap-1">
               <h2 class="truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
-              <p v-if="activePanelHint" class="mt-0.5 text-xs leading-relaxed text-slate-500">{{ activePanelHint }}</p>
+              <BuilderHelp
+                v-if="activePanelHint"
+                :key="leftPanel"
+                :label="`${activePanel.label} — ${t('site.builder.help')}`"
+                :hints="[activePanelHint]"
+              />
             </div>
             <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
               <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
@@ -189,11 +187,10 @@
               ]"
             />
           </div>
-          <div class="min-h-0 flex-1 overflow-y-auto">
+          <div class="relative z-0 min-h-0 flex-1 overflow-y-auto">
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
-            <BuilderForms v-else-if="leftPanel === 'forms'" />
             <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
@@ -217,7 +214,7 @@
 
       <!-- Canvas -->
       <main class="builder-stage min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
-        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" @keydown="onKeydown" />
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" />
       </main>
 
       <!-- Inspector -->
@@ -229,7 +226,7 @@
         :max="rightMaxWidth"
         class="border-l border-slate-200"
       >
-        <BuilderInspector>
+        <BuilderInspector :template-part="selectedTemplatePart" @edit-template-part="editTemplatePart">
           <template #empty>
             <BuilderOverview
               :title="overview.title"
@@ -306,11 +303,11 @@ import SegmentedControl from "../components/site/SegmentedControl.vue";
 import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
 import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
+import BuilderHelp from "../components/site/builder/BuilderHelp.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
-import BuilderForms from "../components/site/builder/BuilderForms.vue";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
@@ -332,6 +329,7 @@ import { useI18n } from "../i18n/index.js";
 
 const route = useRoute();
 const router = useRouter();
+const selectedTemplatePart = ref(null);
 const site = useSiteStore();
 const auth = useAuthStore();
 const { canContent } = usePermissions();
@@ -445,7 +443,6 @@ const panels = computed(() => [
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
   ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
   { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
-  { value: "forms", label: t("site.forms.title"), icon: "mdi:form-select" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
@@ -502,7 +499,6 @@ const loading = ref(true);
 const upgradeRequired = ref(false);
 const loadError = ref("");
 const saving = ref(false);
-const customized = ref(false);
 const samples = ref([]);
 const sampleId = ref("");
 const locales = ref([]);
@@ -653,6 +649,15 @@ function togglePanel(panel) {
   leftPanel.value = leftPanel.value === panel ? null : panel;
 }
 
+function editTemplatePart(part) {
+  if (!["header", "footer"].includes(part)) return;
+  router.push({ path: `/page-builder/builder/region/${part}`, query: { back: route.fullPath } });
+}
+
+watch(() => builder.selectedId.value, (id) => {
+  if (id) selectedTemplatePart.value = null;
+});
+
 watch(leftPanel, (panel) => {
   if (["design", "css", "fields"].includes(panel)) leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
 }, { immediate: true });
@@ -698,7 +703,6 @@ async function load() {
     homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
     locale.value = data.default_locale ?? "";
-    customized.value = !!data.customized;
     builder.load(data.nodes);
   } catch (err) {
     loadError.value = err.message;
@@ -739,7 +743,6 @@ async function save() {
       }
       builder.markSaved(res.data.nodes);
       upgradeRequired.value = false;
-      customized.value = res.data.customized;
       loadedRevisions.value.layout = null;
       if (target === "component") component.value = res.data.component;
       else site.markCustomized(target, name, variant, res.data.customized);
@@ -899,7 +902,10 @@ function onKeydown(event) {
     builder.remove();
   } else if (event.key === "Escape") {
     if (builder.contextMenu.value) builder.closeContextMenu();
-    else builder.select(null);
+    else {
+      builder.select(null);
+      selectedTemplatePart.value = null;
+    }
   } else if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown") && builder.selectedId.value) {
     event.preventDefault();
     builder.shift(builder.selectedId.value, event.key === "ArrowUp" ? -1 : 1);
