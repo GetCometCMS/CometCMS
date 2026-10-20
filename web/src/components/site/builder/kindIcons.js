@@ -7,6 +7,7 @@ export const KIND_ICONS = {
   heading: 'mdi:format-header-pound',
   text: 'mdi:text',
   image: 'mdi:image-outline',
+  gallery: 'mdi:image-multiple-outline',
   button: 'mdi:gesture-tap-button',
   accordion: 'mdi:chevron-down',
   icon: 'mdi:star-outline',

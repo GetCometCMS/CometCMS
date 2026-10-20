@@ -15,16 +15,18 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import SitePreviewFrame from "../SitePreviewFrame.vue";
 import { PREVIEW_KEEP } from "../../../composables/previewDocument.js";
+import { templatePartBounds } from "../../../composables/builderTemplateParts.js";
 import { findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
-defineProps({
+const props = defineProps({
   body: { type: Object, default: null },
   device: { type: String, default: "desktop" },
+  selectedTemplatePart: { type: String, default: null },
 });
 
-const emit = defineEmits(["keydown"]);
+const emit = defineEmits(["keydown", "select-template-part"]);
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const frameRef = ref(null);
@@ -32,6 +34,9 @@ const frameRef = ref(null);
 let doc = null;
 let indicator = null;
 let badge = null;
+let templateHighlight = null;
+let templateLabel = null;
+let hoveredTemplatePart = null;
 let dropTargetState = null;
 let selectedFromCanvas = false;
 let resizeHandle = null;
@@ -77,6 +82,29 @@ const BUILDER_CSS = `
 [data-builder-selected]{
   outline:calc(2px * var(--cometcms-ui-scale,1)) solid var(--builder-color)!important;
   outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
+}
+
+/* A separate overlay stays visible above shared template part content. */
+.cometcms-template-highlight{
+  --builder-color:#e2a0ce;
+  position:fixed;
+  z-index:2147483647;
+  pointer-events:none;
+  outline:calc(2px * var(--cometcms-ui-scale,1)) dashed var(--builder-color);
+  outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
+}
+
+.cometcms-template-label{
+  --s:var(--cometcms-ui-scale,1);
+  position:absolute;
+  top:0;
+  left:0;
+  background:var(--builder-color);
+  color:#54223f;
+  font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
+  padding:calc(5px * var(--s)) calc(8px * var(--s));
+  border-radius:0 0 calc(5px * var(--s)) 0;
+  white-space:nowrap;
 }
 
 /* Empty drop area */
@@ -205,6 +233,14 @@ function attach(document) {
   badge = doc.createElement("div");
   badge.className = "cometcms-badge";
   badge.hidden = true;
+  templateHighlight = doc.createElement("div");
+  templateHighlight.className = "cometcms-template-highlight";
+  templateHighlight.hidden = true;
+  templateHighlight.setAttribute("aria-hidden", "true");
+  templateLabel = doc.createElement("span");
+  templateLabel.className = "cometcms-template-label";
+  templateHighlight.append(templateLabel);
+  hoveredTemplatePart = null;
   resizeHandle = doc.createElement("div");
   resizeHandle.className = "cometcms-resize";
   resizeHandle.hidden = true;
@@ -212,7 +248,7 @@ function attach(document) {
   resizeLabel.className = "cometcms-resize-label";
   resizeLabel.hidden = true;
   resizeHandle.append(resizeLabel);
-  for (const overlay of [indicator, badge, resizeHandle]) overlay.setAttribute(PREVIEW_KEEP, "");
+  for (const overlay of [indicator, badge, resizeHandle, templateHighlight]) overlay.setAttribute(PREVIEW_KEEP, "");
   resizeEdge = null;
   resizing = null;
 
@@ -229,11 +265,14 @@ function attach(document) {
   doc.defaultView?.addEventListener("scroll", () => {
     builder.closeContextMenu();
     if (!resizing) showResizeEdge(null);
-  }, { passive: true });
+    applyTemplatePartHover();
+  }, { passive: true, capture: true });
   doc.addEventListener("mouseover", onMouseOver);
   doc.addEventListener("pointermove", onPointerMove);
   doc.documentElement.addEventListener("mouseleave", () => {
     builder.hoverId.value = null;
+    hoveredTemplatePart = null;
+    applyTemplatePartHover();
     if (!resizing) showResizeEdge(null);
   });
   doc.addEventListener("dragstart", onDragStart);
@@ -241,8 +280,13 @@ function attach(document) {
   doc.addEventListener("dragleave", onDragLeave);
   doc.addEventListener("drop", onDrop);
   doc.addEventListener("dragend", onDragEnd);
-  doc.addEventListener("keydown", (event) => emit("keydown", event));
-  doc.defaultView?.addEventListener("resize", () => applySelection(false));
+  doc.addEventListener("keydown", (event) => {
+    if (!event.target.closest?.('.c-lightbox')) emit("keydown", event);
+  });
+  doc.defaultView?.addEventListener("resize", () => {
+    applySelection(false);
+    applyTemplatePartHover();
+  });
 
   prepare(document);
 }
@@ -250,7 +294,7 @@ function attach(document) {
 /** Editor markup for the rendered page, on load and after each in-place update. */
 function prepare(document) {
   if (document !== doc) return;
-  doc.body.append(indicator, badge, resizeHandle);
+  doc.body.append(indicator, badge, resizeHandle, templateHighlight);
 
   doc.querySelectorAll("[data-drop-root]").forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
@@ -261,6 +305,7 @@ function prepare(document) {
   // Restore the editor state the update cleared before layout is read, so outlines don't blink.
   applySelection(false);
   applyHover();
+  applyTemplatePartHover();
   if (!resizing) {
     const edge = resizeEdge;
     resizeEdge = null;
@@ -302,6 +347,20 @@ function applyHover() {
   if (el && builder.hoverId.value !== builder.selectedId.value) el.setAttribute("data-builder-hover", "");
 }
 
+function applyTemplatePartHover() {
+  if (!doc || !templateHighlight) return;
+  const name = hoveredTemplatePart || props.selectedTemplatePart;
+  const part = name && doc.querySelector(`.c-${name}:not([data-drop-root])`);
+  const rect = part && templatePartBounds(part);
+  templateHighlight.hidden = !rect;
+  if (!rect) return;
+  templateLabel.textContent = `${t(`site.region.${name}`)} · ${t("site.builder.templatePart")}`;
+  Object.assign(templateHighlight.style, {
+    left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+    outlineStyle: name === props.selectedTemplatePart ? "solid" : "dashed",
+  });
+}
+
 /** Viewport coordinates in the admin for a point inside the (scaled) preview. */
 function toViewport(x, y) {
   const iframe = doc?.defaultView?.frameElement;
@@ -329,6 +388,9 @@ function onContextMenu(event) {
 }
 
 function onClick(event) {
+  if (event.target.closest?.('.c-lightbox')) return;
+  // A second click on the selected gallery previews its viewer.
+  if (event.target.closest?.('[data-gallery-image]') && event.target.closest?.('[data-node]')?.dataset.node === builder.selectedId.value) return;
   // Native disclosure controls remain usable while selecting the element.
   if (!event.target.closest?.('.c-accordion-title')) event.preventDefault();
   event.stopPropagation();
@@ -345,11 +407,20 @@ function onClick(event) {
   }
 
   const el = event.target.closest?.("[data-node]");
+  const part = templatePartAt(event.target);
   selectedFromCanvas = true;
-  builder.select(el?.dataset.node ?? null);
+  builder.select(part ? null : el?.dataset.node ?? null);
+  emit("select-template-part", part);
+}
+
+function templatePartAt(target) {
+  const part = target.closest?.(".c-region:not([data-drop-root])");
+  return part?.classList.contains("c-header") ? "header" : part?.classList.contains("c-footer") ? "footer" : null;
 }
 
 function onMouseOver(event) {
+  hoveredTemplatePart = templatePartAt(event.target);
+  applyTemplatePartHover();
   const el = event.target.closest?.("[data-node]");
   builder.hoverId.value = el?.dataset.node ?? null;
 }
@@ -584,6 +655,7 @@ watch(
   },
 );
 watch(() => builder.hoverId.value, applyHover);
+watch(() => props.selectedTemplatePart, applyTemplatePartHover);
 // Labels follow the arrangement (Column ↔ Row) before the preview re-renders.
 watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));
 

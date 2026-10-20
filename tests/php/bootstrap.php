@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+// CLI progress output must not prevent authentication tests from starting sessions.
+ini_set('session.use_cookies', '0');
+ini_set('session.cache_limiter', '');
+
 define('COMET_TEST_ROOT', dirname(__DIR__, 2));
 define('COMET_ROOT', COMET_TEST_ROOT . '/cms');
 define('COMET_APP', COMET_ROOT . '/app');

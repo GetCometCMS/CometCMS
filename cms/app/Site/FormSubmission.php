@@ -45,9 +45,10 @@ final class FormSubmission
 
     /**
      * @param array $input  the request body ($_POST)
+     * @param array $files  uploaded files ($_FILES)
      * @return array{status: string, entry?: array, errors?: array}
      */
-    public function submit(array $form, array $input, string $visitor, string $locale = ''): array
+    public function submit(array $form, array $input, string $visitor, string $locale = '', array $files = []): array
     {
         // Bots that fill in every input are told it worked, and nothing is stored.
         $honeypot = $input[self::HONEYPOT] ?? '';
@@ -69,6 +70,9 @@ final class FormSubmission
         $payload = [];
         $errors = [];
         foreach ($inputs as $field) {
+            if (($field['config']['type'] ?? '') === 'media') {
+                continue;
+            }
             $value = $this->value($values[$field['key']] ?? null, $field['config']);
             if ($value === self::INVALID) {
                 $errors[$field['key']] = 'Invalid value.';
@@ -95,10 +99,18 @@ final class FormSubmission
             $payload['locale'] = $locale;
         }
 
+        $uploads = new FormUploads($this->site->workspace());
+        $saved = false;
         try {
+            $payload = array_replace($payload, $uploads->store($inputs, $files));
             $entry = $this->content->save($form['type'], $payload, ['id' => null, 'username' => 'Website form: ' . $form['name']]);
+            $saved = true;
         } catch (ValidationException $e) {
             return ['status' => self::ERROR, 'errors' => $e->fields()];
+        } finally {
+            if (!$saved) {
+                $uploads->rollback();
+            }
         }
 
         (new Logger())->info('site.form_submitted', ['form' => $form['id'], 'type' => $form['type'], 'slug' => (string) ($entry['id'] ?? '')]);

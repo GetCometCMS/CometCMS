@@ -34,7 +34,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 1. Download the latest release from the Github releases.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
-4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages and sets the landing page as your homepage. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
+4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages, sets the landing page as your homepage, and downloads Inter and Lora as normal installed fonts that you can replace or remove. If font downloads are unavailable, the website uses system fonts. Empty workspaces start without installed fonts. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
 5. Edit your pages in the Page Builder, add content fields as needed, and enable API exposure only for types you want to use headlessly.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.
@@ -101,7 +101,7 @@ The embedded MCP uses the same access tokens and permission grants as the REST A
 
 Each workspace can also publish its content as a website, rendered by PHP on the same server. Enable **Page Builder** in a content type's settings and choose its page URLs (e.g. `/blog/{slug}`). Open **Page Builder** under **System** to choose a homepage and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. The website is online while it has a homepage or at least one content type with the Page Builder enabled. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; authorized editors can preview drafts.
 
-Pages are cached, set no cookies, ship no JavaScript and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
+Pages are cached, set no cookies, and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. JavaScript is included only for galleries with the optional modal viewer enabled. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
 
 ### Filtering, Sorting, and Pagination
 

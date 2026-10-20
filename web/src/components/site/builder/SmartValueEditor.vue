@@ -135,10 +135,10 @@ watch(content, (value) => {
 }, { deep: true })
 function updateSyntax(text) {
   raw.value = text
-  if (!text && !textual.value) { syntaxError.value = false; if (props.target === 'link') emit('update:modelValue', { type: 'none' }); else output(''); return }
+  if (!text && !textual.value) { syntaxError.value = false; if (props.target === 'link') emit('update:modelValue', { type: 'none' }); else output(props.target === 'media_list' ? [] : ''); return }
   try {
     const value = parseSmartValue(text, props.target)
-    if (['media', 'link', 'value'].includes(props.target) && !isReference(value) && text) throw new Error('syntax')
+    if (['media', 'media_list', 'link', 'value'].includes(props.target) && !isReference(value) && text) throw new Error('syntax')
     syntaxError.value = false
     output(value)
   } catch { syntaxError.value = true; output({ type: 'invalid', text }) }
@@ -171,7 +171,7 @@ function clear() {
   syntaxError.value = false
   syntaxMode.value = false
   if (props.target === 'link') emit('update:modelValue', { type: 'none' })
-  else emit('update:modelValue', props.target === 'html' ? '<p></p>' : '')
+  else emit('update:modelValue', props.target === 'media_list' ? [] : props.target === 'html' ? '<p></p>' : '')
 }
 </script>
 

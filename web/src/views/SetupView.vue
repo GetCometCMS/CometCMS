@@ -239,7 +239,7 @@
               :disabled="loading"
               class="btn-primary flex-1 justify-center"
             >
-              <span v-if="loading">{{ t("setup.creating") }}</span>
+              <span v-if="loading">{{ t(installingFonts ? "site.fonts.installingDemo" : "setup.creating") }}</span>
               <span v-else>{{ t("setup.createAccount") }}</span>
             </button>
           </div>
@@ -254,12 +254,16 @@ import { adminAsset } from "../basePath.js";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth.js";
+import { useToastStore } from "../stores/toast.js";
+import { getActiveWorkspace } from "../api/index.js";
+import { installStarterFonts } from "../composables/starterFonts.js";
 import { Icon } from "@iconify/vue";
 import { useI18n } from "../i18n/index.js";
 import { useAutoSlug } from "../composables/useAutoSlug.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
 const auth = useAuthStore();
+const toast = useToastStore();
 const router = useRouter();
 const { t } = useI18n();
 
@@ -273,6 +277,7 @@ const startingPoints = [
   { value: "empty", title: "setup.startEmpty", description: "setup.startEmptyBody" },
 ];
 const loading = ref(false);
+const installingFonts = ref(false);
 const errorMsg = ref("");
 const logoFailed = ref(false);
 const logoSrc = adminAsset("img/white-text/cms-logo-blue.png");
@@ -314,10 +319,19 @@ async function handleSetup() {
       workspaceSlug.value,
       starterTemplate.value,
     );
+    if (starterTemplate.value === "website") {
+      installingFonts.value = true;
+      try {
+        await installStarterFonts(getActiveWorkspace());
+      } catch {
+        toast.error(t("site.fonts.demoFailed"));
+      }
+    }
     router.push("/dashboard");
   } catch (err) {
     errorMsg.value = err.message ?? t("setup.failed");
   } finally {
+    installingFonts.value = false;
     loading.value = false;
   }
 }

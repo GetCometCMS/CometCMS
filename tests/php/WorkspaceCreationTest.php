@@ -51,7 +51,10 @@ PHP;
             'header' => "Content-Type: application/json\r\nX-CSRF-Token: test-token\r\n",
             'content' => json_encode(array_replace(['label' => 'New site', 'slug' => 'new-site'], $body)),
         ]]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         [$json, $state] = explode("\n--state--\n", $response, 2);
         return [(int) ($match[1] ?? 0), json_decode($json, true), json_decode($state, true)];
     } finally {
@@ -66,7 +69,11 @@ test('new workspace website starter creates pages and a working homepage without
     assert_same(['landing-page', 'pages'], array_column($state['types'], 'name'));
     assert_same([false, false], array_column($state['types'], 'api_enabled'));
     assert_true($state['types'][0]['singleton']);
+    assert_same(['title', 'slug'], array_keys($state['types'][0]['fields']));
+    assert_same(['title', 'slug', 'intro', 'body'], array_keys($state['types'][1]['fields']));
     assert_same(1, count($state['home']));
+    assert_false(array_key_exists('intro', $state['home'][0]));
+    assert_false(array_key_exists('body', $state['home'][0]));
     assert_same(['about', 'hello-world'], array_column($state['pages'], 'slug'));
     assert_same([], $state['events']);
     assert_true($state['settings']['enabled']);

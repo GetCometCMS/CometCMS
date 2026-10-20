@@ -88,14 +88,17 @@ function comet_site_preview_test_request(int $port, string $path, string $cookie
             'content' => $method === 'GET' ? '' : json_encode($body),
         ],
     ]));
+    $responseHeaders = function_exists('http_get_last_response_headers')
+        ? (http_get_last_response_headers() ?? [])
+        : (${'http_response_header'} ?? []);
     $headers = [];
-    foreach ($http_response_header ?? [] as $header) {
+    foreach ($responseHeaders as $header) {
         if (str_contains($header, ':')) {
             [$name, $value] = explode(':', $header, 2);
             $headers[strtolower($name)] = trim($value);
         }
     }
-    preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+    preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
 
     return [(int) ($match[1] ?? 0), (string) $body, $headers];
 }

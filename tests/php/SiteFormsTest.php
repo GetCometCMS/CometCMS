@@ -46,12 +46,12 @@ function comet_form_test_submit(SiteRepository $site, FormRepository $forms, arr
 test('forms show every field of their type that visitors can fill in', function (): void {
     [, $forms, $form] = comet_form_test_setup();
 
-    assert_same(['name', 'email', 'message', 'topic', 'consent'], array_column($forms->inputs($form), 'key'), 'Title, slug and media fields are not asked for.');
+    assert_same(['name', 'email', 'message', 'topic', 'consent', 'attachment'], array_column($forms->inputs($form), 'key'), 'Title and slug are not asked for.');
     assert_same('Your name', $forms->inputs($form)[0]['label']);
     assert_same('draft', $form['status']);
     assert_same('none', $form['captcha']);
 
-    (new ContentTypeRepository())->save(['name' => 'applications', 'fields' => ['cv' => ['type' => 'media', 'required' => true]]]);
+    (new ContentTypeRepository())->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => ['cv' => ['type' => 'media', 'required' => true]]]);
     $forms = new FormRepository(new SiteRepository());
     $rejected = static function (array $input) use ($forms): array {
         try {
@@ -61,7 +61,7 @@ test('forms show every field of their type that visitors can fill in', function 
         }
         throw new RuntimeException('Expected a validation error.');
     };
-    assert_true(isset($rejected(['name' => 'Apply', 'type' => 'applications'])['type']), 'A required field the form cannot show would reject every submission.');
+    assert_same('applications', $forms->create(['name' => 'Apply', 'type' => 'applications'])['type']);
     assert_true(isset($rejected(['name' => 'Single page', 'type' => 'about'])['type']), 'Single pages already have their one entry.');
     assert_true(isset($rejected(['name' => '', 'type' => 'inquiries'])['name']));
 
@@ -90,7 +90,7 @@ test('a submission becomes a draft entry with only the form\'s fields', function
     assert_same('Ada', $entry['name']);
     assert_same("Hello\nthere", $entry['message']);
     assert_true($entry['consent']);
-    assert_same([], $entry['attachment'], 'Fields the form does not show stay empty.');
+    assert_same([], $entry['attachment'], 'Posted filename references cannot attach existing media.');
     assert_null($entry['author_id']);
     assert_true(str_starts_with($entry['title'], 'Contact – '), 'Forms without a title field get one.');
 });
@@ -158,7 +158,10 @@ test('a placed form renders labelled inputs from the content type and is found w
     assert_same(3, $xpath->query('.//select[@name="fields[topic]"]/option', $element)->length);
     assert_same(1, $xpath->query('.//input[@type="checkbox"][@name="fields[consent]"]', $element)->length);
     assert_same(1, $xpath->query('.//input[@name="' . FormSubmission::HONEYPOT . '"]', $element)->length);
-    assert_same(0, $xpath->query('.//*[@name="fields[attachment]"]', $element)->length);
+    assert_same('multipart/form-data', $element->getAttribute('enctype'));
+    assert_same(1, $xpath->query('.//input[@type="file"][@name="fields[attachment]"]', $element)->length);
+    assert_same('10485760', $xpath->query('.//input[@name="MAX_FILE_SIZE"]', $element)->item(0)->getAttribute('value'));
+    assert_true(str_contains($element->textContent, '10 MiB'));
 
     $anchor = $xpath->query('.//input[@name="_anchor"]', $element)->item(0)->getAttribute('value');
     $sent = $document->getElementById($anchor . '-sent');
@@ -189,9 +192,12 @@ PHP]));
             'header' => "Content-Type: application/x-www-form-urlencoded\r\nAccept: " . $accept . "\r\n",
             'content' => http_build_query($body),
         ]]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         $location = '';
-        foreach ($http_response_header ?? [] as $header) {
+        foreach ($responseHeaders as $header) {
             if (stripos($header, 'Location:') === 0) {
                 $location = trim(substr($header, 9));
             }
@@ -292,4 +298,170 @@ test('legacy forms opt their receiving type into submissions without rewriting s
     $form = (new FormRepository(new SiteRepository()))->all()[0];
     assert_same('old-form', $form['id']);
     assert_same('Thank you', $form['success_message']);
+});
+
+test('form upload configuration is capped by the media limit and rejects malformed and forged files', function (): void {
+    global $cometConfig;
+    [$site, $forms, $form] = comet_form_test_setup();
+    $originalSite = $cometConfig['site'];
+    $originalMedia = $cometConfig['media'];
+    try {
+        $cometConfig['site']['forms']['max_upload_bytes'] = 200;
+        $cometConfig['media']['max_upload_bytes'] = 100;
+        assert_same(100, \CometCMS\Site\FormUploads::maxBytes());
+        $input = ['fields' => ['name' => 'Ada', 'email' => 'ada@example.com', 'consent' => '1']];
+        $submit = new FormSubmission($site, $forms, ContentRepository::make($site->workspace()));
+        $fake = ['fields' => ['name' => ['attachment' => 'test.txt'], 'tmp_name' => ['attachment' => __FILE__], 'error' => ['attachment' => UPLOAD_ERR_OK], 'size' => ['attachment' => 10], 'type' => ['attachment' => 'text/plain']]];
+        assert_same('Invalid uploaded file.', $submit->submit($form, $input, 'visitor', '', $fake)['errors']['attachment']);
+        unset($fake['fields']['size']['attachment']);
+        assert_same('Invalid upload data.', $submit->submit($form, $input, 'visitor', '', $fake)['errors']['attachment']);
+        $fake['fields'] = 'wrong';
+        assert_same(FormSubmission::ERROR, $submit->submit($form, $input, 'visitor', '', $fake)['status']);
+        assert_same(FormSubmission::SENT, $submit->submit($form, $input + [FormSubmission::HONEYPOT => 'bot'], 'visitor', '', $fake)['status']);
+        $limiter = new RateLimiter($site->workspace()->path('cache') . '/upload-limits');
+        $cometConfig['site']['forms']['rate_limit_attempts'] = 1;
+        $limited = new FormSubmission($site, $forms, ContentRepository::make($site->workspace()), $limiter);
+        $limited->submit($form, $input, 'visitor');
+        assert_true(isset($limited->submit($form, $input, 'visitor', '', $fake)['errors']['form']));
+        assert_same([], (new \CometCMS\Media\MediaRepository($site->workspace()))->files());
+    } finally {
+        $cometConfig['site'] = $originalSite;
+        $cometConfig['media'] = $originalMedia;
+    }
+});
+
+test('multipart form uploads are private, validated, isolated and rolled back on failure', function (): void {
+    $root = comet_site_preview_test_install();
+    $configPath = $root . '/config/config.php';
+    file_put_contents($configPath, str_replace("'max_upload_bytes' => 10 * 1024 * 1024,", "'max_upload_bytes' => 1024,\n            'rate_limit_attempts' => 100,", file_get_contents($configPath)));
+    $bootstrap = 'require ' . var_export($root . '/app/bootstrap.php', true) . ';';
+    $bootstrap .= '\\CometCMS\\Workspaces\\WorkspaceContext::setActive("form-uploads"); (new \\CometCMS\\Workspaces\\WorkspaceContext("form-uploads"))->ensure();';
+    $formId = trim(comet_test_run_php(['-r', $bootstrap . <<<'PHP'
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'uploads', 'allow_submissions' => true, 'visibility' => 'private', 'fields' => [
+    'email' => ['type' => 'text', 'required' => true],
+    'attachment' => ['type' => 'media', 'required' => true],
+    'extras' => ['type' => 'media', 'multiple' => true],
+]]);
+echo (new \CometCMS\Site\FormRepository(new \CometCMS\Site\SiteRepository()))->all()[0]['id'];
+PHP]));
+    $port = 24080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $root . '/router.php');
+    $post = static function (array $fields, array $files = []) use ($port, $formId): array {
+        $boundary = 'comet-' . bin2hex(random_bytes(12));
+        $body = '';
+        foreach ($fields as $key => $value) {
+            $body .= '--' . $boundary . "\r\nContent-Disposition: form-data; name=\"" . $key . "\"\r\n\r\n" . $value . "\r\n";
+        }
+        foreach ($files as [$key, $name, $contents]) {
+            $body .= '--' . $boundary . "\r\nContent-Disposition: form-data; name=\"" . $key . '"; filename="' . $name . "\"\r\nContent-Type: application/octet-stream\r\n\r\n" . $contents . "\r\n";
+        }
+        $body .= '--' . $boundary . "--\r\n";
+        $response = file_get_contents('http://127.0.0.1:' . $port . '/cms/_site/forms/form-uploads/' . $formId, false, stream_context_create(['http' => [
+            'ignore_errors' => true, 'method' => 'POST',
+            'header' => 'Content-Type: multipart/form-data; boundary=' . $boundary . "\r\nAccept: application/json\r\n",
+            'content' => $body,
+        ]]));
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
+        return [(int) ($match[1] ?? 0), json_decode((string) $response, true)];
+    };
+    $state = static fn(): array => json_decode(comet_test_run_php(['-r', $bootstrap . <<<'PHP'
+$media = new \CometCMS\Media\MediaRepository();
+echo json_encode(['files' => $media->files(), 'entries' => \CometCMS\Content\ContentRepository::make()->all('uploads')]);
+PHP]), true);
+    try {
+        usleep(300000);
+        $valid = ['fields[email]' => 'ada@example.com'];
+        $file = ['fields[attachment]', 'notes.txt', 'A useful attachment.'];
+        [$status, $result] = $post($valid, [$file, ['fields[extras][]', 'one.txt', 'First attachment'], ['fields[extras][]', 'two.txt', 'Second attachment'], ['fields[unknown]', 'ignored.txt', 'Ignored']]);
+        assert_same(200, $status, 'Valid multipart upload: ' . json_encode($result));
+        $stored = $state();
+        assert_same(3, count($stored['files']));
+        assert_same(1, count($stored['entries']));
+        assert_same(2, count($stored['entries'][0]['extras']));
+        foreach ($stored['files'] as $item) {
+            assert_same('private', $item['visibility']);
+        }
+        $name = $stored['entries'][0]['attachment'][0];
+        assert_file_exists_at($root . '/storage/workspaces/form-uploads/media/' . $name);
+        assert_false(is_file($root . '/storage/workspaces/default/media/' . $name));
+        assert_false(is_file($root . '/storage/media/' . $name));
+        file_get_contents('http://127.0.0.1:' . $port . '/cms/media/form-uploads/' . rawurlencode($name), false, stream_context_create(['http' => ['ignore_errors' => true]]));
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        assert_true(str_contains($responseHeaders[0] ?? '', '401'), 'Private attachments must require authentication.');
+
+        $cases = [
+            [$valid, [], 'attachment'],
+            [$valid + ['fields[attachment][]' => $name], [], 'attachment'],
+            [$valid, [['fields[attachment][]', 'a.txt', 'First'], ['fields[attachment][]', 'b.txt', 'Second']], 'attachment'],
+            [$valid, [['fields[attachment]', 'large.txt', str_repeat('x', 1025)]], 'attachment'],
+            [$valid, [['fields[attachment]', 'a.txt', str_repeat('a', 600)], ['fields[extras][]', 'b.txt', str_repeat('b', 600)]], 'extras'],
+            [$valid, [['fields[attachment]', 'bad.html', '<html><body>Disallowed</body></html>']], 'attachment'],
+            [$valid, [['fields[attachment]', 'script.php', 'plain text disguised as executable']], 'attachment'],
+            [$valid, [['fields[attachment]', 'empty.txt', '']], 'attachment'],
+            [[], [$file], 'email'],
+            [$valid, [$file, ['fields[extras][]', 'bad.html', '<html>Disallowed</html>']], 'extras'],
+            [$valid + ['MAX_FILE_SIZE' => '1'], [$file], 'attachment'],
+        ];
+        foreach ($cases as [$fields, $files, $error]) {
+            [$status, $result] = $post($fields, $files);
+            assert_same(422, $status);
+            assert_true(isset($result['error']['fields'][$error]), 'Expected error for ' . $error);
+            assert_same(3, count($state()['files']), 'Failed submissions must leave no uploaded files.');
+        }
+        [$status, $result] = $post($valid + [FormSubmission::HONEYPOT => 'bot'], [$file]);
+        assert_same(200, $status, 'Honeypot submission: ' . json_encode($result));
+        assert_same(3, count($state()['files']));
+        assert_same(422, $post($valid + ['padding' => str_repeat('x', 264000)], [$file])[0]);
+        assert_same(3, count($state()['files']));
+        // A file exactly at the configured limit is accepted.
+        // Repeated characters without line breaks can be detected as binary on Linux.
+        $boundaryText = str_pad("A plain text attachment.\n", 1024, "More plain text.\n");
+        assert_same(1024, strlen($boundaryText));
+        [$status, $result] = $post($valid, [['fields[attachment]', 'boundary.txt', $boundaryText]]);
+        assert_same(200, $status, 'Upload at the size limit: ' . json_encode($result));
+        assert_same(4, count($state()['files']));
+        // Exhaust the same visitor/form limiter before sending another genuine upload.
+        comet_test_run_php(['-r', $bootstrap . '$limiter = new \\CometCMS\\Core\\RateLimiter((new \\CometCMS\\Site\\SiteRepository())->workspace()->path("cache") . "/form-limits"); for ($i = 0; $i < 100; $i++) { $limiter->hit(' . var_export('form:' . $formId, true) . ', "127.0.0.1", 100, 600); }']);
+        [$status, $result] = $post($valid, [$file]);
+        assert_same(422, $status);
+        assert_true(isset($result['error']['fields']['form']));
+        assert_same(4, count($state()['files']));
+    } finally {
+        comet_test_stop_process($server);
+    }
+});
+
+test('required multiple media inputs render accessible labels and the configured upload budget', function (): void {
+    global $cometConfig;
+    comet_site_test_setup();
+    (new ContentTypeRepository())->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => [
+        'documents' => ['type' => 'media', 'required' => true, 'multiple' => true, 'label' => 'Your documents', 'description' => 'Attach your application.', 'layout' => ['width' => '1/2']],
+    ]]);
+    $site = new SiteRepository();
+    $form = (new FormRepository($site))->all()[0];
+    $site->saveLayout('blog', 'detail', [comet_component_test_section([LayoutSchema::node('form', ['form' => $form['id']])])]);
+    $original = $cometConfig['site'];
+    try {
+        $cometConfig['site']['forms']['max_upload_bytes'] = 5 * 1048576;
+        $document = new DOMDocument();
+        @$document->loadHTML(comet_site_test_get('/blog/hello')['body']);
+        $xpath = new DOMXPath($document);
+        $file = $xpath->query('//input[@type="file"]')->item(0);
+        assert_same('fields[documents][]', $file->getAttribute('name'));
+        assert_true($file->hasAttribute('required'));
+        assert_true($file->hasAttribute('multiple'));
+        assert_true(str_contains($file->parentNode->getAttribute('class'), 'c-form-w-1-2'));
+        assert_true(str_contains($xpath->query('//label[@for="' . $file->getAttribute('id') . '"]')->item(0)->textContent, 'Your documents'));
+        $help = $document->getElementById($file->getAttribute('aria-describedby'));
+        assert_true(str_contains($help->textContent, 'Attach your application.'));
+        assert_true(str_contains($help->textContent, '5 MiB'));
+        assert_same('5242880', $xpath->query('//input[@name="MAX_FILE_SIZE"]')->item(0)->getAttribute('value'));
+    } finally {
+        $cometConfig['site'] = $original;
+    }
 });

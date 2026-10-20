@@ -726,7 +726,6 @@ final class MediaRepository
 
         $maxPixels = max(1, (int) comet_config('media.variants.max_pixels', 16000000));
         if ($targetWidth * $targetHeight > $maxPixels) {
-            imagedestroy($sourceImage);
             throw new \InvalidArgumentException('Requested variant exceeds the configured pixel limit.');
         }
 
@@ -741,18 +740,15 @@ final class MediaRepository
         $target = $directory . '/' . $sourceFingerprint . '-' . $transform . '.' . $extension;
 
         if (is_file($target) && !($internal && ($options['refresh'] ?? false))) {
-            imagedestroy($sourceImage);
             return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
         }
 
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
-            imagedestroy($sourceImage);
             throw new \RuntimeException('Could not create the image variant cache directory.');
         }
 
         $variant = imagecreatetruecolor($targetWidth, $targetHeight);
         if (!$variant instanceof \GdImage) {
-            imagedestroy($sourceImage);
             throw new \RuntimeException('Could not allocate the image variant.');
         }
 
@@ -760,8 +756,7 @@ final class MediaRepository
         imagecopyresampled($variant, $sourceImage, 0, 0, $sourceX, $sourceY, $targetWidth, $targetHeight, $cropWidth, $cropHeight);
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
         $saved = $this->saveVariantImage($variant, $tmp, $format, $quality);
-        imagedestroy($variant);
-        imagedestroy($sourceImage);
+        unset($variant, $sourceImage);
 
         if (!$saved) {
             if (is_file($tmp)) {
@@ -1075,8 +1070,6 @@ final class MediaRepository
         if (!$rotated instanceof \GdImage) {
             return $image;
         }
-
-        imagedestroy($image);
 
         return $rotated;
     }

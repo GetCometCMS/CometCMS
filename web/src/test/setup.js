@@ -1,3 +1,6 @@
-// Node derives navigator.language from the machine's locale (LANG); pin the
-// admin to English so test output does not depend on where the tests run.
+// Node 20 has no navigator; newer Node versions derive its language from LANG.
+// Pin the admin to English regardless of the runtime or machine locale.
+if (typeof globalThis.navigator === 'undefined') {
+  Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true })
+}
 Object.defineProperty(globalThis.navigator, 'language', { value: 'en-US', configurable: true })

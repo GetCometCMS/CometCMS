@@ -6,11 +6,13 @@
     </div>
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
-      <template v-if="def.binding === 'media' || def.binding === 'link'" #literal>
-        <MediaSelect v-if="def.binding === 'media'" :model-value="value" :name="inputId" :compact="group === 'style'" @update:model-value="emitValue" />
+      <template v-if="['media', 'media_list', 'link'].includes(def.binding)" #literal>
+        <MediaSelect v-if="['media', 'media_list'].includes(def.binding)" :model-value="value" :multiple="def.binding === 'media_list'" :name="inputId" :compact="group === 'style' || def.binding === 'media_list'" @update:model-value="emitValue" />
         <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
       </template>
     </SmartValueEditor>
+
+    <FontPicker v-else-if="def.type === 'font'" :id="inputId" :model-value="value || ''" allow-empty roles @update:model-value="emitValue" />
 
     <IconPickerGrid
       v-else-if="def.type === 'icon'"
@@ -50,6 +52,8 @@
       :options="colorOptions"
       @update:model-value="emitValue"
     />
+
+    <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
 
     <template v-else-if="def.type === 'enum' || def.type === 'display'">
       <div v-if="isPositionGrid" class="grid w-24 grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" :aria-label="label">
@@ -220,6 +224,9 @@
     >
       <option v-for="option in selectOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
     </select>
+    <p v-if="def.type === 'form' && selectOptions.length === 1" class="mt-2 text-xs text-slate-500">
+      {{ t("site.forms.noEligibleTypes") }}
+    </p>
   </div>
 </template>
 
@@ -238,11 +245,13 @@ import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
 import CssClassInput from "./CssClassInput.vue";
 import ThemeColorPicker from "./ThemeColorPicker.vue";
+import GradientEditor from "./GradientEditor.vue";
 import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { themeColorOptions } from "../../../composables/themeColors.js";
 import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { localeFlagCountry } from "../../../composables/localeOptions.js";
+import FontPicker from "../FontPicker.vue";
 import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -273,11 +282,10 @@ const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css
 const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && props.node.style?.animation_trigger === "hover");
 const label = computed(() => {
   if (isHoverAnimation.value) return t("site.style.hover_effect");
-  // Fields have a yes/no "link to the entry"; other elements pick a link target.
-  if (props.name === "link" && props.def.type === "bool") return t("site.prop.linkToEntry");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
+  if (props.name === "media" && props.node.kind === "gallery") return t("site.prop.galleryImages");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 
@@ -396,11 +404,18 @@ const selectOptions = computed(() => {
       ];
     case "menu":
       return builder.menus.value.map((menu) => ({ value: menu.name, label: menu.label }));
-    case "form":
+    case "form": {
+      // Show one choice per content type, retaining existing placement IDs.
+      const forms = new Map();
+      for (const form of builder.forms.value) {
+        if (!forms.has(form.type) || form.id === props.value) forms.set(form.type, form);
+      }
       return [
         { value: "", label: t("site.forms.choose") },
-        ...builder.forms.value.map((form) => ({ value: form.id, label: form.name })),
+        ...builder.types.value.filter((type) => forms.has(type.name))
+          .map((type) => ({ value: forms.get(type.name).id, label: type.label })),
       ];
+    }
     case "sort_field":
       return [
         { value: "published_at", label: t("site.systemField.published_at") },

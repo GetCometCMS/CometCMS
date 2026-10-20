@@ -24,6 +24,14 @@
       </div>
     </section>
 
+    <PageBuilderCta
+      v-if="homeType && builderLink"
+      :title="t('site.builderCta.title')"
+      :description="t('site.builderCta.description')"
+      :to="builderLink"
+      :action-label="t('site.builderCta.open')"
+    />
+
     <!-- Languages -->
     <section class="card space-y-4 p-6">
       <div>
@@ -81,6 +89,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
+import PageBuilderCta from "./PageBuilderCta.vue";
 import SearchableSelect from "../SearchableSelect.vue";
 import { api } from "../../api/index.js";
 import { localeLabel } from "../../composables/localeOptions.js";
@@ -94,6 +103,19 @@ const homeEntries = ref([]);
 const loadingEntries = ref(false);
 
 const publicTypes = computed(() => site.data.types.filter((type) => type.visibility !== "private"));
+// Navigation uses saved settings because leaving discards any pending edits.
+const builderLink = computed(() => {
+  const saved = site.data.settings;
+  const homepage = saved.homepage;
+  const type = publicTypes.value.find((type) => type.name === homepage.type);
+  if (!type) return null;
+
+  const variant = !type.singleton && !homepage.entry ? "index" : "detail";
+  return {
+    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${variant}`,
+    query: !type.singleton && homepage.entry ? { entry: homepage.entry } : {},
+  };
+});
 const homeType = computed(() => publicTypes.value.find((type) => type.name === settings.value.homepage.type) ?? null);
 const homeEntryOptions = computed(() => [
   { value: "", label: t("site.overview.homepageList") },

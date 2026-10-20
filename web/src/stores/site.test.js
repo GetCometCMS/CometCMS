@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const mocks = vi.hoisted(() => ({ workspace: 'default' }))
-vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
+vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { fonts: { list: vi.fn() }, site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
 import { useSiteStore } from './site.js'
 import { api } from '../api/index.js'
 
@@ -172,5 +172,43 @@ describe('design edits from the builder', () => {
     expect(site.draft.theme).toEqual({ base_size: 17 })
     expect(site.draft.theme).not.toBe(site.data.theme)
     expect(site.dirtyParts).toEqual(['settings'])
+  })
+})
+
+
+describe('font metadata refresh', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mocks.workspace = 'default'
+  })
+  it('preserves unsaved settings, theme and menu drafts', async () => {
+    const site = useSiteStore()
+    api.site.get.mockResolvedValue({ data: { ...siteData('default'), theme: { fonts: { body: 'system' } }, menus: [] } })
+    await site.load()
+    site.draft.theme.fonts.body = 'fontsource-lora'
+    site.draft.settings.title = 'Unsaved'
+    api.fonts.list.mockResolvedValue({ data: { fonts: ['system', 'fontsource-lora'], font_version: 'new' } })
+    await site.refreshFonts()
+    expect(site.data.font_version).toBe('new')
+    expect(site.draft.theme.fonts.body).toBe('fontsource-lora')
+    expect(site.draft.settings.title).toBe('Unsaved')
+    expect(site.isDirty).toBe(true)
+  })
+
+  it('ignores a font response from an earlier workspace', async () => {
+    const site = useSiteStore()
+    api.site.get.mockResolvedValue({ data: siteData('default') })
+    await site.load()
+    const old = deferred()
+    api.fonts.list.mockReturnValue(old.promise)
+    const pending = site.refreshFonts()
+    mocks.workspace = 'second'
+    api.site.get.mockResolvedValue({ data: { ...siteData('second'), font_version: 'second' } })
+    await site.load()
+    old.resolve({ data: { fonts: ['old'], font_version: 'old' } })
+    await pending
+    expect(site.data.font_version).toBe('second')
+    expect(site.data.workspace).toBe('second')
   })
 })

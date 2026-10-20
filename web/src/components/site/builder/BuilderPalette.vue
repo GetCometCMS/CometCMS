@@ -33,7 +33,7 @@
         </button>
       </div>
       <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-        <PaletteItem v-for="kind in layoutKinds" :key="kind" :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" :hint="kindHint(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
+        <PaletteItem v-for="kind in layoutKinds" :key="kind" stacked :icon="KIND_ICONS[kind]" :label="builder.kindLabel(kind)" :hint="kindHint(kind)" @add="builder.insert(create(kind))" @drag="start($event, () => create(kind))" @dragend="end" />
       </div>
     </BuilderGroup>
 
@@ -41,6 +41,7 @@
       <PaletteItem
         v-for="kind in elementKinds"
         :key="kind"
+        stacked
         :icon="KIND_ICONS[kind]"
         :label="builder.kindLabel(kind)"
         :hint="kindHint(kind)"

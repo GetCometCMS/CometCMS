@@ -260,7 +260,7 @@ final class PageRenderer
 
         // Previews render unsaved themes, so they inline the stylesheet.
         $head .= $this->ctx->preview
-            ? '<style>' . Theme::stylesheet($this->ctx->theme()) . '</style>'
+            ? '<style>' . Theme::stylesheet($this->ctx->theme(), new FontRegistry($this->ctx->site->workspace()), $this->ctx->basePath) . '</style>'
             : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">'
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
@@ -275,6 +275,8 @@ final class PageRenderer
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
+            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-gallery-lightbox')
+                ? '<script type="module">' . GalleryLightbox::script() . '</script>' : '')
             . '</body></html>';
     }
 

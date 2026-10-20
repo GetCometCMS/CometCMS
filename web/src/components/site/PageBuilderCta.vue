@@ -1,5 +1,5 @@
 <template>
-  <section class="card p-6 space-y-4" :aria-labelledby="headingId">
+  <section class="card page-builder-cta p-6 space-y-4" :aria-labelledby="headingId">
     <h2 :id="headingId" class="card-title">{{ title }}</h2>
 
     <div class="flex flex-col items-center gap-4 py-2 text-center">
@@ -30,3 +30,22 @@ defineProps({
 const headingId = `builder-cta-${useId()}`;
 const hintId = `${headingId}-hint`;
 </script>
+
+<style scoped>
+.page-builder-cta {
+  background-color: #fff;
+  background-image:
+    linear-gradient(90deg, #ffffff 0%, #ffffffed 35%, #ffffffa6 60%, #ffffff26 100%),
+    url("../../assets/page-builder-background.svg");
+  background-position: center, right center;
+  background-repeat: no-repeat;
+  background-size: cover, auto 100%;
+}
+
+:global(:root[data-theme="dark"]) .page-builder-cta {
+  background-color: rgb(var(--color-surface));
+  background-image:
+    linear-gradient(90deg, rgb(var(--color-surface)) 0%, rgb(var(--color-surface) / 0.94) 35%, rgb(var(--color-surface) / 0.88) 60%, rgb(var(--color-surface) / 0.8) 100%),
+    url("../../assets/page-builder-background.svg");
+}
+</style>

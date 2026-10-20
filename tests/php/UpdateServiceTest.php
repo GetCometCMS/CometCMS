@@ -4,6 +4,45 @@ declare(strict_types=1);
 
 use CometCMS\Updates\UpdateService;
 
+test('update downloads distinguish HTTP errors from connection failures', function (): void {
+    $router = COMET_STORAGE . '/update-download-router.php';
+    file_put_contents($router, <<<'PHP'
+<?php
+if ($_SERVER['REQUEST_URI'] === '/missing') {
+    http_response_code(404);
+}
+echo 'release fixture';
+PHP);
+    $port = 28080 + random_int(0, 2000);
+    $server = comet_test_start_php_server('127.0.0.1', $port, $router);
+    $method = new ReflectionMethod(UpdateService::class, 'httpGet');
+    $service = new UpdateService();
+    $fetch = static fn(string $path): string => $method->invoke($service, 'http://127.0.0.1:' . $port . $path);
+
+    try {
+        usleep(300000);
+        assert_same('release fixture', $fetch('/'));
+        $failure = null;
+        try {
+            $fetch('/missing');
+        } catch (RuntimeException $error) {
+            $failure = $error;
+        }
+        assert_same('No public GitHub release was found for the configured repository.', $failure?->getMessage());
+    } finally {
+        comet_test_stop_process($server);
+    }
+
+    // The modern header API retains the last response after a connection failure.
+    $failure = null;
+    try {
+        $fetch('/');
+    } catch (RuntimeException $error) {
+        $failure = $error;
+    }
+    assert_same('Could not download release information or assets.', $failure?->getMessage());
+});
+
 test('update service builds configured fallback release sources', function (): void {
     global $cometConfig;
 

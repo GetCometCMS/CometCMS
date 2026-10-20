@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api, getActiveWorkspace } from '../api/index.js'
 import { isSiteLive, menuErrors } from '../composables/siteLinks.js'
 import { DEFAULT_MENU_LIMITS } from '../composables/menuTree.js'
@@ -49,6 +49,32 @@ export const useSiteStore = defineStore('site', () => {
     const res = await api.site.status()
     if (active !== getActiveWorkspace()) return
     pageBuilderActive.value = !!res.data?.enabled || Object.values(res.data?.types ?? {}).some((type) => type.pages_enabled)
+  }
+
+  // Editor specimens use the same local faces as the published website.
+  watch(() => data.value?.font_css ?? '', (css) => {
+    if (typeof document === 'undefined' || !document.head?.appendChild) return
+    let style = document.getElementById('cometcms-site-fonts')
+    if (!style) {
+      style = document.createElement('style')
+      style.id = 'cometcms-site-fonts'
+      document.head.appendChild(style)
+    }
+    style.textContent = css
+  })
+
+  function applyFonts(fonts) {
+    if (!data.value) return
+    for (const key of ['fonts', 'font_stacks', 'font_families', 'font_css', 'font_version']) {
+      if (key in fonts) data.value[key] = fonts[key]
+    }
+  }
+
+  async function refreshFonts() {
+    const active = getActiveWorkspace()
+    const generation = requestGeneration
+    const response = await api.fonts.list()
+    if (active === getActiveWorkspace() && generation === requestGeneration) applyFonts(response.data)
   }
 
   function resetDraft() {
@@ -180,5 +206,5 @@ export const useSiteStore = defineStore('site', () => {
     workspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, load, loadStatus, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
 })

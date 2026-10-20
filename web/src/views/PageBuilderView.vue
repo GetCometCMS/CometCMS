@@ -25,10 +25,6 @@
         <Icon icon="mdi:open-in-new" class="h-4 w-4" />
         {{ t("site.openWebsite") }}
       </a>
-      <router-link :to="DESIGN_PATH" class="btn-secondary">
-        <Icon icon="mdi:palette-outline" class="h-4 w-4" />
-        {{ t("site.design.open") }}
-      </router-link>
       <button
         v-if="site.draft"
         type="button"
@@ -85,7 +81,15 @@
       />
 
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
+      <SiteDesignPanel v-else-if="activeTab === 'design'" layout="page" />
       <SiteSeoPanel v-else-if="activeTab === 'seo'" />
+      <section v-else-if="activeTab === 'fonts'" class="card p-6">
+        <div class="mb-4">
+          <h2 class="card-title">{{ t("site.fonts.libraryTitle") }}</h2>
+          <p class="card-description">{{ t("site.fonts.libraryHint") }}</p>
+        </div>
+        <FontLibrary layout="page" />
+      </section>
       <SiteMenusPanel v-else />
     </template>
 
@@ -109,8 +113,10 @@ import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
+import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
+import FontLibrary from "../components/site/FontLibrary.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
@@ -120,18 +126,19 @@ const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-/** The design is edited and saved in the builder; this screen owns settings and menus. */
-const PARTS = ["settings", "menus"];
-const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
+/** Settings, global design and menus share a draft across these tabs. */
+const PARTS = ["settings", "theme", "menus"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "seo", "menus"]);
+const validTabs = new Set(["overview", "design", "seo", "menus", "fonts"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
   { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
+  { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },
 ]);
 
 async function save() {

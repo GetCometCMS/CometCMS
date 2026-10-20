@@ -40,7 +40,10 @@ function comet_admin_request(string $userId, string $seed, string $method, strin
                 'content' => json_encode($body),
             ],
         ]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
 
         return [(int) ($match[1] ?? 0), json_decode($response, true)];
     } finally {

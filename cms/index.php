@@ -95,6 +95,7 @@ use CometCMS\Controllers\Admin\{
     ContentController,
     ContentTypesController,
     DashboardController,
+    FontsController,
     MediaController,
     RolesController,
     SiteController as AdminSiteController,
@@ -250,6 +251,16 @@ $routes = [
     ['GET',    '#^/admin/api/site/status$#',                                  [AdminSiteController::class, 'status']],
     ['GET',    '#^/admin/api/site/links/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'links']],
     ['PUT',    '#^/admin/api/site/settings$#',                                [AdminSiteController::class, 'updateSettings']],
+    ['GET', '#^/admin/api/site/fonts$#', [FontsController::class, 'index']],
+    ['GET', '#^/admin/api/site/fonts/catalogue$#', [FontsController::class, 'catalogue']],
+    ['GET', '#^/admin/api/site/fonts/catalogue/(' . SEG . ')$#', [FontsController::class, 'details']],
+    [['GET', 'POST'], '#^/admin/api/site/fonts/catalogue/(' . SEG . ')/preview$#', [FontsController::class, 'preview']],
+    ['GET', '#^/admin/api/site/fonts/jobs$#', [FontsController::class, 'jobs']],
+    ['POST', '#^/admin/api/site/fonts/install$#', [FontsController::class, 'install']],
+    ['POST', '#^/admin/api/site/fonts/jobs/(' . SEG . ')/step$#', [FontsController::class, 'step']],
+    ['DELETE', '#^/admin/api/site/fonts/jobs/(' . SEG . ')$#', [FontsController::class, 'cancel']],
+    ['POST', '#^/admin/api/site/fonts/upload$#', [FontsController::class, 'upload']],
+    ['DELETE', '#^/admin/api/site/fonts/(' . SEG . ')$#', [FontsController::class, 'destroy']],
     ['PUT',    '#^/admin/api/site/theme$#',                                   [AdminSiteController::class, 'updateTheme']],
     ['GET',    '#^/admin/api/site/theme/revisions$#',                         [AdminSiteController::class, 'themeRevisions']],
     ['GET',    '#^/admin/api/site/theme/revisions/(' . SEG . ')$#',    [AdminSiteController::class, 'themeRevision']],
@@ -375,6 +386,10 @@ try {
     if (preg_match('#^/media/(' . SEG . ')/(.+)$#', $path, $m) && $method === 'GET') {
         $api->useWorkspace($m[1], true);
         $api->mediaShow($m[2]);
+    }
+
+    if (preg_match('#^/_site/(' . SEG . ')/fonts/([a-f0-9]{64})\.woff2$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->font($m[1], $m[2]);
     }
 
     // ── Website (opt-in per workspace) ────────────────────────────────────

@@ -28,7 +28,7 @@ final class WebsiteStarter
             'label' => 'Landing Page',
             'icon' => 'mdi:home-outline',
             'singleton' => true,
-            'fields' => $fields,
+            'fields' => [],
         ]);
         $types->save([
             'name' => 'pages',
@@ -58,8 +58,6 @@ final class WebsiteStarter
         $content = ContentRepository::make($this->workspace);
         $home = $content->save('landing-page', [
             'title' => 'Welcome to your website',
-            'intro' => 'A fresh start for your next idea.',
-            'body' => "## Make yourself at home\n\nTell your story, share what you do, and give visitors a reason to explore. This is your space to make it happen.",
             'status' => 'published',
         ], $user);
         $about = $content->save('pages', [
@@ -108,7 +106,7 @@ final class WebsiteStarter
         $site->saveSettings([
             'homepage' => ['type' => 'landing-page', 'entry' => $home['id']],
             'routes' => [
-                'landing-page' => ['enabled' => true, 'seo_description_field' => 'intro'],
+                'landing-page' => ['enabled' => true],
                 'pages' => ['enabled' => true, 'seo_description_field' => 'intro'],
                 ...($includeEvents ? ['events' => ['enabled' => true, 'seo_description_field' => 'intro']] : []),
             ],

@@ -90,9 +90,9 @@ function isRetryableNetworkError(err) {
   return err?.name === 'AbortError' || err instanceof TypeError
 }
 
-async function fetchWithTimeout(url, options) {
+async function fetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController()
-  const timer = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     return await fetch(url, { ...options, signal: controller.signal })
@@ -101,17 +101,17 @@ async function fetchWithTimeout(url, options) {
   }
 }
 
-async function request(method, path, body = null) {
+async function request(method, path, body = null, workspace = getActiveWorkspace()) {
   const normalizedMethod = method.toUpperCase()
   const readKey = normalizedMethod === 'GET' && body === null
-    ? `${getActiveWorkspace()} ${normalizedMethod} ${path}`
+    ? `${workspace} ${normalizedMethod} ${path}`
     : null
 
   if (readKey && inFlightReads.has(readKey)) {
     return inFlightReads.get(readKey)
   }
 
-  const promise = requestOnce(normalizedMethod, path, body)
+  const promise = requestOnce(normalizedMethod, path, body, workspace)
 
   if (readKey) {
     inFlightReads.set(readKey, promise)
@@ -124,9 +124,9 @@ async function request(method, path, body = null) {
   return promise
 }
 
-async function requestOnce(method, path, body = null) {
+async function requestOnce(method, path, body = null, workspace = getActiveWorkspace()) {
   const headers = { 'X-Requested-With': 'XMLHttpRequest' }
-  if (getActiveWorkspace()) headers['X-Comet-Workspace'] = getActiveWorkspace()
+  if (workspace) headers['X-Comet-Workspace'] = workspace
 
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken
@@ -154,7 +154,7 @@ async function requestOnce(method, path, body = null) {
         headers,
         body: finalBody,
         credentials: 'same-origin',
-      })
+      }, path.startsWith('/site/fonts') ? 60000 : REQUEST_TIMEOUT_MS)
 
       if (attempt < maxAttempts && RETRYABLE_STATUSES.has(res.status)) {
         await sleep(retryDelay(attempt, res))
@@ -413,11 +413,11 @@ export const api = {
 
   // Website
   site: {
-    get:          ()                     => request('GET',    '/site'),
+    get:          (workspace)            => request('GET',    '/site', null, workspace),
     status:       ()                     => request('GET',    '/site/status'),
     links:        (type, id, params = {}) => request('GET',   withQuery(`/site/links/${type}/${encodeURIComponent(id)}`, params)),
     saveSettings: (data)                 => request('PUT',    '/site/settings', data),
-    saveTheme:    (data)                 => request('PUT',    '/site/theme', data),
+    saveTheme:    (data, workspace)      => request('PUT',    '/site/theme', data, workspace),
     themeRevisions: () => request('GET', '/site/theme/revisions'),
     themeRevision: (id) => request('GET', `/site/theme/revisions/${encodeURIComponent(id)}`),
     restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
@@ -455,6 +455,19 @@ export const api = {
       if (locale) params.set('locale', locale)
       return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
     },
+  },
+
+  fonts: {
+    list: () => request('GET', '/site/fonts'),
+    catalogue: (query = {}) => request('GET', withQuery('/site/fonts/catalogue', query)),
+    details: (id) => request('GET', `/site/fonts/catalogue/${encodeURIComponent(id)}`),
+    preview: (id) => request('POST', `/site/fonts/catalogue/${encodeURIComponent(id)}/preview`),
+    jobs: () => request('GET', '/site/fonts/jobs'),
+    install: (body, workspace) => request('POST', '/site/fonts/install', body, workspace),
+    step: (id, cursor, workspace) => request('POST', `/site/fonts/jobs/${encodeURIComponent(id)}/step`, { cursor }, workspace),
+    cancel: (id) => request('DELETE', `/site/fonts/jobs/${encodeURIComponent(id)}`),
+    upload: (body) => request('POST', '/site/fonts/upload', body),
+    remove: (id) => request('DELETE', `/site/fonts/${encodeURIComponent(id)}`),
   },
 
   // Profile (current user)

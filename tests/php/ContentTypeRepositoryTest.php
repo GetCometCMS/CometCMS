@@ -84,7 +84,10 @@ test('admin content type create rejects normalized name conflicts', function ():
             ])
         );
 
-        assert_true(str_contains($http_response_header[0] ?? '', '422'));
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        assert_true(str_contains($responseHeaders[0] ?? '', '422'));
         assert_true(str_contains($response, '"code":"validation_failed"'));
         assert_true(str_contains($response, 'already exists'));
     } finally {
@@ -118,7 +121,7 @@ test('legacy API visibility is retained until explicitly reconfigured', function
 
 test('submission-enabled schemas reject unusable fields before changing storage', function (): void {
     $types = new ContentTypeRepository();
-    foreach ([[], ['file' => ['type' => 'media', 'required' => true]], ['email' => ['type' => 'text'], 'file' => ['type' => 'media', 'required' => true]]] as $fields) {
+    foreach ([[], ['data' => ['type' => 'json', 'required' => true]], ['email' => ['type' => 'text'], 'data' => ['type' => 'json', 'required' => true]]] as $fields) {
         assert_throws(\CometCMS\Core\ValidationException::class, static fn() => $types->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => $fields]));
         assert_false($types->exists('applications'));
     }

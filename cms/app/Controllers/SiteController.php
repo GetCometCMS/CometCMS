@@ -8,6 +8,8 @@ use CometCMS\Core\Http;
 use CometCMS\Site\Flags;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
+use CometCMS\Site\FormUploads;
+use CometCMS\Site\GalleryLightbox;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
@@ -25,8 +27,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
 final class SiteController
 {
     /**
-     * Rendered pages never run scripts: the site ships none, and this keeps
-     * it that way even if content or custom CSS were to contain markup.
+     * Pages block scripts unless the bundled gallery viewer is present;
+     * only its exact hash is allowed, never content or arbitrary same-origin code.
      */
     private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
@@ -60,6 +62,32 @@ final class SiteController
         $this->send($response, $response['cache_status']);
     }
 
+    public function font(string $workspace, string $hash): never
+    {
+        if (!(new WorkspaceRepository())->exists($workspace)) {
+            $this->http->notFound();
+        }
+        $fonts = new \CometCMS\Site\FontRegistry(new WorkspaceContext($workspace));
+        $path = $fonts->asset($hash);
+        if ($path === null) {
+            $this->http->notFound();
+        }
+        $etag = '"' . $hash . '"';
+        header('ETag: ' . $etag);
+        header('Cache-Control: public, max-age=31536000, immutable');
+        if (trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
+            http_response_code(304);
+            exit;
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+            header('Content-Type: font/woff2');
+            header('Content-Length: ' . filesize($path));
+            header('X-Content-Type-Options: nosniff');
+            exit;
+        }
+        $this->http->streamFile($path, 'font/woff2');
+    }
+
     public function stylesheet(string $workspace, bool $custom = false): never
     {
         if (!(new WorkspaceRepository())->exists($workspace)) {
@@ -69,7 +97,7 @@ final class SiteController
         $site = new SiteRepository(new WorkspaceContext($workspace));
         $version = $custom ? $site->customStylesheetVersion() : $site->stylesheetVersion();
         $theme = $site->theme();
-        $css = $custom ? $theme['custom_css'] : Theme::stylesheet([...$theme, 'custom_css' => '']);
+        $css = $custom ? $theme['custom_css'] : Theme::stylesheet([...$theme, 'custom_css' => ''], new \CometCMS\Site\FontRegistry($site->workspace()), rtrim($this->http->url('/'), '/'));
         $etag = '"' . $version . '"';
 
         header('Content-Type: text/css; charset=utf-8');
@@ -106,9 +134,15 @@ final class SiteController
         }
 
         $maxBytes = max(1024, (int) comet_config('site.forms.max_body_bytes', 262144));
+        foreach ((new FormRepository($site))->inputs($form) as $field) {
+            if (($field['config']['type'] ?? '') === 'media') {
+                $maxBytes += FormUploads::maxBytes();
+                break;
+            }
+        }
         $result = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes
             ? ['status' => FormSubmission::ERROR, 'errors' => ['form' => 'The submission is too large.']]
-            : FormSubmission::make($site)->submit($form, $_POST, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), LayoutSchema::key($_POST['_locale'] ?? ''));
+            : FormSubmission::make($site)->submit($form, $_POST, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), LayoutSchema::key($_POST['_locale'] ?? ''), $_FILES);
 
         if (str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
             $sent = $result['status'] === FormSubmission::SENT;
@@ -169,7 +203,10 @@ final class SiteController
         header('ETag: ' . $etag);
 
         if (str_starts_with($response['content_type'], 'text/html')) {
-            header('Content-Security-Policy: ' . self::CONTENT_SECURITY_POLICY);
+            $policy = str_contains($response['body'], '<script type="module">' . GalleryLightbox::script() . '</script>')
+                ? str_replace("script-src 'none'", 'script-src ' . GalleryLightbox::cspSource(), self::CONTENT_SECURITY_POLICY)
+                : self::CONTENT_SECURITY_POLICY;
+            header('Content-Security-Policy: ' . $policy);
         }
 
         if ($response['status'] === 200 && trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {

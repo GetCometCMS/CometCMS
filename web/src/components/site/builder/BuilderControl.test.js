@@ -37,6 +37,18 @@ describe('builder icon controls', () => {
   })
 })
 
+describe('builder gradient controls', () => {
+  it('uses the shared gradient editor for backgrounds and text', async () => {
+    for (const name of ['background_gradient', 'text_gradient']) {
+      const html = await renderControl(name, { type: 'gradient', options: ['primary', 'accent'], default: [] }, { type: 'linear', from: 'primary', to: 'accent', angle: 135 }, { group: 'style' })
+      expect(html).toContain(`id="builder-icon1-style-${name}"`)
+      expect(html).toContain('linear-gradient(135deg,')
+      expect(html).toContain('Start color')
+      expect(html).toContain('End color')
+    }
+  })
+})
+
 describe('builder hover effects', () => {
   it('describes movement for hover and entrances for other triggers', async () => {
     const def = { type: 'enum', options: ['none', 'fade', 'fade-left', 'zoom-in', 'blur'] }
@@ -52,5 +64,20 @@ describe('builder hover effects', () => {
     const scroll = await renderControl('animation', def, 'fade-left', { group: 'style' })
     expect(scroll).toContain('Entrance')
     expect(scroll).toContain('Fade in from the right')
+  })
+})
+
+describe('builder link destinations', () => {
+  it('uses the shared destination selector and dynamic content picker for fields and galleries', async () => {
+    for (const kind of ['field', 'gallery']) {
+      const html = await renderControl('link', { type: 'link', binding: 'link', default: { type: 'none' } }, { type: 'current' }, {
+        node: { id: 'linked', kind, props: {}, style: {} },
+      })
+      expect(html).toContain('Insert dynamic content')
+      expect(html).toContain('This entry')
+      expect(html).toContain('Open in a new tab')
+      expect(html).not.toContain('Link to the entry')
+      expect(html).not.toContain('role="switch"')
+    }
   })
 })

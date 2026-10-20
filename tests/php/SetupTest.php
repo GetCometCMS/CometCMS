@@ -54,7 +54,10 @@ PHP;
                 ], $body)),
             ],
         ]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         [$json, $state] = explode("\n--state--\n", $response, 2);
 
         return [(int) ($match[1] ?? 0), json_decode($json, true), json_decode($state, true)];
@@ -118,6 +121,8 @@ test('website starter renders all pages with working navigation and remains edit
 
     $types = new ContentTypeRepository($workspace);
     assert_true($types->find('landing-page')['singleton']);
+    assert_same(['title', 'slug'], array_keys($types->find('landing-page')['fields']));
+    assert_same(['title', 'slug', 'intro', 'body'], array_keys($types->find('pages')['fields']));
     assert_false($types->find('pages')['singleton']);
     assert_false($types->find('events')['singleton']);
     assert_same([], (new ContentTypeRepository(new WorkspaceContext('default')))->all());
@@ -143,6 +148,9 @@ test('website starter renders all pages with working navigation and remains edit
     }
 
     $content = ContentRepository::make($workspace);
+    $home = $content->all('landing-page')[0];
+    assert_false(array_key_exists('intro', $home));
+    assert_false(array_key_exists('body', $home));
     $content->save('pages', ['title' => 'Another page'], $user);
     assert_same(3, count($content->all('pages')));
     assert_throws(ValidationException::class, fn() => $content->save('landing-page', ['title' => 'Another home'], $user));

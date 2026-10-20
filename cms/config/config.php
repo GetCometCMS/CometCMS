@@ -38,6 +38,10 @@ return [
     'content_types' => [],
     'site' => [
         'max_revisions' => 50,
+        'forms' => [
+            // Per-file and total attachment budget for public website forms.
+            'max_upload_bytes' => 10 * 1024 * 1024,
+        ],
     ],
     'cache' => [
         'enabled' => true,

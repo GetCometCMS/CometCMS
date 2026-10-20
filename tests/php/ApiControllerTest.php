@@ -84,7 +84,7 @@ test('media endpoint serves configured image variants', function (): void {
         'comet_test_reset_storage();' .
         '$image = imagecreatetruecolor(1200, 600);' .
         'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
-        'imagedestroy($image);' .
+        'unset($image);' .
         '$_GET = ["w" => "320", "format" => "jpeg"];' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?w=320&format=jpeg";' .
@@ -107,7 +107,7 @@ test('media listing advertises responsive variant urls', function (): void {
         'comet_test_reset_storage();' .
         '$image = imagecreatetruecolor(1200, 600);' .
         'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
-        'imagedestroy($image);' .
+        'unset($image);' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/media";' .
         '$_SERVER["SCRIPT_NAME"] = "/index.php";' .

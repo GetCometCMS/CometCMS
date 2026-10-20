@@ -1,6 +1,6 @@
 # Website
 
-CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node, no build step and no JavaScript in the pages themselves. Developers can also enable the headless API per content type, independently of website pages.
+CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
@@ -35,7 +35,7 @@ Layouts are generated from the content type's fields until you change them, so a
 
 ### Finding your way in the builder
 
-- The **left rail** opens the panels: **Add**, **Outline**, **Content** (the preview entry's fields), **Components**, **Forms**, **Design**, **CSS** and **History**. Each panel explains what it does at the top.
+- The **left rail** opens the panels: **Add**, **Outline**, **Content** (the preview entry's fields), **Components**, **Design**, **CSS** and **History**. Each panel explains what it does at the top.
 - The **canvas** in the middle is the live preview. Click any element to select it; sections, grids, columns and components are outlined in their own colors.
 - The **inspector** on the right shows the selected element's settings, a short explanation of the element type, and a path to its parent elements. With nothing selected, it summarizes the page you are editing and suggests next steps.
 - The **top bar** shows the preview entry, language, device, undo/redo and whether all changes are saved.
@@ -45,10 +45,11 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 
 | Element      | Shows                                                                         |
 | ------------ | ----------------------------------------------------------------------------- |
-| Field display | Specialized values such as galleries, repeaters, related cards, badges, or meters. |
+| Field display | Specialized values such as downloads, repeaters, related cards, badges, or meters. |
 | Heading      | Static text, field references, or a mixture of both.                           |
 | Text         | Rich text.                                                                    |
 | Image        | An image from the media library or a bound media field.                        |
+| Gallery      | Selected media in a custom order, or media from a bound entry field, in a responsive grid with crop, spacing, and caption controls. |
 | Button       | A link to this entry, another entry, a list page, the homepage or any URL.    |
 | Accordion    | An expandable title and rich text content, optionally open on load. Duplicate it for more items or use it in a repeater template. |
 | Icons        | A searchable selection of bundled Material Design icons, with size, color, an accessible label, and an optional link. Works without external icon requests. |
@@ -61,6 +62,12 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 A column set (row) decides whether its columns sit side by side or underneath each other. Each column decides the same for its own elements under **Arrange elements**: underneath each other (default) or side by side, which wraps onto the next line when there is no room left. Side by side adds **Distribute elements** and **Align elements**, and **Space between elements** becomes the gap between them.
 
 Repeater fields contain an **item template**: the elements inside them are repeated for every row and bind to the repeater's sub-fields.
+
+Add a **Gallery** to any column or repeater item template. Choose media manually and drag the selected files to reorder them, or use the content reference picker to bind the gallery to a media field. Set one to six columns, spacing, aspect ratio, image fit and focal point, and optional captions from media titles. Galleries can also be included in reusable components. Existing **Field → Gallery** displays open as Gallery elements with their content reference and styling preserved.
+
+Enable **Masonry layout** to stack images at their natural heights, flowing down each column before the next. The column count and spacing still apply, and captions stay with their images. Crop controls are hidden while masonry is enabled; turning it off restores the saved grid crop settings.
+
+Enable **Open images in a modal** to show the clicked image at full size over a dark backdrop. Close it with the close button, a click on the backdrop, or Escape. **Show previous / next buttons** optionally enables navigation through that gallery, including the arrow keys. Captions follow the gallery's caption setting. The viewer works with grids and masonry; videos, audio, and downloads keep their normal controls. In the builder, select the gallery and click an image again to try the modal. Public pages allow only the exact bundled viewer script through a CSP hash; preview documents still block scripts and the trusted editor controls the viewer.
 
 Drag elements from **Add** onto the preview or into the **Outline**, or click them to insert next to the selection. Select an element to change its content and style in the inspector. Style options come from the theme (sizes, colors, radius, shadows), which keeps every page consistent. Shortcuts: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo, <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate, <kbd>Del</kbd> delete, <kbd>Ctrl</kbd>+<kbd>S</kbd> save.
 
@@ -78,11 +85,15 @@ Scroll inside the preview to test entry animations. Each preview update creates 
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
 
-### Background images
+### Backgrounds and gradients
 
 Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, and **Background blur (px)** from 0 to 40. Like other images, it can be bound to a media field of the entry.
 
 Zero blur keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+Choose **Background gradient** in the same group for a two-color **Linear** or **Radial** gradient. Pick its start and end colors from the theme palette (including custom colors); linear gradients also have an angle from 0 to 360 degrees. The colors follow the site's light/dark mode. A gradient takes precedence over a background image; choose **None** to show the saved image again. The background color remains underneath as a fallback. Image blur, sizing and overlays apply to images only.
+
+Headings and Text elements also offer **Text gradient** in the **Text** style group, with the same controls. It colors the text block, including linked and bound text, and works alongside a background color, gradient or image. Code blocks, highlighted text and table headers keep a solid text color for readability on their own backgrounds. **None** restores the regular text color. Browsers without text clipping support keep the regular text color.
 
 Layouts saved before background images became a style keep their section images; they are moved into the section's style the next time the layout is loaded.
 
@@ -108,16 +119,20 @@ Forms let visitors send messages, sign-ups or requests. Every submission is save
 
 Set forms up on the **content type edit page** by enabling **Allow Submissions**:
 
-- The current content type receives the submissions and automatically appears in the builder’s **Forms** sidebar. Single pages cannot receive submissions.
-- The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time and colour fields are shown; media, relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
+- The current content type receives the submissions and becomes available in the **Form** element's **Content type** selector. Single pages cannot receive submissions.
+- The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time, colour and media fields are shown; relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
 - **Status of new entries** is *Draft* by default, so submissions wait for review.
 - The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
 
-Disabling **Allow Submissions** removes the type from the forms sidebar and blocks submissions from existing placements; saved entries and form settings are retained.
+Disabling **Allow Submissions** removes the type from the Form element's selector and blocks submissions from existing placements; saved entries and form settings are retained.
 
 Entries are titled with the form's name and the time they arrived. Submissions trigger the usual `content.created` webhook, which can be used to send notifications.
 
-To place a form, open the **Forms** panel in the builder's left rail and click or drag a form into the page. You can also add a **Form** element from the **Add** panel and pick the form in the inspector, where you can also hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+To place a form, click or drag **Form** from **Add → Elements** into the page, then select the **Content type** in the inspector. The form renders that type's fields and saves submissions as entries of the same type. The inspector also lets you hide labels or change the button's style. A text field whose key contains `email`, `phone` or `url` gets the matching input type.
+
+Media fields accept file uploads and respect **Allow multiple** and **Required**. Attachments are stored privately in the receiving workspace’s media library and linked to the new entry; downloading them requires authenticated media access. Visitors cannot attach existing media by posting filenames.
+
+The default limit is **10 MiB per file and 10 MiB total attachments per submission**. Change `site.forms.max_upload_bytes` in `cms/config/config.php` to set both limits in bytes. The effective limit cannot exceed `media.max_upload_bytes`; the form displays it beside each upload input. Allowed file types follow `media.allowed_mime_types`, with executable filename extensions rejected. PHP’s `upload_max_filesize`, `post_max_size`, `max_file_uploads`, and your web server’s request limits also apply; allow room for multipart overhead and text fields in the total request limit. Forms without media retain their 256 KiB request limit (`site.forms.max_body_bytes`); forms with media add the upload budget to that allowance.
 
 Forms work without JavaScript. After sending, the visitor returns to the same page, where the form is replaced by the success message, or shows the error message above it. Spam protection uses a hidden trap field, and a limit of 5 submissions per visitor and form in 10 minutes (`site.forms.rate_limit_attempts` and `site.forms.rate_limit_window_seconds` in the configuration). Cloudflare Turnstile and Google reCAPTCHA are planned.
 
@@ -141,15 +156,25 @@ Each section has scroll options in its content settings, usually used for the se
 | **Float over the content below** | The section takes no room, so the page's first section (a hero image, for example) starts underneath it. It stays transparent at the top of the page and shows its background once the visitor scrolls.                                             |
 | **When scrolled**                | For sticky and floating sections: add a **Shadow**, make the background **Frosted** (translucent and blurred), or make the section **Compact** by reducing its vertical padding.                                                                      |
 
-A floating sticky section is pinned to the very top of the window, so use it as the header's first section. When editing the header, the preview gets extra room so you can scroll it and try these options. Pages still ship no JavaScript: these effects use CSS scroll states. Browsers without them, such as Firefox, keep **When scrolling up** sections always visible, show floating sections with their background, and skip the scroll effects.
+A floating sticky section is pinned to the very top of the window, so use it as the header's first section. When editing the header, the preview gets extra room so you can scroll it and try these options. These effects use CSS scroll states and require no JavaScript. Browsers without them, such as Firefox, keep **When scrolling up** sections always visible, show floating sections with their background, and skip the scroll effects.
 
 The destination picker separates pages, content entries, listing pages, custom links and sections. Content search is paginated and shows publication status; drafts and scheduled entries can be selected while preparing navigation, but linking them does not make them public. Only public content types with website routes (or homepage destinations) are offered.
+
+Element **Link** controls use the same destination picker, including Field and Gallery elements. Choose a page, entry, listing, custom URL, section, the current entry, or no link. The database icon binds the destination to a URL field or another compatible content reference, resolved for each entry or repeater item. Links can open in a new tab. Existing **Link to the entry** switches are preserved as **This entry** or **None** destinations. Gallery modal viewers take precedence over image links while enabled.
 
 For a section link, enter an anchor ID assigned in the page builder, such as `contact` or `#contact`. Choose **Section** to jump within the current page, or add an optional section to a page, entry or listing destination. Custom links also accept website paths, external URLs, `mailto:` and `tel:` links. Parent links and submenu disclosure buttons work independently on the published website.
 
 ## Theme
 
-The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Fonts are local font stacks; nothing is loaded from third-party font services.
+The **Theme** tab sets colors for light and dark mode (or follows the visitor's system), fonts and sizes, with a live preview. Choose system font stacks or install the families you need. The website starter downloads Inter and Lora as normal installed fonts; you can replace or remove them once they are no longer used. Empty workspaces start without installed fonts. **Manage fonts** opens the installed library, the online catalogue and custom uploads; the same library is also available as the **Fonts** tab on the Page Builder settings page. Every family is shown as a live specimen, and you can type your own preview text and change its size. Website and editor font files are always served from your CometCMS installation.
+
+The **Catalogue** lets website managers search and filter Fontsource families by category, see each family's preview as it scrolls into view, and install selected character sets. Latin and extended Latin are selected by default where available. Installations show progress and can be cancelled or resumed after an interruption. Catalogue access requires outbound HTTPS from the PHP host; installed fonts continue working offline. Updates happen only when you choose **Update font**.
+
+**Upload** accepts custom WOFF2 files, with a family name, fallback category, style and weight for each file. Drop files onto the upload area; style and weight are suggested from the file names and each file shows a local preview before upload. Enter identical start and end weights for a static face, or the supported range for a variable face. Upload italic files separately and confirm permission to use the fonts. You can add more files to an existing custom family. Files are limited to 10 MiB each and 100 MiB per family, subject to your host's upload limits.
+
+Installed fonts are available for body text, headings, H1–H6 overrides and individual builder elements. System stacks and the Body/Heading element options remain available. Only faces used by the page are downloaded by the browser. Missing files use fallback fonts and are marked in the editor.
+
+Site backups include installed fonts and their metadata. Fonts referenced by saved designs or the current draft cannot be removed; the library shows their usages. Bundled fonts remain available with every installation.
 
 **Heading levels** fine-tune H1 to H6 one by one: font, size, weight, line height, letter spacing and capitalization. Empty values follow the general typography settings, so a level only needs the values that should differ. Custom sizes from 32 px shrink by 20 % on phones. Font, size and weight chosen for a single element in the builder still take precedence.
 
@@ -216,7 +241,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image source, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, and single-image media inserts an Image. Galleries, files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image and gallery sources, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, single-image media inserts an Image, and multiple-media fields insert a Gallery. Files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

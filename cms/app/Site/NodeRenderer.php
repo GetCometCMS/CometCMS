@@ -11,8 +11,8 @@ use CometCMS\Core\Security;
  * Turns layout trees into HTML.
  *
  * Every dynamic value is escaped with Security::e() or passed through the
- * HTML allow-list; style values only ever become class names from a fixed
- * vocabulary (see LayoutSchema), so layouts cannot inject markup.
+ * HTML allow-list; style values use a fixed vocabulary (see LayoutSchema)
+ * and generated CSS declarations, so layouts cannot inject markup.
  *
  * Render state ($state) carries what the nodes are bound to:
  *   entry      the entry the layout shows (null for header/footer without one)
@@ -84,6 +84,7 @@ final class NodeRenderer
             if (!SmartValue::isDynamic($binding) || $key === 'source') continue;
             $resolved = $this->resolveBinding($binding, $target, $state);
             $node['props'][$key] = $resolved['value'];
+            if ($target === 'media_list') $node['_gallery_label'] = $resolved['label'] ?? '';
             if (in_array($target, ['text', 'html'], true)) {
                 $node['_resolved'][$key] = true;
             }
@@ -105,6 +106,7 @@ final class NodeRenderer
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
             'image' => $this->image($node, $state),
+            'gallery' => $this->gallery($node, $state),
             'button' => $this->button($node, $state),
             'accordion' => $this->accordion($node),
             'icon' => $this->icon($node, $state),
@@ -133,7 +135,7 @@ final class NodeRenderer
      * The value of a bound property or style: text and HTML are rendered,
      * media must come from a media field, links become URLs.
      *
-     * @return array{value: mixed, missing: bool}
+     * @return array{value: mixed, missing: bool, label?: string}
      */
     private function resolveBinding(array $binding, string $target, array $state): array
     {
@@ -148,6 +150,14 @@ final class NodeRenderer
 
         $value = $resolved['value'];
         $missing = $resolved['missing'];
+        if ($target === 'media_list') {
+            $valid = ($resolved['config']['type'] ?? '') === 'media';
+            return [
+                'value' => $valid ? (is_array($value) ? $value : (is_string($value) && $value !== '' ? [$value] : [])) : [],
+                'missing' => $missing || !$valid,
+                'label' => $valid ? $this->fieldLabel(implode('.', $binding['path']), $resolved['config']) : '',
+            ];
+        }
         $fallback = array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback') !== [];
         if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($missing && $fallback)) {
             $value = '';
@@ -355,7 +365,7 @@ final class NodeRenderer
             $text = $this->anchor($link, $text);
         }
 
-        return $this->element($node, '<' . $level . ' class="c-heading">' . $text . '</' . $level . '>');
+        return $this->element($node, '<' . $level . $this->textGradientAttributes($node, 'c-heading') . '>' . $text . '</' . $level . '>');
     }
 
     private function text(array $node, array $state): string
@@ -363,7 +373,7 @@ final class NodeRenderer
         $html = HtmlSanitizer::sanitize($node['props']['html']);
         if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
-        return $this->element($node, '<div class="c-prose">' . $html . '</div>');
+        return $this->element($node, '<div' . $this->textGradientAttributes($node, 'c-prose') . '>' . $html . '</div>');
     }
 
     private function accordion(array $node): string
@@ -439,6 +449,53 @@ final class NodeRenderer
         if ($max > 0) $style[] = '--c-img-max:' . $max . 'px';
 
         return $style === [] ? [[], ''] : [['c-img-sized'], implode(';', $style)];
+    }
+
+    private function gallery(array $node, array $state): string
+    {
+        $props = $node['props'];
+        // Masonry uses natural image heights; keep the saved crop for grid mode.
+        if ($props['masonry']) $props['ratio'] = '';
+        $items = [];
+        foreach (is_array($props['media']) ? $props['media'] : [] as $file) {
+            $item = is_string($file) ? $this->ctx->mediaItem($file) : null;
+            if ($item !== null) $items[] = $item;
+        }
+        if ($items === []) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose gallery images</div>') : '';
+        }
+
+        $columns = $props['columns'];
+        $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) ' . ($columns > 1 ? '50' : '100') . 'vw, 100vw';
+        $link = $this->resolveLink($props['link'], $state);
+        $german = str_starts_with($this->ctx->htmlLang(), 'de');
+        $html = '';
+        foreach ($items as $item) {
+            $image = $this->mediaElement($item, $props, $state);
+            if ($props['lightbox'] && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . ($german ? 'Bild vergrößern' : 'Enlarge image') . '"'
+                    . ($props['captions'] ? ' data-caption="' . Security::e((string) ($item['title'] ?? '')) . '"' : '') . '>' . $image . '</a>';
+            } elseif ($link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = $this->anchor($link, $image, 'c-image-link');
+            }
+            $caption = $props['captions'] ? (string) ($item['title'] ?? '') : '';
+            $html .= '<figure class="c-gallery-item c-figure">' . $image
+                . ($caption !== '' ? '<figcaption>' . Security::e($caption) . '</figcaption>' : '') . '</figure>';
+        }
+        $layout = $props['masonry'] ? 'c-gallery-masonry' : 'c-grid';
+        $masonryStyle = $props['masonry']
+            ? ' style="--c-gallery-columns:' . $columns . ';--c-gallery-gap:' . ($props['gap'] === 'none' ? '0px' : 'var(--space-' . $props['gap'] . ')') . '"'
+            : '';
+        $lightbox = $props['lightbox']
+            ? ' data-gallery-lightbox data-gallery-navigation="' . ($props['lightbox_navigation'] ? 'true' : 'false') . '"'
+                . ' data-gallery-label="' . ($german ? 'Bildergalerie' : 'Image gallery') . '" data-gallery-close="' . ($german ? 'Schließen' : 'Close') . '"'
+                . ' data-gallery-previous="' . ($german ? 'Vorheriges Bild' : 'Previous image') . '" data-gallery-next="' . ($german ? 'Nächstes Bild' : 'Next image') . '"'
+            : '';
+        $html = '<div class="' . $layout . ' c-gallery c-cols-' . $columns . ' c-gap-' . $props['gap'] . '"' . $masonryStyle . $lightbox . '>' . $html . '</div>';
+        if ($props['label'] && ($node['_gallery_label'] ?? '') !== '') {
+            $html = '<div class="c-field-label">' . Security::e($node['_gallery_label']) . '</div>' . $html;
+        }
+        return $this->element($node, $html);
     }
 
     private function button(array $node, array $state): string
@@ -523,7 +580,7 @@ final class NodeRenderer
         $inputs = $form !== null ? $this->ctx->forms()->inputs($form) : [];
 
         if ($inputs === []) {
-            $message = $form === null ? 'Choose a form' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
+            $message = $form === null ? 'Choose a content type' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">' . $message . '</div>') : '';
         }
 
@@ -538,7 +595,9 @@ final class NodeRenderer
             $fields .= $this->formField($anchor, $input, $props['labels'] === 'hidden');
         }
 
-        $hidden = '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
+        $hasMedia = in_array('media', array_column(array_column($inputs, 'config'), 'type'), true);
+        $hidden = ($hasMedia ? '<input type="hidden" name="MAX_FILE_SIZE" value="' . FormUploads::maxBytes() . '">' : '')
+            . '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
             . '<input type="hidden" name="_anchor" value="' . Security::e($anchor) . '">'
             . ($this->ctx->locale !== '' ? '<input type="hidden" name="_locale" value="' . Security::e($this->ctx->locale) . '">' : '');
         // Hidden from people and assistive technology; bots filling in every input give themselves away.
@@ -548,7 +607,7 @@ final class NodeRenderer
         return $this->element($node,
             '<div id="' . Security::e($anchor) . '-sent" class="c-form-status c-form-sent" role="status">' . $this->paragraphs($success) . '</div>'
             . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
-            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8">'
+            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8"' . ($hasMedia ? ' enctype="multipart/form-data"' : '') . '>'
             . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot
             . '<div class="c-form-actions">' . $button . '</div></form>'
         );
@@ -567,6 +626,13 @@ final class NodeRenderer
         $width = (string) ($config['layout']['width'] ?? 'full');
         $width = in_array($width, ['1/3', '1/2', '2/3'], true) ? str_replace('/', '-', $width) : 'full';
         $help = trim((string) ($config['description'] ?? ''));
+        if ($type === 'media') {
+            $limit = rtrim(rtrim(number_format(FormUploads::maxBytes() / 1048576, 2, '.', ''), '0'), '.');
+            $uploadHelp = str_starts_with($this->ctx->htmlLang(), 'de')
+                ? 'Maximal ' . $limit . ' MiB pro Datei und insgesamt pro Formular.'
+                : 'Maximum ' . $limit . ' MiB per file and in total per form.';
+            $help = trim($help . ' ' . $uploadHelp);
+        }
         $describedBy = $help !== '' ? ' aria-describedby="' . Security::e($id) . '-help"' : '';
         // Without visible labels, the label doubles as the placeholder.
         $attributes = ' id="' . Security::e($id) . '" name="' . Security::e($name) . '"' . ($required ? ' required' : '') . $describedBy
@@ -601,6 +667,8 @@ final class NodeRenderer
 
         $value = is_scalar($default) ? (string) $default : '';
         $control = match ($type) {
+            'media' => '<input type="file" id="' . Security::e($id) . '" name="' . Security::e($name . (!empty($config['multiple']) ? '[]' : '')) . '"'
+                . ($required ? ' required' : '') . $describedBy . (!empty($config['multiple']) ? ' multiple' : '') . '>',
             'textarea', 'markdown' => '<textarea' . $attributes . ' rows="5">' . Security::e($value) . '</textarea>',
             'select' => '<select' . $attributes . '><option value="">' . Security::e($hiddenLabels ? $input['label'] : '–') . '</option>'
                 . implode('', array_map(static fn(string $option, string $text): string => '<option value="' . Security::e($option) . '"' . ($option === $value ? ' selected' : '') . '>' . Security::e($text) . '</option>', array_keys($options), $options))
@@ -900,17 +968,13 @@ final class NodeRenderer
         };
     }
 
-    /** Wrap text in the chosen tag, linking it to the entry when asked. */
+    /** Wrap text in the chosen tag, with the configured link destination. */
     private function textTag(array $props, string $html, array $state, string $defaultTag): string
     {
         $tag = $props['tag'] !== '' ? $props['tag'] : $defaultTag;
 
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null && $tag !== 'div') {
-                $html = '<a href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        $link = $this->resolveLink($props['link'], $state);
+        if ($link !== null) $html = $this->anchor($link, $html);
 
         $class = str_starts_with($tag, 'h') ? ' class="c-heading"' : '';
 
@@ -997,21 +1061,21 @@ final class NodeRenderer
             $gallery = '';
             $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, 50vw';
             foreach ($items as $item) {
-                $gallery .= '<div class="c-gallery-item">' . $this->mediaElement($item, $props, $state) . '</div>';
+                $gallery .= '<div class="c-gallery-item">' . $this->linkedMedia($item, $props, $state) . '</div>';
             }
 
-            return '<div class="c-grid c-gallery c-cols-' . $columns . '">' . $gallery . '</div>';
+            return '<div class="c-grid c-gallery c-gap-sm c-cols-' . $columns . '">' . $gallery . '</div>';
         }
 
-        $html = $this->mediaElement($items[0], $props, $state);
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null) {
-                $html = '<a class="c-image-link" href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        return $this->linkedMedia($items[0], $props, $state);
+    }
 
-        return $html;
+    private function linkedMedia(array $item, array $props, array $state): string
+    {
+        $html = $this->mediaElement($item, $props, $state);
+        $link = $this->resolveLink($props['link'], $state);
+        return $link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')
+            ? $this->anchor($link, $html, 'c-image-link') : $html;
     }
 
     private function relationField(mixed $value, array $config, array $props, string $display, array $state): string
@@ -1172,8 +1236,9 @@ final class NodeRenderer
     // ─── Links ───────────────────────────────────────────────────────────────
 
     /** @return array{href: string, new_tab: bool}|null */
-    private function resolveLink(array $link, array $state): ?array
+    private function resolveLink(array|bool $link, array $state): ?array
     {
+        if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
             // Bound destinations, resolved by boundLink() before rendering.
@@ -1255,14 +1320,26 @@ final class NodeRenderer
         return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';
     }
 
+    private function textGradientAttributes(array $node, string $class): string
+    {
+        $gradient = Gradient::css($node['style']['text_gradient'] ?? []);
+
+        return ' class="' . $class . ($gradient !== '' ? ' c-text-gradient' : '') . '"'
+            . ($gradient !== '' ? ' style="--c-text-gradient:' . Security::e($gradient) . '"' : '');
+    }
+
     /**
-     * Classes, inline style and decorative blur layer for a background image.
-     * Only public images are used; anything else renders no background.
+     * Classes, inline style and decorative blur layer for a background.
+     * Image backgrounds only use public images.
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
     private function background(array $style): array
     {
+        $gradient = Gradient::css($style['background_gradient'] ?? []);
+        if ($gradient !== '') {
+            return ['classes' => [], 'style' => 'background-image:' . $gradient, 'layer' => ''];
+        }
         $file = (string) ($style['background_image'] ?? '');
         $item = $file !== '' ? $this->ctx->mediaItem($file) : null;
 
