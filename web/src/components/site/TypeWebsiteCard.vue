@@ -21,15 +21,14 @@
     </div>
 
     <template v-if="editable && route.enabled">
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div class="grid grid-cols-1 gap-5" :class="singleton ? 'max-w-3xl' : 'md:grid-cols-2'">
         <div>
-          <label class="form-label" for="type-route-pattern">{{ singleton ? t("site.pages.pageUrl") : t("site.pages.entryUrl") }}</label>
           <LocalizedInput
             id="type-route-pattern"
+            :label="singleton ? t('site.pages.pageUrl') : t('site.pages.entryUrl')"
             :model-value="route.pattern"
-
             class="w-full"
-            :class="errors.pattern ? 'border-red-400' : 'border-slate-300'"
+            :invalid="!!errors.pattern"
             @update:model-value="(value) => update({ pattern: value })"
           />
           <p v-if="errors.pattern" class="mt-1 text-xs text-red-600">{{ errors.pattern }}</p>
@@ -37,13 +36,12 @@
         </div>
 
         <div v-if="!singleton">
-          <label class="form-label" for="type-route-index">{{ t("site.pages.listUrl") }}</label>
           <LocalizedInput
             id="type-route-index"
+            :label="t('site.pages.listUrl')"
             :model-value="route.index_path"
-
             class="w-full"
-            :class="errors.index_path ? 'border-red-400' : 'border-slate-300'"
+            :invalid="!!errors.index_path"
             :placeholder="t('site.pages.listUrlNone')"
             @update:model-value="(value) => update({ index_path: value })"
           />
@@ -52,7 +50,7 @@
         </div>
       </div>
 
-      <details class="group">
+      <details class="group border-t border-slate-100 pt-4">
         <summary class="cursor-pointer list-none text-sm font-medium text-slate-600 hover:text-slate-900">
           <Icon icon="mdi:chevron-right" class="-ml-1 inline h-4 w-4 transition-transform group-open:rotate-90" />
           {{ t("site.pages.seo") }}
