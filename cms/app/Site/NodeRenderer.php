@@ -40,6 +40,8 @@ final class NodeRenderer
 
     private int $formSequence = 0;
 
+    private int $tabsSequence = 0;
+
     private SmartValue $smart;
 
     public function __construct(private readonly SiteContext $ctx)
@@ -109,6 +111,8 @@ final class NodeRenderer
             'gallery' => $this->gallery($node, $state),
             'button' => $this->button($node, $state),
             'accordion' => $this->accordion($node),
+            'tabs' => $this->tabs($node, $state),
+            'tab' => $this->element($node, $this->render($node['children'], $state)),
             'icon' => $this->icon($node, $state),
             'spacer' => $this->element($node, '', ['c-spacer', 'c-spacer-' . $node['props']['size']]),
             'divider' => $this->element($node, '<hr class="c-divider' . (!empty($node['style']['text_color']) ? ' c-divider-colored' : '') . '">'),
@@ -374,6 +378,32 @@ final class NodeRenderer
         if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
         return $this->element($node, '<div' . $this->textGradientAttributes($node, 'c-prose') . '>' . $html . '</div>');
+    }
+
+    private function tabs(array $node, array $state): string
+    {
+        $tabs = $node['children'];
+        if ($tabs === []) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Add a tab</div>') : '';
+        }
+        // A layout can repeat in cards and components, so node IDs alone are not unique here.
+        $id = 'tabs-' . $node['id'] . '-' . ++$this->tabsSequence;
+        $initial = min(count($tabs), max(1, (int) $node['props']['initial_tab'])) - 1;
+        $buttons = '';
+        $panels = '';
+        foreach ($tabs as $index => $tab) {
+            $key = $id . '-' . $index;
+            $title = Security::e(trim($tab['props']['title']) ?: 'Tab ' . ($index + 1));
+            $buttons .= '<button type="button" role="tab" id="' . $key . '-button" aria-controls="' . $key . '-panel"'
+                . ' aria-selected="' . ($index === $initial ? 'true' : 'false') . '" tabindex="' . ($index === $initial ? '0' : '-1') . '"'
+                . ' data-tab-key="' . Security::e($tab['id']) . '">' . $title . '</button>';
+            // All content remains readable when scripts are unavailable.
+            $panels .= '<div class="c-tabs-panel" role="tabpanel" id="' . $key . '-panel" aria-labelledby="' . $key . '-button" tabindex="0">'
+                . '<h3 class="c-tabs-fallback-title">' . $title . '</h3>' . $this->render([$tab], $state) . '</div>';
+        }
+        return $this->element($node, '<div class="c-tabs" data-tabs="' . Security::e($id) . '" data-tabs-initial="' . Security::e($tabs[$initial]['id']) . '">'
+            . '<div class="c-tabs-list" role="tablist" aria-label="' . Security::e($node['props']['title']) . '">' . $buttons . '</div>'
+            . $panels . '</div>');
     }
 
     private function accordion(array $node): string

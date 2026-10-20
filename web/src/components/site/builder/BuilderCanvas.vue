@@ -19,6 +19,7 @@ import { templatePartBounds } from "../../../composables/builderTemplateParts.js
 import { findNode, isStructure } from "../../../composables/layoutTree.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
+import { activateTab, revealTabPanel } from "../../../../../cms/app/Site/assets/tabs.js";
 
 const props = defineProps({
   body: { type: Object, default: null },
@@ -123,6 +124,18 @@ const BUILDER_CSS = `
   content:attr(data-empty-label);
   font:500 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
   color:#64748b;
+}
+
+[data-kind="tab"]:empty{
+  min-height:100px;
+  border:1px dashed #cbd5e1;
+}
+[data-kind="tab"]:empty::before{
+  content:attr(data-empty-label);
+  display:block;
+  padding:24px;
+  color:#64748b;
+  font:500 13px/1.4 system-ui,sans-serif;
 }
 
 /* Drag and drop indicators */
@@ -258,6 +271,10 @@ function attach(document) {
   resizeHandle.addEventListener("pointercancel", onResizeEnd);
 
   doc.addEventListener("click", onClick, true);
+  doc.addEventListener("focusin", (event) => {
+    const tab = event.target.closest?.('[data-tabs] > .c-tabs-list > [role="tab"]');
+    if (tab && findNode(builder.nodes.value, tab.dataset.tabKey)) builder.select(tab.dataset.tabKey);
+  });
   doc.addEventListener("contextmenu", onContextMenu);
   doc.addEventListener("pointerdown", (event) => {
     if (!event.target.closest?.(".cometcms-badge")) builder.closeContextMenu();
@@ -296,7 +313,7 @@ function prepare(document) {
   if (document !== doc) return;
   doc.body.append(indicator, badge, resizeHandle, templateHighlight);
 
-  doc.querySelectorAll("[data-drop-root]").forEach((element) => {
+  doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
   doc.querySelectorAll("[data-node]").forEach((element) => element.setAttribute("draggable", "true"));
@@ -328,6 +345,7 @@ function applySelection(scroll) {
   }
 
   el.setAttribute("data-builder-selected", "");
+  revealTabPanel(el);
   const rect = el.getBoundingClientRect();
   const win = doc.defaultView;
   badge.textContent = `${builder.nodeLabel(findNode(builder.nodes.value, el.dataset.node))}  ⋯`;
@@ -388,6 +406,15 @@ function onContextMenu(event) {
 }
 
 function onClick(event) {
+  const tab = event.target.closest?.('[data-tabs] > .c-tabs-list > [role="tab"]');
+  if (tab) {
+    event.preventDefault();
+    event.stopPropagation();
+    activateTab(tab);
+    const key = tab.dataset.tabKey;
+    if (findNode(builder.nodes.value, key)) builder.select(key);
+    return;
+  }
   if (event.target.closest?.('.c-lightbox')) return;
   // A second click on the selected gallery previews its viewer.
   if (event.target.closest?.('[data-gallery-image]') && event.target.closest?.('[data-node]')?.dataset.node === builder.selectedId.value) return;

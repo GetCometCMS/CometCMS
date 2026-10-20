@@ -10,6 +10,8 @@ export const KIND_ICONS = {
   gallery: 'mdi:image-multiple-outline',
   button: 'mdi:gesture-tap-button',
   accordion: 'mdi:chevron-down',
+  tabs: 'mdi:tab',
+  tab: 'mdi:tab',
   icon: 'mdi:star-outline',
   spacer: 'mdi:arrow-expand-vertical',
   divider: 'mdi:minus',

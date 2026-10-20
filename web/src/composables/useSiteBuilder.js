@@ -289,9 +289,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   const dropOptions = { isTemplateField }
 
-  /** Whether drops can go inside a node: structure, item templates and lists without a card yet. */
+  /** Drop containers: structure, tabs, item templates and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab'].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
   }
 
   /** The single root of a component's tree stays where it is. */
@@ -337,7 +337,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
-    const current = targetId ? findNode(nodes.value, targetId) : null
+    let current = targetId ? findNode(nodes.value, targetId) : null
+    if (current?.kind === 'tabs' && node.kind !== 'tab' && current.children.length) {
+      current = current.children[Math.min(current.children.length, Math.max(1, current.props.initial_tab || 1)) - 1]
+    }
     const inside = isDropContainer(current)
     const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
     if (!placeable(result)) return false
@@ -495,6 +498,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function make(kind, props = {}, style = {}, children = []) {
+    if (kind === 'tabs' && children.length === 0) {
+      children = [1, 2].map((index) => make('tab', { title: t('site.tabs.tabTitle', { number: index }) }))
+    }
     return createNode(spec.value, kind, props, style, children)
   }
 
@@ -709,6 +715,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function nodeLabel(node) {
     if (!node) return ''
     if (node.name) return node.name
+    if (node.kind === 'tab') return node.props?.title || kindLabel('tab')
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
     if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
@@ -727,6 +734,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return smartSummary(props.label)
       case 'accordion':
         return smartSummary(props.title)
+      case 'tabs':
+        return t('site.tabs.count', { count: node.children?.length ?? 0 })
       case 'icon':
         return props.icon
       case 'collection':

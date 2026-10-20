@@ -113,6 +113,14 @@ Components may show fields of the entry a page displays (for example its title o
 
 Deleting a component turns all its instances into independent, editable copies, preserving their content, styling and column widths. This applies to layouts, headers, footers and instances inside other components, as well as the open builder draft. Older revisions also restore detached copies. The component and its own version history are permanently removed. Deletion is available in both the builder's **Components** panel and the **Components** tab of the website settings.
 
+### Tabs
+
+Add **Tabs** from **Add → Elements** to organize content into switchable panels. A new Tabs element starts with two tabs. In the inspector, rename tabs, change their order, add or remove tabs, and choose the **Default tab** shown when the page opens. **Title** provides the tab group's accessible name.
+
+Choose **Edit content** or click a tab heading in the canvas to edit that panel. Each tab holds normal builder elements, including images, buttons, forms, collections and nested column layouts. Use the outline or the inspector's breadcrumb to return to the Tabs element; selecting an element inside a hidden tab reveals it automatically.
+
+Visitors can switch tabs with a mouse or with Left/Right Arrow, Home and End on the tab headings, following the [WAI-ARIA Tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/). Headings scroll horizontally when space is limited. Without JavaScript, all panels remain readable; printed pages include every panel.
+
 ### Forms
 
 Forms let visitors send messages, sign-ups or requests. Every submission is saved as a new entry of a content type you choose, so the content type defines what the form asks for. For private inquiries, disable API exposure and the Page Builder on the receiving type.
@@ -230,7 +238,7 @@ The default workspace's website answers on the server's own address. To serve an
 - Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
 - Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
-- Pages are sent with a `Content-Security-Policy` that forbids scripts. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
+- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery and Tabs modules when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.

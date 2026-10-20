@@ -45,6 +45,7 @@ final class LayoutSchema
         'gallery',
         'button',
         'accordion',
+        'tabs',
         'icon',
         'spacer',
         'divider',
@@ -265,6 +266,13 @@ final class LayoutSchema
                 'html' => ['type' => 'html', 'default' => '<p>Accordion content</p>'],
                 'open' => ['type' => 'bool', 'default' => false],
             ],
+            'tabs' => [
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Tabs'],
+                'initial_tab' => ['type' => 'int', 'min' => 1, 'max' => self::MAX_NODES, 'default' => 1],
+            ],
+            'tab' => [
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Tab'],
+            ],
             'icon' => [
                 'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:star-outline'],
                 'size' => ['type' => 'int', 'min' => 12, 'max' => 240, 'unit' => 'px', 'default' => 48],
@@ -327,7 +335,8 @@ final class LayoutSchema
             'root' => ['section'],
             'section' => ['row'],
             'row' => ['column'],
-            'column' => [...self::ELEMENTS, 'row'],
+            'column', 'tab' => [...self::ELEMENTS, 'row'],
+            'tabs' => ['tab'],
             'field' => self::ITEM_ELEMENTS,
             // The card a collection repeats for each entry.
             'collection' => ['column'],
@@ -344,7 +353,7 @@ final class LayoutSchema
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, self::COMPONENT] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT] as $kind) {
             $props = self::propSpec($kind);
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
                 $props[$key]['binding'] = $binding;
@@ -790,7 +799,7 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection'], true) && is_array($node['children'] ?? null)
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab'], true) && is_array($node['children'] ?? null)
                 ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $rows + ($kind === 'row' ? 1 : 0))
                 : [];
             // A collection repeats a single card.

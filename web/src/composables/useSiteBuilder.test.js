@@ -3,6 +3,40 @@ import { renderToString } from 'vue/server-renderer'
 import { describe, expect, it } from 'vitest'
 import { createSiteBuilder } from './useSiteBuilder.js'
 import { reference } from './smartValues.js'
+import { findNode, resolveDrop } from './layoutTree.js'
+
+describe('builder tabs', () => {
+  it('edits normal elements inside tabs, supports history and duplicates panel IDs safely', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.kinds.column.children.push('tabs')
+    builder.spec.value.kinds.tabs = { props: { title: { default: 'Tabs' }, initial_tab: { default: 1 } }, children: ['tab'] }
+    builder.spec.value.kinds.tab = { props: { title: { default: 'Tab' } }, children: ['text', 'heading', 'row', 'tabs'] }
+    const column = builder.nodes.value[0].children[0].children[0]
+    const tabs = builder.make('tabs')
+    expect(tabs.children).toHaveLength(2)
+    expect(builder.insert(tabs, column.id)).toBe(true)
+    const second = tabs.children[1]
+    const text = builder.make('text', { html: reference('intro') })
+    expect(builder.insert(text, second.id)).toBe(true)
+    expect(builder.entryContext(text.id).type.name).toBe('posts')
+    expect(findNode(builder.nodes.value, second.id).children[0].id).toBe(text.id)
+    builder.updateValue(tabs.id, 'props', 'initial_tab', 2)
+    const heading = builder.make('heading')
+    expect(builder.insert(heading, tabs.id)).toBe(true)
+    expect(findNode(builder.nodes.value, second.id).children[1].id).toBe(heading.id)
+    expect(resolveDrop(builder.spec.value, builder.nodes.value, second, null, 'inside')).toBeNull()
+    builder.remove(second.id)
+    expect(findNode(builder.nodes.value, second.id)).toBeNull()
+    builder.undo()
+    expect(findNode(builder.nodes.value, second.id).children).toHaveLength(2)
+    builder.duplicate(tabs.id)
+    const copy = builder.selected.value
+    expect(copy.kind).toBe('tabs')
+    expect(copy.id).not.toBe(tabs.id)
+    expect(copy.children[1].id).not.toBe(second.id)
+    expect(copy.children[1].children[0].id).not.toBe(text.id)
+  })
+})
 
 async function builderFixture() {
   let builder

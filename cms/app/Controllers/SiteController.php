@@ -10,6 +10,7 @@ use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
 use CometCMS\Site\FormUploads;
 use CometCMS\Site\GalleryLightbox;
+use CometCMS\Site\Tabs;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
@@ -27,8 +28,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
 final class SiteController
 {
     /**
-     * Pages block scripts unless the bundled gallery viewer is present;
-     * only its exact hash is allowed, never content or arbitrary same-origin code.
+     * Pages block scripts except for bundled interactions that are present;
+     * only their exact hashes are allowed, never content or arbitrary same-origin code.
      */
     private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
@@ -203,9 +204,14 @@ final class SiteController
         header('ETag: ' . $etag);
 
         if (str_starts_with($response['content_type'], 'text/html')) {
-            $policy = str_contains($response['body'], '<script type="module">' . GalleryLightbox::script() . '</script>')
-                ? str_replace("script-src 'none'", 'script-src ' . GalleryLightbox::cspSource(), self::CONTENT_SECURITY_POLICY)
-                : self::CONTENT_SECURITY_POLICY;
+            $sources = [];
+            foreach ([GalleryLightbox::class, Tabs::class] as $module) {
+                if (str_contains($response['body'], '<script type="module">' . $module::script() . '</script>')) {
+                    $sources[] = $module::cspSource();
+                }
+            }
+            $policy = $sources === [] ? self::CONTENT_SECURITY_POLICY
+                : str_replace("script-src 'none'", 'script-src ' . implode(' ', $sources), self::CONTENT_SECURITY_POLICY);
             header('Content-Security-Policy: ' . $policy);
         }
 

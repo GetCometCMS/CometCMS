@@ -108,6 +108,8 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
+        <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
+        <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
         <div v-if="node.kind === 'collection' && node.props.display === 'cards'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
           <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
@@ -169,6 +171,7 @@ import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
+import BuilderTabs from "./BuilderTabs.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";

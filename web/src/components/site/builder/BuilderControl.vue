@@ -91,6 +91,17 @@
 
     <ToggleSwitch v-else-if="def.type === 'bool'" :id="inputId" :model-value="!!value" @update:model-value="emitValue" />
 
+    <select
+      v-else-if="node.kind === 'tabs' && name === 'initial_tab'"
+      :id="inputId"
+      :value="Math.min(value || 1, node.children.length)"
+      class="form-select w-full rounded-lg border-slate-300 py-1.5 text-xs"
+      :disabled="!node.children.length"
+      @change="emitNumber($event.target.value)"
+    >
+      <option v-for="(child, index) in node.children" :key="child.id" :value="index + 1">{{ child.props.title || t('site.tabs.tabTitle', { number: index + 1 }) }}</option>
+    </select>
+
     <OptionBar
       v-else-if="def.type === 'int' && numberOptions"
       :model-value="value"
