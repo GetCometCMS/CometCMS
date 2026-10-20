@@ -180,6 +180,13 @@
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
             {{ t("contentTypeEdit.localizationHint") }}
+            <RouterLink
+              v-if="auth.can('workspaces.manage')"
+              to="/workspaces"
+              class="text-primary-600 hover:underline"
+            >
+              {{ t("contentTypeEdit.manageLanguages") }}
+            </RouterLink>
           </p>
         </div>
 
@@ -188,7 +195,7 @@
             <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
             <SearchableSelect
               v-model="form.locales"
-              :options="LOCALE_OPTIONS"
+              :options="workspaceLocaleOptions"
               :multiple="true"
               :searchable="true"
               :placeholder="t('contentTypeEdit.searchLocales')"
@@ -202,7 +209,7 @@
             <SearchableSelect
               v-model="form.default_locale"
               :options="selectedLocaleOptions"
-              :disabled="form.locales.length === 0"
+              :disabled="true"
               :placeholder="t('contentTypeEdit.addLocalesFirst')"
             />
             <p
@@ -337,6 +344,7 @@ import { useSiteStore } from "../stores/site.js";
 import TypeSubmissionSettings from "../components/site/TypeSubmissionSettings.vue";
 import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
@@ -372,6 +380,8 @@ const form = ref({
 const originalLocalization = ref({ locales: [], default_locale: "" });
 
 // Derived option list for the default_locale select (only chosen locales)
+const workspaceLanguages = useLanguages();
+const workspaceLocaleOptions = computed(() => LOCALE_OPTIONS.filter((o) => workspaceLanguages.locales.value.includes(o.value)));
 const selectedLocaleOptions = computed(() =>
   LOCALE_OPTIONS.filter((o) => form.value.locales.includes(o.value)),
 );
@@ -384,16 +394,15 @@ const localizationChanged = computed(() => {
   );
 });
 
-// Auto-set default_locale when locales change; clear it if it's no longer in the list
+// Every enabled subset includes the workspace default.
 watch(
-  () => form.value.locales,
-  (locales) => {
-    if (locales.length === 0) {
-      form.value.default_locale = "";
-    } else if (!locales.includes(form.value.default_locale)) {
-      form.value.default_locale = locales[0];
-    }
+  () => [workspaceLanguages.defaultLocale.value, ...form.value.locales],
+  () => {
+    const defaultLocale = workspaceLanguages.defaultLocale.value;
+    form.value.default_locale = defaultLocale;
+    if (!form.value.locales.includes(defaultLocale)) form.value.locales = [defaultLocale, ...form.value.locales];
   },
+  { immediate: true },
 );
 // While creating a type, derive the API name from the label until it is edited by hand.
 const nameTouched = ref(false);
@@ -667,7 +676,8 @@ async function handleSave() {
       // If the website settings were rejected, continue on the new type to fix them.
       router.push(websiteSaved ? "/content-types" : `/content-types/${name}/edit#website`);
     } else {
-      await api.contentTypes.update(route.params.name, payload);
+      const response = await api.contentTypes.update(route.params.name, payload);
+      form.value.revision = response.data.revision;
       toast.success(t("contentTypeEdit.updated"));
       originalLocalization.value = {
         locales: [...form.value.locales],

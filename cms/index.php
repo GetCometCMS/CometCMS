@@ -115,6 +115,13 @@ use CometCMS\Mcp\McpController;
 try {
     require __DIR__ . '/app/bootstrap.php';
 } catch (Throwable $e) {
+    if ($e instanceof \CometCMS\Core\ConflictException || $e instanceof \CometCMS\Core\ValidationException) {
+        $http->json(['error' => [
+            'code' => $e instanceof \CometCMS\Core\ConflictException ? 'conflict' : 'validation_failed',
+            'message' => $e->getMessage(),
+            'fields' => $e instanceof \CometCMS\Core\ValidationException ? $e->fields() : [],
+        ]], $e->getCode());
+    }
     comet_entry_failure('CometCMS bootstrap failed', $e->getMessage(), [
         'type' => $e::class,
         'file' => $e->getFile(),
@@ -164,6 +171,7 @@ $routes = [
     ['GET',  '#^/admin/api/activity$#',       [DashboardController::class, 'activityLog']],
 
     // ── Content types ─────────────────────────────────────────────────────
+    ['GET', '#^/admin/api/languages$#', [\CometCMS\Controllers\Admin\LanguagesController::class, 'index']],
     ['GET',   '#^/admin/api/content-types$#',                       [ContentTypesController::class, 'index']],
     ['POST',  '#^/admin/api/content-types$#',                       [ContentTypesController::class, 'store']],
     ['PATCH', '#^/admin/api/content-types/order$#',                 [ContentTypesController::class, 'reorder']],

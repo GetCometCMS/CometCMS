@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Core\Security;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 use CometCMS\Core\ValidationException;
 use CometCMS\Storage\JsonStore;
 
@@ -135,9 +137,10 @@ final class FormRepository
      *
      * @return list<array{key: string, config: array, label: string}>
      */
-    public function inputs(array $form): array
+    public function inputs(array $form, string $locale = ''): array
     {
-        $type = $this->site->types()[$form['type']] ?? null;
+        $languages = (new LanguageSettings($this->site->workspace()))->all();
+        $type = LocalizedValue::tree($this->site->types()[$form['type']] ?? null, $locale ?: $languages['default_locale'], $languages['default_locale']);
         $inputs = [];
 
         foreach (is_array($type['fields'] ?? null) ? $type['fields'] : [] as $key => $config) {
@@ -227,9 +230,9 @@ final class FormRepository
         return [
             'name' => $name,
             'type' => $typeName,
-            'submit_label' => self::line($input['submit_label'] ?? '', 80),
-            'success_message' => self::text($input['success_message'] ?? '', 1000),
-            'error_message' => self::text($input['error_message'] ?? '', 1000),
+            'submit_label' => LocalizedValue::normalize($input['submit_label'] ?? '', static fn(mixed $v): string => self::line($v, 80), (new LanguageSettings())->all()['locales']),
+            'success_message' => LocalizedValue::normalize($input['success_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
+            'error_message' => LocalizedValue::normalize($input['error_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
             'status' => in_array($status, self::STATUSES, true) ? $status : 'draft',
             'captcha' => in_array($captcha, self::CAPTCHAS, true) ? $captcha : 'none',
         ];
@@ -254,9 +257,9 @@ final class FormRepository
             'id' => $id,
             'name' => self::line($stored['name'] ?? '', 120) ?: $id,
             'type' => LayoutSchema::key($stored['type'] ?? ''),
-            'submit_label' => self::line($stored['submit_label'] ?? '', 80),
-            'success_message' => self::text($stored['success_message'] ?? '', 1000),
-            'error_message' => self::text($stored['error_message'] ?? '', 1000),
+            'submit_label' => LocalizedValue::normalize($stored['submit_label'] ?? '', static fn(mixed $v): string => self::line($v, 80), (new LanguageSettings())->all()['locales']),
+            'success_message' => LocalizedValue::normalize($stored['success_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
+            'error_message' => LocalizedValue::normalize($stored['error_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
             'status' => in_array($stored['status'] ?? '', self::STATUSES, true) ? (string) $stored['status'] : 'draft',
             'captcha' => in_array($stored['captcha'] ?? '', self::CAPTCHAS, true) ? (string) $stored['captcha'] : 'none',
             'created_at' => (string) ($stored['created_at'] ?? ''),
@@ -275,9 +278,9 @@ final class FormRepository
     public static function settings(array $input): array
     {
         return [
-            'submit_label' => self::line($input['submit_label'] ?? '', 80),
-            'success_message' => self::text($input['success_message'] ?? '', 1000),
-            'error_message' => self::text($input['error_message'] ?? '', 1000),
+            'submit_label' => LocalizedValue::normalize($input['submit_label'] ?? '', static fn(mixed $v): string => self::line($v, 80), (new LanguageSettings())->all()['locales']),
+            'success_message' => LocalizedValue::normalize($input['success_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
+            'error_message' => LocalizedValue::normalize($input['error_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
             'status' => in_array($input['status'] ?? '', self::STATUSES, true) ? $input['status'] : 'draft',
             'captcha' => in_array($input['captcha'] ?? '', self::CAPTCHAS, true) ? $input['captcha'] : 'none',
         ];

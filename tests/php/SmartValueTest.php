@@ -43,7 +43,7 @@ test('smart references retain stable identity when selected entries are renamed'
     $content = ContentRepository::make();
     $entry = $content->findByIdentifier('authors', 'ada');
     $ref = SmartValue::reference('bio', 'entry') + ['collection' => 'authors', 'entry' => $entry['uid']];
-    $content->save('authors', [...$entry, 'slug' => 'ada-lovelace', 'bio' => 'Renamed author.'], comet_site_test_user(), 'ada');
+    $content->save('authors', ['slug' => 'ada-lovelace', 'bio' => 'Renamed author.'], comet_site_test_user(), 'ada');
     assert_same('Renamed author.', (new SmartValue(comet_site_test_context()))->resolve($ref, [])['value']);
 });
 

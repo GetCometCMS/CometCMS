@@ -74,6 +74,7 @@ import ContentLinkPicker from './ContentLinkPicker.vue'
 import LinkModeMenu from './LinkModeMenu.vue'
 import MenuLinkSummary from './MenuLinkSummary.vue'
 import { destinationAvailable, eligibleTypes, entryTitle, linkIssue } from '../../composables/siteLinks.js'
+import { resolveLocalized } from "../../composables/localizedValues.js";
 import { useI18n } from '../../i18n/index.js'
 
 const props = defineProps({
@@ -125,7 +126,7 @@ function choosePage(value) {
 }
 function chooseCollection(value) {
   update({ collection: value, entry: '', anchor: '' })
-  if (mode.value === 'index' && value) emit('destination-label', props.settings?.routes?.[value]?.index_title || props.types.find((type) => type.name === value)?.label || value)
+  if (mode.value === 'index' && value) emit('destination-label', resolveLocalized(props.settings?.routes?.[value]?.index_title, props.settings?.default_locale, props.settings?.default_locale) || props.types.find((type) => type.name === value)?.label || value)
 }
 function resolvedPage(entry) {
   if (pendingPage.value && pendingPage.value === link.value.collection && link.value.type === 'entry') {

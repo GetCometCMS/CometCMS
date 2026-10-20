@@ -255,7 +255,7 @@ final class MediaController extends BaseController
         $this->requirePermission('media.update', $this->media->permissionContext(rawurldecode($file)));
         $this->verifyCsrf();
         $body = $this->requestJson();
-        $item = $this->media->updateMeta($file, (string) ($body['alt'] ?? ''), (string) ($body['title'] ?? ''));
+        $item = $this->media->updateMeta($file, $body['alt'] ?? '', $body['title'] ?? '', $body['revision'] ?? null);
 
         if ($item === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Media file not found.']], 404);

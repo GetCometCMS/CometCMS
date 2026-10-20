@@ -22,7 +22,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **Forms from content types.** Enable submissions on a collection, customize its messages and review incoming entries in the CMS.
 - **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
-- **Built-in localization.** Content types support multiple locales; the API resolves translations with a single `?locale=` parameter.
+- **Built-in localization.** Share one design across languages, translate builder content and structured fields, and publish each language with its own URLs. The API resolves content with `?locale=`.
 - **Intentionally simple.** Not a framework, not extensible to infinity. Visual editing, structured content and a clean JSON API in one admin UI.
 
 <p align="center">

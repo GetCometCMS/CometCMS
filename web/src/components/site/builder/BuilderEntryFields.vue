@@ -18,12 +18,15 @@
           :key="name"
           :name="name"
           :config="fieldConfig(name, config)"
+          :locale="state.activeLocale.value"
           :error="state.draft.value.errors[name]"
           :readonly="state.fieldReadonly(name)"
         >
+          <TranslationInfo v-if="config.localized !== false" :value="state.record.value.entry.values?.[name]" :locale="state.activeLocale.value" :default-locale="state.defaultLocale.value" :readonly="state.fieldReadonly(name)" @reset="state.reset(name)" />
           <FieldInput
             :name="name"
             :config="config"
+            :locale="state.activeLocale.value"
             :model-value="state.valueFor(name)"
             :readonly="state.fieldReadonly(name)"
             @update:model-value="state.update(name, $event)"
@@ -35,6 +38,7 @@
 </template>
 
 <script setup>
+import TranslationInfo from "../../TranslationInfo.vue";
 import BaseField from "../../BaseField.vue";
 import FieldInput from "../../FieldInput.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";

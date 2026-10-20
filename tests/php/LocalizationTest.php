@@ -1,0 +1,303 @@
+<?php
+
+declare(strict_types=1);
+
+use CometCMS\Content\ContentRepository;
+use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Core\ConflictException;
+use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LanguageSettings;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\SiteContext;
+use CometCMS\Site\SiteRepository;
+use CometCMS\Site\SiteService;
+use CometCMS\Storage\JsonStore;
+
+function comet_localization_setup(): ContentRepository
+{
+    (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    (new ContentTypeRepository())->save(['name' => 'articles', 'locales' => ['en', 'de'], 'api_enabled' => true, 'fields' => [
+        'intro' => ['type' => 'textarea'], 'sku' => ['type' => 'text', 'localized' => false],
+        'enabled' => ['type' => 'boolean'], 'quantity' => ['type' => 'number'],
+    ]]);
+    return ContentRepository::make();
+}
+
+function comet_localization_user(): array { return ['id' => 'writer']; }
+
+test('localized values distinguish absence from intentionally empty values and track source review', function (): void {
+    foreach (['', null, false, 0, []] as $empty) {
+        $value = LocalizedValue::set(null, 'en', 'Source', 'en');
+        assert_same('Source', LocalizedValue::resolve($value, 'de', 'en'));
+        assert_same('inherited', LocalizedValue::state($value, 'de', 'en'));
+        $value = LocalizedValue::set($value, 'de', $empty, 'en');
+        assert_same($empty, LocalizedValue::resolve($value, 'de', 'en'));
+        assert_same('translated', LocalizedValue::state($value, 'de', 'en'));
+        $value = LocalizedValue::set($value, 'en', 'Changed', 'en');
+        assert_same('review', LocalizedValue::state($value, 'de', 'en'));
+        assert_same($empty, LocalizedValue::resolve($value, 'de', 'en'));
+        assert_same('Changed', LocalizedValue::resolve(LocalizedValue::remove($value, 'de'), 'de', 'en'));
+    }
+    assert_throws(ValidationException::class, fn() => LocalizedValue::normalize(['type' => 'localized', 'values' => ['xx' => 'bad']], strval(...), ['en']));
+});
+
+test('entries store each localized value once and locale writes preserve siblings and shared fields', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['locale' => 'en', 'title' => 'About', 'slug' => 'about', 'intro' => 'Source', 'sku' => 'ABC', 'status' => 'published'], comet_localization_user());
+    $translated = $content->save('articles', ['locale' => 'de', 'title' => 'Über uns', 'slug' => 'ueber-uns', 'revision' => $entry['revision']], comet_localization_user(), $entry['id']);
+    assert_same('Über uns', $translated['title']);
+    assert_same('ABC', $translated['sku']);
+    assert_same('About', $content->find('articles', $entry['id'])['title']);
+    $raw = (new JsonStore(comet_test_workspace_path() . '/content'))->read('articles', $entry['id']);
+    assert_false(array_key_exists('title', $raw));
+    assert_false(array_key_exists('translations', $raw));
+    assert_false(array_key_exists('status', $raw));
+    assert_same('ABC', $raw['values']['sku']);
+    assert_false(array_key_exists('de', $raw['values']['intro']['values']));
+    assert_same('Source', $content->resolveLocaleFields($translated, 'de')['intro']);
+    assert_throws(ValidationException::class, fn() => $content->save('articles', ['locale' => 'de', 'sku' => 'Changed'], comet_localization_user(), $entry['id']));
+    assert_throws(ValidationException::class, fn() => $content->save('articles', ['locale' => 'de', 'values' => $raw['values']], comet_localization_user(), $entry['id']));
+    assert_throws(ValidationException::class, fn() => $content->save('articles', ['locale' => 'xx', 'title' => 'Invalid'], comet_localization_user(), $entry['id']));
+    assert_throws(ConflictException::class, fn() => $content->save('articles', ['locale' => 'en', 'title' => 'Stale', 'revision' => $entry['revision']], comet_localization_user(), $entry['id']));
+});
+
+test('publication is independent by language and public fallback never reveals drafts', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['locale' => 'en', 'title' => 'Secret draft', 'intro' => 'Do not expose'], comet_localization_user());
+    $entry = $content->save('articles', ['locale' => 'de', 'title' => 'Öffentlich', 'slug' => 'oeffentlich', 'status' => 'published'], comet_localization_user(), $entry['id']);
+    assert_false($content->isPubliclyVisible($entry, 'en'));
+    assert_true($content->isPubliclyVisible($entry, 'de'));
+    assert_same([], $content->query('articles', ['locale' => 'en'])['data']);
+    assert_null($content->query('articles', ['locale' => 'de'])['data'][0]['intro']);
+    assert_same('Do not expose', $content->query('articles', ['locale' => 'de'], true)['data'][0]['intro']);
+    $content->save('articles', ['locale' => 'en', 'status' => 'published'], comet_localization_user(), $entry['id']);
+    assert_same('Do not expose', $content->query('articles', ['locale' => 'de'])['data'][0]['intro']);
+});
+
+test('resetting a translated field removes the override without materializing fallback content', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['title' => 'Hello', 'intro' => 'English'], comet_localization_user());
+    $content->save('articles', ['locale' => 'de', 'intro' => 'Deutsch'], comet_localization_user(), $entry['id']);
+    $entry = $content->save('articles', ['locale' => 'de', 'reset_fields' => ['intro']], comet_localization_user(), $entry['id']);
+    assert_same('English', $entry['intro']);
+    assert_false(array_key_exists('de', $entry['values']['intro']['values']));
+});
+
+test('website routes localized slugs and paths and only advertises published entry variants', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['title' => 'About', 'slug' => 'about', 'status' => 'published'], comet_localization_user());
+    $content->save('articles', ['locale' => 'de', 'title' => 'Über uns', 'slug' => 'ueber-uns'], comet_localization_user(), $entry['id']);
+    $site = new SiteRepository();
+    $site->saveSettings(['locales' => ['en', 'de'], 'routes' => ['articles' => ['enabled' => true,
+        'pattern' => ['type' => 'localized', 'values' => ['en' => '/articles/{slug}', 'de' => '/artikel/{slug}']],
+        'index_path' => ['type' => 'localized', 'values' => ['en' => '/articles', 'de' => '/artikel']],
+    ]]]);
+    $context = SiteContext::make($site);
+    assert_same(404, (new SiteService($context))->respond('/de/artikel/ueber-uns', [])['status']);
+    $entry = $content->save('articles', ['locale' => 'de', 'status' => 'published'], comet_localization_user(), $entry['id']);
+    $context = SiteContext::make($site);
+    $response = (new SiteService($context))->respond('/de/artikel/ueber-uns', []);
+    assert_same(200, $response['status']);
+    assert_true(str_contains($response['body'], 'hreflang="en"'));
+    assert_same('/de/artikel/ueber-uns', $context->entryUrl('articles', $entry, 'de'));
+    assert_same('/articles/about', $context->entryUrl('articles', $entry, 'en'));
+    assert_same(404, (new SiteService(SiteContext::make($site)))->respond('/de/artikel/about', [])['status']);
+    $sitemap = (new SiteService(SiteContext::make($site)))->respond('/sitemap.xml', [])['body'];
+    assert_true(str_contains($sitemap, '/de/artikel/ueber-uns'));
+    assert_false(str_contains($sitemap, '/de/articles/about'));
+});
+
+test('final localized URLs reject collisions between collection entries and fixed pages', function (): void {
+    $content = comet_localization_setup();
+    (new ContentTypeRepository())->save(['name' => 'contact', 'singleton' => true]);
+    $site = new SiteRepository();
+    $site->saveSettings(['routes' => ['articles' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '/articles'], 'contact' => ['enabled' => true, 'pattern' => '/contact']]]);
+    assert_throws(ValidationException::class, fn() => $content->save('articles', ['title' => 'Contact', 'slug' => 'contact'], comet_localization_user()));
+});
+
+test('builder localizes sanitized rich text and dynamic templates before binding evaluation', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['title' => 'Hello', 'status' => 'published'], comet_localization_user());
+    $content->save('articles', ['locale' => 'de', 'title' => 'Hallo', 'status' => 'published'], comet_localization_user(), $entry['id']);
+    $site = new SiteRepository();
+    $site->saveSettings(['routes' => ['articles' => ['enabled' => true]]]);
+    $text = ['type' => 'localized', 'values' => [
+        'en' => '<p>English</p>',
+        'de' => ['type' => 'template', 'parts' => ['<p><script>alert(1)</script>Grüße ', \CometCMS\Site\SmartValue::reference('title'), '</p>']],
+    ]];
+    $nodes = [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => $text])])])])];
+    $site->saveLayout('articles', 'detail', $nodes);
+    $response = (new SiteService(SiteContext::make($site)))->respond('/de/articles/hallo', []);
+    assert_same(200, $response['status']);
+    assert_true(str_contains($response['body'], 'Grüße Hallo'));
+    assert_false(str_contains($response['body'], '<script>alert(1)</script>'));
+    $raw = $site->layout('articles', 'detail');
+    assert_same(2, count($raw[0]['children'][0]['children'][0]['children'][0]['props']['html']['values']));
+    $revision = LocalizedValue::hash($raw);
+    $site->saveLayout('articles', 'detail', [], [], 'saved', $revision);
+    assert_throws(ConflictException::class, fn() => $site->saveLayout('articles', 'detail', $raw, [], 'saved', $revision));
+});
+
+test('language settings are workspace owned and unsupported type languages are rejected', function (): void {
+    comet_localization_setup();
+    assert_same(['en', 'de'], (new SiteRepository())->availableLocales());
+    assert_throws(ValidationException::class, fn() => (new ContentTypeRepository())->save(['name' => 'bad', 'locales' => ['en', 'fr']]));
+    (new LanguageSettings())->save(['locales' => ['de'], 'default_locale' => 'de']);
+    assert_same(['de'], (new ContentTypeRepository())->find('articles')['locales']);
+    assert_same('de', (new ContentTypeRepository())->find('articles')['default_locale']);
+});
+
+test('form text translations are independent of shared submission fields and select option values', function (): void {
+    comet_localization_setup();
+    $label = ['type' => 'localized', 'values' => ['en' => 'Your name', 'de' => 'Ihr Name']];
+    (new ContentTypeRepository())->save(['name' => 'inquiries', 'allow_submissions' => true, 'fields' => [
+        'name' => ['type' => 'text', 'label' => $label, 'localized' => false, 'required' => true],
+        'topic' => ['type' => 'select', 'localized' => false, 'options' => ['general' => ['type' => 'localized', 'values' => ['en' => 'General', 'de' => 'Allgemein']]]],
+    ], 'submission_settings' => ['submit_label' => ['type' => 'localized', 'values' => ['en' => 'Send now', 'de' => 'Jetzt senden']]]]);
+    $site = new SiteRepository();
+    $forms = new \CometCMS\Site\FormRepository($site);
+    $form = $forms->all()[0];
+    $inputs = $forms->inputs($form, 'de');
+    assert_same('Ihr Name', $inputs[0]['label']);
+    assert_same(['general' => 'Allgemein'], $inputs[1]['config']['options']);
+    $context = SiteContext::make($site);
+    $context->locale = 'de';
+    $nodes = [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('form', ['form' => $form['id']])])])])];
+    $html = (new \CometCMS\Site\NodeRenderer($context))->render($nodes);
+    assert_true(str_contains($html, 'Ihr Name'));
+    assert_true(str_contains($html, 'Jetzt senden'));
+    assert_true(str_contains($html, 'value="general"'));
+    $result = (new \CometCMS\Site\FormSubmission($site, $forms, ContentRepository::make()))->submit($form, ['fields' => ['name' => 'Ada', 'topic' => 'general']], 'test-visitor', 'de');
+    assert_same(\CometCMS\Site\FormSubmission::SENT, $result['status']);
+    $saved = ContentRepository::make()->all('inquiries')[0];
+    assert_same('Ada', $saved['name']);
+    assert_same('general', $saved['topic']);
+});
+
+test('localized reusable components and revisions retain every language and source review state', function (): void {
+    comet_localization_setup();
+    $site = new SiteRepository();
+    $text = LocalizedValue::set(LocalizedValue::set(null, 'en', 'Contact us', 'en'), 'de', 'Kontakt', 'en');
+    $nodes = [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('button', ['label' => $text])])])])];
+    $component = $site->createComponent('Contact', $nodes);
+    $copy = LayoutSchema::withNewIds($component['nodes']);
+    assert_true($copy[0]['id'] !== $nodes[0]['id']);
+    assert_same($text['values'], $copy[0]['children'][0]['children'][0]['children'][0]['props']['label']['values']);
+    $site->saveComponent($component['id'], $copy);
+    $revision = $site->componentRevisions($component['id'])[0];
+    $site->restoreComponentRevision($component['id'], $revision['id']);
+    $saved = $site->component($component['id'])['nodes'][0]['children'][0]['children'][0]['children'][0]['props']['label'];
+    assert_same('Kontakt', LocalizedValue::resolve($saved, 'de', 'en'));
+    assert_same('translated', LocalizedValue::state($saved, 'de', 'en'));
+});
+
+test('locale restricted grants cannot authorize whole resource writes or another language', function (): void {
+    $permissions = new \CometCMS\Auth\PermissionService();
+    $user = ['_principal_type' => 'token', 'permissions' => [['actions' => ['content.update', 'content.publish', 'site.manage'], 'resources' => ['*'], 'conditions' => ['locales' => ['de']]]]];
+    assert_true($permissions->allows($user, 'content.update', ['locale' => 'de']));
+    assert_false($permissions->allows($user, 'content.update', ['locale' => 'en']));
+    assert_false($permissions->allows($user, 'content.update'));
+    assert_false($permissions->allows($user, 'site.manage'));
+});
+
+test('reusing a renamed slug cannot overwrite a stable entry or its links', function (): void {
+    $content = comet_localization_setup();
+    $first = $content->save('articles', ['title' => 'Original', 'slug' => 'original'], comet_localization_user());
+    $content->save('articles', ['slug' => 'renamed'], comet_localization_user(), $first['id']);
+    $second = $content->save('articles', ['title' => 'Replacement', 'slug' => 'original'], comet_localization_user());
+    assert_true($second['id'] !== $first['id']);
+    assert_same('Original', $content->findByIdentifier('articles', $first['uid'])['title']);
+    assert_same('Replacement', $content->findByIdentifier('articles', 'original')['title']);
+});
+
+test('MCP enforces locale permissions and returns conflicts while preserving other languages', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['title' => 'English', 'status' => 'published'], comet_localization_user());
+    $token = comet_test_mcp_token([['actions' => ['content.update', 'content.publish'], 'resources' => ['content:articles:*'], 'conditions' => ['locales' => ['de']]]]);
+    [, $saved] = comet_test_mcp_tool($token, 'update_entry', ['collection' => 'articles', 'identifier' => $entry['uid'], 'entry' => ['locale' => 'de', 'title' => 'Deutsch', 'status' => 'published', 'revision' => $entry['revision']]]);
+    assert_same('Deutsch', $saved['data']['title']);
+    assert_same('de', $saved['data']['locale']);
+    [, $denied] = comet_test_mcp_tool($token, 'update_entry', ['collection' => 'articles', 'identifier' => $entry['uid'], 'entry' => ['locale' => 'en', 'title' => 'Not allowed']]);
+    assert_same(403, $denied['error']['status']);
+    [, $conflict] = comet_test_mcp_tool($token, 'update_entry', ['collection' => 'articles', 'identifier' => $entry['uid'], 'entry' => ['locale' => 'de', 'title' => 'Stale', 'revision' => $entry['revision']]]);
+    assert_same(409, $conflict['error']['status']);
+    [, $whole] = comet_test_mcp_tool($token, 'update_entry', ['collection' => 'articles', 'identifier' => $entry['uid'], 'entry' => ['locale' => 'de', 'values' => ['title' => ['type' => 'localized', 'values' => ['en' => 'Attack']]]]]);
+    assert_same(422, $whole['error']['status']);
+    assert_same('English', $content->find('articles', $entry['id'])['title']);
+});
+
+test('menus schemas settings and media metadata reject stale localized maps', function (): void {
+    comet_localization_setup();
+    $types = new ContentTypeRepository();
+    $schema = $types->find('articles');
+    $types->save([...$schema, 'label' => 'Changed']);
+    assert_throws(ConflictException::class, fn() => $types->save($schema));
+    $site = new SiteRepository();
+    $settings = $site->saveSettings([]);
+    $site->saveSettings([...$settings, 'title' => 'Changed']);
+    assert_throws(ConflictException::class, fn() => $site->saveSettings($settings));
+    $menus = $site->menus();
+    $revision = LocalizedValue::hash($menus);
+    $site->saveMenus([], $revision);
+    assert_throws(ConflictException::class, fn() => $site->saveMenus($menus, $revision));
+    file_put_contents(comet_test_workspace_path() . '/media/example.txt', 'test');
+    $media = new \CometCMS\Media\MediaRepository();
+    $file = $media->find('example.txt');
+    $alt = LocalizedValue::set(LocalizedValue::set(null, 'en', 'English', 'en'), 'de', 'Deutsch', 'en');
+    $media->updateMeta('example.txt', $alt, '', $file['revision']);
+    assert_throws(ConflictException::class, fn() => $media->updateMeta('example.txt', 'Stale', '', $file['revision']));
+    assert_same('Deutsch', LocalizedValue::resolve($media->find('example.txt')['alt'], 'de', 'en'));
+});
+
+test('REST resolves a requested published language without exposing internal maps', function (): void {
+    $output = comet_test_run_php(['-r', comet_api_controller_test_bootstrap_require_snippet() . <<<'PHP'
+comet_test_reset_storage();
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'pages', 'api_enabled' => true, 'locales' => ['en', 'de']]);
+$content = \CometCMS\Content\ContentRepository::make();
+$entry = $content->save('pages', ['title' => 'About', 'slug' => 'about', 'status' => 'published'], ['id' => 'writer']);
+$content->save('pages', ['locale' => 'de', 'title' => 'Über uns', 'slug' => 'ueber-uns', 'status' => 'published'], ['id' => 'writer'], $entry['id']);
+$_GET = ['locale' => 'de'];
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['REQUEST_URI'] = '/api/v1/workspaces/default/content/pages/ueber-uns?locale=de';
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+(new \CometCMS\Controllers\ApiController(new \CometCMS\Core\Http()))->useWorkspace('default')->contentShow('pages', 'ueber-uns');
+PHP]);
+    $body = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+    assert_same('de', $body['data']['locale']);
+    assert_same('Über uns', $body['data']['title']);
+    assert_same('ueber-uns', $body['data']['slug']);
+    assert_true(is_string($body['data']['revision']));
+    assert_false(array_key_exists('values', $body['data']));
+    assert_false(array_key_exists('publication', $body['data']));
+});
+
+test('builder previews advertise the same published language variants as live pages', function (): void {
+    $content = comet_localization_setup();
+    $entry = $content->save('articles', ['title' => 'About', 'status' => 'published'], comet_localization_user());
+    $content->save('articles', ['locale' => 'de', 'title' => 'Über uns'], comet_localization_user(), $entry['id']);
+    $site = new SiteRepository();
+    $site->saveSettings(['routes' => ['articles' => ['enabled' => true]]]);
+    $nodes = [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('language_switcher')])])])];
+    $site->saveLayout('articles', 'detail', $nodes);
+    $context = SiteContext::make($site);
+    $context->preview = $context->annotate = true;
+    $type = (new ContentTypeRepository())->find('articles');
+    $html = (new \CometCMS\Site\PageRenderer($context))->layoutPreview($type, 'detail', $content->find('articles', $entry['id']));
+    assert_matches('/<a[^>]+hreflang="en"/', $html);
+    assert_false((bool) preg_match('/<a[^>]+hreflang="de"/', $html));
+    $content->save('articles', ['locale' => 'de', 'status' => 'published'], comet_localization_user(), $entry['id']);
+    $html = (new \CometCMS\Site\PageRenderer($context))->layoutPreview($type, 'detail', $content->find('articles', $entry['id']));
+    assert_matches('/<a[^>]+hreflang="de"/', $html);
+});
+
+test('MCP media details resolve translated text using the common resolver', function (): void {
+    comet_localization_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/readme.txt', 'test');
+    $media = new \CometCMS\Media\MediaRepository();
+    $text = LocalizedValue::set(LocalizedValue::set(null, 'en', 'English', 'en'), 'de', 'Deutsch', 'en');
+    $media->updateMeta('readme.txt', $text, $text);
+    [, $result] = comet_test_mcp_tool(null, 'get_media_item', ['filename' => 'readme.txt', 'locale' => 'de']);
+    assert_same('Deutsch', $result['data']['alt']);
+    assert_same('Deutsch', $result['data']['title']);
+});

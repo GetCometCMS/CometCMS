@@ -23,7 +23,7 @@ export function usePermissions() {
 
   /** Content actions on a collection, optionally narrowed to one entry. */
   function canContent(action, collection, entry = null) {
-    const entryResources = [entry?.slug, entry?.id]
+    const entryResources = [entry?.uid, entry?.slug, entry?.id]
       .filter(Boolean)
       .map((key) => `content:${collection}:${key}`)
     // As on the server, a deny on the entry itself beats broader allows.

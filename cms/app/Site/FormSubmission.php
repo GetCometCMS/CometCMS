@@ -94,10 +94,8 @@ final class FormSubmission
             $payload['title'] = $form['name'] . ' – ' . gmdate('Y-m-d H:i:s');
         }
         $payload['status'] = $form['status'];
-        $locales = is_array($type['locales'] ?? null) ? $type['locales'] : [];
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $payload['locale'] = $locale;
-        }
+        // A submission is a new record; the form's display language is independent of stored values.
+        $payload['locale'] = $type['default_locale'];
 
         $uploads = new FormUploads($this->site->workspace());
         $saved = false;

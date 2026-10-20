@@ -6,6 +6,8 @@ namespace CometCMS\Site;
 
 use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\Security;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\Messages;
 
 /**
  * Turns layout trees into HTML.
@@ -74,6 +76,9 @@ final class NodeRenderer
 
     private function node(array $node, array $state, ?int $order = null): string
     {
+        foreach ($node['props'] ?? [] as $key => $value) if (LocalizedValue::is($value)) $node['_localized'][$key] = true;
+        $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
+        $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $warnings = false;
         foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
             $binding = $node['props'][$key] ?? null;
@@ -445,13 +450,14 @@ final class NodeRenderer
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose an image</div>') : '';
         }
 
+        if (isset($node['_localized']['alt']) || ($props['alt'] ?? '') !== '') $item['alt'] = $props['alt'];
         $html = $this->mediaElement($item, $props, $state);
         $link = $this->resolveLink($props['link'], $state);
         if ($link !== null) {
             $html = $this->anchor($link, $html, 'c-image-link');
         }
 
-        $caption = (string) ($item['title'] ?? '');
+        $caption = (string) ((isset($node['_localized']['caption']) || ($props['caption'] ?? '') !== '') ? $props['caption'] : ($item['title'] ?? ''));
         if ($caption !== '') {
             $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($caption) . '</figcaption></figure>';
         }
@@ -498,12 +504,11 @@ final class NodeRenderer
         $columns = $props['columns'];
         $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) ' . ($columns > 1 ? '50' : '100') . 'vw, 100vw';
         $link = $this->resolveLink($props['link'], $state);
-        $german = str_starts_with($this->ctx->htmlLang(), 'de');
         $html = '';
         foreach ($items as $item) {
             $image = $this->mediaElement($item, $props, $state);
             if ($props['lightbox'] && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
-                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . ($german ? 'Bild vergrößern' : 'Enlarge image') . '"'
+                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . Messages::get('enlarge', $this->ctx->htmlLang()) . '"'
                     . ($props['captions'] ? ' data-caption="' . Security::e((string) ($item['title'] ?? '')) . '"' : '') . '>' . $image . '</a>';
             } elseif ($link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
                 $image = $this->anchor($link, $image, 'c-image-link');
@@ -518,8 +523,8 @@ final class NodeRenderer
             : '';
         $lightbox = $props['lightbox']
             ? ' data-gallery-lightbox data-gallery-navigation="' . ($props['lightbox_navigation'] ? 'true' : 'false') . '"'
-                . ' data-gallery-label="' . ($german ? 'Bildergalerie' : 'Image gallery') . '" data-gallery-close="' . ($german ? 'Schließen' : 'Close') . '"'
-                . ' data-gallery-previous="' . ($german ? 'Vorheriges Bild' : 'Previous image') . '" data-gallery-next="' . ($german ? 'Nächstes Bild' : 'Next image') . '"'
+                . ' data-gallery-label="' . Messages::get('gallery', $this->ctx->htmlLang()) . '" data-gallery-close="' . Messages::get('close', $this->ctx->htmlLang()) . '"'
+                . ' data-gallery-previous="' . Messages::get('previous_image', $this->ctx->htmlLang()) . '" data-gallery-next="' . Messages::get('next_image', $this->ctx->htmlLang()) . '"'
             : '';
         $html = '<div class="' . $layout . ' c-gallery c-cols-' . $columns . ' c-gap-' . $props['gap'] . '"' . $masonryStyle . $lightbox . '>' . $html . '</div>';
         if ($props['label'] && ($node['_gallery_label'] ?? '') !== '') {
@@ -581,7 +586,8 @@ final class NodeRenderer
         $items = '';
 
         foreach ($locales as $locale) {
-            $url = $alternates[$locale] ?? $this->ctx->homeUrl($locale);
+            if (!isset($alternates[$locale])) continue;
+            $url = $alternates[$locale];
             $name = $this->localeName($locale);
             $label = $node['props']['format'] === 'names' ? $name : strtoupper($locale);
             $current = $locale === ($this->ctx->locale !== '' ? $this->ctx->locale : $this->ctx->defaultLocale());
@@ -594,7 +600,8 @@ final class NodeRenderer
                 . ($current ? ' aria-current="true"' : '') . '>' . $image . ($named ? '' : '<span>' . Security::e($label) . '</span>') . '</a></li>';
         }
 
-        return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="Language"><ul>' . $items . '</ul></nav>');
+        if ($items === '') return $this->annotating() ? $this->element($node, '<div class="c-placeholder">No published translations for this page</div>') : '';
+        return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="' . Security::e(Messages::get('language', $this->ctx->htmlLang())) . '"><ul>' . $items . '</ul></nav>');
     }
 
     /**
@@ -607,18 +614,17 @@ final class NodeRenderer
     {
         $props = $node['props'];
         $form = $this->ctx->form($props['form']);
-        $inputs = $form !== null ? $this->ctx->forms()->inputs($form) : [];
+        $inputs = $form !== null ? $this->ctx->forms()->inputs($form, $this->ctx->htmlLang()) : [];
 
         if ($inputs === []) {
             $message = $form === null ? 'Choose a content type' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">' . $message . '</div>') : '';
         }
 
-        $german = str_starts_with($this->ctx->htmlLang(), 'de');
         $anchor = 'form-' . $node['id'] . (++$this->formSequence > 1 ? '-' . $this->formSequence : '');
-        $success = $form['success_message'] !== '' ? $form['success_message'] : ($german ? 'Vielen Dank! Ihre Nachricht wurde gesendet.' : 'Thank you! Your message has been sent.');
-        $failure = $form['error_message'] !== '' ? $form['error_message'] : ($german ? 'Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.' : 'Your message could not be sent. Please check your input and try again later.');
-        $submit = $form['submit_label'] !== '' ? $form['submit_label'] : ($german ? 'Senden' : 'Send');
+        $success = ($form['success_message'] !== '' || !empty($form['_localized']['success_message'])) ? $form['success_message'] : Messages::get('form_success', $this->ctx->htmlLang());
+        $failure = ($form['error_message'] !== '' || !empty($form['_localized']['error_message'])) ? $form['error_message'] : Messages::get('form_error', $this->ctx->htmlLang());
+        $submit = ($form['submit_label'] !== '' || !empty($form['_localized']['submit_label'])) ? $form['submit_label'] : Messages::get('send', $this->ctx->htmlLang());
         $fields = '';
 
         foreach ($inputs as $input) {
@@ -658,9 +664,7 @@ final class NodeRenderer
         $help = trim((string) ($config['description'] ?? ''));
         if ($type === 'media') {
             $limit = rtrim(rtrim(number_format(FormUploads::maxBytes() / 1048576, 2, '.', ''), '0'), '.');
-            $uploadHelp = str_starts_with($this->ctx->htmlLang(), 'de')
-                ? 'Maximal ' . $limit . ' MiB pro Datei und insgesamt pro Formular.'
-                : 'Maximum ' . $limit . ' MiB per file and in total per form.';
+            $uploadHelp = Messages::get('upload_limit', $this->ctx->htmlLang(), ['{limit}' => $limit]);
             $help = trim($help . ' ' . $uploadHelp);
         }
         $describedBy = $help !== '' ? ' aria-describedby="' . Security::e($id) . '-help"' : '';
@@ -771,7 +775,7 @@ final class NodeRenderer
         if ($collapsible) {
             // A component or card can render the same menu node several times.
             $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
-            $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="Menu">'
+            $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="' . Security::e(Messages::get('menu', $this->ctx->htmlLang())) . '">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';
             // A full-screen or side panel covers the menu button, so it brings its own way to close.
             if ($props['panel'] !== 'dropdown') {
@@ -792,7 +796,7 @@ final class NodeRenderer
 
         foreach ($items as $item) {
             $link = $this->resolveLink($item['link'], $state);
-            $label = (string) (($item['labels'][$this->ctx->locale] ?? '') ?: $item['label']);
+            $label = (string) $item['label'];
 
             if ($label === '') {
                 $label = $this->linkTitle($item['link']);
@@ -908,7 +912,7 @@ final class NodeRenderer
     {
         $path = (string) ($state['path'] ?? '');
         $link = static fn(int $target): string => Security::e($path . ($target > 1 ? '?page=' . $target : ''));
-        $html = '<nav class="c-pagination" aria-label="Pagination"><ul>';
+        $html = '<nav class="c-pagination" aria-label="' . Security::e(Messages::get('pagination', $this->ctx->htmlLang())) . '"><ul>';
 
         $html .= $page > 1
             ? '<li><a href="' . $link($page - 1) . '" rel="prev">‹</a></li>'
@@ -1020,7 +1024,7 @@ final class NodeRenderer
 
     private function booleanHtml(bool $value, array $props, string $display): string
     {
-        $text = $value ? ($props['true_text'] !== '' ? $props['true_text'] : 'Yes') : ($props['false_text'] !== '' ? $props['false_text'] : 'No');
+        $text = $value ? ($props['true_text'] !== '' ? $props['true_text'] : Messages::get('yes', $this->ctx->htmlLang())) : ($props['false_text'] !== '' ? $props['false_text'] : Messages::get('no', $this->ctx->htmlLang()));
 
         return $display === 'badge'
             ? '<span class="c-badge' . ($value ? ' c-badge-on' : '') . '">' . Security::e($text) . '</span>'
@@ -1303,7 +1307,7 @@ final class NodeRenderer
     private function linkTitle(array $link): string
     {
         return match ($link['type'] ?? 'none') {
-            'home' => 'Home',
+            'home' => Messages::get('home', $this->ctx->htmlLang()),
             'index' => (string) ($this->ctx->route((string) ($link['collection'] ?? ''))['index_title'] ?? '') ?: (string) ($this->ctx->type((string) ($link['collection'] ?? ''))['label'] ?? ''),
             'entry' => (string) ($this->ctx->findEntry((string) ($link['collection'] ?? ''), (string) ($link['entry'] ?? ''))['title'] ?? ''),
             'url' => (string) ($link['url'] ?? ''),

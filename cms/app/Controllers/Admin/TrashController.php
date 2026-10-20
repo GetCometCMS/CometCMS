@@ -22,7 +22,7 @@ final class TrashController extends BaseController
     {
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $collection]);
         $items = (new TrashStore())->allContent($collection);
-        $this->json(['data' => array_values($items)]);
+        $this->json(['data' => array_values(array_map($this->content->normalizeStoredEntry(...), $items))]);
     }
 
     public function restore(string $collection, string $id): never

@@ -449,3 +449,12 @@ Every MCP tool maps to one or more permission grants. Below is a quick reference
 | `delete_media`          | `media.delete`                                    |
 
 See [Access Tokens](../guide/api-tokens) for details on creating tokens and assigning permission grants.
+
+
+## Localization
+
+Languages and their default are configured on the workspace. Content types enable subsets including the workspace default. Entry reads accept `locale` and return resolved content, `locale`, and a `revision`. `get_media_item` also accepts `locale` to resolve alternative text and captions. Anonymous reads only expose published variants in that language. Slugs, publication status, and publication dates are localized; stable IDs, authors, and shared fields stay shared.
+
+Entry writes target the `locale` in the `entry` payload and preserve other languages and omitted fields. Include `revision` to detect stale writes (conflicts report status 409), and `reset_fields` to remove localized overrides. Pass ordinary values, not complete translation maps. A missing value inherits public default-language content; explicit empty values do not inherit. Locale and field permissions apply to updates, publication, and resets.
+
+Field labels, descriptions, and select-option labels accept `{"type":"localized","values":{"en":"Name","de":"Name"}}`. Structural schema keys and option values remain shared. The website builder, components, menus, metadata, and forms use the same value model; the MCP design-tool surface is unchanged.

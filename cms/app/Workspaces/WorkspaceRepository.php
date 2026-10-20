@@ -126,6 +126,10 @@ final class WorkspaceRepository
 
     public function save(array $data, ?string $existingSlug = null): array
     {
+        if (isset($data['languages'])) {
+            $target = new WorkspaceContext(Security::slug((string) ($existingSlug ?? $data['slug'] ?? '')));
+            (new \CometCMS\Localization\LanguageSettings($target))->validate($data['languages']);
+        }
         $settings = $this->settings->all();
         $workspaces = is_array($settings['workspaces'] ?? null) ? $settings['workspaces'] : [$this->defaultWorkspace()];
         $slug = Security::slug((string) ($data['slug'] ?? $existingSlug ?? ''));
@@ -168,13 +172,16 @@ final class WorkspaceRepository
         }
 
         $settings['workspaces'] = array_values(array_map(
-            static fn(array $w): array => array_diff_key($w, ['default' => true]),
+            static fn(array $w): array => array_diff_key($w, ['default' => true, 'languages' => true]),
             $workspaces,
         ));
         $this->settings->save($settings);
 
         $context = new WorkspaceContext($slug);
         $context->ensure();
+        if (isset($data['languages'])) {
+            (new \CometCMS\Localization\LanguageSettings($context))->save($data['languages']);
+        }
         // The workspace label is the website title until a title is configured.
         ApiCache::fromConfig($context)->clear();
 
@@ -309,6 +316,7 @@ final class WorkspaceRepository
             'archived' => (bool) ($workspace['archived'] ?? false),
             'default' => $slug === $resolvedDefault,
             'has_icon' => $hasIcon,
+            'languages' => (new \CometCMS\Localization\LanguageSettings(new WorkspaceContext($slug)))->all(),
             'created_at' => $createdAt,
             'updated_at' => (string) ($workspace['updated_at'] ?? $createdAt),
         ];

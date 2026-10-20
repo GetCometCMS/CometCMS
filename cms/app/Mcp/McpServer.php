@@ -22,8 +22,9 @@ final class McpServer
     private const PROTOCOL_VERSION = '2025-06-18';
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT = 100;
-    private const SYSTEM_FIELDS = ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale'];
+    private const SYSTEM_FIELDS = ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'values', 'publication', 'revision', 'reset_fields', 'locale'];
 
+    private string $readLocale = '';
     private ApiTokenRepository $tokens;
     private PermissionService $permissions;
     private ContentRepository $content;
@@ -83,6 +84,7 @@ final class McpServer
 
     private function boot(string $workspace, ?string $token): void
     {
+        $this->readLocale = '';
         $workspace = Security::slug($workspace);
         $registry = new WorkspaceRepository();
 
@@ -151,7 +153,7 @@ final class McpServer
                 'Use CometCMS tools to inspect schemas, manage entries, and work with media.',
                 'Content type updates are surgical by default: omitted label, icon, locales, default_locale, and fields are preserved.',
                 'When updating content type fields, pass only the fields to add or change; use remove_fields to delete fields, or replace_fields for a full field map replacement.',
-                'For localized entries, include locale in create_entry or update_entry only when targeting a specific translation; otherwise the CMS default locale is used.',
+                'Entry writes target one locale and preserve other languages. Include locale, revision for optimistic concurrency, and reset_fields to remove translated overrides. Publication status and URL slugs belong to each locale.',
             ]),
         ];
     }
@@ -181,6 +183,8 @@ final class McpServer
                     'recovery' => $this->recovery($e),
                 ],
             ], true);
+        } catch (\CometCMS\Core\ConflictException $e) {
+            return $this->textResult(['error' => ['message' => $e->getMessage(), 'status' => 409, 'details' => ['code' => 'conflict']]], true);
         } catch (ValidationException $e) {
             return $this->textResult([
                 'error' => [
@@ -302,7 +306,6 @@ final class McpServer
 
         $this->types->save($body);
         $schema = $this->types->find($collection);
-        $this->content->syncLocalization($collection, $schema);
         $this->cache->clear();
         (new Logger())->info('content_type.updated', ['name' => $collection, 'user_id' => $this->principal['id'] ?? null]);
 
@@ -357,19 +360,14 @@ final class McpServer
             $this->requirePermission('get_entry', ['collection' => $collection]);
         }
         $admin = $this->principal !== [];
-        $entry = $this->content->findByIdentifier($collection, $identifier, $admin);
-        if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry))) {
+        $locale = $this->content->locale($collection, (string) ($args['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($collection, $identifier, $admin, $locale);
+        if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry, $locale))) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
         }
 
         $this->requirePermission('get_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $entry]);
-        $locale = (string) ($args['locale'] ?? '');
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $entry = $this->content->resolveLocaleFields($entry, $locale);
-        }
+        $entry = $this->content->resolveLocaleFields($entry, $locale, !$admin);
 
         $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale);
 
@@ -380,8 +378,9 @@ final class McpServer
     {
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
+        $entry['locale'] = $this->content->locale($collection, (string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
-        $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry]);
+        $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, null, $entry);
 
         $saved = $this->content->save($collection, $entry, $this->principal, null, true);
@@ -394,14 +393,16 @@ final class McpServer
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $identifier = $this->segment($args['identifier'] ?? '', 'identifier');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
+        $entry['locale'] = $this->content->locale($collection, (string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
-        $existing = $this->content->findByIdentifier($collection, $identifier, true);
+        $existing = $this->content->findByIdentifier($collection, $identifier, true, $entry['locale']);
 
         if ($existing === null) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
         }
 
-        $this->requirePermission('update_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $existing, 'entry_payload' => $entry]);
+        $existing = $this->content->resolveLocaleFields($existing, $entry['locale']);
+        $this->requirePermission('update_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $existing, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, $existing, $entry);
         $saved = $this->content->save($collection, $entry, $this->principal, (string) $existing['id'], true);
 
@@ -447,6 +448,7 @@ final class McpServer
 
     private function getMediaItem(array $args): array
     {
+        $this->readLocale = (new \CometCMS\Localization\LanguageSettings($this->workspace))->requireLocale((string) ($args['locale'] ?? ''));
         $filename = trim((string) ($args['filename'] ?? ''));
         $this->requirePermission('get_media_item', ['filename' => $filename]);
         $item = $this->media->find($filename);
@@ -539,7 +541,7 @@ final class McpServer
             'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(true)],
             'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
-            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['revision' => $optionalString, 'collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_content_type' => ['title' => 'Delete content type', 'description' => 'Permanently delete a content type and all its entries.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection']), 'annotations' => $this->toolAnnotations(true)],
             'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(true)],
@@ -547,7 +549,7 @@ final class McpServer
             'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination), 'annotations' => $this->toolAnnotations(true)],
-            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(true)],
+            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string, 'locale' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(true)],
             'create_media_category' => ['title' => 'Create media category', 'description' => 'Create a media category or subcategory.', 'inputSchema' => $this->schema(['name' => $string, 'parent' => $optionalString], ['name']), 'annotations' => $this->toolAnnotations(false, false, true)],
             'set_media_category' => ['title' => 'Set media category', 'description' => 'Assign or clear a media file category.', 'inputSchema' => $this->schema(['filename' => $string, 'category' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_media' => ['title' => 'Delete media', 'description' => 'Delete a media file.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
@@ -605,7 +607,7 @@ final class McpServer
             return;
         }
 
-        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug()];
+        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale($collection)];
         if (!$this->permissions->allows($this->principal, 'content.publish', $context)) {
             throw new McpError('Forbidden.', 403, ['code' => 'forbidden'], [permissionGrant('content.publish', $this->workspace->slug(), $this->contentResource(['collection' => $collection], $entry !== null))]);
         }
@@ -621,8 +623,8 @@ final class McpServer
             'delete_content_type' => [['schema.delete', ['type' => 'schema', 'name' => (string) ($args['collection'] ?? '*')]]],
             'list_entries' => [['content.read', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*')]]],
             'get_entry' => [['content.read', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
-            'create_entry' => [['content.create', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'fields' => $this->changedEntryFields($args)]]],
-            'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args)]]],
+            'create_entry' => [['content.create', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'fields' => $this->changedEntryFields($args), 'locale' => $args['locale'] ?? '']]],
+            'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args), 'locale' => $args['locale'] ?? '']]],
             'delete_entry' => [['content.delete', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
             'list_media' => [['media.read', ['type' => 'media']]],
             'get_media_item' => [['media.read', $this->mediaPermissionContext($args)]],
@@ -686,6 +688,7 @@ final class McpServer
         $currentFields = is_array($current['fields'] ?? null) ? $current['fields'] : [];
         $body = [
             'name' => (string) ($updates['collection'] ?? $current['name'] ?? ''),
+            'revision' => $updates['revision'] ?? null,
             'label' => $updates['label'] ?? $current['label'] ?? null,
             'icon' => $updates['icon'] ?? $current['icon'] ?? null,
             'singleton' => array_key_exists('singleton', $updates) ? (bool) $updates['singleton'] : (bool) ($current['singleton'] ?? false),
@@ -725,6 +728,8 @@ final class McpServer
             'id' => $this->content->stableId($entry),
             'slug' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
             'type' => $collection,
+            'locale' => $entry['locale'],
+            'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
             'published_at' => $entry['published_at'] ?? null,
@@ -772,6 +777,8 @@ final class McpServer
 
     private function publicMediaItem(array $file): array
     {
+        $languages = (new \CometCMS\Localization\LanguageSettings($this->workspace))->all();
+        $file = \CometCMS\Localization\LocalizedValue::tree($file, $this->readLocale ?: $languages['default_locale'], $languages['default_locale']);
         return [
             'filename' => $file['name'],
             'name' => $file['name'],
@@ -912,7 +919,7 @@ final class McpServer
             ? $args['entry_payload']
             : (is_array($args['entry'] ?? null) ? $args['entry'] : []);
 
-        return array_values(array_diff(array_keys($entry), self::SYSTEM_FIELDS));
+        return array_values(array_unique(array_merge((array) ($entry['reset_fields'] ?? []), array_diff(array_keys($entry), self::SYSTEM_FIELDS))));
     }
 
     private function contentResource(array $args, bool $includeEntry = false): string

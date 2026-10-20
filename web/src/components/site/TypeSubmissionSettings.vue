@@ -23,15 +23,15 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="form-submit">{{ t("site.forms.submitLabel") }}</label>
-          <input id="form-submit" :value="settings.submit_label" @input="update({ submit_label: $event.target.value })" type="text" maxlength="80" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.submitDefault')" />
+          <LocalizedInput id="form-submit" :model-value="settings.submit_label" @update:model-value="(value) => update({ submit_label: value })" type="text" maxlength="80" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.submitDefault')"  />
         </div>
         <div class="md:col-span-2">
           <label class="form-label" for="form-success">{{ t("site.forms.successMessage") }}</label>
-          <textarea id="form-success" :value="settings.success_message" @input="update({ success_message: $event.target.value })" rows="2" maxlength="1000" class="form-textarea w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.successDefault')"></textarea>
+          <LocalizedInput id="form-success" :model-value="settings.success_message" @update:model-value="(value) => update({ success_message: value })" multiline rows="2" maxlength="1000" class="form-textarea w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.successDefault')" />
         </div>
         <div class="md:col-span-2">
           <label class="form-label" for="form-error">{{ t("site.forms.errorMessage") }}</label>
-          <textarea id="form-error" :value="settings.error_message" @input="update({ error_message: $event.target.value })" rows="2" maxlength="1000" class="form-textarea w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.errorDefault')"></textarea>
+          <LocalizedInput id="form-error" :model-value="settings.error_message" @update:model-value="(value) => update({ error_message: value })" multiline rows="2" maxlength="1000" class="form-textarea w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.forms.errorDefault')" />
         </div>
       </div>
       <p class="text-xs text-slate-500">{{ t("site.forms.textsHint") }}</p>
@@ -64,6 +64,7 @@
 </template>
 
 <script setup>
+import LocalizedInput from "../LocalizedInput.vue";
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import { useI18n } from "../../i18n/index.js";

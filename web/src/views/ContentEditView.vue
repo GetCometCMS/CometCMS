@@ -170,6 +170,7 @@
 
           <div class="col-span-1">
             <label for="content-title" class="form-label">{{ t("contentEdit.title") }}</label>
+            <TranslationInfo v-if="fullEntry" :value="fullEntry.values?.title" :locale="currentLocale" :default-locale="defaultLocale" :readonly="isReadOnly" @reset="resetTranslation('title')" />
             <input
               id="content-title"
               v-model="form.title"
@@ -183,10 +184,7 @@
           <div v-if="!isSingleton">
             <label for="content-slug" class="form-label">
               {{ t("contentEdit.slug") }}
-              <span
-                v-if="contentTypeLocales.length > 0"
-                class="text-slate-400 font-normal text-xs ml-1"
-              >{{ t("contentEdit.slugShared") }}</span>
+
             </label>
             <input
               id="content-slug"
@@ -332,12 +330,15 @@
             <BaseField
               :name="fieldName"
               :config="config"
+              :locale="currentLocale"
               :error="fieldErrors[fieldName]"
               :readonly="isReadOnly || isReadonlyUniversalField(config)"
             >
+              <TranslationInfo v-if="fullEntry && config.localized !== false" :value="fullEntry.values?.[fieldName]" :locale="currentLocale" :default-locale="defaultLocale" :readonly="isReadOnly" @reset="resetTranslation(fieldName)" />
               <FieldInput
                 :name="fieldName"
                 :config="config"
+              :locale="currentLocale"
                 v-model="form[fieldName]"
                 :readonly="isReadOnly || isReadonlyUniversalField(config)"
               />
@@ -586,6 +587,9 @@ import {
   localeName,
 } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
+import TranslationInfo from "../components/TranslationInfo.vue";
+import { entryForLocale } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
@@ -699,9 +703,13 @@ const form = ref({
   locale: "",
 });
 const contentTypeLocales = ref([]);
-const fullEntry = ref(null); // full raw entry including translations sub-object
+const fullEntry = ref(null);
+const localeDrafts = ref({});
+const resetFields = ref([]);
 const liveEntryBeforeRestore = ref(null);
-const currentLocale = ref(""); // active locale tab
+const editorLanguages = useLanguages();
+const currentLocale = ref("");
+watch(currentLocale, (value) => { if (value) editorLanguages.activeLocale.value = value; }); // active locale tab
 const defaultLocale = computed(
   () =>
     contentTypeSchema.value?.default_locale ||
@@ -730,7 +738,7 @@ const apiEndpointUrl = computed(() => {
   });
 });
 const unsupportedTranslationLocales = computed(() => {
-  const translations = fullEntry.value?.translations;
+  const translations = fullEntry.value?.publication;
   if (!translations || contentTypeLocales.value.length === 0) return [];
   return Object.keys(translations).filter(
     (loc) => !contentTypeLocales.value.includes(loc),
@@ -738,7 +746,7 @@ const unsupportedTranslationLocales = computed(() => {
 });
 function hasTranslation(loc) {
   return (
-    fullEntry.value?.translations != null && loc in fullEntry.value.translations
+    fullEntry.value?.publication != null && loc in fullEntry.value.publication
   );
 }
 const localeTabs = computed(() =>
@@ -769,20 +777,11 @@ function selectLocaleTab(tab) {
 }
 
 function populateFormFromLocale(entry, loc) {
-  // translations[loc] is always the authoritative source for per-locale content.
-  // Root-level fields are only a search/sort copy and may be stale after a default
-  // locale change, so we always prefer the translation data and fall back to root.
-  const translation = entry.translations?.[loc] ?? null;
-  const source = translation ?? entry;
-  const defaultSource = localeContentSource(defaultLocale.value) ?? entry;
-  form.value.title = source.title ?? "";
-  for (const name of Object.keys(customSchema.value)) {
-    const config = customSchema.value[name];
-    form.value[name] = isUniversalField(config)
-      ? fieldValueForForm(defaultSource[name] ?? entry[name] ?? null, config)
-      : fieldValueForForm(source[name] ?? null, config);
-  }
-  form.value.locale = loc;
+  const source = entryForLocale(entry, loc, defaultLocale.value);
+  form.value = { author_id: entry.author_id, title: source.title ?? '', slug: source.slug ?? '', status: source.status, published_at: source.published_at ? toDatetimeLocal(source.published_at) : '', locale: loc };
+  for (const [name, config] of Object.entries(customSchema.value)) form.value[name] = fieldValueForForm(source[name] ?? null, config);
+  resetFields.value = [];
+
 }
 
 function populateFormFromEntry(entry, loc = "") {
@@ -813,24 +812,25 @@ function populateFormFromEntry(entry, loc = "") {
 
 function switchLocale(loc) {
   if (!fullEntry.value) return;
+  if (currentLocale.value) localeDrafts.value[currentLocale.value] = { form: cloneLocaleValue(form.value), resets: [...resetFields.value] };
   currentLocale.value = loc;
-  populateFormFromLocale(fullEntry.value, loc);
+  if (localeDrafts.value[loc]) {
+    form.value = cloneLocaleValue(localeDrafts.value[loc].form);
+    resetFields.value = [...localeDrafts.value[loc].resets];
+  } else populateFormFromLocale(fullEntry.value, loc);
 }
 
 function createTranslation(loc) {
   if (isReadOnly.value) return;
   localeMenu.value = null;
-  currentLocale.value = loc;
-  const defaultSource =
-    localeContentSource(defaultLocale.value) ?? fullEntry.value ?? {};
-  form.value.title = "";
-  for (const name of Object.keys(customSchema.value)) {
-    const config = customSchema.value[name];
-    form.value[name] = isUniversalField(config)
-      ? fieldValueForForm(defaultSource[name] ?? null, config)
-      : null;
-  }
-  form.value.locale = loc;
+  switchLocale(loc);
+  if (!hasTranslation(loc)) { form.value.slug = ''; form.value.status = 'draft'; }
+}
+
+function resetTranslation(name) {
+  if (!resetFields.value.includes(name)) resetFields.value.push(name);
+  const source = entryForLocale(fullEntry.value, defaultLocale.value, defaultLocale.value);
+  form.value[name] = cloneLocaleValue(source[name]);
 }
 
 async function handleDeleteTranslation(loc) {
@@ -893,10 +893,7 @@ function fieldLayoutClass(config) {
 function localeContentSource(loc) {
   const entry = fullEntry.value;
   if (!entry) return null;
-  const translation = entry.translations?.[loc];
-  return translation && typeof translation === "object"
-    ? { ...entry, ...translation }
-    : entry;
+  return entryForLocale(entry, loc, defaultLocale.value);
 }
 
 function syncLocaleFromDefault(loc) {
@@ -1068,7 +1065,7 @@ onMounted(async () => {
       };
 
       const initLocale =
-        contentTypeLocales.value.length > 0 ? defaultLocale.value : "";
+        contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
       form.value = {
@@ -1174,14 +1171,26 @@ async function handleSave() {
         };
       } else {
         isDirty.value = false;
-        router.push(`/content/${collection}/${res.data.id}`);
+        router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
       }
     } else {
-      const res = await api.content.update(
-        collection,
-        entryId.value,
-        payloadForSave(),
-      );
+      const drafts = { ...localeDrafts.value, [currentLocale.value]: { form: cloneLocaleValue(form.value), resets: [...resetFields.value] } };
+      let latest = liveEntryBeforeRestore.value ?? fullEntry.value;
+      for (const [language, draft] of Object.entries(drafts)) {
+        const payload = payloadForSave(draft.form, language, draft.resets, latest);
+        const changed = Object.keys(payload).some((key) => !['locale', 'revision', 'reset_fields'].includes(key)) || payload.reset_fields.length || !latest.publication?.[language];
+        if (!changed) continue;
+        try {
+          latest = (await api.content.update(collection, latest.uid || latest.id, payload)).data;
+          fullEntry.value = latest;
+          delete localeDrafts.value[language];
+        } catch (error) {
+          switchLocale(language);
+          throw error;
+        }
+      }
+      const res = { data: latest };
+      localeDrafts.value = {};
       toast.success(
         isSingleton.value
           ? t("contentEdit.pageSaved")
@@ -1189,6 +1198,8 @@ async function handleSave() {
       );
       isDirty.value = false;
       fullEntry.value = res.data;
+      delete localeDrafts.value[currentLocale.value];
+      resetFields.value = [];
       liveEntryBeforeRestore.value = null;
       previewingRevision.value = null;
       entryMeta.value = {
@@ -1196,8 +1207,8 @@ async function handleSave() {
         updated_at: res.data.updated_at ?? null,
         id: res.data.id ?? null,
       };
-      if (!isSingleton.value && res.data.id && res.data.id !== entryId.value) {
-        router.replace(`/content/${collection}/${res.data.id}`);
+      if (!isSingleton.value && res.data.id && (res.data.uid || res.data.id) !== entryId.value) {
+        router.replace(`/content/${collection}/${res.data.uid || res.data.id}`);
       }
     }
   } catch (err) {
@@ -1241,8 +1252,17 @@ function restoreRevision(revision) {
   toast.success(t("contentEdit.revisionLoaded"));
 }
 
-function payloadForSave() {
-  const payload = { ...form.value };
+function payloadForSave(values = form.value, language = currentLocale.value, resets = resetFields.value, base = liveEntryBeforeRestore.value ?? fullEntry.value) {
+  const payload = { ...values, revision: base?.revision, reset_fields: [...resets] };
+  for (const name of resets) delete payload[name];
+  for (const [name, config] of Object.entries(customSchema.value)) {
+    if (config.localized === false && language !== defaultLocale.value) delete payload[name];
+    if (base && config.localized !== false && !resets.includes(name)) {
+      const previous = entryForLocale(base, language, defaultLocale.value)[name];
+      if (JSON.stringify(fieldValueForForm(previous ?? null, config)) === JSON.stringify(payload[name])) delete payload[name];
+    }
+  }
+  if (base && payload.title === entryForLocale(base, language, defaultLocale.value).title) delete payload.title;
   payload.published_at = localDatetimeToUtcIso(payload.published_at);
 
   for (const [fieldName, config] of Object.entries(customSchema.value)) {
@@ -1254,6 +1274,14 @@ function payloadForSave() {
     }
   }
 
+  if (base) {
+    const source = entryForLocale(base, language, defaultLocale.value);
+    for (const key of Object.keys(payload)) {
+      if (['locale', 'revision', 'reset_fields'].includes(key)) continue;
+      if (JSON.stringify(payload[key]) === JSON.stringify(source[key] ?? null)) delete payload[key];
+    }
+  }
+  if (language !== defaultLocale.value) delete payload.author_id;
   return payload;
 }
 
@@ -1329,7 +1357,7 @@ const REVISION_SKIP = new Set([
   "deleted_by",
   "updated_by",
   "data",
-  "translations",
+  "values", "publication", "revision",
 ]);
 
 const currentVsFirstDiff = computed(() => {
@@ -1384,17 +1412,7 @@ function revisionDiff(index) {
 }
 
 function revisionFieldSource(entry, loc = "") {
-  const source = { ...(entry ?? {}) };
-  const legacyData =
-    source.data && typeof source.data === "object" ? source.data : {};
-  const translation =
-    loc &&
-    source.translations?.[loc] &&
-    typeof source.translations[loc] === "object"
-      ? source.translations[loc]
-      : {};
-
-  return { ...source, ...legacyData, ...translation };
+  return entryForLocale(entry, loc || currentLocale.value || defaultLocale.value, defaultLocale.value);
 }
 
 function normDiffVal(v) {

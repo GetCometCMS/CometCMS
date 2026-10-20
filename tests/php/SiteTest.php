@@ -401,7 +401,7 @@ test('language switcher shows flags beside or instead of the text and keeps ever
     foreach (['none' => 0, 'with_text' => 2, 'only' => 2] as $flag => $flags) {
         $switcher = LayoutSchema::node('language_switcher', ['flag' => $flag]);
         $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$switcher])])])]);
-        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout, ['alternates' => ['en' => '/', 'de-at' => '/de-at', 'tlh' => '/tlh']]);
 
         assert_same($flags, substr_count($html, 'class="c-flag"'));
         assert_same($flags > 0, str_contains($html, 'src="/_site/flags/at.svg"'));
@@ -1036,21 +1036,21 @@ test('text shadows survive layout normalization and render in preview and public
     assert_false(in_array('text_shadow', LayoutSchema::styleKeys('image'), true));
 });
 
-test('image elements use media library metadata instead of layout overrides', function (): void {
+test('image elements support translated overrides with media metadata as defaults', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');
     $media = new \CometCMS\Media\MediaRepository();
     $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [
         LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
-            LayoutSchema::node('image', ['media' => 'photo.svg', 'alt' => 'Old alt', 'caption' => 'Old caption']),
+            LayoutSchema::node('image', ['media' => 'photo.svg']),
         ])]),
     ])]);
     $props = $nodes[0]['children'][0]['children'][0]['children'][0]['props'];
-    assert_false(array_key_exists('alt', $props));
-    assert_false(array_key_exists('caption', $props));
+    assert_true(array_key_exists('alt', $props));
+    assert_true(array_key_exists('caption', $props));
     $spec = LayoutSchema::spec()['kinds']['image']['props'];
-    assert_false(array_key_exists('alt', $spec));
-    assert_false(array_key_exists('caption', $spec));
+    assert_true($spec['alt']['localized']);
+    assert_true($spec['caption']['localized']);
 
     $media->updateMeta('photo.svg', 'Library "alt" & text', 'Library <title>');
     foreach ([false, true] as $annotate) {

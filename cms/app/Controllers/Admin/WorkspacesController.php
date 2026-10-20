@@ -58,6 +58,7 @@ final class WorkspacesController extends BaseController
             $workspace = $this->workspaces->save([
                 'slug' => $slug,
                 'label' => (string) ($body['label'] ?? ''),
+                ...isset($body['languages']) ? ['languages' => $body['languages']] : [],
             ]);
             if ($starterTemplate === 'website') {
                 $activeWorkspace = WorkspaceContext::active()->slug();
@@ -84,6 +85,7 @@ final class WorkspacesController extends BaseController
             $workspace = $this->workspaces->save([
                 'label' => (string) ($body['label'] ?? ''),
                 'archived' => (bool) ($body['archived'] ?? false),
+                ...isset($body['languages']) ? ['languages' => $body['languages']] : [],
             ], $slug);
         } catch (\Throwable $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);

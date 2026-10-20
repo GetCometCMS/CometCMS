@@ -35,19 +35,25 @@
 </template>
 
 <script setup>
-import { useId } from "vue";
+import { computed, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import { useFieldTypeMeta } from "../composables/useFieldTypeMeta.js";
+import { resolveLocalizedTree } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
 const { t } = useI18n();
 
-defineProps({
+const props = defineProps({
   name: { type: String, required: true },
   config: { type: Object, required: true },
+  locale: { type: String, default: "" },
   error: { type: String, default: "" },
   readonly: { type: Boolean, default: false },
 });
+
+const languages = useLanguages();
+const config = computed(() => resolveLocalizedTree(props.config, props.locale || languages.defaultLocale.value, languages.defaultLocale.value));
 
 const { fieldTypeIcon } = useFieldTypeMeta();
 const labelId = `${useId()}-label`;

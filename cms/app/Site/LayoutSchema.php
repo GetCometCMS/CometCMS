@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Core\HtmlSanitizer;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 
 /**
  * The vocabulary of website layouts.
@@ -23,7 +25,7 @@ use CometCMS\Core\HtmlSanitizer;
  */
 final class LayoutSchema
 {
-    public const FORMAT_VERSION = 2;
+    public const FORMAT_VERSION = 3;
 
     public const VARIANTS = ['detail', 'index'];
 
@@ -112,6 +114,14 @@ final class LayoutSchema
     /** Borders used to be a single choice of sides. */
     private const LEGACY_BORDERS = ['all' => ['left', 'top', 'right', 'bottom'], 'top' => ['top'], 'bottom' => ['bottom']];
 
+    public const LOCALIZED_PROPS = [
+        'heading' => ['text', 'link'], 'text' => ['html'],
+        'image' => ['media', 'link', 'alt', 'caption'], 'gallery' => ['media', 'link'],
+        'button' => ['label', 'link'], 'accordion' => ['title', 'html'],
+        'tabs' => ['title'], 'tab' => ['title'], 'icon' => ['label', 'link'],
+        'collection' => ['empty_text'], 'field' => ['prefix', 'suffix', 'true_text', 'false_text', 'link'],
+    ];
+
     public static function styleSpec(): array
     {
         return [
@@ -129,7 +139,7 @@ final class LayoutSchema
             'background_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             // An image is layered over the background color, which shows
             // through transparent images and while the image loads.
-            'background_image' => ['type' => 'media', 'default' => ''],
+            'background_image' => ['type' => 'media', 'default' => '', 'localized' => true],
             'background_size' => ['type' => 'enum', 'options' => ['cover', 'contain', 'original'], 'default' => 'cover'],
             'background_position' => ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'center'],
             'background_repeat' => ['type' => 'bool', 'default' => false],
@@ -240,6 +250,8 @@ final class LayoutSchema
                 'html' => ['type' => 'html', 'default' => '<p>Text</p>'],
             ],
             'image' => [
+                'alt' => ['type' => 'string', 'max' => 1000, 'default' => ''],
+                'caption' => ['type' => 'string', 'max' => 2000, 'default' => ''],
                 'media' => ['type' => 'media', 'default' => ''],
                 'ratio' => $ratio,
                 'fit' => $fit,
@@ -364,6 +376,7 @@ final class LayoutSchema
 
         foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT] as $kind) {
             $props = self::propSpec($kind);
+            foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
                 $props[$key]['binding'] = $binding;
             }
@@ -851,9 +864,11 @@ final class LayoutSchema
         foreach (self::propSpec($kind) as $key => $spec) {
             $value = $props[$key] ?? $spec['default'];
             $binding = SmartValue::PROPERTIES[$kind][$key] ?? null;
-            $normalized[$key] = $binding !== null && SmartValue::isDynamic($value)
-                ? SmartValue::normalize($value, $binding)
-                : self::normalizeValue($spec, $value);
+            $normalize = static fn(mixed $item): mixed => $binding !== null && SmartValue::isDynamic($item)
+                ? SmartValue::normalize($item, $binding) : self::normalizeValue($spec, $item);
+            $normalized[$key] = in_array($key, self::LOCALIZED_PROPS[$kind] ?? [], true)
+                ? LocalizedValue::normalize($value, $normalize, (new LanguageSettings())->all()['locales'])
+                : $normalize($value);
         }
 
         return $normalized;
@@ -887,9 +902,11 @@ final class LayoutSchema
             }
 
             $binding = SmartValue::STYLE_PROPERTIES[$key] ?? null;
-            $value = $binding !== null && SmartValue::isDynamic($style[$key])
-                ? SmartValue::normalize($style[$key], $binding)
-                : self::normalizeValue($specs[$key], $style[$key]);
+            $normalize = static fn(mixed $item): mixed => $binding !== null && SmartValue::isDynamic($item)
+                ? SmartValue::normalize($item, $binding) : self::normalizeValue($specs[$key], $item);
+            $value = !empty($specs[$key]['localized'])
+                ? LocalizedValue::normalize($style[$key], $normalize, (new LanguageSettings())->all()['locales'])
+                : $normalize($style[$key]);
             if ($value !== $specs[$key]['default']) {
                 $normalized[$key] = $value;
             }

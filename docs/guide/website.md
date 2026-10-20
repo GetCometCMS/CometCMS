@@ -217,9 +217,15 @@ Workspaces from earlier versions move their headers, footers, layouts and compon
 
 ## Languages
 
-Content types with locales can be published in several languages. Choose the website languages in **Overview**: the default language lives at the root (`/blog/hello`), others under their code (`/de/blog/hello`). Pages link their translations with `hreflang`.
+Configure languages in **Workspaces → Edit workspace**, then choose the website's enabled subset in **Overview**. The default language lives at the root; other languages use their code as a prefix. Slugs and route paths can be translated, for example `/articles/about` and `/de/artikel/ueber-uns`. Internal links use stable entry IDs, so changing a slug does not break them.
 
-The **Languages** element links each page to its translations. **Flags** shows the text only, a flag beside the text, or the flag alone; a flag on its own is named for screen readers and shows the language name on hover. Flags stand for languages, so they follow a convention: English shows the British flag and regional codes use their region (`de-at` shows Austria's flag, `pt-br` Brazil's). A language without a flag keeps its text.
+The builder keeps one shared structure and design. Choose a language to edit its headings, rich text, button labels, images, links, tabs, and other visitor-facing values. **Translate content** prevents structural edits; **Shared design** enables shared layout changes. Source text, inheritance, reset actions, and review indicators appear in the inspector. Component translations apply wherever the component is used; header and footer translations work the same way. A literal in a collection layout applies to every entry using it; bind a custom field when the value should differ per entry.
+
+Site identity, metadata, error pages, navigation, form text, field presentation labels, and media alternative text and captions use the same localized-value model. Language selectors in these editors share the active language. Built-in visitor messages use a separate language dictionary.
+
+Publish entry translations independently. Missing values within a published translation inherit public default-language content; an empty override stays empty. Missing or unpublished page variants return 404. Sitemaps, canonical URLs, `hreflang`, and the language switcher use available published variants. Shared design, components, and settings keep their existing save lifecycle.
+
+The **Languages** element links each page to its published translations and omits unavailable languages. **Flags** shows the text only, a flag beside the text, or the flag alone; a flag on its own is named for screen readers and shows the language name on hover. Flags stand for languages, so they follow a convention: English shows the British flag and regional codes use their region (`de-at` shows Austria's flag, `pt-br` Brazil's). A language without a flag keeps its text.
 
 ## Search engines
 

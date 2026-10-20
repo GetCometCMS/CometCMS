@@ -100,7 +100,8 @@ test('content repository duplicates entries as draft copies', function (): void 
 
     $copy = $repository->duplicate('posts', 'launch-notes', $user);
 
-    assert_same('launch-notes-2', $copy['id']);
+    assert_same('launch-notes-2', $copy['slug']);
+    assert_true($copy['id'] !== $created['id']);
     assert_true($copy['uid'] !== $created['uid']);
     assert_same('draft', $copy['status']);
     assert_same('Copy of Launch Notes', $copy['title']);
@@ -207,11 +208,11 @@ test('content repository stores and resolves localized entries', function (): vo
     assert_same('Deutsche Zusammenfassung', $repository->query('posts', ['locale' => 'de', 'q' => 'deutsche'], true)['data'][0]['summary']);
     assert_null($repository->deleteTranslation('posts', 'hello', 'en', $user));
     $afterDelete = $repository->deleteTranslation('posts', 'hello', 'de', $user);
-    assert_false(array_key_exists('de', $afterDelete['translations']));
-    assert_true(array_key_exists('en', $afterDelete['translations']));
+    assert_false(array_key_exists('de', $afterDelete['publication']));
+    assert_true(array_key_exists('en', $afterDelete['publication']));
 });
 
-test('content repository bulk updates localized fields in all existing translations', function (): void {
+test('content repository bulk updates only the selected language', function (): void {
     comet_content_test_save_posts_schema([
         'locales' => ['en', 'de'],
         'default_locale' => 'en',
@@ -234,10 +235,10 @@ test('content repository bulk updates localized fields in all existing translati
     $existing = $repository->find('posts', 'hello');
     $updated = $repository->bulkUpdateFields('posts', $existing, ['summary' => 'Bulk summary'], $user);
 
-    assert_same('Bulk summary', $updated['translations']['en']['summary']);
-    assert_same('Bulk summary', $updated['translations']['de']['summary']);
-    assert_same('Hallo', $updated['translations']['de']['title']);
-    assert_same('Bulk summary', $repository->resolveLocaleFields($updated, 'de')['summary']);
+    assert_same('Bulk summary', $updated['values']['summary']['values']['en']);
+    assert_same('Deutsche Zusammenfassung', $updated['values']['summary']['values']['de']);
+    assert_same('Hallo', $updated['values']['title']['values']['de']);
+    assert_same('Deutsche Zusammenfassung', $repository->resolveLocaleFields($updated, 'de')['summary']);
 });
 
 test('content repository bulk updates localized key-label select fields without validating unrelated fields', function (): void {
@@ -270,16 +271,14 @@ test('content repository bulk updates localized key-label select fields without 
     ], $user, 'hello');
 
     $existing = $repository->find('posts', 'hello');
-    $existing['legacy'] = 'old';
-    $existing['translations']['en']['legacy'] = 'old';
-    $existing['translations']['de']['legacy'] = 'old';
+    // Partial updates leave unrelated fields and languages untouched.
 
     $updated = $repository->bulkUpdateFields('posts', $existing, ['client' => 'hospiz'], $user);
 
-    assert_same('hospiz', $updated['translations']['en']['client']);
-    assert_same('hospiz', $updated['translations']['de']['client']);
-    assert_same('old', $updated['translations']['de']['legacy']);
-    assert_same('hospiz', $repository->resolveLocaleFields($updated, 'de')['client']);
+    assert_same('hospiz', $updated['values']['client']['values']['en']);
+    assert_same('kunde', $updated['values']['client']['values']['de']);
+    assert_same('new', $updated['values']['legacy']['values']['de']);
+    assert_same('kunde', $repository->resolveLocaleFields($updated, 'de')['client']);
 });
 
 test('content repository duplicates localized entries with all translations', function (): void {
@@ -318,15 +317,15 @@ test('content repository duplicates localized entries with all translations', fu
 
     $copy = $repository->duplicate('posts', 'hello', $user);
 
-    assert_same('hello-2', $copy['id']);
+    assert_same('hello-2', $copy['slug']);
     assert_true($copy['uid'] !== $created['uid']);
     assert_same('draft', $copy['status']);
     assert_same('Copy of Hello', $copy['title']);
-    assert_same('Copy of Hello', $copy['translations']['en']['title']);
-    assert_same('Copy of Hallo', $copy['translations']['de']['title']);
-    assert_same('Shared summary', $copy['translations']['en']['summary']);
-    assert_same('Shared summary', $copy['translations']['de']['summary']);
-    assert_same(7, $copy['translations']['de']['views']);
+    assert_same('Copy of Hello', $copy['values']['title']['values']['en']);
+    assert_same('Copy of Hallo', $copy['values']['title']['values']['de']);
+    assert_same('Shared summary', $copy['values']['summary']);
+    assert_same('Shared summary', $copy['values']['summary']);
+    assert_same(7, $copy['values']['views']['values']['de']);
     assert_false(array_key_exists('translation_locks', $copy));
     assert_same('Copy of Hallo', $repository->resolveLocaleFields($copy, 'de')['title']);
 });
@@ -375,101 +374,33 @@ test('content repository replaces media filenames in root translations and repea
     assert_same(['new.jpg'], $stored['hero']);
     assert_same(['new.jpg'], $stored['gallery']);
     assert_same(['new.jpg'], $stored['blocks'][0]['image']);
-    assert_same(['new.jpg'], $stored['translations']['en']['hero']);
-    assert_same(['new.jpg'], $stored['translations']['de']['gallery']);
-    assert_same(['new.jpg'], $stored['translations']['de']['blocks'][0]['image']);
+    assert_same(['new.jpg'], $stored['values']['hero']['values']['en']);
+    assert_same(['new.jpg'], $stored['values']['gallery']['values']['de']);
+    assert_same(['new.jpg'], $stored['values']['blocks']['values']['de'][0]['image']);
 });
 
-test('content repository uses default locale values for universal fields', function (): void {
-    comet_content_test_save_posts_schema([
-        'locales' => ['en', 'de'],
-        'default_locale' => 'en',
-        'fields' => [
-            'summary' => ['type' => 'textarea', 'localized' => false],
-            'views' => ['type' => 'number'],
-            'featured' => ['type' => 'boolean'],
-        ],
-    ]);
-    $repository = comet_content_test_repository();
-    $user = comet_content_test_user();
-
-    $repository->save('posts', [
-        'locale' => 'en',
-        'title' => 'Hello',
-        'summary' => 'Shared summary',
-        'views' => 5,
-    ], $user);
-    $repository->save('posts', [
-        'locale' => 'de',
-        'title' => 'Hallo',
-        'slug' => 'hello',
-        'summary' => 'Deutsche Zusammenfassung',
-        'views' => 7,
-    ], $user, 'hello');
-
-    $synced = $repository->save('posts', [
-        'locale' => 'en',
-        'slug' => 'hello',
-        'title' => 'Hello',
-        'summary' => 'Shared summary',
-        'views' => 5,
-    ], $user, 'hello');
-
-    assert_same('Shared summary', $synced['translations']['de']['summary']);
-    assert_false(array_key_exists('translation_locks', $synced));
-
-    $updated = $repository->save('posts', [
-        'locale' => 'de',
-        'slug' => 'hello',
-        'title' => 'Hallo',
-        'summary' => 'Attempted change',
-        'views' => 8,
-    ], $user, 'hello');
-
-    assert_same('Shared summary', $updated['translations']['de']['summary']);
+test('content repository rejects changes to shared values from another language', function (): void {
+    comet_content_test_save_posts_schema(['locales' => ['en', 'de'], 'fields' => ['summary' => ['type' => 'textarea', 'localized' => false], 'views' => ['type' => 'number']]]);
+    $repository = comet_content_test_repository(); $user = comet_content_test_user();
+    $entry = $repository->save('posts', ['locale' => 'en', 'title' => 'Hello', 'summary' => 'Shared summary'], $user);
+    assert_throws(ValidationException::class, fn() => $repository->save('posts', ['locale' => 'de', 'summary' => 'Attempted change'], $user, $entry['id']));
+    $updated = $repository->save('posts', ['locale' => 'de', 'title' => 'Hallo', 'views' => 8], $user, $entry['id']);
+    assert_same('Shared summary', $updated['values']['summary']);
     assert_same('Shared summary', $repository->resolveLocaleFields($updated, 'de')['summary']);
-    assert_same(8, $repository->resolveLocaleFields($updated, 'de')['views']);
+    assert_same(8, $updated['views']);
 });
 
-test('content repository seeds default locale from root content', function (): void {
+test('enabling another language does not rewrite saved values or create a translation', function (): void {
     comet_content_test_save_posts_schema();
     $repository = comet_content_test_repository();
-    $user = comet_content_test_user();
-
-    $repository->save('posts', [
-        'title' => 'Plain Entry',
-        'summary' => 'Root summary',
-        'views' => 7,
-        'featured' => true,
-    ], $user);
-
-    comet_content_test_save_posts_schema([
-        'locales' => ['en', 'de'],
-        'default_locale' => 'en',
-    ]);
-    $schema = comet_content_test_types()->find('posts');
-
-    $repository->seedDefaultLocaleFromRoot('posts', $schema);
-    $stored = $repository->find('posts', 'plain-entry');
-
-    assert_same('Plain Entry', $stored['translations']['en']['title']);
-    assert_same('Root summary', $stored['translations']['en']['summary']);
-    assert_same(7, $stored['translations']['en']['views']);
-    assert_same(true, $stored['translations']['en']['featured']);
-    assert_false(array_key_exists('slug', $stored['translations']['en']));
-
-    $repository->save('posts', [
-        'locale' => 'en',
-        'title' => 'Edited English',
-        'slug' => 'plain-entry',
-        'summary' => 'Edited summary',
-    ], $user, 'plain-entry');
-
-    $repository->seedDefaultLocaleFromRoot('posts', $schema);
-    $stored = $repository->find('posts', 'plain-entry');
-
-    assert_same('Edited English', $stored['translations']['en']['title']);
-    assert_same('Edited summary', $stored['translations']['en']['summary']);
+    $entry = $repository->save('posts', ['title' => 'Plain Entry', 'summary' => 'Source'], comet_content_test_user());
+    $path = comet_test_workspace_path() . '/content/posts/' . $entry['id'] . '.json';
+    $before = file_get_contents($path);
+    comet_content_test_save_posts_schema(['locales' => ['en', 'de']]);
+    assert_same($before, file_get_contents($path));
+    $stored = $repository->find('posts', $entry['id']);
+    assert_same('Plain Entry', $stored['values']['title']['values']['en']);
+    assert_false(isset($stored['publication']['de']));
 });
 
 test('fields named body and data are kept on read and survive partial updates', function (): void {

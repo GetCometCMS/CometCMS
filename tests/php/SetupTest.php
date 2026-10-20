@@ -156,7 +156,7 @@ test('website starter renders all pages with working navigation and remains edit
     assert_throws(ValidationException::class, fn() => $content->save('landing-page', ['title' => 'Another home'], $user));
 
     $about = $content->findByIdentifier('pages', 'about');
-    $content->save('pages', array_replace($about, ['title' => 'About us']), $user, $about['id']);
+    $content->save('pages', ['title' => 'About us'], $user, $about['id']);
     assert_same('About us', $content->findByIdentifier('pages', 'about')['title']);
 
     $site->saveSettings(['homepage' => [], 'routes' => []]);

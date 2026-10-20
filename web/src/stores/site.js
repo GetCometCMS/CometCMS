@@ -130,7 +130,7 @@ export const useSiteStore = defineStore('site', () => {
 
     try {
       if (pending.includes('menus')) {
-        const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits })
+        const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits }, draft.value.settings.default_locale)
         if (Object.keys(fields).length) {
           throw Object.assign(new Error(t('site.saveErrors')), { fields })
         }
@@ -142,7 +142,9 @@ export const useSiteStore = defineStore('site', () => {
         } else if (part === 'theme') {
           data.value.theme = (await api.site.saveTheme(draft.value.theme)).data
         } else {
-          data.value.menus = (await api.site.saveMenus(draft.value.menus)).data
+          const response = await api.site.saveMenus(draft.value.menus, data.value.menus_revision)
+          data.value.menus = response.data
+          data.value.menus_revision = response.meta?.revision
         }
         draft.value[part] = clone(data.value[part])
       }

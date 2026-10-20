@@ -262,6 +262,8 @@ final class PermissionService
             return false;
         }
 
+        // A grant limited to languages cannot authorize mutations of an entire resource.
+        if (isset($grant['conditions']['locales']) && !str_ends_with($action, '.read') && empty($context['locale'])) return false;
         return $this->conditionsAllowed((array) ($grant['conditions'] ?? []), $context);
     }
 
@@ -290,10 +292,12 @@ final class PermissionService
             $entry = is_array($context['entry'] ?? null) ? $context['entry'] : [];
             $id = (string) ($context['id'] ?? $entry['id'] ?? $entry['slug'] ?? '*');
             $slug = (string) ($entry['slug'] ?? '');
+            $uid = (string) ($entry['uid'] ?? '');
             $candidates = [
                 'content:' . $collection . ':' . $id,
             ];
 
+            if ($uid !== '') $candidates[] = 'content:' . $collection . ':' . $uid;
             if ($slug !== '' && $slug !== $id) {
                 $candidates[] = 'content:' . $collection . ':' . $slug;
             }

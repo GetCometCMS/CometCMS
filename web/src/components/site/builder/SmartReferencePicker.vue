@@ -57,6 +57,7 @@ import { computed, onMounted, ref, useId, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import ContentLinkPicker from '../ContentLinkPicker.vue'
 import { useSiteBuilder } from '../../../composables/useSiteBuilder.js'
+import { resolveLocalized } from '../../../composables/localizedValues.js'
 import { useI18n } from '../../../i18n/index.js'
 import { compatibleField, DATE_FORMATS, smartSummary } from '../../../composables/smartValues.js'
 const props = defineProps({ node: { type: Object, required: true }, target: { type: String, default: 'text' }, initial: { type: Object, default: null } })
@@ -92,7 +93,7 @@ const shownFields = computed(() => {
     schema = typeByName(config?.target)
     fields = null
   }
-  if (!fields) fields = schema ? Object.entries({ ...schema.fields, title: { type: 'text', label: t('site.systemField.title') }, url: { type: 'url', label: t('site.binding.url') }, published_at: { type: 'datetime' }, created_at: { type: 'datetime' }, updated_at: { type: 'datetime' } }).map(([key, config]) => ({ key, label: config.label || key, config })) : []
+  if (!fields) fields = schema ? Object.entries({ ...schema.fields, title: { type: 'text', label: t('site.systemField.title') }, url: { type: 'url', label: t('site.binding.url') }, published_at: { type: 'datetime' }, created_at: { type: 'datetime' }, updated_at: { type: 'datetime' } }).map(([key, config]) => ({ key, label: resolveLocalized(config.label, builder.locale.value, builder.settings.value?.default_locale || 'en') || key, config })) : []
   const needle = search.value.toLowerCase()
   return fields.filter((field) => (compatibleField(field.config, props.target) || canFollow(field.config)) && `${field.label} ${field.key}`.toLowerCase().includes(needle))
 })

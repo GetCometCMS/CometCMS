@@ -49,6 +49,7 @@ final class SiteController extends BaseController
             'settings' => $this->site->settings(),
             'theme' => $this->site->theme(),
             'menus' => $this->site->menus(),
+            'menus_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->menus()),
             'menu_limits' => SiteRepository::MENU_LIMITS,
             'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
             'layouts' => $layouts,
@@ -107,7 +108,7 @@ final class SiteController extends BaseController
                 return null;
             }
             // Builder samples are selected by slug, even when settings use a stable ID.
-            $path .= '?entry=' . rawurlencode((string) ($entry['slug'] ?? $entry['id']));
+            $path .= '?entry=' . rawurlencode((string) $entry['id']);
         }
 
         return $path;
@@ -123,7 +124,7 @@ final class SiteController extends BaseController
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
         $url = null;
 
-        if ($settings['enabled'] && $entry !== null && $context->content->isPubliclyVisible($entry)) {
+        if ($settings['enabled'] && $entry !== null && $context->content->isPubliclyVisible($entry, (string) ($_GET['locale'] ?? $context->defaultLocale()))) {
             $locale = (string) ($_GET['locale'] ?? '');
             $url = $this->liveUrl($context->entryUrl($type, $entry, in_array($locale, $context->locales(), true) ? $locale : null), $context);
         }
@@ -176,12 +177,12 @@ final class SiteController extends BaseController
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         try {
-            $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? []);
+            $menus = $this->site->saveMenus($this->requestJson()['menus'] ?? [], $this->requestJson()['revision'] ?? null);
         } catch (ValidationException $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
         }
         $this->logger->info('site.menus_updated', ['count' => count($menus)]);
-        $this->json(['data' => $menus]);
+        $this->json(['data' => $menus, 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($menus)]]);
     }
 
     /** The standard card of a type, for a collection that gets a card of its own. */
@@ -202,6 +203,7 @@ final class SiteController extends BaseController
 
         $this->json(['data' => [
             'nodes' => $this->site->layout($type, $variant),
+            'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant)),
             'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
             'customized' => $this->site->layoutCustomized($type, $variant),
             'type' => $schema,
@@ -217,9 +219,9 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user));
+        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null));
         $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant]);
-        $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => true]]);
     }
 
     public function resetLayout(string $type, string $variant): never
@@ -229,7 +231,7 @@ final class SiteController extends BaseController
         $this->requireType($type, $variant);
         $nodes = $this->site->resetLayout($type, $variant, $user);
         $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant]);
-        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => false]]);
     }
 
     public function region(string $region): never
@@ -241,6 +243,7 @@ final class SiteController extends BaseController
 
         $this->json(['data' => [
             'nodes' => $this->site->region($region),
+            'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->region($region)),
             'upgrade_required' => $this->site->needsRegionUpgrade($region),
             'customized' => $this->site->regionCustomized($region),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
@@ -253,9 +256,9 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireRegion($region);
-        $nodes = $this->validated(fn() => $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user));
+        $nodes = $this->validated(fn() => $this->site->saveRegion($region, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null));
         $this->logger->info('site.region_updated', ['region' => $region]);
-        $this->json(['data' => ['nodes' => $nodes, 'customized' => true]]);
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => true]]);
     }
 
     public function resetRegion(string $region): never
@@ -265,7 +268,7 @@ final class SiteController extends BaseController
         $this->requireRegion($region);
         $nodes = $this->site->resetRegion($region, $user);
         $this->logger->info('site.region_reset', ['region' => $region]);
-        $this->json(['data' => ['nodes' => $nodes, 'customized' => false]]);
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => false]]);
     }
 
     /** Components with the number of places each one is used. */
@@ -297,7 +300,7 @@ final class SiteController extends BaseController
 
         $this->json(['data' => [
             'component' => $component,
-            'nodes' => $component['nodes'],
+            'nodes' => $component['nodes'], 'revision' => \CometCMS\Localization\LocalizedValue::hash($component['nodes']),
             'customized' => true,
             'usages' => $this->site->componentUsages($id),
             'type' => $type,
@@ -312,9 +315,9 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireComponent($id);
-        $component = $this->validated(fn() => $this->site->saveComponent($id, $this->requestJson()['nodes'] ?? [], $user));
+        $component = $this->validated(fn() => $this->site->saveComponent($id, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null));
         $this->logger->info('site.component_updated', ['component' => $id]);
-        $this->json(['data' => ['nodes' => $component['nodes'], 'customized' => true, 'component' => $component]]);
+        $this->json(['data' => ['nodes' => $component['nodes'], 'revision' => \CometCMS\Localization\LocalizedValue::hash($component['nodes']), 'customized' => true, 'component' => $component]]);
     }
 
     public function renameComponent(string $id): never
@@ -522,7 +525,7 @@ final class SiteController extends BaseController
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
 
-        $locale = (string) ($body['locale'] ?? '');
+        $locale = (new \CometCMS\Localization\LanguageSettings($this->site->workspace()))->requireLocale((string) ($body['locale'] ?? ''), $context->locales());
         $target = (string) ($body['target'] ?? 'page');
 
         if ($target === 'page') {
@@ -568,6 +571,7 @@ final class SiteController extends BaseController
         $type = (string) ($body['type'] ?? '');
         $variant = (string) ($body['variant'] ?? 'detail');
         $schema = $this->requireType($type, $variant);
+        $locale = $context->content->locale($type, $locale);
 
         if (array_key_exists('nodes', $body)) {
             $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));

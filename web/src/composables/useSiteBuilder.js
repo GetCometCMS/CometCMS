@@ -1,3 +1,4 @@
+import { resolveLocalized, setLocalized, removeLocalized, localizedState, resolveLocalizedTree } from './localizedValues.js'
 import { hasInvalidValues, isSmartValue, reference, referenceConfig, smartSummary } from './smartValues.js'
 import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
@@ -86,6 +87,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** Element waiting for a name before its content becomes a field: { id }. */
   const fieldDialog = ref(null)
   const locale = ref('')
+  const editingMode = ref('design')
+  const translating = computed(() => editingMode.value === 'translate')
+  const defaultLocale = computed(() => settings.value?.default_locale || 'en')
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
   const hoverId = ref(null)
@@ -250,7 +254,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
     for (const [key, config] of Object.entries(fields)) {
       if (key === 'title' || key === 'slug' || key === slugField || !config) continue
-      list.push({ key, label: config.label || key, type: config.type ?? 'text', config })
+      list.push({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key, type: config.type ?? 'text', config })
     }
 
     return list
@@ -269,7 +273,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function subfieldsOf(repeaterNode) {
     return (fieldConfig(repeaterNode)?.subfields ?? [])
       .filter((subfield) => subfield?.key)
-      .map((subfield) => ({ key: subfield.key, label: subfield.label || subfield.key, type: subfield.type ?? 'text', config: subfield }))
+      .map((subfield) => ({ key: subfield.key, label: resolveLocalized(subfield.label, locale.value || defaultLocale.value, defaultLocale.value) || subfield.key, type: subfield.type ?? 'text', config: subfield }))
   }
 
   /** Config of the field a field node is bound to (resolving item templates). */
@@ -315,7 +319,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     mutate((tree) => {
       const node = findNode(tree, id)
       if (!node) return
-      node[group] = { ...(node[group] ?? {}), [key]: value }
+      const def = group === 'style' ? spec.value?.style?.[key] : spec.value?.kinds?.[node.kind]?.props?.[key]
+      if (translating.value && !def?.localized) return
+      const next = def?.localized ? setLocalized(node[group]?.[key], locale.value || defaultLocale.value, value, defaultLocale.value) : value
+      node[group] = { ...(node[group] ?? {}), [key]: next }
       // Split legacy paired padding on the first edge edit, keeping its opposite.
       if (group === 'style' && /^padding_(top|right|bottom|left)$/.test(key)) {
         const vertical = ['padding_top', 'padding_bottom'].includes(key)
@@ -336,7 +343,19 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   /** Editor-only name; clearing it restores the automatic label. */
+  function resetTranslation(id, group, key) {
+    if (locale.value === defaultLocale.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (node) node[group][key] = removeLocalized(node[group][key], locale.value)
+    })
+  }
+
+  function valueFor(node, group, key) { return resolveLocalized(node[group]?.[key], locale.value || defaultLocale.value, defaultLocale.value) }
+  function translationState(node, group, key) { return localizedState(node[group]?.[key], locale.value || defaultLocale.value, defaultLocale.value) }
+
   function renameNode(id, value) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (!node || typeof value !== 'string') return
     const name = Array.from(value.replace(/[\r\n]/g, ' ')).slice(0, spec.value?.max_node_name_length ?? 120).join('').trim()
@@ -349,6 +368,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
+    if (translating.value) return false
     let current = targetId ? findNode(nodes.value, targetId) : null
     if (current?.kind === 'tabs' && node.kind !== 'tab' && current.children.length) {
       current = current.children[Math.min(current.children.length, Math.max(1, current.props.initial_tab || 1)) - 1]
@@ -363,6 +383,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Complete a drag: insert a palette node or move an existing one. */
   function dropAt(targetId, position) {
+    if (translating.value) return false
     const current = drag.value
     drag.value = null
     if (!current) return false
@@ -400,6 +421,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function remove(id = selectedId.value) {
+    if (translating.value) return false
     if (!id || isLockedRoot(id)) return
     const where = locate(nodes.value, id)
     mutate((tree) => removeNode(tree, id))
@@ -410,6 +432,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function duplicate(id = selectedId.value) {
+    if (translating.value) return false
     if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id))) return
     let copy = null
     mutate((tree) => {
@@ -419,6 +442,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function shift(id, delta) {
+    if (translating.value) return false
     mutate((tree) => shiftNode(tree, id, delta))
   }
 
@@ -441,6 +465,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Rearrange the columns around `id` into `spans`, or stack them with 'stacked'. */
   function setColumns(id, layout) {
+    if (translating.value) return false
     mutate((tree) => {
       const node = findNode(tree, id)
       if (!node) return
@@ -465,6 +490,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Insert an empty one-column section after the section that contains `id`. */
   function addSectionAfter(id) {
+    if (translating.value) return false
     if (rootKind.value) return
     const section = id ? [...ancestors(nodes.value, id), findNode(nodes.value, id)].find((node) => node?.kind === 'section') : null
     const node = sectionPreset(spec.value, [12])
@@ -491,6 +517,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Apply the copied style, keeping only what the target kind supports. */
   function pasteStyle(id = selectedId.value) {
+    if (translating.value) return false
     if (!styleClipboard.value || !id) return
     mutate((tree) => {
       const node = findNode(tree, id)
@@ -529,6 +556,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   async function renameComponent(id, name) {
+    if (translating.value) return false
     const updated = await componentApi.rename(id, name)
     components.value = components.value.map((item) => (item.id === id ? { ...item, name: updated.name } : item))
     return updated
@@ -536,6 +564,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Detach deleted instances in the draft, clipboard and every undo/redo state. */
   async function deleteComponent(id) {
+    if (translating.value) return false
     const component = await componentApi.remove(id)
     // Reuse ids across snapshots so deleting alone does not make a saved layout dirty.
     const copies = new Map()
@@ -566,11 +595,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Whether a structure node can become a component (not a component's own root). */
   function canConvert(node) {
-    return !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
+    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
   }
 
   /** Swap the node `id` for an instance of `component`, as one undo step. */
   function replaceWithInstance(id, component) {
+    if (translating.value) return false
     let instance = null
     mutate((tree) => {
       const where = locate(tree, id)
@@ -607,13 +637,14 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** The literal content of an element, which can become a field. */
   function literalContent(node) {
     const content = CONTENT_PROPS[node?.kind]
-    if (!content || isSmartValue(node.props?.[content.key]) || typeof (node.props?.[content.key] ?? '') !== 'string') return null
-    return { ...content, value: node.props?.[content.key] ?? '' }
+    const value = content ? valueFor(node, 'props', content.key) : null
+    if (!content || isSmartValue(value) || typeof (value ?? '') !== 'string') return null
+    return { ...content, value: value ?? '' }
   }
 
   /** Whether the element's content can move into a new field of the entry it shows. */
   function canMakeField(node) {
-    return !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
+    return !translating.value && !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
       && (fieldApi.can?.(type.value.name) ?? true) && !isInsideTemplate(nodes.value, node.id) && !entryContext(node.id).collection
   }
 
@@ -623,6 +654,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
    * entries start with it.
    */
   async function convertToField(id, label) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (!canMakeField(node)) return null
     const { key: prop, field, value } = literalContent(node)
@@ -646,6 +678,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Give the collection `id` a card of its own, starting from its type's standard card. */
   async function customizeCard(id) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (node?.kind !== 'collection' || !node.props?.type || node.children?.length || !templateApi.load) return null
     const card = (await templateApi.load(node.props.type))?.nodes?.[0]
@@ -665,6 +698,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Go back to the type's standard card. */
   function resetCard(id) {
+    if (translating.value) return false
     mutate((tree) => {
       const node = findNode(tree, id)
       if (node?.kind === 'collection') node.children = []
@@ -684,6 +718,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Replace an instance with an editable copy of its component. */
   async function detach(id) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (node?.kind !== COMPONENT || !componentApi.load) return false
     const component = await componentApi.load(node.props.component)
@@ -727,7 +762,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function nodeLabel(node) {
     if (!node) return ''
     if (node.name) return node.name
-    if (node.kind === 'tab') return node.props?.title || kindLabel('tab')
+    if (node.kind === 'tab') return valueFor(node, 'props', 'title') || kindLabel('tab')
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
     if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
@@ -735,7 +770,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function nodeSummary(node) {
-    const props = node.props ?? {}
+    const props = resolveLocalizedTree(node.props ?? {}, locale.value || defaultLocale.value, defaultLocale.value)
     switch (node.kind) {
       case 'field': {
         return smartSummary(props.source) || t('site.builder.noField')
@@ -785,7 +820,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
-    currentAvailable, locale, hasSyntaxErrors,
+    currentAvailable, locale, editingMode, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
     updateValue, renameNode, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,

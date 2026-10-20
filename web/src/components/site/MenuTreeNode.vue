@@ -1,6 +1,6 @@
 <template>
   <li :data-menu-row="item.id" role="treeitem" :aria-level="depth" :aria-selected="selectedId === item.id"
-      :aria-label="item.label || t('site.menus.untitled')"
+      :aria-label="label || t('site.menus.untitled')"
       :aria-expanded="item.children.length ? expanded : undefined" :tabindex="selectedId === item.id ? 0 : -1"
       class="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
       @focus.self="$emit('select', item.id)" @keydown="onKey">
@@ -13,7 +13,7 @@
       <span v-if="dropPosition === 'before' || dropPosition === 'after'" class="pointer-events-none absolute inset-x-0 h-0.5 bg-theme-500" :class="dropPosition === 'before' ? '-top-px' : '-bottom-px'"></span>
       <span v-if="dropPosition === 'inside'" class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-theme-500"></span>
       <button type="button" draggable="true" class="shrink-0 cursor-grab rounded p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"
-        :aria-label="t('site.menus.dragItem', { name: item.label || t('site.menus.untitled') })"
+        :aria-label="t('site.menus.dragItem', { name: label || t('site.menus.untitled') })"
         @click.stop @dragstart.stop="startDrag" @dragend="$emit('drag', '')">
         <Icon icon="mdi:drag-vertical" class="h-4 w-4" />
       </button>
@@ -22,14 +22,14 @@
         <Icon icon="mdi:chevron-right" class="h-4 w-4 transition-transform" :class="{ 'rotate-90': expanded }" />
       </button>
       <span v-else class="w-6 shrink-0"></span>
-      <Icon :icon="item.link.type === 'none' ? 'mdi:folder-outline' : 'mdi:link'" class="h-4 w-4 shrink-0 text-slate-400" />
+      <Icon :icon="link.type === 'none' ? 'mdi:folder-outline' : 'mdi:link'" class="h-4 w-4 shrink-0 text-slate-400" />
       <div class="min-w-0 flex-1 px-1">
         <div class="flex items-center gap-2">
-          <span class="truncate text-sm font-medium text-slate-800">{{ item.label || t('site.menus.untitled') }}</span>
+          <span class="truncate text-sm font-medium text-slate-800">{{ label || t('site.menus.untitled') }}</span>
           <span v-if="item.children.length" class="shrink-0 rounded bg-slate-100 px-1.5 text-xs text-slate-500" :title="t('site.menus.descendants')">{{ itemCount(item.children) }}</span>
-          <Icon v-if="linkIssue(item.link, item.label)" icon="mdi:alert-circle-outline" class="h-4 w-4 shrink-0 text-amber-600" :title="t(`site.link.${linkIssue(item.link, item.label)}`)" />
+          <Icon v-if="linkIssue(link, label)" icon="mdi:alert-circle-outline" class="h-4 w-4 shrink-0 text-amber-600" :title="t(`site.link.${linkIssue(link, label)}`)" />
         </div>
-        <MenuLinkSummary :link="item.link" :types="types" :settings="settings" :context="item.id" />
+        <MenuLinkSummary :link="link" :types="types" :settings="settings" :context="item.id" />
       </div>
     </div>
     <ul v-if="item.children.length && expanded" role="group" class="space-y-1 pt-1">
@@ -47,6 +47,7 @@ import { Icon } from '@iconify/vue'
 import MenuLinkSummary from './MenuLinkSummary.vue'
 import { itemCount, menuDrop } from '../../composables/menuTree.js'
 import { linkIssue } from '../../composables/siteLinks.js'
+import { resolveLocalized } from '../../composables/localizedValues.js'
 import { useI18n } from '../../i18n/index.js'
 const props = defineProps({
   item: { type: Object, required: true }, items: { type: Array, required: true }, depth: { type: Number, default: 1 },
@@ -55,6 +56,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'toggle', 'navigate', 'drag', 'move'])
 const { t } = useI18n()
+const link = computed(() => resolveLocalized(props.item.link, props.settings.default_locale, props.settings.default_locale))
+const label = computed(() => resolveLocalized(props.item.label, props.settings.default_locale, props.settings.default_locale))
 const expanded = computed(() => props.expandedIds.has(props.item.id))
 const dropPosition = ref('')
 watch(() => props.dragId, () => { dropPosition.value = '' })

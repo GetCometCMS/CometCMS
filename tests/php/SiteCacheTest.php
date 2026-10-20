@@ -122,7 +122,7 @@ test('scheduled publishing bounds cached pages including 404s and sitemaps', fun
     // Advance the stored publication date as well, without triggering a write invalidation.
     $store = new JsonStore(comet_test_workspace_path() . '/content');
     $entry = $store->read('blog', 'coming-soon');
-    $entry['published_at'] = gmdate('c', time() - 1);
+    $entry['publication']['en']['published_at'] = gmdate('c', time() - 1);
     $store->write($entry, 'blog', 'coming-soon');
 
     $published = comet_site_cache_test_get('/blog/coming-soon');
@@ -140,24 +140,24 @@ test('content updates unpublishing renaming trash and restore invalidate rendere
 
     $entry = $content->find('blog', 'hello');
     $entry['title'] = 'Updated headline';
-    $content->save('blog', $entry, $user, 'hello');
+    $content->save('blog', array_intersect_key($entry, array_flip(['title', 'status', 'slug'])), $user, 'hello');
     $response = comet_site_cache_test_get('/blog/hello');
     assert_same('MISS', $response['cache_status']);
     assert_true(str_contains($response['body'], 'Updated headline'));
     assert_same('MISS', comet_site_cache_test_get('/sitemap.xml')['cache_status']);
 
     $entry['status'] = 'draft';
-    $content->save('blog', $entry, $user, 'hello');
+    $content->save('blog', array_intersect_key($entry, array_flip(['title', 'status', 'slug'])), $user, 'hello');
     assert_same(404, comet_site_cache_test_get('/blog/hello')['status']);
     $entry['status'] = 'published';
     $entry['slug'] = 'renamed';
-    $content->save('blog', $entry, $user, 'hello');
+    $content->save('blog', array_intersect_key($entry, array_flip(['title', 'status', 'slug'])), $user, 'hello');
     assert_same(404, comet_site_cache_test_get('/blog/hello')['status']);
     assert_same(200, comet_site_cache_test_get('/blog/renamed')['status']);
 
-    $content->softDelete('blog', 'renamed', $user);
+    $content->softDelete('blog', $entry['id'], $user);
     assert_same(404, comet_site_cache_test_get('/blog/renamed')['status']);
-    $content->restore('blog', 'renamed', $user);
+    $content->restore('blog', $entry['id'], $user);
     assert_same(200, comet_site_cache_test_get('/blog/renamed')['status']);
 });
 

@@ -6,15 +6,15 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-title">{{ t("site.overview.siteTitle") }}</label>
-          <input id="site-title" v-model="settings.title" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="site.data.workspace_label" />
+          <LocalizedInput id="site-title" v-model="settings.title" class="w-full" :placeholder="site.data.workspace_label"  />
         </div>
         <div>
           <label class="form-label" for="site-tagline">{{ t("site.overview.tagline") }}</label>
-          <input id="site-tagline" v-model="settings.tagline" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="t('site.overview.taglinePlaceholder')" />
+          <LocalizedInput id="site-tagline" v-model="settings.tagline" class="w-full" :placeholder="t('site.overview.taglinePlaceholder')"  />
         </div>
         <div>
           <span class="form-label">{{ t("site.overview.logo") }}</span>
-          <MediaSelect v-model="settings.logo" name="site-logo" />
+          <LocalizedInput v-model="settings.logo"><template #default="{ value, update }"><MediaSelect :model-value="value" name="site-logo" @update:model-value="update" /></template></LocalizedInput>
         </div>
         <div>
           <span class="form-label">{{ t("site.overview.favicon") }}</span>
@@ -40,16 +40,16 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-title-template">{{ t("site.overview.titleTemplate") }}</label>
-          <input id="site-title-template" v-model="settings.title_template" type="text" class="form-input w-full rounded-lg border-slate-300 font-mono text-sm" />
+          <LocalizedInput id="site-title-template" v-model="settings.title_template" class="w-full"  />
           <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.titleTemplateHint") }}</p>
         </div>
         <div>
           <span class="form-label">{{ t("site.overview.shareImage") }}</span>
-          <MediaSelect v-model="settings.og_image" name="site-og-image" />
+          <LocalizedInput v-model="settings.og_image"><template #default="{ value, update }"><MediaSelect :model-value="value" name="site-og-image" @update:model-value="update" /></template></LocalizedInput>
         </div>
         <div class="md:col-span-2">
           <label class="form-label" for="site-description">{{ t("site.overview.metaDescription") }}</label>
-          <textarea id="site-description" v-model="settings.description" rows="2" maxlength="300" class="form-textarea w-full rounded-lg border-slate-300 text-sm"></textarea>
+          <LocalizedInput id="site-description" v-model="settings.description" multiline rows="2" maxlength="300" class="w-full" />
         </div>
         <label class="flex items-start gap-3 md:col-span-2">
           <ToggleSwitch v-model="settings.noindex" />
@@ -64,6 +64,7 @@
 </template>
 
 <script setup>
+import LocalizedInput from "../LocalizedInput.vue";
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import MediaSelect from "./MediaSelect.vue";

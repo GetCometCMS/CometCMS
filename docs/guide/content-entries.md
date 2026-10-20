@@ -15,13 +15,13 @@ Single page content types appear under **Content** in the sidebar like collectio
 
 Entries are created with a `draft` status by default. Toggle the **Published** switch (or a `boolean` / `datetime` field of your choice) to publish them.
 
-If the content type has locales, new entries start in the default locale unless you choose another locale. The entry slug, status, author, and publish date are shared across locales.
+New entries start in the workspace default language unless you choose another enabled language. Each language has its own slug, publication status, and publication date; authors and stable IDs are shared.
 
 ## Editing an entry
 
 Click any row in the list to open the entry editor. Changes are saved when you click **Save entry**.
 
-Localized entries show locale pills above the form. Solid pills have saved translations, dashed pills create a missing locale variant, and the default locale is labeled. Deleting a locale variant only removes that translation; the entry and other locales remain.
+Localized entries show locale pills above the form. Solid pills have saved translations, dashed pills create a missing locale variant, and the default locale is labeled. Deleting a locale variant only removes that translation; the entry and other locales remain. Source text and inherited-value indicators appear beside translated fields. **Reset to default language** removes an override. A source change marks saved translations for review without changing their text. Saving preserves drafts prepared in other language tabs. A stale save reports a conflict and keeps the draft.
 
 ## Entry history
 

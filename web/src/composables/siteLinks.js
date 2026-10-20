@@ -1,3 +1,4 @@
+import { entryForLocale, resolveLocalized } from './localizedValues.js'
 import { DEFAULT_MENU_LIMITS } from './menuTree.js'
 
 /**
@@ -23,7 +24,7 @@ export function eligibleTypes(types, settings, kind) {
 }
 
 export function entryTitle(entry, locale) {
-  return entry?.translations?.[locale]?.title || entry?.title || entry?.slug || entry?.id || ''
+  return entryForLocale(entry, locale, entry?.locale || 'en').title || entry?.title || entry?.slug || entry?.id || ''
 }
 
 export function entryIdentifier(entry) {
@@ -57,7 +58,9 @@ export function safeLinkUrl(value) {
   return !!url && (!/^[a-z][a-z0-9+.-]*:/i.test(url) || /^(https?|mailto|tel):/i.test(url))
 }
 
-export function linkIssue(link = {}, label = '') {
+export function linkIssue(link = {}, label = '', defaultLocale = 'en') {
+  link = resolveLocalized(link, defaultLocale, defaultLocale) ?? {}
+  label = String(resolveLocalized(label, defaultLocale, defaultLocale) ?? '')
   const type = link.type ?? 'none'
   if (type === 'none') return label.trim() ? '' : 'groupLabel'
   if (type === 'url') return safeLinkUrl(link.url) ? '' : 'invalidUrl'
@@ -69,7 +72,7 @@ export function linkIssue(link = {}, label = '') {
 }
 
 /** Local validation mirrors structural server limits and reports item paths. */
-export function menuErrors(menus, t, limits = DEFAULT_MENU_LIMITS) {
+export function menuErrors(menus, t, limits = DEFAULT_MENU_LIMITS, defaultLocale = 'en') {
   const errors = {}
   if (menus.length > limits.max_menus) errors.menus = t('site.menus.limitMenus', { count: limits.max_menus })
   const visit = (items, depth, path) => {
@@ -77,7 +80,7 @@ export function menuErrors(menus, t, limits = DEFAULT_MENU_LIMITS) {
     if (items.length > limits.max_siblings) errors[path] = t('site.menus.limitSiblings', { count: limits.max_siblings })
     for (const [index, item] of items.entries()) {
       const key = `${path}.${index}`
-      const issue = linkIssue(item.link, item.label)
+      const issue = linkIssue(item.link, item.label, defaultLocale)
       if (issue) errors[key] = t(`site.link.${issue}`)
       visit(item.children ?? [], depth + 1, `${key}.children`)
     }

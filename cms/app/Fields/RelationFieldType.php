@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Fields;
 
 use CometCMS\Core\Security;
-use CometCMS\Storage\JsonStore;
-use CometCMS\Workspaces\WorkspaceContext;
+use CometCMS\Content\ContentRepository;
 
 final class RelationFieldType extends AbstractFieldType
 {
@@ -35,10 +34,10 @@ final class RelationFieldType extends AbstractFieldType
         }
 
         $values = $multiple ? $this->values($value) : $this->singleValues($value);
-        $store = new JsonStore(WorkspaceContext::active()->path('content'));
+        $repository = ContentRepository::make();
 
         foreach ($values as $id) {
-            if ($id === '' || $store->read($target, $id) === null) {
+            if ($id === '' || $repository->findByIdentifier($target, $id) === null) {
                 return $this->error('Related entry does not exist: ' . $id, 'missing_relation');
             }
         }
@@ -48,11 +47,11 @@ final class RelationFieldType extends AbstractFieldType
 
     public function normalize(mixed $value, array $config, array $context = []): mixed
     {
-        if ($config['multiple'] ?? false) {
-            return array_values(array_unique($this->values($value)));
-        }
-
-        return $this->singleValue($value);
+        $repository = ContentRepository::make();
+        $normalize = fn(string $id): string => $repository->stableId($repository->findByIdentifier($config['target'], $id) ?? ['id' => $id]);
+        if ($config['multiple'] ?? false) return array_values(array_unique(array_map($normalize, $this->values($value))));
+        $id = $this->singleValue($value);
+        return $id !== null ? $normalize($id) : null;
     }
 
     public function renderInput(string $name, mixed $value, array $config, array $context = []): string
@@ -60,11 +59,11 @@ final class RelationFieldType extends AbstractFieldType
         $target = (string) ($config['target'] ?? '');
         $multiple = (bool) ($config['multiple'] ?? false);
         $selected = $multiple ? (array) $value : [(string) $value];
-        $entries = $target !== '' ? (new JsonStore(WorkspaceContext::active()->path('content')))->all($target) : [];
+        $entries = $target !== '' ? ContentRepository::make()->all($target) : [];
         $html = '<select name="' . Security::e($name) . ($multiple ? '[]' : '') . '"' . ($multiple ? ' multiple size="6"' : '') . '><option value=""></option>';
 
         foreach ($entries as $entry) {
-            $id = (string) ($entry['id'] ?? '');
+            $id = (string) ($entry['uid'] ?? $entry['id'] ?? '');
             $html .= '<option value="' . Security::e($id) . '"' . (in_array($id, $selected, true) ? ' selected' : '') . '>' . Security::e($entry['title'] ?? $id) . '</option>';
         }
 
@@ -101,6 +100,6 @@ final class RelationFieldType extends AbstractFieldType
     {
         $raw = trim((string) $value);
 
-        return $raw !== '' ? Security::slug($raw) : '';
+        return preg_match('/^[A-Za-z0-9_-]+$/', $raw) ? $raw : '';
     }
 }

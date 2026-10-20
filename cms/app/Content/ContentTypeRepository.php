@@ -7,6 +7,8 @@ namespace CometCMS\Content;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LanguageSettings;
+use CometCMS\Localization\LocalizedValue;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Storage\JsonStore;
@@ -101,14 +103,26 @@ final class ContentTypeRepository
     public function save(array $schema): void
     {
         $name = Security::slug((string) ($schema['name'] ?? ''));
+        $this->store->synchronized(fn() => $this->saveUnlocked($schema), $name);
+    }
+
+    private function saveUnlocked(array $schema): void
+    {
+        $name = Security::slug((string) ($schema['name'] ?? ''));
         if (!empty($schema['api_enabled'])) {
             $schema['visibility'] = 'public';
         }
         $previous = $this->exists($name) ? $this->find($name) : null;
+        if ($previous !== null && isset($schema['revision']) && $schema['revision'] !== $previous['revision']) throw new \CometCMS\Core\ConflictException();
         $schema['api_enabled'] ??= $previous['api_enabled'] ?? false;
         $schema['allow_submissions'] ??= $previous['allow_submissions'] ?? false;
         if (!array_key_exists('submission_settings', $schema)) {
             $schema['submission_settings'] = $previous['submission_settings'] ?? null;
+        }
+        if (isset($schema['locales']) && $schema['locales'] !== []) {
+            $languages = (new LanguageSettings($this->workspace))->all();
+            $requested = array_values(array_filter(array_map(LanguageSettings::code(...), $schema['locales'])));
+            if (array_diff($requested, $languages['locales']) !== [] || !in_array($languages['default_locale'], $requested, true)) throw new ValidationException(['locales' => 'Choose workspace languages, including the default.']);
         }
         $schema = $this->normalize($name, $schema);
         if ($schema['allow_submissions']) {
@@ -196,13 +210,10 @@ final class ContentTypeRepository
                 $schema['locales']
             ), static fn(string $locale): bool => $locale !== '')))
             : [];
-        $defaultLocale = self::normalizeLocale((string) ($schema['default_locale'] ?? ''));
-
-        if ($locales === []) {
-            $defaultLocale = '';
-        } elseif ($defaultLocale === '' || !in_array($defaultLocale, $locales, true)) {
-            $defaultLocale = $locales[0];
-        }
+        $languages = (new LanguageSettings($this->workspace))->all();
+        $defaultLocale = $languages['default_locale'];
+        $locales = $locales ?: [$defaultLocale];
+        $locales = array_values(array_unique([$defaultLocale, ...array_intersect($locales, $languages['locales'])]));
 
         // Existing forms keep working until their type explicitly disables submissions.
         $legacyForms = [];
@@ -216,8 +227,13 @@ final class ContentTypeRepository
 
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
+        foreach ($fields as $key => &$config) {
+            if (in_array($key, ['values', 'publication', 'revision', 'reset_fields', 'locale', 'translations'], true)) throw new ValidationException(['fields' => 'This field key is reserved: ' . $key]);
+            $config = $this->fieldMetadata($config, $languages['locales']);
+        }
+        unset($config);
 
-        return [
+        $normalized = [
             'name' => $name,
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
@@ -234,6 +250,21 @@ final class ContentTypeRepository
             'default_locale' => $defaultLocale,
             'fields' => $fields,
         ];
+        return $normalized + ['revision' => LocalizedValue::hash($normalized)];
+    }
+
+    private function fieldMetadata(array $config, array $locales): array
+    {
+        $text = static fn(mixed $value): string => is_scalar($value) ? \CometCMS\Site\Text::limit(trim((string) $value), 2000) : '';
+        foreach (['label', 'description', 'placeholder'] as $key) {
+            if (array_key_exists($key, $config)) $config[$key] = LocalizedValue::normalize($config[$key], $text, $locales);
+        }
+        if (($config['type'] ?? '') === 'select' && is_array($config['options'] ?? null) && !array_is_list($config['options'])) {
+            foreach ($config['options'] as &$label) $label = LocalizedValue::normalize($label, $text, $locales);
+            unset($label);
+        }
+        foreach ($config['subfields'] ?? [] as $index => $subfield) $config['subfields'][$index] = $this->fieldMetadata($subfield, $locales);
+        return $config;
     }
 
     private function contentTypeOrder(): array

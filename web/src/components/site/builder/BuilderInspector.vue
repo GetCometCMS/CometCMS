@@ -232,7 +232,7 @@ const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.p
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
 const component = computed(() => builder.componentOf(node.value));
-const locked = computed(() => !!node.value && builder.isLockedRoot(node.value.id));
+const locked = computed(() => builder.translating?.value || (!!node.value && builder.isLockedRoot(node.value.id)));
 const nodePath = useBuilderBreadcrumbs(builder);
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);

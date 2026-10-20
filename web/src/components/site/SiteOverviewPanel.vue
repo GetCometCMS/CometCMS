@@ -48,7 +48,7 @@
         </div>
         <div>
           <label class="form-label" for="site-default-locale">{{ t("site.overview.defaultLanguage") }}</label>
-          <select id="site-default-locale" v-model="settings.default_locale" class="form-select w-full rounded-lg border-slate-300 text-sm" :disabled="settings.locales.length === 0">
+          <select id="site-default-locale" v-model="settings.default_locale" class="form-select w-full rounded-lg border-slate-300 text-sm" :disabled="true">
             <option v-for="locale in settings.locales" :key="locale" :value="locale">{{ localeLabel(locale) }}</option>
           </select>
           <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.defaultLanguageHint") }}</p>
@@ -76,11 +76,11 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label class="form-label" for="site-404-title">{{ t("site.overview.notFoundTitle") }}</label>
-          <input id="site-404-title" v-model="settings.not_found_title" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" />
+          <LocalizedInput id="site-404-title" v-model="settings.not_found_title" class="w-full"  />
         </div>
         <div>
           <label class="form-label" for="site-404-message">{{ t("site.overview.notFoundMessage") }}</label>
-          <input id="site-404-message" v-model="settings.not_found_message" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" />
+          <LocalizedInput id="site-404-message" v-model="settings.not_found_message" class="w-full" />
         </div>
       </div>
     </section>
@@ -94,10 +94,12 @@ import SearchableSelect from "../SearchableSelect.vue";
 import { api } from "../../api/index.js";
 import { localeLabel } from "../../composables/localeOptions.js";
 import { useSiteStore } from "../../stores/site.js";
+import { useLanguages } from "../../composables/useLanguages.js";
 import { useI18n } from "../../i18n/index.js";
 
 const site = useSiteStore();
 const { t } = useI18n();
+const languages = useLanguages();
 const settings = computed(() => site.draft.settings);
 const homeEntries = ref([]);
 const loadingEntries = ref(false);
@@ -135,8 +137,8 @@ const domainsText = computed({
 watch(
   () => settings.value.locales,
   (locales) => {
-    if (locales.length === 0) settings.value.default_locale = "";
-    else if (!locales.includes(settings.value.default_locale)) settings.value.default_locale = locales[0];
+    settings.value.default_locale = languages.defaultLocale.value;
+    if (!locales.includes(languages.defaultLocale.value)) settings.value.locales = [languages.defaultLocale.value, ...locales];
   },
   { deep: true },
 );

@@ -267,6 +267,7 @@ $registry = new \CometCMS\Workspaces\WorkspaceRepository();
 $registry->save(['slug' => 'preview-site', 'label' => 'Preview site']);
 foreach (['default', 'preview-site'] as $slug) {
     $workspace = new \CometCMS\Workspaces\WorkspaceContext($slug);
+    (new \CometCMS\Localization\LanguageSettings($workspace))->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     (new \CometCMS\Content\ContentTypeRepository($workspace))->save([
         'name' => 'startseite', 'singleton' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en',
     ]);

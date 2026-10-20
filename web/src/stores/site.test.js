@@ -132,13 +132,14 @@ describe('menu saves', () => {
 
   it('saves nested menus with their IDs and resets the dirty flag after success', async () => {
     const site = useSiteStore()
-    site.data = { settings: {}, theme: {}, menus: [] }
+    site.data = { settings: {}, theme: {}, menus: [], menus_revision: 'm1' }
     site.resetDraft()
     const menus = [{ name: 'main', items: [{ id: 'parent', label: 'Group', link: { type: 'none' }, children: [{ id: 'child', label: 'Contact', link: { type: 'anchor', anchor: 'contact' }, children: [] }] }] }]
     site.draft.menus = menus
-    api.site.saveMenus.mockResolvedValue({ data: menus })
+    api.site.saveMenus.mockResolvedValue({ data: menus, meta: { revision: 'm2' } })
     await site.save()
-    expect(api.site.saveMenus).toHaveBeenCalledWith(menus)
+    expect(api.site.saveMenus).toHaveBeenCalledWith(menus, 'm1')
+    expect(site.data.menus_revision).toBe('m2')
     expect(site.isDirty).toBe(false)
     expect(site.draft.menus[0].items[0].children[0].id).toBe('child')
     expect(site.draft.menus).not.toBe(site.data.menus)
