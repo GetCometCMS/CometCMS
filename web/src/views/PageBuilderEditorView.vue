@@ -117,9 +117,9 @@
   :aria-label="t('site.builder.panels')"
 >
   <template v-for="panel in panels" :key="panel.value">
-    <!-- Separator before Fields / Components -->
+    <!-- Separator before entry fields -->
     <div
-      v-if="panel.value === 'fields' || (panel.value === 'components' && !hasEntryFields)"
+      v-if="panel.value === 'fields'"
       class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
       aria-hidden="true"
     ></div>
@@ -143,7 +143,7 @@
 
     <!-- Separator before design settings -->
     <div
-      v-if="panel.value === 'components'"
+      v-if="(panel.value === 'outline' && !hasEntryFields) || panel.value === 'fields'"
       class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
       aria-hidden="true"
     ></div>
@@ -189,7 +189,6 @@
           </div>
           <div class="relative z-0 min-h-0 flex-1 overflow-y-auto">
             <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
-            <BuilderComponents v-else-if="leftPanel === 'components'" @deleted="onComponentDeleted" @renamed="onComponentRenamed" />
             <BuilderOutline v-else-if="leftPanel === 'outline'" />
             <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
             <BuilderHistory
@@ -307,7 +306,6 @@ import BuilderHelp from "../components/site/builder/BuilderHelp.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
-import BuilderComponents from "../components/site/builder/BuilderComponents.vue";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
@@ -431,10 +429,9 @@ const DESIGN_MIN_WIDTH = 320;
 /** Code reads better wide, so the stylesheet panel may grow further. */
 const CSS_MIN_WIDTH = 360;
 const CSS_MAX_WIDTH = 720;
-/** Components are managed in the builder's components panel. */
-const COMPONENTS_PATH = "/page-builder/builder/region/header?settings=components";
+const COMPONENTS_PATH = "/page-builder/components";
 /** The open left panel, or null when collapsed. */
-const leftPanel = ref(["design", "css", "components"].includes(route.query.settings) ? route.query.settings : "add");
+const leftPanel = ref(["design", "css"].includes(route.query.settings) ? route.query.settings : "add");
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
@@ -442,7 +439,6 @@ const panels = computed(() => [
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
   ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
-  { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
@@ -783,18 +779,6 @@ function onRevisionLoaded(data, revision) {
   const before = loadedRevisions.value.layout?.before ?? clone(builder.nodes.value);
   loadedRevisions.value.layout = { before, revision, customized: data.customized, nodes: JSON.stringify(data.nodes) };
   builder.loadRevision(data.nodes);
-}
-
-function onComponentRenamed(updated) {
-  if (target === "component" && name === updated.id && component.value) component.value = { ...component.value, name: updated.name };
-}
-
-function onComponentDeleted(id) {
-  historyVersion.value++;
-  if (target === "component" && name === id) {
-    bypass();
-    router.push(COMPONENTS_PATH);
-  }
 }
 
 /** Turn the node waiting in the name dialog into a component instance. */

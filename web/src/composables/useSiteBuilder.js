@@ -76,7 +76,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
     && (settings.value?.routes?.[item.name]?.enabled || settings.value?.homepage?.type === item.name)))
   const currentAvailable = ref(true)
-  /** Reusable components ({ id, name, root, type }) listed in the components panel. */
+  /** Reusable components ({ id, name, root, type }) available in the Add panel. */
   const components = ref([])
   /** Editing a component: its id and root kind; its tree holds just that one root node. */
   const componentId = ref(null)

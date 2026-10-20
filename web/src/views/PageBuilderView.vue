@@ -83,6 +83,7 @@
       <SiteOverviewPanel v-if="activeTab === 'overview'" />
       <SiteDesignPanel v-else-if="activeTab === 'design'" layout="page" />
       <SiteSeoPanel v-else-if="activeTab === 'seo'" />
+      <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <section v-else-if="activeTab === 'fonts'" class="card p-6">
         <div class="mb-4">
           <h2 class="card-title">{{ t("site.fonts.libraryTitle") }}</h2>
@@ -116,6 +117,7 @@ import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
+import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import FontLibrary from "../components/site/FontLibrary.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
@@ -131,13 +133,14 @@ const PARTS = ["settings", "theme", "menus"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "design", "seo", "menus", "fonts"]);
+const validTabs = new Set(["overview", "design", "seo", "menus", "fonts", "components"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
 const tabs = computed(() => [
   { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
   { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
+  { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline", to: "/page-builder/components" },
   { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },
 ]);
 

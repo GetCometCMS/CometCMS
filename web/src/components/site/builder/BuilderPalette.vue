@@ -70,7 +70,24 @@
       />
       <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
     </BuilderGroup>
-    <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !elementKinds.length && !fields.length" role="status" class="px-1 text-sm text-slate-500">
+    <BuilderGroup v-if="components.length || !searchTerms.length" v-model:open="expanded.components" :title="t('site.component.group')" content-class="mt-2 space-y-1.5">
+      <PaletteItem
+        v-for="component in components"
+        :key="component.id"
+        wide
+        :icon="KIND_ICONS.component"
+        :label="component.name"
+        :meta="component.type ? typeLabel(component.type) : builder.kindLabel(component.root)"
+        :disabled="!builder.canInsertComponent(component)"
+        :hint="builder.canInsertComponent(component) ? component.name : t('site.component.unavailable')"
+        @add="addComponent(component)"
+        @drag="startComponent($event, component)"
+        @dragend="end"
+      />
+      <p v-if="!builder.components.value.length" class="px-1 text-xs text-slate-400">{{ t('site.component.paletteEmpty') }}</p>
+      <router-link to="/page-builder/components" class="inline-flex px-1 py-1 text-xs font-medium text-theme-700 hover:underline">{{ t('site.component.manage') }}</router-link>
+    </BuilderGroup>
+    <p v-if="searchTerms.length && !presets.length && !layoutKinds.length && !elementKinds.length && !fields.length && !components.length" role="status" class="px-1 text-sm text-slate-500">
       {{ t("site.builder.noSearchResults") }}
     </p>
   </div>
@@ -82,7 +99,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
-import { ancestors, sectionPreset } from "../../../composables/layoutTree.js";
+import { ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -100,10 +117,10 @@ const { fieldTypeIcon } = useFieldTypeMeta();
 const search = ref("");
 const searchId = `builder-palette-search-${useId()}`;
 const searchTerms = computed(() => search.value.trim().toLowerCase().split(/\s+/).filter(Boolean));
-const expanded = ref({ layout: true, elements: true, fields: true });
+const expanded = ref({ layout: true, elements: true, fields: true, components: true });
 
 watch(searchTerms, (terms) => {
-  if (terms.length) expanded.value = { layout: true, elements: true, fields: true };
+  if (terms.length) expanded.value = { layout: true, elements: true, fields: true, components: true };
 });
 
 function matches(...values) {
@@ -128,6 +145,26 @@ const layoutKinds = computed(() => ["row", "column"].filter((kind) => matches(
 const elementKinds = computed(() =>
   (builder.spec.value?.elements ?? []).filter((kind) => !["field", "component"].includes(kind) && matches(builder.kindLabel(kind), kind, kindHint(kind))),
 );
+
+function typeLabel(name) {
+  return builder.types.value.find((type) => type.name === name)?.label ?? name;
+}
+
+const components = computed(() => [...builder.components.value]
+  .filter((component) => matches(t('site.component.group'), component.name, builder.kindLabel(component.root), typeLabel(component.type)))
+  .sort((a, b) => a.name.localeCompare(b.name)));
+
+function addComponent(component) {
+  if (builder.canInsertComponent(component)) builder.insert(instanceNode(builder.spec.value, component));
+}
+
+function startComponent(event, component) {
+  if (!builder.canInsertComponent(component)) {
+    event.preventDefault();
+    return;
+  }
+  start(event, () => instanceNode(builder.spec.value, component));
+}
 
 /** The repeater whose item template the selection is in (or is). */
 const templateOwner = computed(() => {
