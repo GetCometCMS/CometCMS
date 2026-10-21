@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CometCMS\Site;
+
+/**
+ * Search of the website's pages for the search element.
+ *
+ * Only entries a visitor could open are found: published entries of public
+ * content types that have website pages. Hits carry nothing but a title, a
+ * URL and the type's label, so a search reveals no more than the pages do.
+ * The bundled script is allowed by its exact CSP hash, like Tabs.
+ */
+final class SiteSearch
+{
+    /** Hits shown at most in the search element's dropdown. */
+    public const MAX_RESULTS = 7;
+
+    public const MAX_QUERY_LENGTH = 100;
+
+    /** Field types whose text can be searched; select fields match their keys and labels. */
+    public const FIELD_TYPES = ['text', 'slug', 'textarea', 'markdown', 'html', 'select'];
+
+    public function __construct(private readonly SiteContext $ctx) {}
+
+    public static function script(): string
+    {
+        return (string) file_get_contents(__DIR__ . '/assets/search.js') . "\ninitSearch(document);";
+    }
+
+    public static function cspSource(): string
+    {
+        return "'sha256-" . base64_encode(hash('sha256', self::script(), true)) . "'";
+    }
+
+    /**
+     * The types a search looks through and the fields searched in each.
+     * Empty $collections means every type with pages; empty $fields means the
+     * title and every searchable field. Types left without fields drop out.
+     *
+     * @return array<string, array<string, array>> type => field => config
+     */
+    public function targets(array $collections = [], array $fields = []): array
+    {
+        $names = $collections !== [] ? $collections : array_keys($this->ctx->site->types());
+        $targets = [];
+
+        foreach ($names as $name) {
+            $name = (string) $name;
+            $schema = $this->ctx->type($name);
+            if ($schema === null || !$this->hasPages($name)) {
+                continue;
+            }
+
+            $searchable = ['title' => ['type' => 'text']];
+            foreach (is_array($schema['fields'] ?? null) ? $schema['fields'] : [] as $key => $config) {
+                if (is_array($config) && in_array($config['type'] ?? 'text', self::FIELD_TYPES, true)) {
+                    $searchable[(string) $key] = $config;
+                }
+            }
+            if ($fields !== []) {
+                $searchable = array_intersect_key($searchable, array_flip($fields));
+            }
+            if ($searchable !== []) {
+                $targets[$name] = $searchable;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Entries matching $query, best first: titles that start with it, then
+     * titles with a word that starts with it, then any other match; newer
+     * entries first within each group.
+     *
+     * @return list<array{title: string, url: string, type: string}>
+     */
+    public function search(string $query, array $collections = [], array $fields = [], int $limit = self::MAX_RESULTS): array
+    {
+        $query = self::lower(trim(Text::limit($query, self::MAX_QUERY_LENGTH)));
+        if ($query === '') {
+            return [];
+        }
+
+        $hits = [];
+        foreach ($this->targets($collections, $fields) as $type => $searchable) {
+            $label = (string) (($this->ctx->type($type)['label'] ?? '') ?: $type);
+
+            foreach ($this->ctx->query($type, [])['data'] as $entry) {
+                $entry = $this->ctx->localize($type, $entry);
+                $rank = $this->rank($entry, $searchable, $query);
+                if ($rank === null) {
+                    continue;
+                }
+                $url = $this->ctx->entryUrl($type, $entry);
+                if ($url === null) {
+                    continue;
+                }
+                $hits[] = [
+                    'rank' => $rank,
+                    'date' => (string) ($entry['published_at'] ?? ''),
+                    'hit' => ['title' => (string) ($entry['title'] ?? ''), 'url' => $url, 'type' => $label],
+                ];
+            }
+        }
+
+        usort($hits, static fn(array $a, array $b): int => [$a['rank'], $b['date']] <=> [$b['rank'], $a['date']]);
+
+        return array_column(array_slice($hits, 0, max(1, min(self::MAX_RESULTS, $limit))), 'hit');
+    }
+
+    /** Whether entries of $type open as pages of their own. */
+    private function hasPages(string $type): bool
+    {
+        return $this->ctx->route($type) !== null
+            || (($this->ctx->settings()['homepage']['type'] ?? '') === $type && $this->ctx->isPublicType($type));
+    }
+
+    /** 0–2 for a title match (see search()), 3 for another field, null for none. */
+    private function rank(array $entry, array $searchable, string $query): ?int
+    {
+        if (isset($searchable['title'])) {
+            $title = self::lower((string) ($entry['title'] ?? ''));
+            $position = strpos($title, $query);
+            if ($position === 0) {
+                return 0;
+            }
+            if ($position !== false) {
+                return preg_match('/(^|[^\p{L}\p{N}])' . preg_quote($query, '/') . '/u', $title) === 1 ? 1 : 2;
+            }
+        }
+
+        foreach ($searchable as $key => $config) {
+            if ($key !== 'title' && str_contains($this->text($entry[$key] ?? null, $config), $query)) {
+                return 3;
+            }
+        }
+
+        return null;
+    }
+
+    /** The lower-case text of a field value as visitors read it. */
+    private function text(mixed $value, array $config): string
+    {
+        $values = is_array($value) ? $value : [$value];
+        $options = is_array($config['options'] ?? null) ? $config['options'] : [];
+        $parts = [];
+
+        foreach ($values as $item) {
+            if (!is_scalar($item)) {
+                continue;
+            }
+            $parts[] = (string) $item;
+            // A select stores the option's key; visitors see its label.
+            if (($config['type'] ?? '') === 'select' && !array_is_list($options) && is_scalar($options[$item] ?? null)) {
+                $parts[] = (string) $options[$item];
+            }
+        }
+        $text = implode(' ', $parts);
+        if (in_array($config['type'] ?? '', ['markdown', 'html'], true)) {
+            $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return self::lower($text);
+    }
+
+    /** Case folding beyond ASCII needs mbstring; without it, other letters must match exactly. */
+    private static function lower(string $text): string
+    {
+        return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+    }
+}

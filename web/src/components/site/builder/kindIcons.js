@@ -18,6 +18,7 @@ export const KIND_ICONS = {
   collection: 'mdi:view-grid-outline',
   form: 'mdi:form-select',
   menu: 'mdi:menu',
+  search: 'mdi:magnify',
   site_title: 'mdi:home-variant-outline',
   language_switcher: 'mdi:translate',
   component: 'mdi:puzzle-outline',

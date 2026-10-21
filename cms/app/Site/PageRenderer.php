@@ -286,6 +286,8 @@ final class PageRenderer
                 ? '<script type="module">' . GalleryLightbox::script() . '</script>' : '')
             . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-tabs=')
                 ? '<script type="module">' . Tabs::script() . '</script>' : '')
+            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-search=')
+                ? '<script type="module">' . SiteSearch::script() . '</script>' : '')
             . '</body></html>';
     }
 

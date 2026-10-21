@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Controllers;
 
 use CometCMS\Core\Http;
+use CometCMS\Core\RateLimiter;
 use CometCMS\Site\Flags;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
@@ -15,6 +16,7 @@ use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
+use CometCMS\Site\SiteSearch;
 use CometCMS\Site\SiteService;
 use CometCMS\Site\Theme;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -154,6 +156,44 @@ final class SiteController
         $this->http->redirect($this->returnPath($_POST['_return'] ?? null) . ($anchor !== '' ? '#' . $anchor . '-' . $result['status'] : ''), 303);
     }
 
+    /**
+     * Hits for a search element as JSON: ?q= the text, types= and fields=
+     * comma-separated keys (empty for all), limit= and locale=. Only pages a
+     * visitor could open are searched (see SiteSearch), so the request may
+     * name any type or field without revealing more than the website does.
+     */
+    public function search(string $workspace): never
+    {
+        if (!(new WorkspaceRepository())->exists($workspace)) {
+            $this->http->notFound();
+        }
+
+        $site = new SiteRepository(new WorkspaceContext($workspace));
+        if (!$site->settings()['enabled']) {
+            $this->http->notFound();
+        }
+
+        $limits = new RateLimiter($site->workspace()->path('cache') . '/search-limits');
+        if ($limits->hit('site-search', (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), max(1, (int) comet_config('site.search.rate_limit_per_minute', 120)), 60)) {
+            header('Retry-After: 60');
+            $this->http->json(['error' => ['code' => 'rate_limited', 'message' => 'Too many searches. Please wait a moment.']], 429);
+        }
+
+        $context = SiteContext::make($site, rtrim($this->http->url('/'), '/'), $this->origin());
+        $locale = LayoutSchema::key($_GET['locale'] ?? '');
+        if ($locale !== '' && in_array($locale, $context->locales(), true)) {
+            $context->locale = $locale;
+        }
+        $keys = static fn(mixed $value): array => array_values(array_filter(array_map(LayoutSchema::key(...), explode(',', is_string($value) ? $value : '', 50)), static fn(string $key): bool => $key !== ''));
+        $query = is_string($_GET['q'] ?? null) ? $_GET['q'] : '';
+        $limit = (int) ($_GET['limit'] ?? SiteSearch::MAX_RESULTS);
+        $hits = (new SiteSearch($context))->search($query, $keys($_GET['types'] ?? ''), $keys($_GET['fields'] ?? ''), $limit);
+
+        header('Cache-Control: public, max-age=60');
+        header('X-Content-Type-Options: nosniff');
+        $this->http->json(['data' => $hits]);
+    }
+
     /** Only a path on this site is followed, never another host. */
     private function returnPath(mixed $path): string
     {
@@ -205,7 +245,7 @@ final class SiteController
 
         if (str_starts_with($response['content_type'], 'text/html')) {
             $sources = [];
-            foreach ([GalleryLightbox::class, Tabs::class] as $module) {
+            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class] as $module) {
                 if (str_contains($response['body'], '<script type="module">' . $module::script() . '</script>')) {
                     $sources[] = $module::cspSource();
                 }

@@ -145,6 +145,12 @@ final class SiteContext
         return $this->basePath . '/_site/forms/' . rawurlencode($this->site->workspace()->slug()) . '/' . rawurlencode($id);
     }
 
+    /** Where search elements look up their hits (see SiteController::search()). */
+    public function searchUrl(): string
+    {
+        return $this->basePath . '/_site/search/' . rawurlencode($this->site->workspace()->slug());
+    }
+
     public function siteTitle(): string
     {
         $title = (string) ($this->settings()['title'] ?? '');

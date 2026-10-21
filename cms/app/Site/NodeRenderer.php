@@ -44,6 +44,8 @@ final class NodeRenderer
 
     private int $tabsSequence = 0;
 
+    private int $searchSequence = 0;
+
     private SmartValue $smart;
 
     public function __construct(private readonly SiteContext $ctx)
@@ -124,6 +126,7 @@ final class NodeRenderer
             'collection' => $this->collection($node, $state),
             'form' => $this->form($node, $state),
             'menu' => $this->menu($node, $state),
+            'search' => $this->search($node),
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
             default => '',
@@ -816,6 +819,62 @@ final class NodeRenderer
         }
 
         return '<ul class="' . $class . '">' . $html . '</ul>';
+    }
+
+    /**
+     * A search field whose hits drop down below it. The search runs in
+     * SiteController::search() and the bundled search script draws the hits,
+     * so the page itself stays cacheable; the element only says what to search.
+     */
+    private function search(array $node): string
+    {
+        $props = $node['props'];
+        $lang = $this->ctx->htmlLang();
+        $id = 'search-' . $node['id'] . '-' . ++$this->searchSequence;
+        $placeholder = $props['placeholder'] !== '' ? $props['placeholder'] : Messages::get('search_placeholder', $lang);
+        $empty = $props['no_results_text'] !== '' ? $props['no_results_text'] : Messages::get('no_results', $lang);
+        $icon = $props['icon_position'] !== 'none' ? (Icons::catalog()[$props['icon']] ?? null) : null;
+        $classes = 'c-search c-search-' . $props['size'] . ' c-search-' . $props['variant'] . ($icon !== null ? ' c-search-icon-' . $props['icon_position'] : '');
+        $data = [
+            'search' => $this->ctx->searchUrl(),
+            'search-types' => implode(',', $props['collections']),
+            'search-fields' => implode(',', $props['fields']),
+            'search-limit' => (string) $props['max_results'],
+            'search-min' => (string) $props['min_chars'],
+            'search-locale' => $this->ctx->locale,
+            'search-empty' => $empty,
+            'search-count' => Messages::get('search_results', $lang),
+        ];
+        $attributes = '';
+        foreach (array_filter($data, static fn(string $value): bool => $value !== '') as $name => $value) {
+            $attributes .= ' data-' . $name . '="' . Security::e($value) . '"';
+        }
+        if ($props['show_type']) {
+            $attributes .= ' data-search-show-type';
+        }
+
+        $warning = '';
+        if ($this->annotating() && (new SiteSearch($this->ctx))->targets($props['collections'], $props['fields']) === []) {
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status">Nothing to search: choose content types with website pages and fields they have</div>';
+        }
+        $svg = $icon !== null
+            ? '<svg class="c-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+
+        return $this->element($node, $warning
+            . '<div class="' . $classes . '" role="search"' . $attributes . '>'
+            . '<label for="' . Security::e($id) . '" class="c-visually-hidden">' . Security::e(Messages::get('search', $lang)) . '</label>'
+            . '<div class="c-search-field">' . $svg
+            . '<input type="search" id="' . Security::e($id) . '" class="c-search-input" placeholder="' . Security::e($placeholder) . '"'
+            . ' autocomplete="off" spellcheck="false" enterkeyhint="search" maxlength="' . SiteSearch::MAX_QUERY_LENGTH . '"'
+            . ' role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' . Security::e($id) . '-results"'
+            // In the builder the field is part of the canvas, not something to type into.
+            . ($this->annotating() ? ' readonly tabindex="-1"' : '') . '>'
+            . '</div>'
+            . '<ul id="' . Security::e($id) . '-results" class="c-search-results" role="listbox" aria-label="' . Security::e(Messages::get('search_results_label', $lang)) . '" hidden></ul>'
+            . '<p class="c-search-status c-visually-hidden" role="status" aria-live="polite"></p>'
+            . '</div>'
+        );
     }
 
     private function collection(array $node, array $state): string

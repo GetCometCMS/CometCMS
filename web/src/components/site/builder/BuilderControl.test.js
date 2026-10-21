@@ -81,3 +81,57 @@ describe('builder link destinations', () => {
     }
   })
 })
+
+describe('builder search targets', () => {
+  const types = [
+    { name: 'blog', label: 'Blog', fields: { slug: { type: 'slug' }, body: { type: 'markdown', label: 'Body' }, cover: { type: 'media' } } },
+    { name: 'docs', label: 'Docs', fields: { body: { type: 'html', label: 'Content' }, summary: { type: 'textarea', label: 'Summary' } } },
+    { name: 'drafts', label: 'Drafts', fields: {} },
+    { name: 'notes', label: 'Notes', visibility: 'private', fields: {} },
+  ]
+
+  async function renderSearchControl(name, type, value, props = {}) {
+    const app = createSSRApp({ setup() {
+      const builder = createSiteBuilder({ t })
+      builder.types.value = types
+      builder.settings.value = { routes: { blog: { enabled: true }, docs: { enabled: true }, notes: { enabled: true } } }
+      return () => h(BuilderControl, { node: { id: 'search1', kind: 'search', props, style: {} }, name, def: { type, default: [] }, value })
+    } })
+    app.use(createPinia())
+    return renderToString(app)
+  }
+
+  it('offers public content types with pages and says that none checked searches all of them', async () => {
+    const html = await renderSearchControl('collections', 'content_types', [])
+    expect(html).toContain('Search in')
+    expect(html).toContain('All page types')
+    expect(html).toContain('Blog')
+    expect(html).toContain('Docs')
+    expect(html).not.toContain('Drafts')
+    expect(html).not.toContain('Notes')
+    expect(html.match(/type="checkbox"/g)).toHaveLength(2)
+  })
+
+  it('keeps a chosen type without pages visible so it can be unchecked', async () => {
+    const html = await renderSearchControl('collections', 'content_types', ['drafts'])
+    expect(html).toContain('Drafts')
+    expect(html).toContain('no pages')
+    expect(html).not.toContain('All page types')
+  })
+
+  it('lists the title and text fields of the searched types and notes where a field is missing', async () => {
+    const all = await renderSearchControl('fields', 'search_fields', [])
+    expect(all).toContain('All text fields')
+    expect(all).toContain('Title')
+    expect(all).toContain('Body')
+    expect(all).toContain('Summary')
+    expect(all).toMatch(/Summary<\/span><span[^>]*>Docs</)
+    expect(all).not.toContain('cover')
+    expect(all).not.toContain('>slug<')
+
+    const blogOnly = await renderSearchControl('fields', 'search_fields', ['body'], { collections: ['blog'] })
+    expect(blogOnly).not.toContain('Summary')
+    expect(blogOnly).not.toContain('All text fields')
+    expect(blogOnly).toMatch(/checked[^>]*>\s*<span[^>]*>Body</)
+  })
+})

@@ -406,6 +406,10 @@ try {
         (new SiteController($http))->flag($m[1]);
     }
 
+    if (preg_match('#^/_site/search/(' . SEG . ')$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->search($m[1]);
+    }
+
     if (preg_match('#^/_site/forms/(' . SEG . ')/(' . SEG . ')$#', $path, $m) && $method === 'POST') {
         (new SiteController($http))->submitForm($m[1], $m[2]);
     }

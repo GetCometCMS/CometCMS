@@ -789,6 +789,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         const form = forms.value.find((item) => item.id === props.form)
         return form ? (types.value.find((item) => item.name === form.type)?.label ?? form.type) : t('site.forms.none')
       }
+      case 'search': {
+        const names = (props.collections ?? []).map((name) => types.value.find((item) => item.name === name)?.label ?? name)
+        return names.length ? names.join(', ') : t('site.search.allTypes')
+      }
       case 'image':
         return smartSummary(props.media) || t('site.builder.noImage')
       case 'gallery':

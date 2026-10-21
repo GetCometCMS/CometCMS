@@ -348,6 +348,11 @@ const visibleProps = computed(() => {
     return keys.filter((key) => key !== "format" || props.flag !== "only");
   }
 
+  if (current.kind === "search") {
+    // Without an icon there is none to choose.
+    return keys.filter((key) => key !== "icon" || props.icon_position !== "none");
+  }
+
   if (current.kind === "section") {
     // Scroll effects show on a section that stays in view while scrolling.
     return keys.filter((key) => key !== "scroll_effect" || (props.sticky ?? "none") !== "none" || props.overlap);

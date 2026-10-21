@@ -145,6 +145,21 @@ The default limit is **10 MiB per file and 10 MiB total attachments per submissi
 
 Forms work without JavaScript. After sending, the visitor returns to the same page, where the form is replaced by the success message, or shows the error message above it. Spam protection uses a hidden trap field, and a limit of 5 submissions per visitor and form in 10 minutes (`site.forms.rate_limit_attempts` and `site.forms.rate_limit_window_seconds` in the configuration). Cloudflare Turnstile and Google reCAPTCHA are planned.
 
+### Search
+
+Add **Search** from **Add → Elements** to give visitors a search field, e.g. in the header. As they type, up to seven matching pages drop down below the field; arrow keys move through them, Enter opens the highlighted (or best) hit and Escape closes the list.
+
+In the inspector:
+
+- **Search in** picks the content types to search. Only types with website pages are offered, because every hit links to a page. With none checked, every type with pages is searched, including types added later.
+- **Search fields** picks what is compared: the title and the text, textarea, Markdown, HTML and select fields of the chosen types (select fields match both their option keys and labels). With none checked, the title and all of these fields are searched.
+- **Maximum results** (1–7) and **Search from characters** (1–5) control how many hits show and when searching starts.
+- **Placeholder**, **Icon** (left, right or none, and which icon), **Style** (outline, filled or a single line), **Size**, **Show content type of results** and **Text without results** change how it looks. Empty texts use defaults in the page's language. **Corners** under *Style → Shape* round the field too; *Full* turns it into a pill.
+
+Hits are ranked by where the text matches: titles that start with it first, then titles with a word that starts with it, then other title and field matches, newest first within each group. Only published entries of public content types are found, in the page's language, and a hit carries nothing but its title, URL and content type, so search reveals nothing the website itself does not show.
+
+The dropdown needs JavaScript; without it, the field is shown but does nothing. Requests go to `/_site/search/{workspace}`, are cached by browsers for a minute, and are limited to 120 per visitor and minute (`site.search.rate_limit_per_minute` in the configuration).
+
 ### AI and MCP access
 
 The builder stores layouts as structured JSON and shares its schema with the server renderer. This is a suitable foundation for AI design tools. The current MCP endpoint exposes content, schemas and media; website design tools have not been added yet. See the [MCP website design assessment](../api/mcp#website-design-readiness) for the current capabilities and remaining integration work.
@@ -245,7 +260,7 @@ The default workspace's website answers on the server's own address. To serve an
 - Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
 - Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
-- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery and Tabs modules when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
+- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery, Tabs and Search modules when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.

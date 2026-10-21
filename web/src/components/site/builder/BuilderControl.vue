@@ -233,6 +233,20 @@
       </button>
     </div>
 
+    <!-- Content types and fields a search looks through; none checked means all of them. -->
+    <div v-else-if="isKeyList" :id="inputId" class="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-slate-200 p-1" role="group" :aria-label="label">
+      <label
+        v-for="option in keyListOptions"
+        :key="option.value"
+        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      >
+        <input type="checkbox" class="form-checkbox h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-theme-600" :checked="listValue.includes(option.value)" @change="toggleKey(option.value)" />
+        <span class="min-w-0 flex-1 truncate" :class="{ 'text-slate-400 line-through': option.missing }">{{ option.label }}</span>
+        <span v-if="option.meta" class="max-w-[45%] shrink-0 truncate text-[10px] text-slate-400" :title="option.meta">{{ option.meta }}</span>
+      </label>
+      <p v-if="!keyListOptions.length" class="px-2 py-1 text-xs text-slate-500">{{ t(def.type === 'content_types' ? 'site.search.noPageTypes' : 'site.search.noFields') }}</p>
+    </div>
+
     <select
       v-else
       :id="inputId"
@@ -319,6 +333,7 @@ const hint = computed(() => {
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
   if (props.node.kind === "section" && props.name === "sticky" && value.value !== "none") return t("site.builder.stickyHint");
   if (props.node.kind === "section" && props.name === "overlap" && value.value) return t("site.builder.overlapHint");
+  if (isKeyList.value && !listValue.value.length) return t(props.def.type === "content_types" ? "site.search.allTypes" : "site.search.allFields");
   return "";
 });
 
@@ -454,6 +469,47 @@ const selectOptions = computed(() => {
       return [];
   }
 });
+
+const SEARCHABLE_TYPES = ["text", "slug", "textarea", "markdown", "html", "select"];
+const isKeyList = computed(() => ["content_types", "search_fields"].includes(props.def.type));
+const listValue = computed(() => (Array.isArray(value.value) ? value.value : []));
+
+/** Types with website pages, so every hit opens one; fields of the chosen types (or of all of them). */
+const keyListOptions = computed(() => {
+  const pageTypes = builder.pageTypes.value;
+  const typeLabel = (name) => builder.types.value.find((type) => type.name === name)?.label || name;
+  let options;
+  if (props.def.type === "content_types") {
+    options = pageTypes.map((type) => ({ value: type.name, label: type.label || type.name }));
+  } else {
+    const chosen = props.node.props?.collections ?? [];
+    const searched = chosen.length ? pageTypes.filter((type) => chosen.includes(type.name)) : pageTypes;
+    const fields = new Map([["title", { value: "title", label: t("site.systemField.title"), types: searched.map((type) => type.label || type.name) }]]);
+    for (const type of searched) {
+      for (const [key, config] of Object.entries(type.fields ?? {})) {
+        if (key === "slug" || !SEARCHABLE_TYPES.includes(config?.type)) continue;
+        if (!fields.has(key)) fields.set(key, { value: key, label: config.label || key, types: [] });
+        fields.get(key).types.push(type.label || type.name);
+      }
+    }
+    // Which types have a field only matters when it is not all of them.
+    options = [...fields.values()].map(({ types, ...option }) => ({ ...option, meta: searched.length > 1 && types.length < searched.length ? types.join(", ") : "" }));
+  }
+  // Keep choices that no longer apply visible, so they can be unchecked.
+  const known = new Set(options.map((option) => option.value));
+  const missing = listValue.value.filter((key) => !known.has(key)).map((key) => ({
+    value: key,
+    label: props.def.type === "content_types" ? typeLabel(key) : key,
+    meta: t(props.def.type === "content_types" ? "site.search.noPages" : "site.search.notSearched"),
+    missing: true,
+  }));
+  return [...options, ...missing];
+});
+
+function toggleKey(key) {
+  const current = listValue.value;
+  emitValue(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+}
 
 function emitValue(value) {
   emit("update", value);

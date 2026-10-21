@@ -54,6 +54,7 @@ final class LayoutSchema
         'collection',
         'form',
         'menu',
+        'search',
         'site_title',
         'language_switcher',
     ];
@@ -120,6 +121,7 @@ final class LayoutSchema
         'button' => ['label', 'link'], 'accordion' => ['title', 'html'],
         'tabs' => ['title'], 'tab' => ['title'], 'icon' => ['label', 'link'],
         'collection' => ['empty_text'], 'field' => ['prefix', 'suffix', 'true_text', 'false_text', 'link'],
+        'search' => ['placeholder', 'no_results_text'],
     ];
 
     public static function styleSpec(): array
@@ -334,6 +336,20 @@ final class LayoutSchema
                 'panel_side' => ['type' => 'enum', 'options' => ['left', 'right'], 'default' => 'right'],
                 'panel_background' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
                 'panel_text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+            ],
+            // Empty texts use the visitor's language; empty lists search every page type by its text fields.
+            'search' => [
+                'placeholder' => ['type' => 'string', 'max' => 120, 'default' => ''],
+                'collections' => ['type' => 'content_types', 'default' => []],
+                'fields' => ['type' => 'search_fields', 'default' => []],
+                'max_results' => ['type' => 'int', 'min' => 1, 'max' => SiteSearch::MAX_RESULTS, 'default' => SiteSearch::MAX_RESULTS],
+                'min_chars' => ['type' => 'int', 'min' => 1, 'max' => 5, 'default' => 2],
+                'icon_position' => ['type' => 'enum', 'options' => ['left', 'right', 'none'], 'default' => 'left'],
+                'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:magnify'],
+                'variant' => ['type' => 'enum', 'options' => ['outline', 'filled', 'underline'], 'default' => 'outline'],
+                'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg'], 'default' => 'md'],
+                'show_type' => ['type' => 'bool', 'default' => true],
+                'no_results_text' => ['type' => 'string', 'max' => 200, 'default' => ''],
             ],
             'site_title' => [
                 'show_logo' => ['type' => 'bool', 'default' => true],
@@ -971,8 +987,17 @@ final class LayoutSchema
             'class' => self::cssClasses($value),
             'sort_field' => self::key($value) !== '' ? self::key($value) : $default,
             'field', 'display', 'content_type', 'menu', 'form', 'key' => self::key($value),
+            'content_types', 'search_fields' => self::keyList($value),
             default => $default,
         };
+    }
+
+    /** Distinct keys in their saved order, e.g. the content types a search looks through. */
+    private static function keyList(mixed $value): array
+    {
+        $keys = array_map(self::key(...), array_slice(is_array($value) ? array_values($value) : [], 0, 100));
+
+        return array_values(array_unique(array_filter($keys, static fn(string $key): bool => $key !== '')));
     }
 
     private static function normalizeMediaList(mixed $value): array
