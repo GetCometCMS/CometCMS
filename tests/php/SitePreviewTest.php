@@ -43,6 +43,26 @@ PHP;
     }
 });
 
+test('list page and homepage previews show saved layouts to editors who may see them', function (): void {
+    $seed = <<<'PHP'
+$roles->create(['label' => 'Pages only', 'permissions' => [
+    ['effect' => 'allow', 'actions' => ['content.read'], 'resources' => ['content:pages:*']],
+]]);
+$users->create('limited', 'secret-password', 'pages-only');
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'pages']);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'notes', 'visibility' => 'private']);
+PHP;
+    $controller = '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))';
+    foreach (['posts' => 403, 'pages' => 200] as $type => $expected) {
+        [$status] = comet_admin_request('limited', $seed, 'GET', '/admin/site-preview/' . $type, $controller . '->previewIndex("' . $type . '");');
+        assert_same($expected, $status, 'List page preview of ' . $type);
+    }
+    assert_same(404, comet_admin_request('admin', $seed, 'GET', '/admin/site-preview/notes', $controller . '->previewIndex("notes");')[0], 'Private types have no page.');
+    assert_same(403, comet_admin_request('limited', $seed, 'GET', '/admin/site-preview', $controller . '->previewHome();')[0], 'The homepage preview needs website access.');
+    assert_same(200, comet_admin_request('admin', $seed, 'GET', '/admin/site-preview', $controller . '->previewHome();')[0]);
+});
+
 /** Exercise the real entry point and session bootstrap using an isolated install. */
 function comet_site_preview_test_install(): string
 {

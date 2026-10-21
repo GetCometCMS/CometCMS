@@ -186,6 +186,35 @@ final class SiteService
         return $entry === null ? null : (new PageRenderer($this->ctx))->entryPage($schema, $entry);
     }
 
+    /** A type's index page as it looks with its saved layout, live or not; null for private types. */
+    public function previewIndex(string $type, string $locale = ''): ?string
+    {
+        $schema = $this->ctx->type($type);
+        $this->ctx->preview = true;
+        $this->ctx->previewBanner = true;
+
+        if ($schema === null || !$this->ctx->isPublicType($type)) {
+            return null;
+        }
+
+        $this->ctx->locale = $this->ctx->content->locale($locale);
+
+        return (new PageRenderer($this->ctx))->indexPage($schema);
+    }
+
+    /** The homepage with the saved header and footer, also while the website is off. */
+    public function previewHome(string $locale = ''): string
+    {
+        $this->ctx->preview = true;
+        $this->ctx->previewBanner = true;
+        $this->ctx->locale = $this->ctx->content->locale($locale);
+        $renderer = new PageRenderer($this->ctx);
+        $type = $this->ctx->settings()['homepage']['type'];
+
+        // Without a homepage the placeholder page has no header or footer; show them around a stand-in.
+        return $type !== '' && $this->ctx->isPublicType($type) ? $this->home($renderer, 1)['body'] : $renderer->regionPreview('header');
+    }
+
     private function home(PageRenderer $renderer, int $page): array
     {
         $home = $this->ctx->settings()['homepage'];

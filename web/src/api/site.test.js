@@ -18,6 +18,8 @@ describe('entry preview URLs', () => {
     expect(api.site.entryPreviewUrl('startseite', 'startseite', 'de')).toBe(
       `${base}/admin/site-preview/startseite/startseite?workspace=verkehrsinitiative-at&locale=de`,
     )
+    expect(api.site.indexPreviewUrl('blog', 'de')).toBe(`${base}/admin/site-preview/blog?workspace=verkehrsinitiative-at&locale=de`)
+    expect(api.site.homePreviewUrl()).toBe(`${base}/admin/site-preview?workspace=verkehrsinitiative-at`)
   })
 })
 

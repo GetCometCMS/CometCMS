@@ -536,36 +536,46 @@ const liveUrl = computed(() => {
   }
   return entryUrl.value;
 });
-const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
-/** Draft preview of the sample entry with the saved layout, the same one the entry editor used to open. */
-const previewUrl = computed(() => (target === "layout" && variant === "detail" && previewEntry.value
-  ? api.site.entryPreviewUrl(name, previewEntry.value, locale.value)
-  : null));
-const saveMenuItems = computed(() => {
-  const items = [];
-  if (previewUrl.value) {
-    items.push({
-      key: "preview",
-      label: t("site.entry.preview"),
-      icon: "mdi:eye-outline",
-      href: previewUrl.value,
-      target: "_blank",
-      title: builder.isDirty.value || entryFields.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
-    });
-  }
-  if (liveUrl.value || liveHint.value) {
-    items.push({
-      key: "live",
-      label: t("site.builder.viewLive"),
-      icon: "mdi:open-in-new",
-      href: liveUrl.value,
-      target: "_blank",
-      disabled: !liveUrl.value,
-      title: liveUrl.value || liveHint.value,
-    });
-  }
-  return items;
+/** Why the live page cannot be opened, shown on the disabled menu item. */
+const liveHint = computed(() => {
+  if (target === "component") return t("site.builder.componentNoPage");
+  if (target === "region") return t("site.builder.siteOff");
+  if (variant === "index") return t("site.builder.noLiveIndex");
+  return previewEntry.value ? t("site.builder.notLive") : t("site.builder.noEntry");
 });
+/**
+ * Draft preview with the saved layout: the sample entry, the index page, or
+ * the homepage for the header and footer. Components have no page of their own.
+ */
+const previewUrl = computed(() => {
+  if (target === "region") return api.site.homePreviewUrl(locale.value);
+  if (target !== "layout") return null;
+  if (variant === "index") return api.site.indexPreviewUrl(name, locale.value);
+  return previewEntry.value ? api.site.entryPreviewUrl(name, previewEntry.value, locale.value) : null;
+});
+const previewHint = computed(() => (target === "component" ? t("site.builder.componentNoPage") : t("site.builder.noEntry")));
+// Both actions are always offered, so the menu looks the same everywhere; unavailable ones say why.
+const saveMenuItems = computed(() => [
+  {
+    key: "preview",
+    label: t("site.entry.preview"),
+    icon: "mdi:eye-outline",
+    href: previewUrl.value,
+    target: "_blank",
+    disabled: !previewUrl.value,
+    title: !previewUrl.value ? previewHint.value
+      : builder.isDirty.value || entryFields.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
+  },
+  {
+    key: "live",
+    label: t("site.builder.viewLive"),
+    icon: "mdi:open-in-new",
+    href: liveUrl.value,
+    target: "_blank",
+    disabled: !liveUrl.value,
+    title: liveUrl.value || liveHint.value,
+  },
+]);
 watch([previewEntry, locale], async ([entry]) => {
   entryUrl.value = null;
   if (target !== "layout" || !entry) return;

@@ -588,12 +588,31 @@ final class SiteController extends BaseController
         $context = $this->context();
         $entry = $context->content->findByIdentifier($type, $id);
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
-        $html = (new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? ''));
+        $this->sendPreview((new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? '')), 'This entry cannot be previewed on the website.');
+    }
 
+    /** A type's index page with its saved layout, for the builder's Preview action. */
+    public function previewIndex(string $type): never
+    {
+        $this->requireUser();
+        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
+        $this->sendPreview((new SiteService($this->context()))->previewIndex($type, (string) ($_GET['locale'] ?? '')), 'This content type cannot be previewed on the website.');
+    }
+
+    /** The homepage with the saved header and footer, for the builder's Preview action. */
+    public function previewHome(): never
+    {
+        $this->requireUser();
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->sendPreview((new SiteService($this->context()))->previewHome((string) ($_GET['locale'] ?? '')), '');
+    }
+
+    private function sendPreview(?string $html, string $missing): never
+    {
         if ($html === null) {
             http_response_code(404);
             header('Content-Type: text/plain; charset=utf-8');
-            echo 'This entry cannot be previewed on the website.';
+            echo $missing;
             exit;
         }
 

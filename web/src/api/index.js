@@ -19,6 +19,13 @@ export function getActiveWorkspace() {
   return activeWorkspace || defaultWorkspace || ''
 }
 
+/** A draft preview page of the website in the active workspace, opened in a new tab. */
+function sitePreviewUrl(path, locale = '') {
+  const params = new URLSearchParams({ workspace: getActiveWorkspace() })
+  if (locale) params.set('locale', locale)
+  return `${ADMIN_BASE}/site-preview${path}?${params}`
+}
+
 export function setActiveWorkspace(workspace) {
   activeWorkspace = workspace || defaultWorkspace || ''
   if (activeWorkspace) browserStorage?.setItem('cometcms.workspace', activeWorkspace)
@@ -451,11 +458,11 @@ export const api = {
     deleteForm:   (id)                   => request('DELETE', `/site/forms/${encodeURIComponent(id)}`),
     preview:      (body)                 => request('POST',   '/site/preview', body),
     /** Full-page draft preview of an entry, opened in a new tab. */
-    entryPreviewUrl: (type, id, locale = '') => {
-      const params = new URLSearchParams({ workspace: getActiveWorkspace() })
-      if (locale) params.set('locale', locale)
-      return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
-    },
+    entryPreviewUrl: (type, id, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, locale),
+    /** A type's index page with its saved layout. */
+    indexPreviewUrl: (type, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}`, locale),
+    /** The homepage with the saved header and footer. */
+    homePreviewUrl: (locale = '') => sitePreviewUrl('', locale),
   },
 
   fonts: {

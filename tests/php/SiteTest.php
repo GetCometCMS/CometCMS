@@ -368,6 +368,27 @@ test('website hides drafts, private types and unknown paths', function (): void 
     assert_null((new SiteService(comet_site_test_context()))->previewEntry('notes', 'private-note'));
 });
 
+test('list page and homepage previews render saved layouts while the website is off', function (): void {
+    $site = comet_site_test_setup(['blog' => ['enabled' => true]], ['enabled' => false]);
+    $site->saveRegion('header', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Saved header'])])])])]);
+
+    $index = (new SiteService(comet_site_test_context()))->previewIndex('blog');
+    assert_true(is_string($index) && str_contains($index, '/blog/hello'));
+    assert_false(str_contains($index, 'Secret draft'), 'List pages only list published entries.');
+    assert_true(str_contains($index, 'c-preview-bar') && str_contains($index, 'noindex'));
+    assert_null((new SiteService(comet_site_test_context()))->previewIndex('notes'));
+    assert_null((new SiteService(comet_site_test_context()))->previewIndex('missing'));
+
+    $home = (new SiteService(comet_site_test_context()))->previewHome();
+    assert_true(str_contains($home, 'Saved header'), 'Without a homepage, header and footer frame a stand-in.');
+    assert_true(str_contains($home, 'c-preview-bar'));
+    assert_false(str_contains($home, ' data-node="'), 'Previews carry no builder annotations.');
+
+    $site->saveSettings(['homepage' => ['type' => 'blog', 'entry' => '']]);
+    $home = (new SiteService(comet_site_test_context()))->previewHome();
+    assert_true(str_contains($home, 'Saved header') && str_contains($home, 'Hello &lt;script'), 'The real homepage shows with the saved header.');
+});
+
 test('website homepage shows a branded placeholder until a homepage is chosen', function (): void {
     $site = comet_site_test_setup();
     $auto = comet_site_test_get('/');

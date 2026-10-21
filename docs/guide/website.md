@@ -40,6 +40,7 @@ Layouts are generated from the content type's fields until you change them, so a
 - The **canvas** in the middle is the live preview. Click any element to select it; sections, grids, columns and components are outlined in their own colors.
 - The **inspector** on the right shows the selected element's settings, a short explanation of the element type, and a path to its parent elements. With nothing selected, it summarizes the page you are editing and suggests next steps.
 - The **top bar** shows the preview entry, language, device, undo/redo and whether all changes are saved.
+- The arrow beside **Save** opens **Preview**, which shows the last saved version in a new tab even while it is unpublished or the website is off, and **View live page**. Entry layouts preview the chosen entry, list pages their list page, and the header and footer the homepage. Components have no page of their own, so both actions stay disabled there; when an action is unavailable, hovering it says why.
 - Press <kbd>?</kbd> or click the help icon to open the **builder guide** with the basics and all keyboard shortcuts. It opens automatically the first time you use the builder.
 
 The builder shows a live preview rendered by the same code as the real site. Layouts are built from **sections → rows → columns → elements**. A column can also hold column sets of its own (up to three levels deep), for example a card with an image beside its text. Columns of such a nested set switch between stacked and side by side by the width of the column they sit in, not by the screen width:
