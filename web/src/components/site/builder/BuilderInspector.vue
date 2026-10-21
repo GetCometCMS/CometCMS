@@ -19,28 +19,30 @@
   </div>
 
   <div v-else-if="node" class="flex h-full flex-col">
-    <nav :aria-label="t('site.builder.hierarchy')" class="shrink-0 border-b border-slate-200 bg-slate-50/60 px-3 py-2">
-      <ol class="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-xs">
+    <nav :aria-label="t('site.builder.hierarchy')" class="shrink-0 border-b border-slate-100 px-2 py-1">
+      <ol class="flex flex-wrap items-center gap-x-0.5 text-[11px]">
         <li v-for="(ancestor, index) in nodePath" :key="ancestor.id" class="flex min-w-0 max-w-full items-center gap-0.5">
           <Icon v-if="index" icon="mdi:chevron-right" class="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
           <span
             v-if="ancestor.id === node.id"
             aria-current="location"
             :title="builder.nodeLabel(ancestor)"
-            class="max-w-[9rem] truncate rounded px-1.5 py-1 font-medium text-theme-700"
+            class="max-w-[9rem] truncate rounded px-1.5 py-0.5 font-semibold text-theme-700"
           >{{ builder.nodeLabel(ancestor) }}</span>
           <button
             v-else
             type="button"
             :title="t('site.menu.selectParent', { name: builder.nodeLabel(ancestor) })"
-            class="min-w-0 max-w-[9rem] truncate rounded px-1.5 py-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-500"
+            class="min-w-0 max-w-[9rem] truncate rounded px-1.5 py-0.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-500"
             @click="builder.select(ancestor.id)"
           >{{ builder.nodeLabel(ancestor) }}</button>
         </li>
       </ol>
     </nav>
-    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
-      <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-5 w-5 shrink-0 text-theme-600" />
+    <div class="relative z-10 flex shrink-0 items-center gap-2.5 px-3 pb-2 pt-2.5" :class="{ 'border-b border-slate-200': isInstance }">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600 ring-1 ring-inset ring-theme-100">
+        <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-[18px] w-[18px]" />
+      </span>
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-1">
           <p class="truncate text-sm font-semibold text-slate-900" :title="builder.nodeLabel(node)">{{ builder.nodeLabel(node) }}</p>
@@ -60,17 +62,23 @@
       </button>
     </div>
 
-    <div v-if="!isInstance" class="shrink-0 border-b border-slate-200 px-4 py-2">
-      <SegmentedControl
-        v-model="tab"
-        :options="[
-          { value: 'content', label: t('site.builder.content'), icon: 'mdi:tune-variant', showLabel: true },
-          { value: 'style', label: t('site.builder.style'), icon: 'mdi:palette-swatch-outline', showLabel: true },
-        ]"
-      />
+    <div v-if="!isInstance" class="flex shrink-0 gap-4 border-b border-slate-200 px-3" role="tablist">
+      <button
+        v-for="option in inspectorTabs"
+        :key="option.value"
+        type="button"
+        role="tab"
+        :aria-selected="tab === option.value"
+        class="inspector-tab"
+        :class="{ 'is-active': tab === option.value }"
+        @click="tab = option.value"
+      >
+        <Icon :icon="option.icon" class="h-4 w-4 shrink-0" aria-hidden="true" />
+        {{ option.label }}
+      </button>
     </div>
 
-    <div class="flex-1 space-y-4 overflow-y-auto px-4 py-4 pb-32">
+    <div class="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-3 pb-32">
       <template v-if="isInstance">
         <div class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p v-if="!component" class="text-amber-800">{{ t("site.component.missingHint") }}</p>
@@ -183,7 +191,6 @@ import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import BuilderTabs from "./BuilderTabs.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
-import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
 import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumbs.js";
@@ -207,6 +214,10 @@ const STYLE_GROUPS = [
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const tab = ref("content");
+const inspectorTabs = computed(() => [
+  { value: "content", label: t("site.builder.content"), icon: "mdi:tune-variant" },
+  { value: "style", label: t("site.builder.style"), icon: "mdi:palette-swatch-outline" },
+]);
 /** Only the most used groups start open. */
 const OPEN_STYLE_GROUPS = ["spacing", "text"];
 const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
@@ -392,6 +403,35 @@ function updateProp(key, value) {
 }
 .inspector-action:disabled {
   opacity: 0.35;
+}
+.inspector-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(var(--color-slate-500));
+  transition: color 150ms;
+}
+.inspector-tab:hover {
+  color: rgb(var(--color-slate-900));
+}
+.inspector-tab.is-active {
+  color: rgb(var(--color-theme-700));
+}
+.inspector-tab.is-active::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: rgb(var(--color-theme-600));
+}
+.inspector-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px 0 rgb(var(--color-theme-500));
 }
 .kbd {
   display: inline-block;

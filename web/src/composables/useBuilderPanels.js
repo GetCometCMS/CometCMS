@@ -3,7 +3,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue'
 const STORAGE_KEY = 'cometcms-builder-panels-v2'
 const DOCKS = ['left', 'right']
 const MODES = [...DOCKS, 'floating']
-const RAIL_WIDTH = 76
+const RAIL_WIDTH = 52
 const GAP = 8
 /** Distance from an edge at which a dragged panel offers to dock. */
 const SNAP_ZONE = 64
@@ -16,13 +16,13 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
 /**
  * One panel per dock, with independent floating windows inside the editor.
- * Docking onto an occupied side swaps the panels instead of hiding one of them.
+ * Docking onto an occupied side replaces the panel there; it stays one click away on the rail.
  */
 export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'inspector' }, initial = null, storage } = {}) {
   if (storage === undefined) {
     try { storage = globalThis.localStorage } catch { storage = null }
   }
-  const bounds = ref({ width: globalThis.innerWidth ?? 1280, height: Math.max(1, (globalThis.innerHeight ?? 856) - 56) })
+  const bounds = ref({ width: globalThis.innerWidth ?? 1280, height: Math.max(1, (globalThis.innerHeight ?? 856) - 48) })
   const windows = ref(Object.fromEntries(ids.map((id, index) => {
     const side = DOCKS.find((key) => docked[key] === id)
     return [id, {
@@ -103,31 +103,17 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
     panel.y = GAP * 3
   }
 
-  /** What happens to a docked panel when another one takes its side. */
-  function outcome(origin, side) {
-    if (!origin.open) return 'replace'
-    return DOCKS.includes(origin.mode) && origin.mode !== side ? 'swap' : 'float'
-  }
-
-  function displace(id, origin, side) {
-    const panel = windows.value[id]
-    const result = outcome(origin, side)
-    if (result === 'swap') Object.assign(panel, { mode: origin.mode, dock: origin.mode })
-    else if (result === 'float') Object.assign(panel, { mode: 'floating', x: origin.x, y: origin.y })
-    else panel.open = false
-  }
-
   /**
    * Shows a panel in the given place. `origin` is where the panel was before,
-   * so a displaced panel can take over that place.
+   * so popping out places it next to the dock it left.
    */
   function open(id, mode = windows.value[id]?.mode, origin = windows.value[id]) {
     const panel = windows.value[id]
     if (!panel || !MODES.includes(mode)) return
-    const from = { open: origin.open, mode: origin.mode, x: origin.x, y: origin.y }
+    const from = { open: origin.open, mode: origin.mode }
     if (mode !== 'floating') {
       const occupant = occupantOf(mode, id)
-      if (occupant) displace(occupant, from, mode)
+      if (occupant) windows.value[occupant].open = false
       panel.dock = mode
     } else if (from.open && from.mode !== 'floating') {
       popOut(id, from.mode)
@@ -179,7 +165,8 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
     cleanupGesture?.()
     event.preventDefault()
     const target = event.currentTarget
-    if (fromRail) target.focus?.()
+    // Pointer focus: no keyboard focus ring after a click.
+    if (fromRail) target.focus?.({ focusVisible: false })
     target.setPointerCapture?.(event.pointerId)
     const origin = { ...windows.value[id] }
     const start = { ...origin }
@@ -265,14 +252,13 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
   /** Where a drop would dock the dragged panel and what happens to the panel already there. */
   const dropPreview = computed(() => {
     if (!snap.value || !gesture.value) return null
-    const { id, origin } = gesture.value
+    const { id } = gesture.value
     const occupant = occupantOf(snap.value, id)
     return {
       side: snap.value,
       offset: snap.value === 'left' ? RAIL_WIDTH : 0,
       width: clamp(windows.value[id].width, minimumWidth(id), maximumWidth(id)),
       occupant,
-      outcome: occupant ? outcome(origin, snap.value) : null,
     }
   })
 

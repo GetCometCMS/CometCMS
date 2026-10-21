@@ -7,20 +7,29 @@
     :label="t(state.mode === 'right' ? 'site.builder.resizeRight' : 'site.builder.resizeLeft')"
     :resizable="state.mode !== 'floating'"
     :aria-label="title"
-    :class="state.mode === 'floating' ? 'panel-floating overflow-hidden rounded-xl border border-slate-200 shadow-2xl' : state.mode === 'right' ? 'order-2 border-l border-slate-200' : 'order-0 border-r border-slate-200'"
+    :class="state.mode === 'floating' ? 'panel-floating overflow-hidden rounded-xl border border-slate-200 shadow-2xl ring-1 ring-black/5' : state.mode === 'right' ? 'order-2 border-l border-slate-200' : 'order-0 border-r border-slate-200'"
     :style="state.mode === 'floating' ? { position: 'absolute', left: `${state.x}px`, top: `${state.y}px`, height: `${state.height}px`, zIndex: 30 + state.z } : undefined"
     @update:model-value="$emit('resize', $event)"
     @pointerdown.capture="$emit('focus')"
   >
     <div
-      class="flex shrink-0 touch-none select-none items-center gap-1 border-b border-slate-200 bg-slate-50 py-1.5 pl-2 pr-1.5"
+      class="flex h-10 shrink-0 touch-none select-none items-center gap-2 border-b border-slate-200 bg-white pl-3 pr-1.5"
       :class="state.mode === 'floating' ? 'cursor-move' : 'cursor-grab'"
       :title="t(state.mode === 'floating' ? 'site.builder.floatingHeaderHint' : 'site.builder.dockedHeaderHint')"
       @pointerdown="$emit('move', $event)"
       @dblclick="toggleDock"
     >
-      <Icon :icon="icon" class="h-4 w-4 shrink-0 text-slate-400" />
-      <h2 class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800">{{ title }}</h2>
+      <Icon :icon="icon" class="h-4 w-4 shrink-0 text-theme-600" />
+      <h2 class="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-900">{{ title }}</h2>
+      <button
+        type="button"
+        class="window-action"
+        :title="t(state.mode === 'floating' ? 'site.builder.dockPanel' : 'site.builder.floatPanel')"
+        :aria-label="t(state.mode === 'floating' ? 'site.builder.dockPanel' : 'site.builder.floatPanel')"
+        @click="$emit('toggle-dock')"
+      >
+        <Icon :icon="state.mode === 'floating' ? (state.dock === 'right' ? 'mdi:dock-right' : 'mdi:dock-left') : 'mdi:dock-window'" class="h-4 w-4" />
+      </button>
       <button type="button" class="window-action" :title="t('site.builder.closePanel')" :aria-label="t('site.builder.closePanel')" @click="$emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
       </button>
@@ -76,10 +85,11 @@ function resizeWithKeyboard(event) {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.375rem;
-  color: rgb(var(--color-slate-500));
+  color: rgb(var(--color-slate-400));
+  transition: background-color 150ms, color 150ms;
 }
 .window-action:hover {
-  background: rgb(var(--color-slate-200));
+  background: rgb(var(--color-slate-100));
   color: rgb(var(--color-slate-900));
 }
 </style>

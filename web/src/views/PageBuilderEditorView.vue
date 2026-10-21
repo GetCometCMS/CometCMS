@@ -1,15 +1,16 @@
 <template>
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
-    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3">
-      <router-link :to="backTo" class="icon-btn" :title="t('site.builder.back')">
+    <header class="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-2">
+      <router-link :to="backTo" class="topbar-action" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
       </router-link>
+      <span class="topbar-divider" aria-hidden="true"></span>
 
-      <div class="min-w-40 max-w-72">
+      <div class="min-w-32 max-w-64 pl-1">
         <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
-        <p class="truncate text-xs leading-tight text-slate-500">{{ subheading }}</p>
+        <p class="truncate text-[11px] leading-tight text-slate-500">{{ subheading }}</p>
       </div>
 
       <nav v-if="variants.length > 1" class="hidden rounded-lg bg-slate-100 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
@@ -17,7 +18,7 @@
           v-for="item in variants"
           :key="item"
           type="button"
-          class="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           :class="item === variant ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
           :aria-pressed="item === variant"
           @click="goToVariant(item)"
@@ -27,54 +28,69 @@
         </button>
       </nav>
 
-      <div class="ml-auto flex items-center gap-2">
-        <label
-          v-if="showsSamples && !builder.type.value?.singleton && samples.length"
-          class="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white pl-2.5 shadow-xs lg:flex"
-          :title="t('site.builder.sampleEntry')"
-        >
-          <Icon icon="mdi:eye-outline" class="h-4 w-4 shrink-0 text-slate-400" />
-          <span class="text-xs font-medium text-slate-500">{{ t("site.builder.previewWith") }}</span>
-        <select
-          v-model="sampleId"
-          :disabled="saving"
-          class="max-w-[12rem] border-0 bg-transparent py-1 pl-1 pr-7 text-xs font-medium text-slate-800 focus:ring-0"
-          :aria-label="t('site.builder.sampleEntry')"
-        >
-          <option v-for="sample in samples" :key="sample.id" :value="sample.id">
-            {{ sample.title || sample.id }}{{ sample.status !== "published" ? ` (${t(`status.${sample.status}`)})` : "" }}
-          </option>
-        </select>
-        </label>
+      <div class="ml-auto flex min-w-0 items-center gap-1.5">
+        <!-- What the canvas shows: sample entry, language and editing mode in one group. -->
+        <div class="topbar-group hidden md:flex">
+          <label
+            v-if="showsSamples && !builder.type.value?.singleton && samples.length"
+            class="hidden min-w-0 items-center gap-1 pl-2 lg:flex"
+            :title="t('site.builder.sampleEntry')"
+          >
+            <Icon icon="mdi:eye-outline" class="h-4 w-4 shrink-0 text-slate-400" />
+            <span class="sr-only xl:not-sr-only xl:whitespace-nowrap xl:text-xs xl:text-slate-500">{{ t("site.builder.previewWith") }}</span>
+            <select
+              v-model="sampleId"
+              :disabled="saving"
+              class="topbar-select max-w-[11rem]"
+              :aria-label="t('site.builder.sampleEntry')"
+            >
+              <option v-for="sample in samples" :key="sample.id" :value="sample.id">
+                {{ sample.title || sample.id }}{{ sample.status !== "published" ? ` (${t(`status.${sample.status}`)})` : "" }}
+              </option>
+            </select>
+          </label>
 
-        <select
-          v-if="locales.length > 1"
-          v-model="locale"
-          :disabled="saving"
-          class="form-select rounded-lg border-slate-300 py-1 text-xs"
-          :aria-label="t('site.builder.language')"
-        >
-          <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
-        </select>
+          <label v-if="locales.length > 1" class="flex items-center pl-2" :title="t('site.builder.language')">
+            <Icon icon="mdi:translate" class="h-4 w-4 shrink-0 text-slate-400" />
+            <select
+              v-model="locale"
+              :disabled="saving"
+              class="topbar-select"
+              :aria-label="t('site.builder.language')"
+            >
+              <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
+            </select>
+          </label>
 
-        <select v-model="builder.editingMode.value" class="form-select rounded-lg border-slate-300 py-1 text-xs" :aria-label="t('localization.mode')">
-          <option value="design">{{ t('localization.design') }}</option>
-          <option value="translate">{{ t('localization.translate') }}</option>
-        </select>
+          <label class="flex items-center pl-2" :title="t('localization.mode')">
+            <Icon :icon="builder.editingMode.value === 'translate' ? 'mdi:file-replace-outline' : 'mdi:pencil-ruler'" class="h-4 w-4 shrink-0 text-slate-400" />
+            <select v-model="builder.editingMode.value" class="topbar-select" :aria-label="t('localization.mode')">
+              <option value="design">{{ t('localization.design') }}</option>
+              <option value="translate">{{ t('localization.translate') }}</option>
+            </select>
+          </label>
+        </div>
+
         <DeviceToggle v-model="device" allow-full-width />
 
-        <div class="flex items-center">
-          <button type="button" class="topbar-action" :disabled="!builder.canUndo.value" :title="`${t('site.builder.undo')} (Ctrl+Z)`" @click="builder.undo()">
-            <Icon icon="mdi:undo" class="h-5 w-5" />
-          </button>
-          <button type="button" class="topbar-action" :disabled="!builder.canRedo.value" :title="`${t('site.builder.redo')} (Ctrl+Shift+Z)`" @click="builder.redo()">
-            <Icon icon="mdi:redo" class="h-5 w-5" />
-          </button>
-        </div>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <button type="button" class="topbar-action" :disabled="!builder.canUndo.value" :title="`${t('site.builder.undo')} (Ctrl+Z)`" @click="builder.undo()">
+          <Icon icon="mdi:undo" class="h-[18px] w-[18px]" />
+          <span class="sr-only">{{ t("site.builder.undo") }}</span>
+        </button>
+        <button type="button" class="topbar-action" :disabled="!builder.canRedo.value" :title="`${t('site.builder.redo')} (Ctrl+Shift+Z)`" @click="builder.redo()">
+          <Icon icon="mdi:redo" class="h-[18px] w-[18px]" />
+          <span class="sr-only">{{ t("site.builder.redo") }}</span>
+        </button>
+        <button type="button" class="topbar-action" :title="`${t('site.builder.help')} (?)`" @click="guideOpen = true">
+          <Icon icon="mdi:help-circle-outline" class="h-[18px] w-[18px]" />
+          <span class="sr-only">{{ t("site.builder.help") }}</span>
+        </button>
+        <span class="topbar-divider" aria-hidden="true"></span>
 
         <span
           v-if="saveStatus !== 'saved'"
-          class="hidden items-center gap-1.5 whitespace-nowrap text-xs xl:flex"
+          class="hidden items-center gap-1.5 whitespace-nowrap px-1 text-xs xl:flex"
           :class="saveStatus === 'unsaved' ? 'font-medium text-amber-700' : 'text-slate-500'"
           role="status"
           :title="saveStatus === 'unsaved' ? t('site.builder.status.unsavedHint') : undefined"
@@ -83,11 +99,6 @@
           <span v-else class="h-2 w-2 rounded-full bg-amber-400"></span>
           {{ t(`site.builder.status.${saveStatus}`) }}
         </span>
-
-        <button type="button" class="topbar-action" :title="`${t('site.builder.help')} (?)`" @click="guideOpen = true">
-          <Icon icon="mdi:help-circle-outline" class="h-5 w-5" />
-          <span class="sr-only">{{ t("site.builder.help") }}</span>
-        </button>
 
         <SplitButton
           :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
@@ -115,45 +126,49 @@
 
     <div v-else ref="builderAreaRef" class="relative isolate flex min-h-0 flex-1 overflow-hidden">
 
-<!-- Panel rail -->
-<nav
-  class="flex w-[76px] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-slate-200 bg-white py-2"
-  :aria-label="t('site.builder.panels')"
->
-  <template v-for="panel in panels" :key="panel.value">
-    <!-- Separator before entry fields -->
-    <div
-      v-if="panel.value === 'fields'"
-      class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
-      aria-hidden="true"
-    ></div>
+      <!-- Panel rail -->
+      <nav
+        class="relative z-[150] flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-slate-200 bg-white py-2"
+        :aria-label="t('site.builder.panels')"
+      >
+        <template v-for="panel in panels" :key="panel.value">
+          <!-- Separator before entry fields -->
+          <div
+            v-if="panel.value === 'fields'"
+            class="my-1 h-px w-6 shrink-0 bg-slate-200"
+            aria-hidden="true"
+          ></div>
 
-    <button
-      type="button"
-      class="rail-action"
-      :class="{ 'is-active': panelWindows[panel.value]?.open }"
-      :aria-pressed="panelWindows[panel.value]?.open ?? false"
-      :aria-label="panel.label"
-      :title="t('site.builder.panelWindowHint', { panel: panel.label })"
-      @pointerdown="panelLayout.startMove($event, panel.value, true)"
-      @click="panelLayout.toggle(panel.value)"
-    >
-      <Icon :icon="panel.icon" class="h-5 w-5" />
-      <span class="rail-label" aria-hidden="true">{{ panel.short }}</span>
-      <span
-        v-if="panel.dirty"
-        class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
-      ></span>
-    </button>
+          <button
+            type="button"
+            class="rail-action group"
+            :class="{ 'is-active': panelWindows[panel.value]?.open, 'is-tooltip-off': clickedRailPanel === panel.value }"
+            :aria-pressed="panelWindows[panel.value]?.open ?? false"
+            :aria-label="panel.label"
+            @pointerdown="panelLayout.startMove($event, panel.value, true)"
+            @click="clickedRailPanel = panel.value; panelLayout.toggle(panel.value)"
+            @pointerleave="clickedRailPanel = null"
+          >
+            <Icon :icon="panel.icon" class="h-5 w-5" />
+            <span
+              v-if="panel.dirty"
+              class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
+            ></span>
+            <!-- Instant label: the rail is icon-only to leave room for the canvas. -->
+            <span class="rail-tooltip" role="tooltip" aria-hidden="true">
+              <span class="font-semibold">{{ panel.label }}</span>
+              <span class="block text-[10px] font-normal text-ink-300">{{ t('site.builder.panelWindowHint') }}</span>
+            </span>
+          </button>
 
-    <!-- Separator before design settings -->
-    <div
-      v-if="(panel.value === 'outline' && !hasEntryFields) || panel.value === 'fields'"
-      class="my-1.5 h-px w-8 shrink-0 bg-slate-200"
-      aria-hidden="true"
-    ></div>
-  </template>
-</nav>
+          <!-- Separator before design settings -->
+          <div
+            v-if="(panel.value === 'outline' && !hasEntryFields) || panel.value === 'fields'"
+            class="my-1 h-px w-6 shrink-0 bg-slate-200"
+            aria-hidden="true"
+          ></div>
+        </template>
+      </nav>
 
 
       <BuilderPanelWindow
@@ -185,7 +200,10 @@
           </template>
         </BuilderInspector>
         <template v-else>
-          <p v-if="panelHint(panel.value)" class="border-b border-slate-100 px-3 py-2 text-xs leading-relaxed text-slate-500">{{ panelHint(panel.value) }}</p>
+          <p v-if="panelHint(panel.value)" class="flex gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] leading-snug text-slate-500">
+            <Icon icon="mdi:information-outline" class="mt-px h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+            <span>{{ panelHint(panel.value) }}</span>
+          </p>
           <div v-if="panel.value === 'history'" class="border-b border-slate-200 p-2">
             <SegmentedControl
               v-model="historyScope"
@@ -195,7 +213,7 @@
               ]"
             />
           </div>
-          <div class="relative z-0 min-h-0 flex-1 overflow-y-auto">
+          <div class="relative z-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             <BuilderPalette v-if="panel.value === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderOutline v-else-if="panel.value === 'outline'" />
             <BuilderEntryFields v-else-if="panel.value === 'fields'" :state="entryFields" :busy="saving" />
@@ -220,7 +238,7 @@
       </BuilderPanelWindow>
 
       <!-- Canvas -->
-      <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
+      <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-2 xl:p-4'">
         <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" />
       </main>
 
@@ -232,7 +250,7 @@
       >
         <Icon :icon="dropPreview.side === 'left' ? 'mdi:dock-left' : 'mdi:dock-right'" class="h-6 w-6 text-theme-600" />
         <p class="text-sm font-semibold text-theme-800">{{ t(dropPreview.side === 'left' ? 'site.builder.dockLeft' : 'site.builder.dockRight') }}</p>
-        <p v-if="dropPreview.occupant" class="text-xs text-theme-700">{{ t(`site.builder.dockOutcome.${dropPreview.outcome}`, { panel: panelLabel(dropPreview.occupant) }) }}</p>
+        <p v-if="dropPreview.occupant" class="text-xs text-theme-700">{{ t('site.builder.dockOutcome.replace', { panel: panelLabel(dropPreview.occupant) }) }}</p>
       </div>
       <div v-if="panelLayout.dragging.value" class="absolute inset-0 z-[1000] select-none" :class="panelLayout.resizing.value ? 'cursor-se-resize' : 'cursor-move'" aria-hidden="true"></div>
 
@@ -445,7 +463,9 @@ const panels = computed(() => [
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
-].map((panel) => ({ ...panel, short: t(`site.builder.rail.${panel.value}`) })));
+]);
+/** The rail button just clicked hides its tooltip until the pointer leaves, so it doesn't cover the panel. */
+const clickedRailPanel = ref(null);
 const visiblePanels = computed(() => panels.value.filter((panel) => panelWindows.value[panel.value].open));
 function panelLabel(value) {
   return panels.value.find((panel) => panel.value === value)?.label ?? value;
@@ -908,10 +928,12 @@ onBeforeUnmount(() => {
   display: inline-flex;
   height: 2rem;
   width: 2rem;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
   color: rgb(var(--color-slate-600));
+  transition: background-color 150ms, color 150ms;
 }
 .topbar-action:hover:not(:disabled) {
   background: rgb(var(--color-slate-100));
@@ -920,18 +942,63 @@ onBeforeUnmount(() => {
 .topbar-action:disabled {
   opacity: 0.35;
 }
+.topbar-divider {
+  height: 1.25rem;
+  width: 1px;
+  flex-shrink: 0;
+  background: rgb(var(--color-slate-200));
+}
+.topbar-group {
+  height: 2rem;
+  min-width: 0;
+  align-items: center;
+  border-radius: 0.5rem;
+  background: rgb(var(--color-slate-100));
+}
+.topbar-group > * + * {
+  border-left: 1px solid rgb(var(--color-slate-200));
+}
+.topbar-select {
+  min-width: 0;
+  border: 0;
+  background-color: transparent;
+  padding: 0.25rem 1.75rem 0.25rem 0.375rem;
+  background-position: right 0.375rem center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(var(--color-slate-800));
+  cursor: pointer;
+}
+.topbar-select:focus {
+  box-shadow: none;
+  outline: none;
+}
+.topbar-group label:focus-within {
+  border-radius: 0.375rem;
+  box-shadow: inset 0 0 0 2px rgb(var(--color-theme-500));
+}
+.builder-stage {
+  background-color: rgb(var(--color-slate-100));
+  background-image: radial-gradient(rgb(var(--color-slate-300) / 0.7) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
 .rail-action {
   touch-action: none;
   position: relative;
   display: flex;
-  width: 4.25rem;
-  flex-direction: column;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.1875rem;
-  border-radius: 0.5rem;
-  padding: 0.4375rem 0.125rem 0.375rem;
+  justify-content: center;
+  border-radius: 0.625rem;
   color: rgb(var(--color-slate-500));
-  transition: background-color 150ms, color 150ms;
+  transition: background-color 150ms, color 150ms, transform 100ms;
+}
+/* Brief press feedback in place of a lingering focus ring. */
+.rail-action:active {
+  transform: scale(0.92);
+  background: rgb(var(--color-slate-200));
 }
 .rail-action:hover {
   background: rgb(var(--color-slate-100));
@@ -941,14 +1008,48 @@ onBeforeUnmount(() => {
   background: rgb(var(--color-theme-50, 239 246 255));
   color: rgb(var(--color-theme-text, 29 78 216));
 }
-.rail-label {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 0.875rem;
+/* Marks open panels on the rail's edge. */
+.rail-action.is-active::before {
+  content: "";
+  position: absolute;
+  left: -0.375rem;
+  top: 0.625rem;
+  bottom: 0.625rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: rgb(var(--color-theme-600));
+}
+.rail-tooltip {
+  pointer-events: none;
+  position: absolute;
+  left: calc(100% + 0.625rem);
+  top: 50%;
+  z-index: 10;
+  width: max-content;
+  max-width: 14rem;
+  transform: translate(-4px, -50%);
+  border-radius: 0.5rem;
+  background: rgb(15 23 42);
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+  font-size: 0.75rem;
+  line-height: 1.1rem;
+  color: #fff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms, transform 120ms, visibility 120ms;
+}
+.rail-action:hover .rail-tooltip,
+.rail-action:focus-visible .rail-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(0, -50%);
+  transition-delay: 500ms;
+}
+.rail-action.is-tooltip-off .rail-tooltip {
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0ms;
 }
 </style>

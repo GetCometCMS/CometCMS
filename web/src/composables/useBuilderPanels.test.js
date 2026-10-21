@@ -79,19 +79,18 @@ describe('builder panel docking', () => {
     layout.open('css', 'left')
     const { inspector, css } = layout.windows.value
     expect(inspector.open && css.open).toBe(true)
-    expect(inspector.width + css.width + 76 + 320).toBeLessThanOrEqual(1200)
+    expect(inspector.width + css.width + 52 + 320).toBeLessThanOrEqual(1200)
   })
 
   it('keeps floating windows in the editor and makes room when both docks no longer fit', async () => {
     await fixture()
-    layout.open('add', 'right')
     layout.open('css', 'floating')
     layout.move('css', 9999, 9999)
     expect(layout.windows.value.css.x + layout.windows.value.css.width).toBeLessThanOrEqual(1432)
     expect(layout.windows.value.css.y + layout.windows.value.css.height).toBeLessThanOrEqual(892)
     observe([{ contentRect: { width: 760, height: 450 } }])
-    expect(layout.windows.value.add.mode).toBe('floating')
-    expect(layout.windows.value.add.open).toBe(true)
+    expect(layout.windows.value.inspector.mode).toBe('floating')
+    expect(layout.windows.value.inspector.open).toBe(true)
     expect(layout.windows.value.css.x + layout.windows.value.css.width).toBeLessThanOrEqual(752)
     expect(layout.windows.value.css.y + layout.windows.value.css.height).toBeLessThanOrEqual(442)
   })
@@ -113,15 +112,17 @@ describe('builder panel docking', () => {
     expect(layout.visible.value).toEqual(['add'])
   })
 
-  it('swaps panels when docking onto an occupied side instead of hiding one', async () => {
+  it('replaces the panel on an occupied side instead of moving it elsewhere', async () => {
     await fixture()
     layout.open('inspector', 'left')
-    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'right' })
+    expect(layout.windows.value.add.open).toBe(false)
     layout.open('outline', 'floating')
-    layout.open('outline', 'right')
-    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'floating' })
-    layout.open('history')
+    layout.open('outline', 'left')
     expect(layout.windows.value.inspector.open).toBe(false)
+    expect(layout.windows.value.outline).toMatchObject({ open: true, mode: 'left' })
+    layout.open('inspector')
+    expect(layout.windows.value.outline.open).toBe(false)
+    expect(layout.windows.value.inspector).toMatchObject({ open: true, mode: 'left' })
   })
 
   it('pops a docked panel out next to its dock and returns it to that dock', async () => {
@@ -197,15 +198,15 @@ describe('builder panel gestures', () => {
     expect(layout.windows.value.outline.open).toBe(false)
   })
 
-  it('previews a swap and moves the displaced panel to the side the dragged one left', async () => {
+  it('previews a replacement and closes the displaced panel', async () => {
     await fixture()
     start()
     pointer('pointermove', 650, 250)
     pointer('pointermove', 140, 260)
-    expect(layout.dropPreview.value).toMatchObject({ side: 'left', occupant: 'add', outcome: 'swap' })
+    expect(layout.dropPreview.value).toMatchObject({ side: 'left', occupant: 'add' })
     pointer('pointerup', 140, 260)
     expect(layout.windows.value.inspector.mode).toBe('left')
-    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'right' })
+    expect(layout.windows.value.add.open).toBe(false)
     expect(layout.dropPreview.value).toBe(null)
   })
 
