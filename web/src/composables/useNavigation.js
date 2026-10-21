@@ -28,7 +28,7 @@ function section(item, children) {
   const visible = children.filter(Boolean)
   if (visible.length === 0) return null
   if (visible.length === 1) return { ...visible[0], icon: item.icon }
-  return { ...item, to: visible[0].to, match: visible.flatMap((child) => child.match), children: visible }
+  return { ...item, to: visible[0].to, match: [...(item.match ?? []), ...visible.flatMap((child) => child.match)], children: visible }
 }
 
 /**
@@ -38,6 +38,7 @@ function section(item, children) {
  *
  * Each item: { key, label, icon, to, match: [path prefixes], children? }.
  * Children are { key, label, to, match } and mirror the tabs of their page.
+ * Descriptions clarify setup destinations without adding noise to content links.
  */
 export function useNavigation() {
   const auth = useAuthStore()
@@ -83,10 +84,15 @@ export function useNavigation() {
 
     const website = []
     if (showPageBuilder.value) {
-      website.push({ key: 'page-builder', label: t('app.nav.website'), icon: 'mdi:application-edit-outline', to: '/page-builder', match: ['/page-builder'] })
+      website.push(section({ key: 'page-builder', label: t('app.nav.website'), description: t('app.nav.designHint'), icon: 'mdi:palette-outline', match: ['/page-builder'] }, [
+        { key: 'website-design', label: t('site.builder.designSettings'), to: '/page-builder/design', match: ['/page-builder/design'] },
+        { key: 'website-menus', label: t('site.tab.menus'), to: '/page-builder/menus', match: ['/page-builder/menus'] },
+        { key: 'website-components', label: t('site.component.group'), to: '/page-builder/components', match: ['/page-builder/components'] },
+        { key: 'website-fonts', label: t('site.tab.fonts'), to: '/page-builder/fonts', match: ['/page-builder/fonts'] },
+      ]))
     }
     if (auth.can('site.manage')) {
-      website.push(section({ key: 'website-settings', label: t('app.nav.websiteSettings'), icon: 'mdi:web' }, [
+      website.push(section({ key: 'website-settings', label: t('app.nav.websiteSettings'), description: t('app.nav.websiteSettingsHint'), icon: 'mdi:cog-outline' }, [
         { key: 'website-general', label: t('website.tab.general'), to: '/website/general', match: ['/website/general'] },
         { key: 'website-seo', label: t('website.tab.seo'), to: '/website/seo', match: ['/website/seo'] },
       ]))
@@ -97,18 +103,18 @@ export function useNavigation() {
 
     const developer = []
     if (auth.can('schema.read')) {
-      developer.push({ key: 'content-types', label: t('app.nav.contentTypes'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
+      developer.push({ key: 'content-types', label: t('app.nav.contentTypes'), description: t('app.nav.contentTypesHint'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
     }
-    developer.push(section({ key: 'connect', label: t('app.nav.connect'), icon: 'mdi:connection' }, [
-      { key: 'connect-tokens', label: t('connect.accessTokens'), to: '/connect/access-tokens', match: ['/connect/access-tokens'] },
+    developer.push(section({ key: 'connect', label: t('app.nav.connect'), description: t('app.nav.connectHint'), icon: 'mdi:connection', match: ['/connect'] }, [
+      auth.can('tokens.read') && { key: 'connect-tokens', label: t('connect.accessTokens'), to: '/connect/access-tokens', match: ['/connect/access-tokens'] },
       { key: 'connect-api', label: t('connect.api'), to: '/connect/api', match: ['/connect/api'] },
       { key: 'connect-mcp', label: t('connect.mcp'), to: '/connect/mcp', match: ['/connect/mcp'] },
-      { key: 'connect-webhooks', label: t('connect.webhooks'), to: '/connect/webhooks', match: ['/connect/webhooks'] },
+      auth.can('webhooks.manage') && { key: 'connect-webhooks', label: t('connect.webhooks'), to: '/connect/webhooks', match: ['/connect/webhooks'] },
     ]))
     result.push({ key: 'developer', label: t('app.nav.developer'), items: developer })
 
     const admin = [
-      section({ key: 'users', label: t('app.nav.usersRoles'), icon: 'mdi:account-group-outline' }, [
+      section({ key: 'users', label: t('app.nav.usersRoles'), description: t('app.nav.usersRolesHint'), icon: 'mdi:account-group-outline' }, [
         auth.can('users.read') && { key: 'users-list', label: t('app.nav.users'), to: '/users', match: ['/users'] },
         auth.can('roles.read') && { key: 'roles', label: t('app.nav.roles'), to: '/roles', match: ['/roles'] },
       ]),
@@ -128,7 +134,9 @@ export function useNavigation() {
   })
 
   function isActive(item, path) {
-    return item.match.some((prefix) => pathMatches(path, prefix))
+    // Bare section URLs render the default tab, without claiming sibling routes.
+    const defaults = { '/website': '/website/general', '/page-builder': '/page-builder/design', '/connect': '/connect/access-tokens' }
+    return item.match.some((prefix) => pathMatches(defaults[path] ?? path, prefix))
   }
 
   return { groups, contentTypes, allTypes, isActive }

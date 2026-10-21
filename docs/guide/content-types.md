@@ -10,7 +10,7 @@ The headless API is disabled for new types. Enable **Expose content fields throu
 
 ## Creating a content type
 
-1. In the sidebar, under **Administration**, click **Content types**.
+1. In the sidebar, under **Developer**, click **Content types**.
 2. Click **New content type**.
 3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
 4. Choose the **Content model**:
