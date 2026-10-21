@@ -98,9 +98,30 @@
       <BuilderGroup v-model:open="expanded.typography" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
         <button type="button" class="btn-secondary btn-sm w-full" @click="fontManagerOpen = true"><Icon icon="mdi:format-font" class="h-4 w-4" />{{ t('site.fonts.manage') }}</button>
         <FontManager v-model="fontManagerOpen" :draft-nodes="draftNodes" />
-        <div>
-          <label class="form-label" for="design-font-body">{{ t("site.theme.bodyFont") }}</label>
-          <FontPicker id="design-font-body" v-model="theme.fonts.body" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="design-font-heading">{{ t("site.theme.headingFont") }}</label>
+            <FontPicker id="design-font-heading" v-model="theme.fonts.heading" />
+          </div>
+          <div>
+            <label class="form-label" for="design-font-body">{{ t("site.theme.bodyFont") }}</label>
+            <FontPicker id="design-font-body" v-model="theme.fonts.body" />
+          </div>
+          <div>
+            <label class="form-label" for="design-scale">{{ t("site.theme.typeScale") }}</label>
+            <select id="design-scale" v-model="theme.type_scale" class="form-select w-full rounded-lg border-slate-300 text-sm">
+              <option value="1.125">{{ t("site.theme.scale.subtle") }}</option>
+              <option value="1.2">{{ t("site.theme.scale.balanced") }}</option>
+              <option value="1.25">{{ t("site.theme.scale.classic") }}</option>
+              <option value="1.333">{{ t("site.theme.scale.bold") }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="design-heading-weight">{{ t("site.theme.headingWeight") }}</label>
+            <select id="design-heading-weight" v-model.number="theme.heading_weight" class="form-select w-full rounded-lg border-slate-300 text-sm">
+              <option v-for="weight in [400, 500, 600, 700, 800, 900]" :key="weight" :value="weight">{{ weight }}</option>
+            </select>
+          </div>
         </div>
         <RangeRow v-model="theme.base_size" :label="t('site.theme.baseSize')" :min="12" :max="24" :step="1" unit="px" />
         <RangeRow v-model="theme.line_height" :label="t('site.theme.lineHeight')" :min="1.1" :max="2.2" :step="0.05" />

@@ -4,7 +4,7 @@
 
     <div class="flex w-full rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="radiogroup" :aria-label="t('site.theme.headingLevel')">
       <button
-        v-for="option in TABS"
+        v-for="option in LEVELS"
         :key="option"
         type="button"
         role="radio"
@@ -14,7 +14,7 @@
         :class="level === option ? 'bg-white text-theme-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'"
         @click="level = option"
       >
-        {{ option === ALL ? t("site.theme.headingAll") : option.toUpperCase() }}
+        {{ option.toUpperCase() }}
         <span v-if="isCustomized(option)" class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-theme-500" aria-hidden="true"></span>
       </button>
     </div>
@@ -24,31 +24,7 @@
       <p class="mt-1 font-mono text-[10px] text-slate-400">{{ summary }}</p>
     </div>
 
-    <!-- Shared values: also used by the site name, the "heading" font role and the --fs-* size steps. -->
-    <div v-if="level === ALL" class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="form-label" :for="`${id}-font`">{{ t("site.theme.headingLevelFont") }}</label>
-        <FontPicker :id="`${id}-font`" v-model="theme.fonts.heading" />
-      </div>
-      <div>
-        <label class="form-label" :for="`${id}-weight`">{{ t("site.theme.headingLevelWeight") }}</label>
-        <select :id="`${id}-weight`" v-model.number="theme.heading_weight" class="form-select w-full rounded-lg border-slate-300 text-sm">
-          <option v-for="weight in [400, 500, 600, 700, 800, 900]" :key="weight" :value="weight">{{ weight }}</option>
-        </select>
-      </div>
-      <div class="col-span-2">
-        <label class="form-label" :for="`${id}-scale`">{{ t("site.theme.typeScale") }}</label>
-        <select :id="`${id}-scale`" v-model="theme.type_scale" class="form-select w-full rounded-lg border-slate-300 text-sm">
-          <option value="1.125">{{ t("site.theme.scale.subtle") }}</option>
-          <option value="1.2">{{ t("site.theme.scale.balanced") }}</option>
-          <option value="1.25">{{ t("site.theme.scale.classic") }}</option>
-          <option value="1.333">{{ t("site.theme.scale.bold") }}</option>
-        </select>
-        <p class="mt-1 text-xs text-slate-500">{{ t("site.theme.typeScaleHint") }}</p>
-      </div>
-    </div>
-
-    <div v-else class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="form-label" :for="`${id}-font`">{{ t("site.theme.headingLevelFont") }}</label>
         <FontPicker :id="`${id}-font`" v-model="heading.font" allow-empty :empty-label="t('site.theme.inherit', { value: fontLabel(theme.fonts.heading) })" />
@@ -91,7 +67,7 @@
       </div>
     </div>
 
-    <div v-if="level !== ALL" class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <p class="text-xs text-slate-500">{{ t("site.theme.headingMobileHint") }}</p>
       <button v-if="isCustomized(level)" type="button" class="btn-secondary btn-sm shrink-0" @click="resetLevel">
         <Icon icon="mdi:restore" class="h-4 w-4" />
@@ -112,9 +88,6 @@ import { useI18n } from "../../i18n/index.js";
 
 /** Type scale step of each level, as in Theme::HEADING_LEVELS. */
 const LEVELS = ["h1", "h2", "h3", "h4", "h5", "h6"];
-/** Tab with the values every level inherits. */
-const ALL = "all";
-const TABS = [ALL, ...LEVELS];
 const SCALE_STEPS = { h1: 5, h2: 4, h3: 3, h4: 2, h5: 1, h6: 0 };
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 /** Values of the base stylesheet that apply until a level overrides them. */
@@ -134,17 +107,15 @@ const TRANSFORMS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const id = `theme-heading-${useId()}`;
-const level = ref(ALL);
+const level = ref("h1");
 const theme = computed(() => site.draft.theme);
 const fontLabel = (id) => site.data.font_families?.find((font) => font.id === id)?.name ?? t(`site.font.${id}`);
 /** One level's values when nothing is overridden (Theme::headingDefaults()). */
 const defaults = computed(() => site.data.theme_defaults.headings.h1);
-/** The "all" tab previews H2 with nothing overridden. */
-const heading = computed(() => level.value === ALL ? defaults.value : theme.value.headings[level.value]);
-const scaledSize = (name) => Math.round(theme.value.base_size * Number(theme.value.type_scale) ** SCALE_STEPS[name]);
+const heading = computed(() => theme.value.headings[level.value]);
 
 const inherited = computed(() => ({
-  size: scaledSize(level.value === ALL ? "h2" : level.value),
+  size: Math.round(theme.value.base_size * Number(theme.value.type_scale) ** SCALE_STEPS[level.value]),
   ...BASE,
 }));
 
@@ -166,13 +137,11 @@ const specimenStyle = computed(() => ({
   textTransform: heading.value.transform || "none",
 }));
 
-const summary = computed(() => level.value === ALL
-  ? LEVELS.map((name) => `${name.toUpperCase()} ${scaledSize(name)}px`).join(" · ")
-  : [`${effective.value.size}px`, effective.value.weight, `${t("site.theme.lineHeight")} ${effective.value.line_height}`, `${effective.value.letter_spacing}em`].join(" · "),
+const summary = computed(() =>
+  [`${effective.value.size}px`, effective.value.weight, `${t("site.theme.lineHeight")} ${effective.value.line_height}`, `${effective.value.letter_spacing}em`].join(" · "),
 );
 
 function isCustomized(name) {
-  if (name === ALL) return false;
   const values = theme.value.headings[name];
   return Object.keys(defaults.value).some((key) => values[key] !== defaults.value[key]);
 }
