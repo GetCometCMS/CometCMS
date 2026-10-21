@@ -30,7 +30,7 @@
     <ContentLinkPicker v-if="mode === 'entry' && link.collection" :key="`${context}:${link.collection}`"
       :model-value="link.entry || ''" :collection="link.collection" :locale="settings?.default_locale || ''" :context="context" :only-identifier="onlyIdentifier"
       @update:model-value="update({ entry: $event })" @select="chosenEntry" @resolved="resolvedEntry = $event" />
-    <MenuLinkSummary v-if="mode === 'home'" :link="link" :types="types" :settings="settings" :context="context" verbose />
+    <MenuLinkSummary v-if="mode === 'home'" :explain-unavailable="taskFocused" :link="link" :types="types" :settings="settings" :context="context" verbose />
     <p v-if="unavailableRoute" class="text-xs text-amber-700" role="status">{{ t('site.link.unavailableRoute') }}</p>
 
     <label v-if="mode === 'url'" class="block">
@@ -40,21 +40,9 @@
       <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t('site.link.urlHint') }}</span>
     </label>
 
-    <label v-if="['anchor', 'home', 'entry', 'index'].includes(link.type)" class="block">
-      <span :class="labelClass">{{ t(link.type === 'anchor' ? 'site.link.anchor' : 'site.link.optionalAnchor') }}</span>
-      <div class="flex items-center rounded-lg border border-slate-300 bg-white focus-within:ring-1 focus-within:ring-theme-500">
-        <span class="pl-3 text-slate-400" :class="fieldClass" aria-hidden="true">#</span>
-        <input :value="link.anchor || ''" type="text" :class="fieldClass" class="form-input min-w-0 flex-1 rounded-lg border-0 focus:ring-0"
-          :title="compact ? t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') : undefined"
-          :placeholder="t('site.link.anchorPlaceholder')" @input="update({ anchor: $event.target.value })" />
-      </div>
-      <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') }}</span>
-    </label>
+    <LinkOptions :link="link" :compact="compact" :task-focused="taskFocused" @update="update" />
     <p v-if="issue" class="text-xs text-red-700" role="status">{{ t(`site.link.${issue}`) }}</p>
-    <label v-if="!compact && !['none', 'anchor'].includes(link.type)" class="flex items-center gap-2 text-xs text-slate-600">
-      <input type="checkbox" class="rounded border-slate-300 text-theme-600" :checked="link.new_tab" @change="update({ new_tab: $event.target.checked })" />
-      {{ t('site.link.newTab') }}
-    </label>
+
   </div>
 </template>
 
@@ -63,6 +51,7 @@ import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import ContentLinkPicker from './ContentLinkPicker.vue'
 import LinkModeMenu from './LinkModeMenu.vue'
+import LinkOptions from './LinkOptions.vue'
 import MenuLinkSummary from './MenuLinkSummary.vue'
 import { destinationAvailable, eligibleTypes, entryTitle, linkIssue } from '../../composables/siteLinks.js'
 import { resolveLocalized } from "../../composables/localizedValues.js";
@@ -75,6 +64,7 @@ const props = defineProps({
   allow: { type: Array, default: () => ['none', 'url', 'current', 'home', 'index', 'entry', 'anchor'] },
   /** One-row type menu and smaller fields, for narrow sidebars. */
   compact: { type: Boolean, default: false },
+  taskFocused: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'destination-label'])
 const { t } = useI18n()
@@ -88,8 +78,8 @@ const mode = computed(() => link.value.type)
 const collections = computed(() => eligibleTypes(props.types, props.settings, mode.value))
 const modes = computed(() => [
   { value: 'home', label: t('site.link.home'), icon: 'mdi:home-outline', enabled: props.allow.includes('home') },
-  { value: 'entry', label: t('site.link.content'), icon: 'mdi:database-outline', enabled: props.allow.includes('entry') },
-  { value: 'index', label: t('site.link.listing'), icon: 'mdi:format-list-bulleted', enabled: props.allow.includes('index') },
+  { value: 'entry', label: t(props.taskFocused ? 'site.menus.page' : 'site.link.content'), icon: 'mdi:database-outline', enabled: props.allow.includes('entry') },
+  { value: 'index', label: t(props.taskFocused ? 'site.menus.overview' : 'site.link.listing'), icon: 'mdi:format-list-bulleted', enabled: props.allow.includes('index') },
   { value: 'url', label: t('site.link.custom'), icon: 'mdi:link', enabled: props.allow.includes('url') },
   { value: 'anchor', label: t('site.link.section'), icon: 'mdi:pound', enabled: props.allow.includes('anchor') },
   { value: 'current', label: t('site.link.current'), icon: 'mdi:file-link-outline', enabled: props.allow.includes('current') },

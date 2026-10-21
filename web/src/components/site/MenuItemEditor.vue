@@ -1,28 +1,37 @@
 <template>
   <div class="space-y-5">
+    <LocalizedInput :id="`menu-item-${item.id}`" ref="labelInput" v-model="item.label" :label="t('site.menus.displayText')" maxlength="120" />
     <div>
-      <label class="form-label" :for="`menu-item-${item.id}`">{{ t('site.menus.itemLabel') }}</label>
-      <LocalizedInput :id="`menu-item-${item.id}`" ref="labelInput" v-model="item.label" maxlength="120" />
+      <h3 class="form-label">{{ t('site.menus.destination') }}</h3>
+      <LocalizedInput v-model="item.link">
+        <template #default="{ value, update }">
+          <div class="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+            <MenuLinkSummary explain-unavailable :link="value" :types="types" :settings="settings" :context="item.id" verbose />
+            <p v-if="linkIssue(value, item.label, settings.default_locale)" class="text-xs text-amber-700">{{ t(`site.link.${linkIssue(value, item.label, settings.default_locale)}`) }}</p>
+            <button type="button" class="text-sm font-medium text-theme-700 underline-offset-2 hover:underline" @click="changeDestination(value, update)">{{ t('site.menus.changeDestination') }}</button>
+          </div>
+          <LinkOptions :link="value" task-focused @update="update({ ...value, ...$event })" />
+        </template>
+      </LocalizedInput>
     </div>
-    <div>
-      <h3 class="form-label">{{ t('site.menus.target') }}</h3>
-      <LocalizedInput v-model="item.link"><template #default="{ value, update }"><LinkEditor :model-value="value" @update:model-value="update" :types="types" :settings="settings" :context="item.id" group-heading
-        :allow="['home', 'entry', 'index', 'url', 'anchor', 'none']" @destination-label="prefillLabel" /></template></LocalizedInput>
-      <p v-if="resolveLocalized(item.link, settings.default_locale, settings.default_locale)?.type === 'none' && !resolvedLabel(item.label)" class="mt-2 text-xs text-red-700">{{ t('site.link.groupLabel') }}</p>
-    </div>
+    <MenuDestinationDialog v-model="destinationOpen" :link="destination" :types="types" :settings="settings" @confirm="applyDestination" />
   </div>
 </template>
-
 <script setup>
-import LocalizedInput from '../LocalizedInput.vue'
-import { resolveLocalized } from '../../composables/localizedValues.js'
 import { ref } from 'vue'
-import LinkEditor from './LinkEditor.vue'
+import LocalizedInput from '../LocalizedInput.vue'
+import MenuLinkSummary from './MenuLinkSummary.vue'
+import LinkOptions from './LinkOptions.vue'
+import MenuDestinationDialog from './MenuDestinationDialog.vue'
+import { linkIssue } from '../../composables/siteLinks.js'
 import { useI18n } from '../../i18n/index.js'
-const props = defineProps({ item: { type: Object, required: true }, types: { type: Array, default: () => [] }, settings: { type: Object, required: true }, locales: { type: Array, default: () => [] } })
+defineProps({ item: { type: Object, required: true }, types: { type: Array, default: () => [] }, settings: { type: Object, required: true } })
 const { t } = useI18n()
 const labelInput = ref(null)
-function resolvedLabel(value) { return String(resolveLocalized(value, props.settings.default_locale, props.settings.default_locale) ?? '').trim() }
-function prefillLabel(label) { if (!resolvedLabel(props.item.label)) props.item.label = label }
+const destinationOpen = ref(false)
+const destination = ref({})
+let updateDestination = null
+function changeDestination(value, update) { destination.value = value; updateDestination = update; destinationOpen.value = true }
+function applyDestination({ link }) { updateDestination?.(link) }
 defineExpose({ focusLabel: () => labelInput.value?.focus() })
 </script>

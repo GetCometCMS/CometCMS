@@ -1,45 +1,28 @@
 <template>
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[12rem_minmax(0,1fr)]">
-    <aside class="card h-fit p-3">
-      <ul class="space-y-1">
-        <li v-for="menu in menus" :key="menu.name">
-          <button type="button" class="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
-            :class="menu.name === selectedName ? 'bg-theme-50 font-medium text-theme-700' : 'text-slate-700 hover:bg-slate-50'" @click="selectedName = menu.name">
-            <Icon icon="mdi:menu" class="h-4 w-4 shrink-0 opacity-60" />
-            <span class="min-w-0 flex-1 truncate">{{ menu.label }}</span>
-            <span class="text-xs text-slate-400">{{ itemCount(menu.items) }}</span>
-          </button>
-        </li>
-      </ul>
-      <form class="mt-3 space-y-2 border-t border-slate-100 pt-3" @submit.prevent="addMenu">
-        <input v-model="newMenuLabel" type="text" maxlength="80" class="form-input w-full rounded-lg border-slate-300 text-sm"
-          :placeholder="t('site.menus.newMenu')" :aria-label="t('site.menus.newMenu')" />
-        <button type="submit" class="btn-secondary btn-sm w-full justify-center" :disabled="!newMenuLabel.trim() || menus.length >= limits.max_menus">
-          <Icon icon="mdi:plus" class="h-4 w-4" />{{ t('site.menus.addMenu') }}
-        </button>
-        <p v-if="menus.length >= limits.max_menus" class="text-xs text-slate-500">{{ t('site.menus.limitMenus', { count: limits.max_menus }) }}</p>
-      </form>
-    </aside>
-
+  <div class="space-y-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <label for="menu-selector" class="text-sm font-medium text-slate-700">{{ t('site.menus.menu') }}</label>
+      <select id="menu-selector" :value="`menu:${selectedName}`" class="form-select min-w-0 max-w-full rounded-lg border-slate-300 text-sm" @change="chooseMenu($event.target)">
+        <option v-if="!menus.length" value="" disabled>{{ t('site.menus.empty') }}</option>
+        <option v-for="menu in menus" :key="menu.name" :value="`menu:${menu.name}`">{{ menu.label }} ({{ itemCount(menu.items) }})</option>
+        <option value="__create__" :disabled="menus.length >= limits.max_menus">{{ t('site.menus.createMenu') }}</option>
+      </select>
+      <button v-if="selected" type="button" class="btn-secondary btn-sm" :aria-expanded="settingsOpen" @click="settingsOpen = !settingsOpen">
+        <Icon icon="mdi:cog-outline" class="h-4 w-4" />{{ t('site.menus.settings') }}
+      </button>
+    </div>
+    <div v-if="selected && settingsOpen" class="card space-y-3 p-4">
+      <label class="form-label" for="menu-label">{{ t('site.menus.label') }}</label>
+      <input id="menu-label" v-model="selected.label" type="text" maxlength="80" class="form-input w-full rounded-lg border-slate-300 text-sm" />
+      <p class="text-xs text-slate-500">{{ t('site.menus.name') }} <code class="rounded bg-slate-100 px-1">{{ selected.name }}</code></p>
+      <button type="button" class="btn-danger-subtle btn-sm" @click="deleteMenuOpen = true">{{ t('site.menus.deleteMenu') }}</button>
+    </div>
     <section v-if="selected" class="card min-w-0">
-      <div class="border-b border-slate-200 p-4">
-        <div class="flex flex-wrap items-end gap-3">
-          <div class="min-w-0 flex-1">
-            <label class="form-label" for="menu-label">{{ t('site.menus.label') }}</label>
-            <input id="menu-label" v-model="selected.label" type="text" maxlength="80" class="form-input w-full rounded-lg border-slate-300 text-sm" />
-          </div>
-          <button type="button" class="btn-danger-subtle btn-sm" @click="deleteMenuOpen = true">
-            <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />{{ t('site.menus.deleteMenu') }}
-          </button>
-        </div>
-        <p class="mt-2 text-xs text-slate-500">{{ t('site.menus.name') }} <code class="rounded bg-slate-100 px-1">{{ selected.name }}</code></p>
-      </div>
-
       <div class="grid min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="min-w-0 p-4">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 class="card-title">{{ t('site.menus.structure') }}</h2>
-            <button type="button" class="btn-secondary btn-sm" :disabled="selected.items.length >= limits.max_siblings" @click="addItem()">
+            <button type="button" class="btn-primary btn-sm" :disabled="selected.items.length >= limits.max_siblings" @click="startAdd()">
               <Icon icon="mdi:plus" class="h-4 w-4" />{{ t('site.menus.addItem') }}
             </button>
           </div>
@@ -47,12 +30,11 @@
           <div v-if="!selected.items.length" class="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center">
             <Icon icon="mdi:format-list-bulleted" class="mx-auto mb-2 h-8 w-8 text-slate-300" />
             <p class="text-sm text-slate-600">{{ t('site.menus.emptyItems') }}</p>
-            <button type="button" class="mt-3 text-sm font-medium text-theme-700" @click="addItem()">{{ t('site.menus.addFirst') }}</button>
           </div>
           <ul v-else ref="tree" role="tree" :aria-label="t('site.menus.structure')" class="space-y-1">
             <MenuTreeNode v-for="item in selected.items" :key="item.id" :item="item" :items="selected.items"
               :selected-id="selectedId" :expanded-ids="expandedIds" :types="site.data.types" :settings="site.draft.settings" :limits="limits" :drag-id="dragId"
-              @select="selectItem" @toggle="toggle" @navigate="navigate" @drag="dragId = $event" @move="move" />
+              @action="rowAction" @select="selectItem" @toggle="toggle" @navigate="navigate" @drag="dragId = $event" @move="move" />
           </ul>
           <div v-if="dragId" class="mt-3 rounded-lg border-2 border-dashed p-3 text-center text-xs"
             :class="rootOver ? 'border-theme-500 bg-theme-50 text-theme-700' : 'border-slate-300 text-slate-500'"
@@ -62,24 +44,8 @@
 
         <aside class="min-w-0 border-t border-slate-200 bg-slate-50/50 p-4 xl:border-l xl:border-t-0">
           <template v-if="selectedItem">
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <h2 class="card-title">{{ t('site.menus.editItem') }}</h2>
-              <button type="button" class="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" :aria-label="t('common.remove')" @click="requestRemove">
-                <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
-              </button>
-            </div>
-            <div class="mb-4 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-3">
-              <button v-for="action in moveActions" :key="action.value" type="button"
-                class="rounded border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
-                :disabled="!canMove(action.value)" :title="action.label" :aria-label="action.label" @click="shift(action.value)">
-                <Icon :icon="action.icon" class="h-4 w-4" />
-              </button>
-              <span class="ml-auto text-xs text-slate-400">{{ t('site.menus.level', { level: selectedDepth, max: limits.max_depth }) }}</span>
-            </div>
-            <MenuItemEditor :key="selectedItem.id" ref="inspector" :item="selectedItem" :types="site.data.types" :settings="site.draft.settings" :locales="extraLocales" />
-            <button type="button" class="btn-secondary btn-sm mt-5 w-full justify-center" :disabled="!canAddChild" @click="addItem(selectedItem)">
-              <Icon icon="mdi:subdirectory-arrow-right" class="h-4 w-4" />{{ t('site.menus.addChild') }}
-            </button>
+            <h2 class="card-title mb-4 break-words">{{ itemLabel(selectedItem) }}</h2>
+            <MenuItemEditor :key="selectedItem.id" ref="inspector" :item="selectedItem" :types="site.data.types" :settings="site.draft.settings" />
           </template>
           <p v-else class="py-8 text-center text-sm text-slate-500">{{ t('site.menus.selectItem') }}</p>
         </aside>
@@ -89,10 +55,12 @@
     </section>
     <section v-else class="card p-6 text-sm text-slate-500">{{ t('site.menus.empty') }}</section>
 
+    <ComponentNameModal v-model="createMenuOpen" :maxlength="80" :title="t('site.menus.createMenu')" :label="t('site.menus.label')" :confirm-label="t('site.menus.addMenu')" icon="mdi:menu" @confirm="addMenu" />
+    <MenuDestinationDialog v-model="addOpen" adding :parent-label="addParent ? itemLabel(addParent) : ''" :types="site.data.types" :settings="site.draft.settings" @confirm="addItem" />
     <ConfirmModal v-model="deleteMenuOpen" :title="t('site.menus.deleteTitle')"
       :message="t('site.menus.deleteMessage', { name: selected?.label ?? '' })" :confirm-label="t('site.menus.deleteMenu')" @confirm="deleteMenu" />
     <ConfirmModal v-model="deleteItemOpen" :title="t('site.menus.deleteItemTitle')"
-      :message="t('site.menus.deleteItemMessage', { name: selectedItem?.label || t('site.menus.untitled'), count: selectedItem ? itemCount([selectedItem]) : 0 })"
+      :message="t('site.menus.deleteItemMessage', { name: selectedItem ? itemLabel(selectedItem) : '', count: selectedItem ? itemCount([selectedItem]) : 0 })"
       @confirm="removeItem" />
   </div>
 </template>
@@ -101,6 +69,9 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import ConfirmModal from '../ConfirmModal.vue'
+import ComponentNameModal from './ComponentNameModal.vue'
+import MenuDestinationDialog from './MenuDestinationDialog.vue'
+import { resolveLocalized } from '../../composables/localizedValues.js'
 import MenuItemEditor from './MenuItemEditor.vue'
 import MenuTreeNode from './MenuTreeNode.vue'
 import { DEFAULT_MENU_LIMITS, createMenuItem, itemCount, findNode, locate, ancestors, menuDrop, menuMoveTarget, moveMenuItem } from '../../composables/menuTree.js'
@@ -111,7 +82,10 @@ const { t } = useI18n()
 const menus = computed(() => site.draft.menus)
 const limits = computed(() => ({ ...DEFAULT_MENU_LIMITS, ...site.data.menu_limits }))
 const selectedName = ref(menus.value[0]?.name ?? '')
-const newMenuLabel = ref('')
+const createMenuOpen = ref(false)
+const settingsOpen = ref(false)
+const addOpen = ref(false)
+const addParent = ref(null)
 const selectedId = ref('')
 const expandedIds = ref(new Set())
 const deleteMenuOpen = ref(false)
@@ -123,15 +97,6 @@ const inspector = ref(null)
 const announcement = ref('')
 const selected = computed(() => menus.value.find((menu) => menu.name === selectedName.value) ?? null)
 const selectedItem = computed(() => findNode(selected.value?.items ?? [], selectedId.value))
-const selectedDepth = computed(() => ancestors(selected.value?.items ?? [], selectedId.value).length + 1)
-const canAddChild = computed(() => selectedItem.value && selectedDepth.value < limits.value.max_depth && selectedItem.value.children.length < limits.value.max_siblings)
-const extraLocales = computed(() => site.draft.settings.locales.filter((locale) => locale !== site.draft.settings.default_locale))
-const moveActions = computed(() => [
-  { value: 'up', icon: 'mdi:arrow-up', label: t('site.builder.moveUp') },
-  { value: 'down', icon: 'mdi:arrow-down', label: t('site.builder.moveDown') },
-  { value: 'indent', icon: 'mdi:format-indent-increase', label: t('site.menus.indent') },
-  { value: 'outdent', icon: 'mdi:format-indent-decrease', label: t('site.menus.outdent') },
-])
 watch(() => menus.value.map((menu) => menu.name), (names) => {
   if (!names.includes(selectedName.value)) selectedName.value = names[0] ?? ''
 })
@@ -142,9 +107,27 @@ watch(() => `${site.data.workspace}:${selected.value?.name}`, () => {
   expandedIds.value = ids
   selectedId.value = selected.value?.items[0]?.id ?? ''
   dragId.value = ''
+  settingsOpen.value = false
+  addOpen.value = false
 }, { immediate: true })
 watch(dragId, () => { rootOver.value = false })
-function selectItem(id) { selectedId.value = id }
+function itemLabel(item) { return resolveLocalized(item.label, site.draft.settings.default_locale, site.draft.settings.default_locale) || t('site.menus.untitled') }
+function chooseMenu(element) {
+  if (element.value === '__create__') { createMenuOpen.value = true; element.value = `menu:${selectedName.value}` }
+  else selectedName.value = element.value.slice(5)
+}
+async function selectItem(id, edit = false) {
+  selectedId.value = id
+  await nextTick()
+  if (edit && window.matchMedia('(max-width: 1279px)').matches) inspector.value?.focusLabel()
+}
+function startAdd(parent = null) { addParent.value = parent; addOpen.value = true }
+function rowAction(id, action) {
+  selectedId.value = id
+  if (action === 'add') startAdd(selectedItem.value)
+  else if (action === 'delete') requestRemove()
+  else shift(action)
+}
 function toggle(id) {
   if (expandedIds.value.has(id)) {
     expandedIds.value.delete(id)
@@ -157,6 +140,7 @@ async function focusRow(id) {
   await nextTick()
   const element = [...(tree.value?.querySelectorAll('[data-menu-row]') ?? [])].find((row) => row.dataset.menuRow === id)
   element?.focus()
+  element?.scrollIntoView?.({ block: 'nearest' })
 }
 function navigate(id, key) {
   const visible = []
@@ -179,21 +163,17 @@ function navigate(id, key) {
   }
   if (next) focusRow(next)
 }
-async function addItem(parent = null) {
+async function addItem({ link, label }) {
+  const parent = addParent.value
   if (!selected.value) return
   const items = parent ? parent.children : selected.value.items
   if (items.length >= limits.value.max_siblings || (parent && ancestors(selected.value.items, parent.id).length + 2 > limits.value.max_depth)) return
-  const item = createMenuItem()
+  const item = { ...createMenuItem(), link, label }
   items.push(item)
   if (parent) expandedIds.value.add(parent.id)
   selectedId.value = item.id
   await nextTick()
   inspector.value?.focusLabel()
-}
-function canMove(action) {
-  if (!selected.value || !selectedItem.value) return false
-  const target = menuMoveTarget(selected.value.items, selectedId.value, action)
-  return !!target && !!menuDrop(selected.value.items, selectedId.value, ...target, limits.value)
 }
 function shift(action) {
   const target = menuMoveTarget(selected.value.items, selectedId.value, action)
@@ -203,7 +183,7 @@ function move(id, target, position) {
   if (moveMenuItem(selected.value.items, id, target, position, limits.value)) {
     if (position === 'inside' && target) expandedIds.value.add(target)
     focusRow(id)
-    announcement.value = t('site.menus.moved', { name: findNode(selected.value.items, id)?.label || t('site.menus.untitled') })
+    announcement.value = t('site.menus.moved', { name: itemLabel(findNode(selected.value.items, id)) })
   }
 }
 function rootDragOver(event) {
@@ -229,8 +209,8 @@ function removeItem() {
   if (next) focusRow(next)
 }
 function slugify(value) { return value.toLowerCase().trim().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'menu' }
-function addMenu() {
-  const label = newMenuLabel.value.trim()
+function addMenu(value) {
+  const label = value.trim()
   if (!label || menus.value.length >= limits.value.max_menus) return
   const base = slugify(label)
   let name = base
@@ -238,7 +218,7 @@ function addMenu() {
   while (menus.value.some((menu) => menu.name === name)) name = `${base}-${suffix++}`
   menus.value.push({ name, label, items: [] })
   selectedName.value = name
-  newMenuLabel.value = ''
+  createMenuOpen.value = false
 }
 function deleteMenu() {
   const index = menus.value.findIndex((menu) => menu.name === selectedName.value)
