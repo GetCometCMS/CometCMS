@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4 p-3">
+  <div ref="root" class="space-y-4 p-3">
     <div v-if="state.record.value?.loading" class="flex justify-center py-8"><LoadingSpinner /></div>
     <div v-else-if="state.record.value?.error" role="alert" class="space-y-3 text-sm text-red-600">
       <p>{{ state.record.value.error }}</p>
@@ -19,6 +19,8 @@
         <BaseField
           v-for="(config, name) in state.fields.value"
           :key="name"
+          :data-field="name"
+          :class="['rounded-md transition-[box-shadow,background-color] duration-700', highlighted === name && 'bg-theme-50/60 ring-1 ring-theme-200 ring-offset-2']"
           :name="name"
           :config="fieldConfig(name, config)"
           :locale="state.activeLocale.value"
@@ -42,6 +44,7 @@
 </template>
 
 <script setup>
+import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import TranslationInfo from "../../TranslationInfo.vue";
 import BaseField from "../../BaseField.vue";
@@ -49,11 +52,35 @@ import FieldInput from "../../FieldInput.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import { useI18n } from "../../../i18n/index.js";
 
-defineProps({
+const props = defineProps({
   state: { type: Object, required: true },
   busy: { type: Boolean, default: false },
+  /** A field to bring into view and focus, as a new `{ name }` per request. */
+  reveal: { type: Object, default: null },
 });
 const { t } = useI18n();
+const root = ref(null);
+const highlighted = ref("");
+let revealed = null;
+let highlightTimer = null;
+
+// Waits for the entry to load, so a request made while opening the panel still lands.
+watch([() => props.reveal, () => props.state.draft.value], async ([request, draft]) => {
+  if (!request || !draft || request === revealed) return;
+  revealed = request;
+  await nextTick();
+  const field = root.value?.querySelector(`[data-field="${CSS.escape(request.name)}"]`);
+  if (!field) return;
+  field.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  // The value's own input before buttons such as the translation reset.
+  const input = field.querySelector('input:not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"]')
+    ?? field.querySelector("fieldset button:not(:disabled)");
+  input?.focus({ preventScroll: true });
+  highlighted.value = request.name;
+  clearTimeout(highlightTimer);
+  highlightTimer = setTimeout(() => { highlighted.value = ""; }, 1500);
+}, { immediate: true, flush: "post" });
+onBeforeUnmount(() => clearTimeout(highlightTimer));
 
 function fieldConfig(name, config) {
   return name === "title" && !config.label ? { ...config, label: t("contentEdit.title") } : config;

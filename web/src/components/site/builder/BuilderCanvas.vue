@@ -17,6 +17,7 @@ import SitePreviewFrame from "../SitePreviewFrame.vue";
 import { PREVIEW_KEEP } from "../../../composables/previewDocument.js";
 import { templatePartBounds } from "../../../composables/builderTemplateParts.js";
 import { findNode, isStructure } from "../../../composables/layoutTree.js";
+import { isReference } from "../../../composables/smartValues.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 import { activateTab, revealTabPanel } from "../../../../../cms/app/Site/assets/tabs.js";
@@ -27,7 +28,7 @@ const props = defineProps({
   selectedTemplatePart: { type: String, default: null },
 });
 
-const emit = defineEmits(["keydown", "select-template-part"]);
+const emit = defineEmits(["keydown", "select-template-part", "edit-field"]);
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const frameRef = ref(null);
@@ -543,11 +544,21 @@ function onClick(event) {
   emit("select-template-part", part);
 }
 
-/** Double-clicking a heading, text or button edits its text in place. */
+/**
+ * Double-clicking a heading, text or button edits its text in place. Content
+ * from smart tags of the previewed entry opens that entry's field instead.
+ */
 function onDoubleClick(event) {
   if (inlineEdit || resizing) return;
   const el = event.target.closest?.("[data-node]");
   const node = el && findNode(builder.nodes.value, el.dataset.node);
+  const fields = node ? entryFieldsShown(node) : [];
+  if (fields.length) {
+    event.preventDefault();
+    // The word the double-click selected tells which of several tags was meant.
+    emit("edit-field", { fields, text: doc.getSelection()?.toString().trim() ?? "" });
+    return;
+  }
   const config = node && INLINE_TEXT[node.kind];
   const target = config && el.querySelector(config.selector);
   if (!target) return;
@@ -556,6 +567,22 @@ function onDoubleClick(event) {
   if (typeof builder.valueFor(node, "props", config.key) !== "string" || (builder.translating.value && !def?.localized)) return;
   event.preventDefault();
   startInlineEdit(target, node.id, config);
+}
+
+/** Fields of the previewed entry that the node's smart tags show, like `{{ current.intro }}`. */
+function entryFieldsShown(node) {
+  // Cards of an entry list show their own entries as the current one.
+  if (builder.entryContext(node.id).collection) return [];
+  const fields = [];
+  for (const [key, def] of Object.entries(builder.spec.value?.kinds?.[node.kind]?.props ?? {})) {
+    if (!def.binding || def.binding === "link") continue;
+    const value = builder.valueFor(node, "props", key);
+    const refs = isReference(value) ? [value] : value?.type === "template" ? value.parts.filter(isReference) : [];
+    for (const ref of refs) {
+      if (ref.source === "current" && ref.path.length === 1 && !fields.includes(ref.path[0])) fields.push(ref.path[0]);
+    }
+  }
+  return fields;
 }
 
 function startInlineEdit(target, id, { key, rich = false }) {

@@ -35,6 +35,7 @@ function part(name, editable = false) {
 async function canvas(props = {}) {
   const overlays = []
   const selectTemplatePart = vi.fn()
+  const editField = vi.fn()
   let builder
   const parts = { header: part('header'), footer: part('footer') }
   const doc = {
@@ -47,12 +48,13 @@ async function canvas(props = {}) {
       append(child) { this.children.push(child) },
     }),
     querySelectorAll: () => [],
+    getSelection: () => ({ toString: () => props.selection ?? '' }),
     querySelector: (selector) => Object.entries(parts).find(([name, value]) => selector === `.c-${name}:not([data-drop-root])` && !value.editable)?.[1] ?? null,
   }
   preview.document = doc
   const app = createSSRApp({ setup() {
     builder = createSiteBuilder({ t })
-    return () => h(BuilderCanvas, { ...props, onSelectTemplatePart: selectTemplatePart })
+    return () => h(BuilderCanvas, { ...props, onSelectTemplatePart: selectTemplatePart, onEditField: editField })
   } })
   await renderToString(app)
   const highlight = overlays.find((element) => element.className === 'cometcms-template-highlight')
@@ -68,7 +70,7 @@ async function canvas(props = {}) {
     doc.dispatch('click', event)
     return event
   }
-  return { doc, parts, highlight, hover, click, selectTemplatePart, builder }
+  return { doc, parts, highlight, hover, click, selectTemplatePart, editField, builder }
 }
 
 describe('builder shared template hover', () => {
@@ -138,5 +140,30 @@ describe('builder shared template hover', () => {
     parts.header.editable = true
     click('header')
     expect(selectTemplatePart).toHaveBeenLastCalledWith(null)
+  })
+})
+
+describe('builder smart tag double-click', () => {
+  const ref = (key, source = 'current', path = [key]) => ({ type: 'reference', source, path, filters: [] })
+
+  async function doubleClick(text, selection) {
+    const result = await canvas({ selection })
+    result.builder.spec.value = { kinds: { heading: { props: { text: { binding: 'text' }, level: {} } } } }
+    result.builder.nodes.value = [{ id: 'heading1', kind: 'heading', props: { text }, style: {}, children: [] }]
+    const event = { target: { closest: (selector) => selector === '[data-node]' ? { dataset: { node: 'heading1' }, querySelector: () => null } : null }, preventDefault: vi.fn() }
+    result.doc.dispatch('dblclick', event)
+    return { ...result, event }
+  }
+
+  it('asks to edit the fields of the previewed entry that the text shows', async () => {
+    const text = { type: 'template', parts: ['Meet ', ref('name'), ' from ', ref('city'), ref('title', 'site'), ref('author', 'current', ['author', 'title'])] }
+    const { editField, event } = await doubleClick(text, 'Berlin')
+    expect(editField).toHaveBeenCalledWith({ fields: ['name', 'city'], text: 'Berlin' })
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+
+  it('leaves text without tags of the previewed entry alone', async () => {
+    const { editField } = await doubleClick(ref('title', 'site'))
+    expect(editField).not.toHaveBeenCalled()
   })
 })

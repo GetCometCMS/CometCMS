@@ -206,7 +206,7 @@
           <div class="relative z-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             <BuilderPalette v-if="panel.value === 'add'" :with-fields="builder.currentAvailable.value" />
             <BuilderOutline v-else-if="panel.value === 'outline'" />
-            <BuilderEntryFields v-else-if="panel.value === 'fields'" :state="entryFields" :busy="saving" />
+            <BuilderEntryFields v-else-if="panel.value === 'fields'" :state="entryFields" :busy="saving" :reveal="revealedField" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
               :key="`theme-${historyVersion}`"
@@ -229,7 +229,7 @@
 
       <!-- Canvas -->
       <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-2 xl:p-4'">
-        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" />
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" @edit-field="editEntryField" />
       </main>
 
       <div
@@ -659,6 +659,19 @@ watch(() => builder.selectedId.value, (id) => {
 watch(selectedTemplatePart, (part) => {
   if (part) panelLayout.open("inspector");
 });
+
+/** The field the Content fields panel brings into view: `{ name }`. */
+const revealedField = ref(null);
+/** Double-clicked smart tag content edits its field of the previewed entry. */
+function editEntryField({ fields, text }) {
+  const names = hasEntryFields.value ? fields.filter((field) => field in entryFields.fields.value) : [];
+  if (!names.length) return;
+  const plain = (field) => String(entryFields.valueFor(field) ?? "").replace(/<[^>]+>/g, " ");
+  // In text mixing several tags, the clicked word picks the field that contains it.
+  const name = (text && names.find((field) => plain(field).includes(text))) || names[0];
+  panelLayout.open("fields");
+  revealedField.value = { name };
+}
 
 watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; });
 
