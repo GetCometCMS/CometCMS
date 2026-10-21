@@ -582,10 +582,7 @@ import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
-import {
-  localeFlagCountry,
-  localeName,
-} from "../composables/localeOptions.js";
+import { languageTabItem } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import TranslationInfo from "../components/TranslationInfo.vue";
 import { entryForLocale } from "../composables/localizedValues.js";
@@ -730,12 +727,7 @@ const localeTabs = computed(() =>
   orderedContentTypeLocales.value.map((loc) => {
     const available = hasTranslation(loc);
     return {
-      value: loc,
-      label: localeName(loc),
-      flagCountry: localeFlagCountry(loc),
-      suffix: `(${loc})`,
-      metaIcon: loc === defaultLocale.value ? "mdi:home" : "",
-      metaLabel: loc === defaultLocale.value ? t("contentEdit.default") : "",
+      ...languageTabItem(loc, defaultLocale.value, { defaultLabel: t("contentEdit.default") }),
       icon: available ? "" : "mdi:plus",
       muted: !available,
       disabled: !available && isReadOnly.value,

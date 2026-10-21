@@ -46,7 +46,10 @@
       :items="tabs"
       :model-value="activeTab"
       :aria-label="t('website.navigation')"
-    />
+    >
+      <!-- One language switcher for every localized field on the page -->
+      <template v-if="editsSite && site.draft" #end><LanguageTabs /></template>
+    </TabNavigation>
 
     <WorkspacesPanel v-if="showsWorkspaces" />
 
@@ -108,6 +111,7 @@ import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
+import LanguageTabs from "../components/LanguageTabs.vue";
 import WorkspacesPanel from "../components/WorkspacesPanel.vue";
 import SiteGeneralPanel from "../components/site/SiteGeneralPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
@@ -117,6 +121,7 @@ import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
+import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 
 /** Website-wide settings: identity, homepage, SEO defaults and the workspaces behind them. */
 const route = useRoute();
@@ -125,6 +130,7 @@ const site = useSiteStore();
 const contentTypes = useContentTypesStore();
 const toast = useToastStore();
 const { t } = useI18n();
+provideLanguageSwitcher();
 /** Settings and the workspace languages edited on the General tab save together. */
 const PARTS = ["languages", "settings"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));

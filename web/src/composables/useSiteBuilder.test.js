@@ -546,7 +546,6 @@ describe('builder localization', () => {
     const heading = builder.make('heading', { text: 'English' })
     builder.insert(heading, column.id)
     builder.locale.value = 'de'
-    builder.editingMode.value = 'translate'
     builder.updateValue(heading.id, 'props', 'text', 'Deutsch')
     expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
     expect(findNode(builder.nodes.value, heading.id).props.text.values).toEqual({ en: 'English', de: 'Deutsch' })
@@ -557,7 +556,8 @@ describe('builder localization', () => {
     expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('English')
     builder.redo()
     expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
-    builder.editingMode.value = 'design'
+    builder.locale.value = 'en'
+    expect(builder.translating.value).toBe(false)
     builder.duplicate(heading.id)
     const copy = builder.selected.value
     expect(copy.id).not.toBe(heading.id)

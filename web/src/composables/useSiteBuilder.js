@@ -87,9 +87,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** Element waiting for a name before its content becomes a field: { id }. */
   const fieldDialog = ref(null)
   const locale = ref('')
-  const editingMode = ref('design')
-  const translating = computed(() => editingMode.value === 'translate')
   const defaultLocale = computed(() => settings.value?.default_locale || 'en')
+  // The default language edits the shared design; every other language only translates its texts.
+  const translating = computed(() => !!locale.value && locale.value !== defaultLocale.value)
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
   const hoverId = ref(null)
@@ -816,7 +816,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
-    currentAvailable, locale, editingMode, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
+    currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
     updateValue, renameNode, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,

@@ -18,18 +18,22 @@
         }}
       </h1>
       </div>
-      <button
-        type="submit"
-        :disabled="saving"
-        class="btn-primary ml-auto relative"
-        form="type-form"
-      >
-        {{ saving ? t("common.saving") : t("contentTypeEdit.saveType") }}
-        <span
-          v-if="isDirty && !saving"
-          class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white"
-        ></span>
-      </button>
+      <div class="ml-auto flex items-center gap-3">
+        <!-- Field labels, options and website texts all follow this one switcher -->
+        <LanguageTabs compact />
+        <button
+          type="submit"
+          :disabled="saving"
+          class="btn-primary relative"
+          form="type-form"
+        >
+          {{ saving ? t("common.saving") : t("contentTypeEdit.saveType") }}
+          <span
+            v-if="isDirty && !saving"
+            class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white"
+          ></span>
+        </button>
+      </div>
     </div>
 
     <div
@@ -258,6 +262,8 @@ import TypeSubmissionSettings from "../components/site/TypeSubmissionSettings.vu
 import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
+import LanguageTabs from "../components/LanguageTabs.vue";
+import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
 const route = useRoute();
@@ -267,6 +273,7 @@ const typesStore = useContentTypesStore();
 const auth = useAuthStore();
 const apiEndpointStore = useApiEndpointStore();
 const { t } = useI18n();
+provideLanguageSwitcher();
 const apiEndpointOwner = "content-type-edit";
 
 const isNew = computed(() => !route.params.name);

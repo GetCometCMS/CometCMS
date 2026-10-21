@@ -88,3 +88,16 @@ export function localeName(locale) {
 export function localeFlagCountry(locale) {
   return LOCALE_FLAG_COUNTRIES[String(locale).toLowerCase()] ?? ''
 }
+
+/** Shared shape of a language tab: name, flag and the default-language marker. */
+export function languageTabItem(locale, defaultLocale, { compact = false, defaultLabel = '' } = {}) {
+  const isDefault = locale === defaultLocale
+  return {
+    value: locale,
+    label: compact ? locale.toUpperCase() : localeName(locale),
+    flagCountry: localeFlagCountry(locale),
+    suffix: compact ? '' : `(${locale})`,
+    metaIcon: isDefault ? 'mdi:home' : '',
+    metaLabel: isDefault ? defaultLabel : '',
+  }
+}

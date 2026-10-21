@@ -49,7 +49,9 @@
         :items="tabs"
         :model-value="activeTab"
         :aria-label="t('site.navigation')"
-      />
+      >
+        <template v-if="activeTab === 'menus'" #end><LanguageTabs /></template>
+      </TabNavigation>
 
       <SiteDesignPanel v-if="activeTab === 'design'" layout="page" />
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
@@ -82,6 +84,7 @@ import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
+import LanguageTabs from "../components/LanguageTabs.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
@@ -90,11 +93,13 @@ import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
+import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 
 const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
+provideLanguageSwitcher();
 /** Global design and menus share a draft across these tabs. */
 const PARTS = ["theme", "menus"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));

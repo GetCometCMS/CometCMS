@@ -50,25 +50,18 @@
             </select>
           </label>
 
-          <label v-if="locales.length > 1" class="flex items-center pl-2" :title="t('site.builder.language')">
-            <Icon icon="mdi:translate" class="h-4 w-4 shrink-0 text-slate-400" />
-            <select
-              v-model="locale"
-              :disabled="saving"
-              class="topbar-select"
-              :aria-label="t('site.builder.language')"
+          <!-- The language also sets the mode: other languages only translate texts. -->
+          <div v-if="locales.length > 1" class="flex items-center gap-2 px-1.5">
+            <LanguageTabs v-model="locale" :locales="locales" :disabled="saving" compact />
+            <span
+              v-if="builder.translating.value"
+              class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
+              :title="t('localization.translateHint')"
             >
-              <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
-            </select>
-          </label>
-
-          <label class="flex items-center pl-2" :title="t('localization.mode')">
-            <Icon :icon="builder.editingMode.value === 'translate' ? 'mdi:file-replace-outline' : 'mdi:pencil-ruler'" class="h-4 w-4 shrink-0 text-slate-400" />
-            <select v-model="builder.editingMode.value" class="topbar-select" :aria-label="t('localization.mode')">
-              <option value="design">{{ t('localization.design') }}</option>
-              <option value="translate">{{ t('localization.translate') }}</option>
-            </select>
-          </label>
+              <Icon icon="mdi:translate" class="h-3.5 w-3.5 shrink-0" />
+              <span class="hidden xl:inline">{{ t('localization.translate') }}</span>
+            </span>
+          </div>
         </div>
 
         <DeviceToggle v-model="device" allow-full-width />
@@ -327,6 +320,7 @@ import BuilderGuide from "../components/site/builder/BuilderGuide.vue";
 import BuilderHelpMenu from "../components/site/builder/BuilderHelpMenu.vue";
 import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
+import LanguageTabs from "../components/LanguageTabs.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
 import { useBuilderPanels } from "../composables/useBuilderPanels.js";
@@ -666,7 +660,7 @@ watch(selectedTemplatePart, (part) => {
   if (part) panelLayout.open("inspector");
 });
 
-watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; if (value !== builder.defaultLocale.value) builder.editingMode.value = "translate"; });
+watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; });
 
 async function load() {
   loading.value = true;

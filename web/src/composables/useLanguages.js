@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive } from 'vue'
+import { computed, inject, onMounted, provide, reactive } from 'vue'
 import { api, getActiveWorkspace } from '../api/index.js'
 const states = reactive({})
 export function useLanguages() {
@@ -20,4 +20,15 @@ export function useLanguages() {
 
 export function updateWorkspaceLanguages(workspace, languages) {
   if (languages && states[workspace]) Object.assign(states[workspace], languages, { loaded: true, active_locale: languages.default_locale })
+}
+
+const LANGUAGE_SWITCHER = Symbol('language-switcher')
+
+/** Marks this view as owning one page-level language switcher, so localized fields below skip their own. */
+export function provideLanguageSwitcher() {
+  provide(LANGUAGE_SWITCHER, true)
+}
+
+export function hasLanguageSwitcher() {
+  return inject(LANGUAGE_SWITCHER, false)
 }
