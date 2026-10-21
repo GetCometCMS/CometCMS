@@ -315,48 +315,10 @@ final class RoleRepository
             'locked' => $id === 'admin' || (bool) ($default['locked'] ?? $role['locked'] ?? false),
             // The locked admin role always holds every built-in permission, so
             // permissions added by updates reach installs seeded earlier.
-            'permissions' => $this->normalizePermissions($id === 'admin' ? $default['permissions'] : ($role['permissions'] ?? $default['permissions'] ?? [])),
+            'permissions' => PermissionService::normalizeGrants($id === 'admin' ? $default['permissions'] : ($role['permissions'] ?? $default['permissions'] ?? [])),
             'created_at' => $role['created_at'] ?? null,
             'updated_at' => $role['updated_at'] ?? null,
         ], static fn(mixed $value): bool => $value !== null);
-    }
-
-    private function normalizePermissions(mixed $permissions): array
-    {
-        if (!is_array($permissions)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($permissions as $grant) {
-            if (!is_array($grant)) {
-                continue;
-            }
-
-            $actions = $grant['actions'] ?? $grant['action'] ?? [];
-            $resources = $grant['resources'] ?? $grant['resource'] ?? [];
-
-            $item = [
-                'effect' => ($grant['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',
-                'actions' => array_values(array_filter(array_map('strval', (array) $actions))),
-                'resources' => array_values(array_filter(array_map('strval', (array) $resources))),
-            ];
-
-            if (array_key_exists('fields', $grant)) {
-                $item['fields'] = array_values(array_filter(array_map('strval', (array) $grant['fields'])));
-            }
-
-            if (is_array($grant['conditions'] ?? null)) {
-                $item['conditions'] = $grant['conditions'];
-            }
-
-            if ($item['actions'] !== [] && $item['resources'] !== []) {
-                $normalized[] = $item;
-            }
-        }
-
-        return $normalized;
     }
 
     private function normalizeId(string $value): string

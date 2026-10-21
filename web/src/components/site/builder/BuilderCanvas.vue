@@ -177,6 +177,16 @@ const BUILDER_CSS = `
 
 .cometcms-badge[hidden]{display:none;}
 
+.cometcms-badge.is-inside{
+  transform:none;
+  border-radius:0 0 calc(5px * var(--s)) 0;
+  box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+
+.cometcms-badge.is-inside .cometcms-badge-menu{
+  border-radius:0 0 calc(5px * var(--s)) 0;
+}
+
 .cometcms-badge-label{
   padding:calc(6px * var(--s)) calc(8px * var(--s));
 }
@@ -399,8 +409,12 @@ function applySelection(scroll) {
   badge.setAttribute("aria-label", `${badgeLabel.textContent}: ${t("site.menu.more")}`);
   badge.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
   badge.style.left = `${rect.left + win.scrollX}px`;
-  badge.style.top = `${Math.max(16, rect.top + win.scrollY)}px`;
   badge.hidden = false;
+  // Without room above the element, the badge hangs inside its top edge instead of being cut off.
+  const top = rect.top + win.scrollY;
+  const inside = top < badge.offsetHeight;
+  badge.classList.toggle("is-inside", inside);
+  badge.style.top = `${Math.max(0, top)}px`;
 
   if (scroll) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }

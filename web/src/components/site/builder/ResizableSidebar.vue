@@ -2,6 +2,7 @@
   <aside :id="panelId" class="relative flex min-h-0 shrink-0 flex-col bg-white" :style="{ width: `${modelValue}px` }">
     <slot />
     <div
+      v-if="resizable"
       ref="handleRef"
       role="separator"
       tabindex="0"
@@ -36,6 +37,7 @@ const props = defineProps({
   label: { type: String, required: true },
   min: { type: Number, default: 224 },
   max: { type: Number, default: 480 },
+  resizable: { type: Boolean, default: true },
 });
 const emit = defineEmits(["update:modelValue"]);
 const panelId = `builder-sidebar-${useId()}`;

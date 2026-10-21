@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full flex-col">
-    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+    <div v-if="showHeader" class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
       <Icon icon="mdi:language-css3" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="flex min-w-0 flex-1 items-center gap-1">
         <h2 class="truncate text-sm font-semibold text-slate-900">{{ t("site.theme.customCss") }}</h2>
@@ -41,6 +41,7 @@ import { useI18n } from "../../../i18n/index.js";
 
 /** The site's own stylesheet, part of the design and saved with it. */
 const emit = defineEmits(["close"]);
+defineProps({ showHeader: { type: Boolean, default: true } });
 
 const site = useSiteStore();
 const { t } = useI18n();
