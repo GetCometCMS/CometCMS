@@ -21,10 +21,23 @@ export function pathMatches(path, prefix) {
 }
 
 /**
+ * A section with sub-pages. Its `match` covers all children, and a section left
+ * with a single child (missing permissions) becomes that child's plain link.
+ */
+function section(item, children) {
+  const visible = children.filter(Boolean)
+  if (visible.length === 0) return null
+  if (visible.length === 1) return { ...visible[0], icon: item.icon }
+  return { ...item, to: visible[0].to, match: visible.flatMap((child) => child.match), children: visible }
+}
+
+/**
  * The admin's information architecture in one place: the sidebar and the
- * command palette both render these groups.
+ * command palette both render these groups. Groups run from daily editing
+ * (content) to rare setup work (administration).
  *
- * Each item: { key, label, icon, to, match: [path prefixes] }.
+ * Each item: { key, label, icon, to, match: [path prefixes], children? }.
+ * Children are { key, label, to, match } and mirror the tabs of their page.
  */
 export function useNavigation() {
   const auth = useAuthStore()
@@ -69,41 +82,49 @@ export function useNavigation() {
     })
 
     const website = []
-    if (auth.can('site.manage') || auth.can('workspaces.manage')) {
-      website.push({
-        key: 'website-settings',
-        label: t('app.nav.websiteSettings'),
-        icon: 'mdi:web',
-        to: auth.can('site.manage') ? '/website/general' : '/website/workspaces',
-        match: ['/website'],
-      })
-    }
     if (showPageBuilder.value) {
-      website.push({ key: 'page-builder', label: t('app.nav.website'), icon: 'mdi:view-dashboard-edit-outline', to: '/page-builder', match: ['/page-builder'] })
+      website.push({ key: 'page-builder', label: t('app.nav.website'), icon: 'mdi:application-edit-outline', to: '/page-builder', match: ['/page-builder'] })
+    }
+    if (auth.can('site.manage')) {
+      website.push(section({ key: 'website-settings', label: t('app.nav.websiteSettings'), icon: 'mdi:web' }, [
+        { key: 'website-general', label: t('website.tab.general'), to: '/website/general', match: ['/website/general'] },
+        { key: 'website-seo', label: t('website.tab.seo'), to: '/website/seo', match: ['/website/seo'] },
+      ]))
     }
     if (website.length > 0) {
       result.push({ key: 'website', label: t('app.nav.websiteGroup'), items: website })
     }
 
-    const admin = []
+    const developer = []
     if (auth.can('schema.read')) {
-      admin.push({ key: 'content-types', label: t('app.nav.contentTypes'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
+      developer.push({ key: 'content-types', label: t('app.nav.contentTypes'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
     }
-    if (auth.can('users.read')) {
-      admin.push({ key: 'users', label: t('app.nav.usersRoles'), icon: 'mdi:account-group-outline', to: '/users', match: ['/users', '/roles'] })
-    } else if (auth.can('roles.read')) {
-      admin.push({ key: 'roles', label: t('app.nav.roles'), icon: 'mdi:shield-account-outline', to: '/roles', match: ['/roles'] })
+    developer.push(section({ key: 'connect', label: t('app.nav.connect'), icon: 'mdi:connection' }, [
+      { key: 'connect-tokens', label: t('connect.accessTokens'), to: '/connect/access-tokens', match: ['/connect/access-tokens'] },
+      { key: 'connect-api', label: t('connect.api'), to: '/connect/api', match: ['/connect/api'] },
+      { key: 'connect-mcp', label: t('connect.mcp'), to: '/connect/mcp', match: ['/connect/mcp'] },
+      { key: 'connect-webhooks', label: t('connect.webhooks'), to: '/connect/webhooks', match: ['/connect/webhooks'] },
+    ]))
+    result.push({ key: 'developer', label: t('app.nav.developer'), items: developer })
+
+    const admin = [
+      section({ key: 'users', label: t('app.nav.usersRoles'), icon: 'mdi:account-group-outline' }, [
+        auth.can('users.read') && { key: 'users-list', label: t('app.nav.users'), to: '/users', match: ['/users'] },
+        auth.can('roles.read') && { key: 'roles', label: t('app.nav.roles'), to: '/roles', match: ['/roles'] },
+      ]),
+    ]
+    if (auth.can('workspaces.manage')) {
+      admin.push({ key: 'workspaces', label: t('workspaces.title'), icon: 'mdi:folder-multiple-outline', to: '/website/workspaces', match: ['/website/workspaces'] })
     }
-    admin.push({ key: 'connect', label: t('app.nav.connect'), icon: 'mdi:api', to: '/connect/access-tokens', match: ['/connect'] })
     if (auth.can('backups.read')) {
       admin.push({ key: 'backups', label: t('app.nav.backupRestore'), icon: 'mdi:backup-restore', to: '/backups', match: ['/backups'] })
     }
     if (auth.can('updates.check')) {
       admin.push({ key: 'updates', label: t('app.nav.updates'), icon: 'mdi:update', to: '/update', match: ['/update'] })
     }
-    result.push({ key: 'admin', label: t('app.nav.administration'), items: admin })
+    result.push({ key: 'admin', label: t('app.nav.administration'), items: admin.filter(Boolean) })
 
-    return result
+    return result.filter((group) => group.items.length > 0)
   })
 
   function isActive(item, path) {

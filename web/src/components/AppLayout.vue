@@ -168,20 +168,59 @@
           <div v-for="group in navGroups" :key="group.key" class="sidebar-nav-group" role="group" :aria-label="group.label">
             <div v-if="group.label" class="sidebar-text sidebar-label" aria-hidden="true">{{ group.label }}</div>
             <div class="space-y-0.5" :class="{ 'pt-2': !group.label }">
-              <router-link
-                v-for="item in group.items"
-                :key="item.key"
-                :to="item.to"
-                class="nav-link"
-                :class="{ 'is-active': isActive(item, route.path) }"
-                :aria-current="isActive(item, route.path) ? 'page' : undefined"
-                :aria-label="item.label"
-                :title="sidebarCollapsed ? item.label : undefined"
-                @click="sidebarOpen = false"
-              >
-                <Icon :icon="item.icon" class="nav-icon" />
-                <span class="sidebar-text truncate">{{ item.label }}</span>
-              </router-link>
+              <template v-for="item in group.items" :key="item.key">
+                <router-link
+                  v-if="!item.children"
+                  :to="item.to"
+                  class="nav-link"
+                  :class="{ 'is-active': isActive(item, route.path) }"
+                  :aria-current="isActive(item, route.path) ? 'page' : undefined"
+                  :aria-label="item.label"
+                  :title="sidebarCollapsed ? item.label : undefined"
+                  @click="sidebarOpen = false"
+                >
+                  <Icon :icon="item.icon" class="nav-icon" />
+                  <span class="sidebar-text truncate">{{ item.label }}</span>
+                </router-link>
+                <!-- A section opens its sub-pages while one of them is shown. -->
+                <div v-else>
+                  <router-link
+                    :to="item.to"
+                    class="nav-link"
+                    :class="{ 'is-section-active': isActive(item, route.path) }"
+                    :aria-label="item.label"
+                    :title="sidebarCollapsed ? item.label : undefined"
+                    @click="sidebarOpen = false"
+                  >
+                    <Icon :icon="item.icon" class="nav-icon" />
+                    <span class="sidebar-text flex-1 truncate">{{ item.label }}</span>
+                    <Icon
+                      icon="mdi:chevron-right"
+                      class="sidebar-text nav-chevron"
+                      :class="{ 'rotate-90': isActive(item, route.path) }"
+                      aria-hidden="true"
+                    />
+                  </router-link>
+                  <div
+                    v-if="isActive(item, route.path)"
+                    class="nav-sub"
+                    role="group"
+                    :aria-label="item.label"
+                  >
+                    <router-link
+                      v-for="child in item.children"
+                      :key="child.key"
+                      :to="child.to"
+                      class="nav-sublink"
+                      :class="{ 'is-active': isActive(child, route.path) }"
+                      :aria-current="isActive(child, route.path) ? 'page' : undefined"
+                      @click="sidebarOpen = false"
+                    >
+                      <span class="truncate">{{ child.label }}</span>
+                    </router-link>
+                  </div>
+                </div>
+              </template>
               <router-link
                 v-if="group.key === 'content' && allTypes.length === 0 && auth.can('schema.create')"
                 to="/content-types/new"
@@ -557,6 +596,26 @@ async function handleLogout() {
   .is-collapsed .nav-link {
     padding-left: 0;
     padding-right: 0;
+  }
+
+  /* Sub-pages have no room here; the section's link stands in for them. */
+  .is-collapsed .nav-sub {
+    display: none;
+  }
+
+  .is-collapsed .nav-link.is-section-active {
+    background: var(--sidebar-active-bg);
+  }
+
+  .is-collapsed .nav-link.is-section-active::before {
+    content: "";
+    position: absolute;
+    left: -0.75rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--sidebar-indicator);
   }
 
   .is-collapsed .sidebar-nav-group + .sidebar-nav-group {

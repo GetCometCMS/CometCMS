@@ -3,7 +3,7 @@
     <div class="editor-sticky-header flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <h1 class="page-title">{{ t("website.title") }}</h1>
+          <h1 class="page-title">{{ showsWorkspaces ? t("workspaces.title") : t("website.title") }}</h1>
           <span
             v-if="site.data && editsSite"
             class="badge badge-dot"
@@ -12,7 +12,7 @@
             {{ site.data.settings.enabled ? t("site.status.live") : t("site.status.off") }}
           </span>
         </div>
-        <p class="mt-0.5 text-sm text-slate-500">{{ t("website.description") }}</p>
+        <p v-if="!showsWorkspaces" class="mt-0.5 text-sm text-slate-500">{{ t("website.description") }}</p>
       </div>
 
       <a
@@ -41,14 +41,14 @@
     </div>
 
     <TabNavigation
-      v-if="tabs.length > 1"
+      v-if="!showsWorkspaces && tabs.length > 1"
       class="mb-6"
       :items="tabs"
       :model-value="activeTab"
       :aria-label="t('website.navigation')"
     />
 
-    <WorkspacesPanel v-if="activeTab === 'workspaces'" />
+    <WorkspacesPanel v-if="showsWorkspaces" />
 
     <template v-else-if="editsSite">
       <div v-if="site.loading && !site.draft" class="flex justify-center py-16">
@@ -131,16 +131,21 @@ const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(par
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
 const tabs = computed(() =>
-  [
-    auth.can("site.manage") && { value: "general", label: t("website.tab.general"), icon: "mdi:cog-outline", to: "/website/general" },
-    auth.can("site.manage") && { value: "seo", label: t("website.tab.seo"), icon: "mdi:magnify", to: "/website/seo" },
-    auth.can("workspaces.manage") && { value: "workspaces", label: t("website.tab.workspaces"), icon: "mdi:folder-multiple-outline", to: "/website/workspaces" },
-  ].filter(Boolean),
+  auth.can("site.manage")
+    ? [
+        { value: "general", label: t("website.tab.general"), icon: "mdi:cog-outline", to: "/website/general" },
+        { value: "seo", label: t("website.tab.seo"), icon: "mdi:magnify", to: "/website/seo" },
+      ]
+    : [],
+);
+/** Workspaces span more than the website, so they get their own page here (Administration in the sidebar). */
+const showsWorkspaces = computed(
+  () => auth.can("workspaces.manage") && (route.params.tab === "workspaces" || !auth.can("site.manage")),
 );
 const activeTab = computed(() =>
-  tabs.value.some((tab) => tab.value === route.params.tab) ? route.params.tab : (tabs.value[0]?.value ?? "general"),
+  tabs.value.some((tab) => tab.value === route.params.tab) ? route.params.tab : "general",
 );
-const editsSite = computed(() => activeTab.value !== "workspaces" && auth.can("site.manage"));
+const editsSite = computed(() => !showsWorkspaces.value && auth.can("site.manage"));
 
 async function save() {
   const languagesChanged = site.dirtyParts.includes("languages");

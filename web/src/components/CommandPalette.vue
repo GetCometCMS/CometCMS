@@ -150,13 +150,22 @@ function matches(item, needle) {
 
 const navigationItems = computed(() =>
   groups.value.flatMap((group) =>
-    group.items.map((item) => ({
-      id: `nav:${item.key}`,
-      label: item.label,
-      hint: group.label ?? "",
-      icon: item.icon,
-      to: item.to,
-    })),
+    group.items.flatMap((item) => [
+      {
+        id: `nav:${item.key}`,
+        label: item.label,
+        hint: group.label ?? "",
+        icon: item.icon,
+        to: item.to,
+      },
+      ...(item.children ?? []).map((child) => ({
+        id: `nav:${child.key}`,
+        label: child.label,
+        hint: item.label,
+        icon: item.icon,
+        to: child.to,
+      })),
+    ]),
   ),
 );
 
