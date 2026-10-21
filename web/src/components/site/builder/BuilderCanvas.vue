@@ -56,6 +56,16 @@ const BUILDER_CSS = `
   min-height:calc(32px * var(--cometcms-ui-scale,1));
 }
 
+/* Keep the line clear of the selection outline in its enlarged hit area. */
+[data-kind="divider"]{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+[data-kind="divider"] > .c-divider{
+  margin-block:0;
+}
+
 [data-node]{
   --builder-color:#5875c9;
   outline:1px solid transparent;
