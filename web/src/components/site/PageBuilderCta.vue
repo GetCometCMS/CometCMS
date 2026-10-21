@@ -42,7 +42,7 @@ const hintId = `${headingId}-hint`;
   background-size: cover, auto 100%;
 }
 
-:global(:root[data-theme="dark"]) .page-builder-cta {
+:root[data-theme="dark"] .page-builder-cta {
   background-color: rgb(var(--color-surface));
   background-image:
     linear-gradient(90deg, rgb(var(--color-surface)) 0%, rgb(var(--color-surface) / 0.94) 35%, rgb(var(--color-surface) / 0.88) 60%, rgb(var(--color-surface) / 0.8) 100%),
