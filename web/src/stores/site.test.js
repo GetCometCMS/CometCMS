@@ -213,3 +213,40 @@ describe('font metadata refresh', () => {
     expect(site.data.workspace).toBe('second')
   })
 })
+
+describe('routing settings saves', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mocks.workspace = 'default'
+  })
+
+  it.each([false, true])('keeps the draft revision current after saving a route (pending settings: %s)', async (pending) => {
+    const settings = { title: 'Saved', revision: 'first', updated_at: 'before', enabled: false, locales: ['en', 'de'], default_locale: 'en', routes: { pages: { enabled: false, pattern: '/pages/{slug}' } } }
+    const initial = { ...siteData('default'), settings }
+    api.site.get.mockResolvedValue({ data: initial })
+    const site = useSiteStore()
+    await site.load()
+    if (pending) site.draft.settings.title = 'Pending title'
+    const saved = { ...settings, revision: 'second', updated_at: 'after', enabled: true, routes: { pages: { ...settings.routes.pages, enabled: true } } }
+    api.site.saveSettings.mockResolvedValue({ data: saved })
+    api.site.get.mockResolvedValue({ data: { ...initial, settings: saved } })
+
+    await site.saveRoute('pages', { enabled: true })
+
+    expect(site.draft.settings.revision).toBe('second')
+    expect(site.draft.settings.updated_at).toBe('after')
+    expect(site.draft.settings.enabled).toBe(true)
+    expect(site.draft.settings.title).toBe(pending ? 'Pending title' : 'Saved')
+    expect(site.isDirty).toBe(pending)
+    // The next settings save must use the revision returned by the route save.
+    site.draft.settings.description = 'An edit from builder settings'
+    api.site.saveSettings.mockImplementation(async (input) => {
+      expect(input.revision).toBe('second')
+      return { data: { ...input, revision: 'third' } }
+    })
+    await site.save({ parts: ['settings'] })
+    expect(site.draft.settings.revision).toBe('third')
+    expect(site.isDirty).toBe(false)
+  })
+})

@@ -12,7 +12,7 @@
       </select>
     </div>
     <slot :value="value" :update="update">
-      <textarea v-if="multiline" :id="id" :value="value ?? ''" :rows="rows" :maxlength="maxlength" :aria-invalid="invalid || undefined" class="form-textarea w-full rounded-lg text-sm" :class="invalid ? 'border-red-400' : 'border-slate-300'" @input="update($event.target.value)"></textarea>
+      <textarea v-if="multiline" :id="id" :value="value ?? ''" :rows="rows" :maxlength="maxlength" :placeholder="placeholder" :aria-invalid="invalid || undefined" class="form-textarea w-full rounded-lg text-sm" :class="invalid ? 'border-red-400' : 'border-slate-300'" @input="update($event.target.value)"></textarea>
       <input v-else :id="id" :value="value ?? ''" :maxlength="maxlength" :placeholder="placeholder" :aria-invalid="invalid || undefined" type="text" class="form-input w-full rounded-lg text-sm" :class="invalid ? 'border-red-400' : 'border-slate-300'" @input="update($event.target.value)" />
     </slot>
     <div v-if="languages.locales.value.length > 1 || active !== defaultLocale" class="space-y-2 text-xs" :class="active !== defaultLocale ? 'rounded-lg bg-slate-50 px-3 py-2.5' : ''">

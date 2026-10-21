@@ -466,7 +466,48 @@ final class ContentRepository
 
     public function normalizeStoredEntry(array $entry): array
     {
+        if (!array_key_exists('values', $entry)) $entry = $this->upgradeEntry($entry);
         return $this->resolveLocaleFields($entry, $this->locale((string) $entry['collection']));
+    }
+
+    /** Read old flat entries without rewriting files; the next save stores the new format. */
+    private function upgradeEntry(array $entry): array
+    {
+        $collection = (string) $entry['collection'];
+        $schema = $this->types->find($collection);
+        $originalSchema = (new JsonStore($this->workspace->path('content-types')))->read($collection)
+            ?? (array) comet_config('content_types.' . $collection, []);
+        $default = LanguageSettings::code($originalSchema['default_locale'] ?? '') ?: $schema['default_locale'];
+        $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
+        $entry['revision'] = LocalizedValue::hash($entry);
+        $entry['values'] = [];
+        $slugField = $schema['slug_field'];
+        foreach ($schema['fields'] as $name => $config) {
+            $localized = in_array($name, ['title', 'slug', $slugField], true) || ($config['localized'] ?? true) !== false;
+            $source = $translations[$default] ?? [];
+            if (array_key_exists($name, $source) || array_key_exists($name, $entry)) {
+                $value = array_key_exists($name, $source) ? $source[$name] : $entry[$name];
+                $entry['values'][$name] = $localized ? LocalizedValue::set(null, $default, $value, $default) : $value;
+            }
+            if (!$localized) continue;
+            foreach ($translations as $locale => $translation) {
+                if ($locale === $default || !is_array($translation) || !array_key_exists($name, $translation)) continue;
+                $entry['values'][$name] = LocalizedValue::set($entry['values'][$name] ?? null, $locale, $translation[$name], $default);
+            }
+        }
+        // Old translations shared the entry slug and publication state.
+        $entry['values'][$slugField] ??= LocalizedValue::set(null, $default, $entry['slug'] ?? $entry['id'], $default);
+        $publication = ['status' => $entry['status'] ?? 'draft', 'published_at' => $entry['published_at'] ?? (($entry['status'] ?? '') === 'published' ? ($entry['created_at'] ?? null) : null)];
+        $entry['publication'] = [$default => $publication];
+        foreach ($translations as $locale => $translation) {
+            if (!is_array($translation)) continue;
+            $entry['publication'][$locale] = $publication;
+            if (!array_key_exists($locale, $entry['values'][$slugField]['values'])) {
+                $entry['values'][$slugField] = LocalizedValue::set($entry['values'][$slugField], $locale, $entry['slug'] ?? $entry['id'], $default);
+            }
+        }
+        if ($slugField !== 'slug') $entry['values']['slug'] = $entry['values'][$slugField];
+        return $this->stored($entry);
     }
 
     private function stored(array $entry): array

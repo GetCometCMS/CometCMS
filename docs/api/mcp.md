@@ -182,7 +182,7 @@ Create a new content type.
 | `icon`           | string           |          |
 | `fields`         | object           |          |
 | `locales`        | array of strings |          |
-| `default_locale` | string           |          |
+| `inherit_locales` | boolean          |          |
 | `singleton`      | boolean          |          |
 
 **Required permission:** `schema.create` on `schema:{name}`
@@ -204,7 +204,7 @@ Surgically update an existing content type. Omitted properties are **preserved**
 | `remove_fields`  | array of strings |          |
 | `replace_fields` | boolean          |          |
 | `locales`        | array of strings |          |
-| `default_locale` | string           |          |
+| `inherit_locales` | boolean          |          |
 | `singleton`      | boolean          |          |
 
 **Required permission:** `schema.update` on `schema:{collection}`
@@ -453,7 +453,7 @@ See [Access Tokens](../guide/api-tokens) for details on creating tokens and assi
 
 ## Localization
 
-Languages and their default are configured on the workspace. Content types enable subsets including the workspace default. Entry reads accept `locale` and return resolved content, `locale`, and a `revision`. `get_media_item` also accepts `locale` to resolve alternative text and captions. Anonymous reads only expose published variants in that language. Slugs, publication status, and publication dates are localized; stable IDs, authors, and shared fields stay shared.
+Languages and their default are configured on the workspace. Content types inherit workspace languages by default. Set `inherit_locales: false` with `locales` to limit a type to a subset including the workspace default, or `inherit_locales: true` to resume inheritance. The website uses workspace languages directly. Entry reads accept `locale` and return resolved content, `locale`, and a `revision`. `get_media_item` also accepts `locale` to resolve alternative text and captions. Anonymous reads only expose published variants in that language. Slugs, publication status, and publication dates are localized; stable IDs, authors, and shared fields stay shared.
 
 Entry writes target the `locale` in the `entry` payload and preserve other languages and omitted fields. Include `revision` to detect stale writes (conflicts report status 409), and `reset_fields` to remove localized overrides. Pass ordinary values, not complete translation maps. A missing value inherits public default-language content; explicit empty values do not inherit. Locale and field permissions apply to updates, publication, and resets.
 

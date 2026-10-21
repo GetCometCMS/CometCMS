@@ -64,7 +64,7 @@ final class LocalizedValue
 
     public static function state(mixed $value, string $locale, string $default): string
     {
-        if (!self::is($value)) return 'shared';
+        if (!self::is($value)) return $locale === $default ? 'shared' : 'inherited';
         if (!array_key_exists($locale, $value['values'])) return 'inherited';
         if ($locale !== $default && ($value['sources'][$locale] ?? '') !== self::sourceHash($value['values'][$default] ?? null)) return 'review';
         return 'translated';

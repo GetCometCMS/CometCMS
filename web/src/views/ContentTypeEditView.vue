@@ -190,35 +190,23 @@
           </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
-            <SearchableSelect
-              v-model="form.locales"
-              :options="workspaceLocaleOptions"
-              :multiple="true"
-              :searchable="true"
-              :placeholder="t('contentTypeEdit.searchLocales')"
-            />
-          </div>
-
-          <div>
-            <label class="form-label">{{
-              t("contentTypeEdit.defaultLocale")
-            }}</label>
-            <SearchableSelect
-              v-model="form.default_locale"
-              :options="selectedLocaleOptions"
-              :disabled="true"
-              :placeholder="t('contentTypeEdit.addLocalesFirst')"
-            />
-            <p
-              v-if="form.locales.length > 0"
-              class="mt-1 text-xs text-slate-500"
-            >
-              {{ t("contentTypeEdit.defaultLocaleHint") }}
-            </p>
-          </div>
+        <label class="flex items-center gap-3 text-sm text-slate-700">
+          <ToggleSwitch v-model="form.inherit_locales" :aria-label="t('contentTypeEdit.inheritLanguages')" />
+          {{ t("contentTypeEdit.inheritLanguages") }}
+        </label>
+        <p v-if="form.inherit_locales" class="text-sm text-slate-600">
+          {{ workspaceLanguages.locales.value.map(localeLabel).join(", ") }}
+        </p>
+        <div v-else>
+          <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
+          <SearchableSelect
+            v-model="form.locales"
+            :options="workspaceLocaleOptions"
+            :multiple="true"
+            :searchable="true"
+            :placeholder="t('contentTypeEdit.searchLocales')"
+          />
+          <p class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.defaultLocaleHint") }}</p>
         </div>
 
         <div
@@ -335,7 +323,7 @@ import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js
 import SearchableSelect from "../components/SearchableSelect.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
-import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
+import { localeLabel } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -373,36 +361,26 @@ const form = ref({
   api_enabled: false,
   allow_submissions: false,
   submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
+  inherit_locales: true,
   locales: [],
-  default_locale: "",
   fields: {},
 });
-const originalLocalization = ref({ locales: [], default_locale: "" });
-
-// Derived option list for the default_locale select (only chosen locales)
+const originalLocalization = ref({ inherit_locales: true, locales: [] });
 const workspaceLanguages = useLanguages();
-const workspaceLocaleOptions = computed(() => LOCALE_OPTIONS.filter((o) => workspaceLanguages.locales.value.includes(o.value)));
-const selectedLocaleOptions = computed(() =>
-  LOCALE_OPTIONS.filter((o) => form.value.locales.includes(o.value)),
-);
-const localizationChanged = computed(() => {
-  if (isNew.value) return false;
-  return (
-    JSON.stringify([...form.value.locales].sort()) !==
-      JSON.stringify([...originalLocalization.value.locales].sort()) ||
-    form.value.default_locale !== originalLocalization.value.default_locale
-  );
-});
+const workspaceLocaleOptions = computed(() => workspaceLanguages.locales.value.map((value) => ({ value, label: localeLabel(value) })));
+const localizationChanged = computed(() => !isNew.value && (
+  form.value.inherit_locales !== originalLocalization.value.inherit_locales ||
+  (!form.value.inherit_locales && JSON.stringify([...form.value.locales].sort()) !== JSON.stringify([...originalLocalization.value.locales].sort()))
+));
 
-// Every enabled subset includes the workspace default.
+// Only explicit overrides need a list, and the workspace default is always included.
 watch(
-  () => [workspaceLanguages.defaultLocale.value, ...form.value.locales],
+  () => [form.value.inherit_locales, workspaceLanguages.loaded.value, workspaceLanguages.defaultLocale.value, ...form.value.locales],
   () => {
+    if (form.value.inherit_locales || !workspaceLanguages.loaded.value) return;
     const defaultLocale = workspaceLanguages.defaultLocale.value;
-    form.value.default_locale = defaultLocale;
     if (!form.value.locales.includes(defaultLocale)) form.value.locales = [defaultLocale, ...form.value.locales];
   },
-  { immediate: true },
 );
 // While creating a type, derive the API name from the label until it is edited by hand.
 const nameTouched = ref(false);
@@ -587,7 +565,7 @@ onMounted(async () => {
       };
       originalLocalization.value = {
         locales: Array.isArray(type.locales) ? [...type.locales] : [],
-        default_locale: type.default_locale ?? "",
+        inherit_locales: type.inherit_locales,
       };
 
       // Strip built-in fields; only show the extras in the builder.
@@ -681,7 +659,7 @@ async function handleSave() {
       toast.success(t("contentTypeEdit.updated"));
       originalLocalization.value = {
         locales: [...form.value.locales],
-        default_locale: form.value.default_locale,
+        inherit_locales: form.value.inherit_locales,
       };
       await saveWebsiteRoute(route.params.name);
     }

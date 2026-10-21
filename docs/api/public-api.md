@@ -215,7 +215,7 @@ Schemas can use localized presentation text for labels, help text, and select-op
 {"type":"localized","values":{"en":"Your name","de":"Ihr Name"}}
 ```
 
-Admin entry reads expose the resource-owned `values` and `publication` maps alongside a resolved projection. The storage format has changed; no legacy storage migration or compatibility adapter is included.
+Admin entry reads expose the resource-owned `values` and `publication` maps alongside a resolved projection. Existing flat entries and legacy translation maps remain readable and are converted to the new storage format on their next save. Existing workspace language choices are imported from website and content type settings when no workspace language settings exist.
 
 ### `DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
 

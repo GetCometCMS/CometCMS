@@ -167,7 +167,12 @@ export const useSiteStore = defineStore('site', () => {
     const saved = (await api.site.saveSettings(settings)).data
     data.value.settings = saved
     syncPageBuilderActive()
-    if (draft.value) draft.value.settings.routes[name] = clone(saved.routes[name])
+    if (draft.value) {
+      draft.value.settings.routes[name] = clone(saved.routes[name])
+      for (const key of ['revision', 'updated_at', 'enabled', 'locales', 'default_locale']) {
+        draft.value.settings[key] = clone(saved[key])
+      }
+    }
     // New types bring new layouts and routes; refresh what the Website screen lists.
     if (!isDirty.value) await load({ force: true })
     return saved.routes[name]

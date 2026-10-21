@@ -106,15 +106,13 @@ final class SiteRepository
 
     private function saveSettingsUnlocked(array $input): array
     {
-        $languages = (new LanguageSettings($this->workspace))->all();
-        if (isset($input['locales']) && array_diff((array) $input['locales'], $languages['locales'])) throw new ValidationException(['locales' => 'Choose supported workspace languages.']);
         $settings = $this->normalizeSettings($input);
         foreach ($settings['locales'] as $locale) $this->validateSettings(LocalizedValue::tree($settings, $locale, $settings['default_locale']));
         $this->validateEntryUrls($settings);
         $settings['updated_at'] = Security::now();
         $settings['revision'] = bin2hex(random_bytes(12));
-        // "enabled" is derived on every read and never stored.
-        $this->store->write(array_diff_key($settings, ['enabled' => true]), 'settings');
+        // Workspace languages and website availability are derived on every read.
+        $this->store->write(array_diff_key($settings, array_flip(['enabled', 'locales', 'default_locale'])), 'settings');
         $this->settingsCache = $settings;
         $this->clearCache();
 
@@ -1039,20 +1037,8 @@ final class SiteRepository
         }
 
         $languages = (new LanguageSettings($this->workspace))->all();
-        $input['locales'] = array_key_exists('locales', $input) ? ($input['locales'] ?: [$languages['default_locale']]) : $languages['locales'];
-        $input['default_locale'] = $languages['default_locale'];
-        $available = $languages['locales'];
-        $locales = array_values(array_intersect(
-            $available,
-            array_map('strval', is_array($input['locales'] ?? null) ? $input['locales'] : [])
-        ));
         $defaultLocale = $languages['default_locale'];
-        $locales = array_values(array_unique([$defaultLocale, ...$locales]));
-        if ($locales === []) {
-            $defaultLocale = '';
-        } elseif (!in_array($defaultLocale, $locales, true)) {
-            $defaultLocale = $locales[0];
-        }
+        $locales = $languages['locales'];
 
         $homepage = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
         $homeType = LayoutSchema::key($homepage['type'] ?? '');

@@ -38,22 +38,11 @@
         <h2 class="card-title">{{ t("site.overview.languages") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.languagesHint") }}</p>
       </div>
-      <p v-if="localeOptions.length === 0" class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
-        {{ t("site.overview.noLocales") }}
-      </p>
-      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label class="form-label">{{ t("site.overview.websiteLanguages") }}</label>
-          <SearchableSelect v-model="settings.locales" :options="localeOptions" multiple />
-        </div>
-        <div>
-          <label class="form-label" for="site-default-locale">{{ t("site.overview.defaultLanguage") }}</label>
-          <select id="site-default-locale" v-model="settings.default_locale" class="form-select w-full rounded-lg border-slate-300 text-sm" :disabled="true">
-            <option v-for="locale in settings.locales" :key="locale" :value="locale">{{ localeLabel(locale) }}</option>
-          </select>
-          <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.defaultLanguageHint") }}</p>
-        </div>
-      </div>
+      <p class="text-sm text-slate-700">{{ settings.locales.map(localeLabel).join(", ") }}</p>
+      <p class="text-xs text-slate-500">{{ t("site.overview.defaultLanguage") }}: {{ localeLabel(settings.default_locale) }}</p>
+      <RouterLink v-if="auth.can('workspaces.manage')" to="/workspaces" class="inline-flex text-sm text-theme-700 hover:underline">
+        {{ t("contentTypeEdit.manageLanguages") }}
+      </RouterLink>
     </section>
 
     <!-- Domains -->
@@ -90,16 +79,16 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import PageBuilderCta from "./PageBuilderCta.vue";
-import SearchableSelect from "../SearchableSelect.vue";
+import LocalizedInput from "../LocalizedInput.vue";
+import { useAuthStore } from "../../stores/auth.js";
 import { api } from "../../api/index.js";
 import { localeLabel } from "../../composables/localeOptions.js";
 import { useSiteStore } from "../../stores/site.js";
-import { useLanguages } from "../../composables/useLanguages.js";
 import { useI18n } from "../../i18n/index.js";
 
 const site = useSiteStore();
 const { t } = useI18n();
-const languages = useLanguages();
+const auth = useAuthStore();
 const settings = computed(() => site.draft.settings);
 const homeEntries = ref([]);
 const loadingEntries = ref(false);
@@ -123,25 +112,12 @@ const homeEntryOptions = computed(() => [
   { value: "", label: t("site.overview.homepageList") },
   ...homeEntries.value,
 ]);
-const localeOptions = computed(() =>
-  site.data.available_locales.map((locale) => ({ value: locale, label: localeLabel(locale) })),
-);
-
 const domainsText = computed({
   get: () => settings.value.domains.join("\n"),
   set: (value) => {
     settings.value.domains = value.split(/[\s,]+/).map((domain) => domain.trim()).filter(Boolean);
   },
 });
-
-watch(
-  () => settings.value.locales,
-  (locales) => {
-    settings.value.default_locale = languages.defaultLocale.value;
-    if (!locales.includes(languages.defaultLocale.value)) settings.value.locales = [languages.defaultLocale.value, ...locales];
-  },
-  { deep: true },
-);
 
 watch(
   homeType,
