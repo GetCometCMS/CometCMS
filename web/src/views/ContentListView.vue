@@ -244,8 +244,8 @@
                       <template v-if="column.key === 'title'">
                         <span class="inline-flex items-center gap-1.5">
                           {{ entry.title ?? entry.id }}
-                          <Icon v-if="homepageEntry && homepageEntry === (entry.uid ?? entry.id)"
-                            icon="mdi:home" class="h-3.5 w-3.5 shrink-0 text-slate-400"
+                          <Icon v-if="homepageEntry && [entry.uid, entry.id, entry.slug].includes(homepageEntry)"
+                            icon="mdi:home" class="h-4 w-4 shrink-0 text-theme-600"
                             role="img" :aria-label="t('site.overview.homepage')"
                             :title="t('site.overview.homepage')" />
                         </span>

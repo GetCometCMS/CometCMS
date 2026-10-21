@@ -119,6 +119,7 @@ import { api } from "../../api/index.js";
 import { LOCALE_OPTIONS, localeLabel } from "../../composables/localeOptions.js";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
+import { entryIdentifier } from "../../composables/siteLinks.js";
 
 const site = useSiteStore();
 const { t } = useI18n();
@@ -158,7 +159,7 @@ watch(
     loadingEntries.value = true;
     try {
       const res = await api.content.list(type.name, { limit: 200, sort: "-updated_at" });
-      homeEntries.value = (res.data ?? []).map((entry) => ({ value: entry.slug ?? entry.id, label: entry.title || entry.slug }));
+      homeEntries.value = (res.data ?? []).map((entry) => ({ value: entryIdentifier(entry), label: entry.title || entry.slug }));
     } catch {
       homeEntries.value = [];
     } finally {
