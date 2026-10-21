@@ -50,6 +50,12 @@ let resizing = null;
 
 
 const BUILDER_CSS = `
+/* Keep empty nodes clickable at every canvas zoom. Low specificity preserves
+   the larger minimum heights supplied by the page's layout classes. */
+:where([data-node]){
+  min-height:calc(32px * var(--cometcms-ui-scale,1));
+}
+
 [data-node]{
   --builder-color:#5875c9;
   outline:1px solid transparent;
