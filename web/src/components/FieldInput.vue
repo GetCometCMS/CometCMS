@@ -205,162 +205,7 @@
       v-else
       class="rounded-lg border border-slate-300 overflow-hidden focus-within:border-theme-400 focus-within:ring-1 focus-within:ring-theme-400"
     >
-      <div
-        class="flex flex-wrap gap-0.5 p-1.5 border-b border-slate-200 bg-slate-50"
-      >
-        <button
-          type="button"
-          class="tiptap-btn font-bold"
-          :title="t('editor.bold')"
-          :aria-label="t('editor.bold')"
-          @click="editor?.chain().focus().toggleBold().run()"
-          :class="{ 'is-active': editor?.isActive('bold') }"
-          :aria-pressed="!!editor?.isActive('bold')"
-        >
-          B
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn italic"
-          :title="t('editor.italic')"
-          :aria-label="t('editor.italic')"
-          @click="editor?.chain().focus().toggleItalic().run()"
-          :class="{ 'is-active': editor?.isActive('italic') }"
-          :aria-pressed="!!editor?.isActive('italic')"
-        >
-          I
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.strike')"
-          :aria-label="t('editor.strike')"
-          @click="editor?.chain().focus().toggleStrike().run()"
-          :class="{ 'is-active': editor?.isActive('strike') }"
-          :aria-pressed="!!editor?.isActive('strike')"
-        >
-          <s>S</s>
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h1')"
-          :aria-label="t('editor.h1')"
-          @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 1 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 1 })"
-        >
-          H1
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h2')"
-          :aria-label="t('editor.h2')"
-          @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 2 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 2 })"
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h3')"
-          :aria-label="t('editor.h3')"
-          @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 3 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 3 })"
-        >
-          H3
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.bulletList')"
-          :aria-label="t('editor.bulletList')"
-          @click="editor?.chain().focus().toggleBulletList().run()"
-          :class="{ 'is-active': editor?.isActive('bulletList') }"
-          :aria-pressed="!!editor?.isActive('bulletList')"
-        >
-          • List
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.orderedList')"
-          :aria-label="t('editor.orderedList')"
-          @click="editor?.chain().focus().toggleOrderedList().run()"
-          :class="{ 'is-active': editor?.isActive('orderedList') }"
-          :aria-pressed="!!editor?.isActive('orderedList')"
-        >
-          1. List
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.blockquote')"
-          :aria-label="t('editor.blockquote')"
-          @click="editor?.chain().focus().toggleBlockquote().run()"
-          :class="{ 'is-active': editor?.isActive('blockquote') }"
-          :aria-pressed="!!editor?.isActive('blockquote')"
-        >
-          "
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn font-mono text-xs"
-          :title="t('editor.code')"
-          :aria-label="t('editor.code')"
-          @click="editor?.chain().focus().toggleCode().run()"
-          :class="{ 'is-active': editor?.isActive('code') }"
-          :aria-pressed="!!editor?.isActive('code')"
-        >
-          &lt;/&gt;
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn font-mono text-xs"
-          :title="t('editor.codeBlock')"
-          :aria-label="t('editor.codeBlock')"
-          @click="editor?.chain().focus().toggleCodeBlock().run()"
-          :class="{ 'is-active': editor?.isActive('codeBlock') }"
-          :aria-pressed="!!editor?.isActive('codeBlock')"
-        >
-          ```
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.rule')"
-          :aria-label="t('editor.rule')"
-          @click="editor?.chain().focus().setHorizontalRule().run()"
-        >
-          —
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.undo')"
-          :aria-label="t('editor.undo')"
-          @click="editor?.chain().focus().undo().run()"
-        >
-          ↩
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.redo')"
-          :aria-label="t('editor.redo')"
-          @click="editor?.chain().focus().redo().run()"
-        >
-          ↪
-        </button>
-      </div>
+      <RichTextToolbar ref="richTextToolbar" :editor="editor" class="border-b border-slate-200 p-1.5" />
       <EditorContent :editor="editor" class="tiptap-content" />
     </div>
   </div>
@@ -833,7 +678,8 @@ import ToggleSwitch from "./ToggleSwitch.vue";
 import FieldInput from "./FieldInput.vue";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
-import StarterKit from "@tiptap/starter-kit";
+import RichTextToolbar from "./RichTextToolbar.vue";
+import { richTextExtensions } from "../composables/richTextEditor.js";
 import { Icon } from "@iconify/vue";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
 import { markdownToHtml, sanitizeHtml, turndown } from "../composables/richText.js";
@@ -870,6 +716,7 @@ const isMediaDropActive = computed(() => mediaDragDepth.value > 0);
 
 // ---- Rich text visual editor ----
 const richTextMode = ref("visual");
+const richTextToolbar = ref(null);
 
 const isRichTextField = computed(() =>
   ["markdown", "html"].includes(props.config.type),
@@ -894,12 +741,20 @@ function editorStoredValue() {
 }
 
 const editor = useEditor({
-  extensions: [StarterKit],
+  extensions: richTextExtensions(),
+  editorProps: {
+    handleKeyDown(_view, event) {
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return false;
+      event.preventDefault();
+      richTextToolbar.value?.openLink();
+      return true;
+    },
+  },
   content: "",
   onCreate({ editor }) {
     if (!isRichTextField.value) return;
     const html = richTextToEditorHtml(props.modelValue);
-    editor.commands.setContent(html, false);
+    editor.commands.setContent(html, { emitUpdate: false });
   },
   onUpdate({ editor }) {
     if (!isRichTextField.value) return;
@@ -920,7 +775,7 @@ function setRichTextMode(mode) {
   if (mode === richTextMode.value) return;
   if (mode === "visual") {
     const html = richTextToEditorHtml(props.modelValue);
-    editor.value?.commands.setContent(html, false);
+    editor.value?.commands.setContent(html, { emitUpdate: false });
   }
   richTextMode.value = mode;
 }
@@ -933,7 +788,7 @@ watch(
     const value = String(val ?? "");
     if (editorStoredValue() !== value) {
       const html = richTextToEditorHtml(value);
-      editor.value?.commands.setContent(html, false);
+      editor.value?.commands.setContent(html, { emitUpdate: false });
     }
   },
 );
@@ -1393,14 +1248,6 @@ const subFieldGridCols = computed(() => {
 </script>
 
 <style scoped>
-.tiptap-btn {
-  @apply text-xs px-2 py-1 rounded text-slate-600 hover:bg-slate-200 transition-colors;
-}
-
-.tiptap-btn.is-active {
-  @apply bg-slate-200 text-slate-900 font-semibold;
-}
-
 .tiptap-content :deep(.ProseMirror) {
   @apply p-3 min-h-[16rem] text-sm text-slate-800 outline-none;
 }
@@ -1459,5 +1306,24 @@ const subFieldGridCols = computed(() => {
 
 .tiptap-content :deep(.ProseMirror s) {
   @apply line-through;
+}
+
+.tiptap-content :deep(.ProseMirror u) {
+  @apply underline;
+}
+
+.tiptap-content :deep(.ProseMirror a) {
+  @apply text-theme-600 underline underline-offset-2;
+}
+
+.tiptap-content :deep(.ProseMirror mark) {
+  background: rgb(253 224 71 / 0.6);
+  color: inherit;
+  border-radius: 0.15rem;
+  padding: 0 0.1rem;
+}
+
+:root[data-theme="dark"] .tiptap-content :deep(.ProseMirror mark) {
+  background: rgb(250 204 21 / 0.3);
 }
 </style>

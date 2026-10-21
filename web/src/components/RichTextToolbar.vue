@@ -12,7 +12,7 @@
           :aria-label="t(`editor.${item.name}`)"
           :aria-pressed="item.active ? !!item.active() : undefined"
           :aria-expanded="item.name === 'link' ? linkOpen : undefined"
-          :disabled="item.enabled ? !item.enabled() : false"
+          :disabled="!editor || (item.enabled ? !item.enabled() : false)"
           @mousedown.prevent
           @click="item.run()"
         >
@@ -21,24 +21,24 @@
         <span v-if="index < groups.length - 1" class="mx-0.5 h-5 w-px bg-slate-200" aria-hidden="true"></span>
       </template>
     </div>
-    <form v-if="linkOpen" class="space-y-1.5 rounded-lg border border-slate-200 bg-white p-2" @submit.prevent="applyLink" @keydown.esc.prevent.stop="closeLink">
+    <div v-if="linkOpen" class="space-y-1.5 rounded-lg border border-slate-200 bg-white p-2" @keydown.enter.stop @keydown.esc.prevent.stop="closeLink">
       <label class="sr-only" :for="linkId">{{ t('editor.linkUrl') }}</label>
-      <input :id="linkId" ref="linkInput" v-model="linkHref" type="text" inputmode="url" class="form-input w-full rounded-md border-slate-300 py-1 text-xs" :placeholder="t('editor.linkPlaceholder')" :aria-invalid="linkInvalid" />
+      <input :id="linkId" ref="linkInput" v-model="linkHref" @keydown.enter.prevent="applyLink" type="text" inputmode="url" class="form-input w-full rounded-md border-slate-300 py-1 text-xs" :placeholder="t('editor.linkPlaceholder')" :aria-invalid="linkInvalid" />
       <p v-if="linkInvalid" role="alert" class="text-xs text-red-600">{{ t('editor.linkInvalid') }}</p>
       <div class="flex items-center gap-2">
         <label class="mr-auto flex items-center gap-1.5 text-xs text-slate-600"><input v-model="linkNewTab" type="checkbox" class="rounded border-slate-300 text-theme-600" />{{ t('editor.linkNewTab') }}</label>
         <button v-if="editor?.isActive('link')" type="button" class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50" @click="removeLink">{{ t('editor.linkRemove') }}</button>
-        <button type="submit" class="rounded bg-theme-600 px-2 py-1 text-xs font-medium text-white hover:bg-theme-700">{{ t('editor.linkApply') }}</button>
+        <button type="button" @click="applyLink" class="rounded bg-theme-600 px-2 py-1 text-xs font-medium text-white hover:bg-theme-700">{{ t('editor.linkApply') }}</button>
       </div>
-    </form>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, ref, useId } from 'vue'
 import { Icon } from '@iconify/vue'
-import { useI18n } from '../../../i18n/index.js'
-import { normalizeLinkHref } from '../../../composables/richTextEditor.js'
+import { useI18n } from '../i18n/index.js'
+import { normalizeLinkHref } from '../composables/richTextEditor.js'
 
 const props = defineProps({ editor: { type: Object, default: null } })
 const { t } = useI18n()
@@ -62,6 +62,7 @@ const groups = computed(() => [
     { name: 'highlight', icon: 'mdi:format-color-highlight', active: active('highlight'), run: () => chain().toggleHighlight().run() },
     { name: 'link', icon: 'mdi:link-variant', shortcut: `${mod}+K`, active: active('link'), run: toggleLink },
   ],
+  [1, 2, 3].map((level) => ({ name: `h${level}`, icon: `mdi:format-header-${level}`, active: active('heading', { level }), run: () => chain().toggleHeading({ level }).run() })),
   [
     { name: 'code', icon: 'mdi:code-tags', active: active('code'), run: () => chain().toggleCode().run() },
     { name: 'superscript', icon: 'mdi:format-superscript', active: active('superscript'), run: () => chain().unsetSubscript().toggleSuperscript().run() },

@@ -6,6 +6,14 @@ export const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
+// Markdown has no syntax for these marks. Keep their safe inline HTML so
+// visual edits and source/visual switches do not silently lose formatting.
+turndown.keep(["u", "s", "mark", "sub", "sup"]);
+turndown.addRule("linkTarget", {
+  filter: (node) => node.nodeName === "A" && node.hasAttribute("target"),
+  replacement: (_content, node) => node.outerHTML,
+});
+
 const ALLOWED_HTML_TAGS = {
   a: ["href", "title", "target", "rel"],
   blockquote: [],
