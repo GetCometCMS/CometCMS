@@ -101,24 +101,22 @@ export function useNavigation() {
       result.push({ key: 'website', label: t('app.nav.websiteGroup'), items: website })
     }
 
-    const developer = []
+    const admin = []
     if (auth.can('schema.read')) {
-      developer.push({ key: 'content-types', label: t('app.nav.contentTypes'), description: t('app.nav.contentTypesHint'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
+      admin.push({ key: 'content-types', label: t('app.nav.contentTypes'), description: t('app.nav.contentTypesHint'), icon: 'mdi:shape-outline', to: '/content-types', match: ['/content-types'] })
     }
-    developer.push(section({ key: 'connect', label: t('app.nav.connect'), description: t('app.nav.connectHint'), icon: 'mdi:connection', match: ['/connect'] }, [
+    admin.push(section({ key: 'connect', label: t('app.nav.connect'), description: t('app.nav.connectHint'), icon: 'mdi:connection', match: ['/connect'] }, [
       auth.can('tokens.read') && { key: 'connect-tokens', label: t('connect.accessTokens'), to: '/connect/access-tokens', match: ['/connect/access-tokens'] },
       { key: 'connect-api', label: t('connect.api'), to: '/connect/api', match: ['/connect/api'] },
       { key: 'connect-mcp', label: t('connect.mcp'), to: '/connect/mcp', match: ['/connect/mcp'] },
       auth.can('webhooks.manage') && { key: 'connect-webhooks', label: t('connect.webhooks'), to: '/connect/webhooks', match: ['/connect/webhooks'] },
     ]))
-    result.push({ key: 'developer', label: t('app.nav.developer'), items: developer })
-
-    const admin = [
+    admin.push(
       section({ key: 'users', label: t('app.nav.usersRoles'), description: t('app.nav.usersRolesHint'), icon: 'mdi:account-group-outline' }, [
         auth.can('users.read') && { key: 'users-list', label: t('app.nav.users'), to: '/users', match: ['/users'] },
         auth.can('roles.read') && { key: 'roles', label: t('app.nav.roles'), to: '/roles', match: ['/roles'] },
       ]),
-    ]
+    )
     if (auth.can('workspaces.manage')) {
       admin.push({ key: 'workspaces', label: t('workspaces.title'), icon: 'mdi:folder-multiple-outline', to: '/website/workspaces', match: ['/website/workspaces'] })
     }

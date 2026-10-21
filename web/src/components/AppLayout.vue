@@ -57,10 +57,10 @@
             :title="sidebarCollapsed ? activeWorkspaceLabel : undefined"
             :aria-haspopup="canSwitchWorkspaces ? 'menu' : undefined"
             @click="canSwitchWorkspaces && (workspaceSwitcherOpen = !workspaceSwitcherOpen)"
-            class="sidebar-workspace sidebar-surface w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 group"
+            class="sidebar-workspace sidebar-surface h-9 w-full flex items-center gap-2.5 rounded-lg px-2 group"
           >
             <div
-              class="w-7 h-7 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none shadow-sm"
+              class="w-6 h-6 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none shadow-sm"
             >
               <img
                 v-if="activeWorkspace.has_icon"
@@ -71,9 +71,6 @@
               <span v-else>{{ workspaceInitials }}</span>
             </div>
             <div class="sidebar-text flex-1 min-w-0 text-left">
-              <div class="sidebar-label !p-0 !text-[10px] leading-tight">
-                {{ t("app.nav.workspace") }}
-              </div>
               <div class="text-[13px] font-semibold truncate leading-tight">
                 {{ activeWorkspaceLabel }}
               </div>
