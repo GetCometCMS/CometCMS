@@ -1,7 +1,7 @@
 <template>
   <div class="relative space-y-2">
     <div class="flex items-center justify-end gap-1">
-      <span class="mr-auto text-xs font-medium text-slate-700">{{ label }}</span>
+      <span class="mr-auto inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">{{ label }}<slot name="label-status" /></span>
       <button ref="pickerTrigger" type="button" class="rounded p-1 text-slate-400 hover:bg-theme-50 hover:text-theme-700 focus-visible:ring-2 focus-visible:ring-theme-500" :title="t('site.binding.insert')" :aria-label="t('site.binding.insert')" :aria-expanded="pickerOpen" @click="openPicker()"><Icon icon="mdi:database-arrow-right-outline" class="h-4 w-4" /></button>
       <button type="button" class="rounded px-1.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100" :aria-pressed="syntaxMode" @click="toggleSyntax">{{ syntaxMode ? t('site.binding.visual') : t('site.binding.syntax') }}</button>
       <button v-if="isSmartValue(content)" type="button" class="rounded p-1 text-slate-400 hover:bg-slate-100" :title="t('site.binding.clear')" :aria-label="t('site.binding.clear')" @click="clear"><Icon icon="mdi:link-off" class="h-4 w-4" /></button>

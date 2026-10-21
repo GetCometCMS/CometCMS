@@ -1,19 +1,18 @@
 <template>
   <div>
-    <div v-if="def.localized" class="mb-2 space-y-1 text-xs text-slate-500">
-      <span>{{ t(`localization.${translationState}`) }}</span>
-      <template v-if="builder.locale.value !== builder.defaultLocale.value">
-        <p class="break-words">{{ t('localization.source') }}: {{ sourceText }}</p>
-        <button v-if="translationState !== 'inherited'" type="button" class="text-theme-700 underline" @click="builder.resetTranslation(node.id, group, name)">{{ t('localization.reset') }}</button>
-      </template>
-    </div>
     <fieldset :disabled="builder.translating?.value && !def.localized" class="min-w-0">
     <div v-if="!def.binding" class="mb-1 flex items-center justify-between gap-2">
-      <label class="text-xs font-medium text-slate-700" :for="inputId">{{ label }}</label>
+      <div class="flex min-w-0 items-center gap-1.5">
+        <label class="text-xs font-medium text-slate-700" :for="inputId">{{ label }}</label>
+        <BuilderTranslationStatus v-if="def.localized" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="builder.resetTranslation(node.id, group, name)" />
+      </div>
       <span v-if="hint" class="truncate text-[10px] text-slate-400">{{ hint }}</span>
     </div>
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
+      <template v-if="def.localized" #label-status>
+        <BuilderTranslationStatus :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="builder.resetTranslation(node.id, group, name)" />
+      </template>
       <template v-if="['media', 'media_list', 'link'].includes(def.binding)" #literal>
         <MediaSelect v-if="['media', 'media_list'].includes(def.binding)" :model-value="value" :multiple="def.binding === 'media_list'" :name="inputId" :compact="group === 'style' || def.binding === 'media_list'" @update:model-value="emitValue" />
         <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
@@ -253,6 +252,7 @@
 <script setup>
 import { computed } from "vue";
 import SmartValueEditor from "./SmartValueEditor.vue";
+import BuilderTranslationStatus from "./BuilderTranslationStatus.vue";
 import { Icon } from "@iconify/vue";
 import FieldInput from "../../FieldInput.vue";
 import IconPickerGrid from "../../IconPickerGrid.vue";
@@ -296,6 +296,7 @@ const builder = useSiteBuilder();
 const site = useSiteStore();
 const value = computed(() => resolveLocalized(props.value, builder.locale.value || builder.defaultLocale?.value || 'en', builder.defaultLocale?.value || 'en'));
 const translationState = computed(() => builder.translationState?.(props.node, props.group, props.name) || 'shared');
+const isSecondaryLocale = computed(() => builder.locale.value !== builder.defaultLocale.value);
 const sourceText = computed(() => { const value = resolveLocalized(props.value, builder.defaultLocale?.value || 'en', builder.defaultLocale?.value || 'en'); return typeof value === 'string' ? value.replace(/<[^>]*>/g, '') : JSON.stringify(value); });
 const linkSettings = computed(() => site.data?.workspace === getActiveWorkspace() && site.draft ? site.draft.settings : builder.settings.value);
 const { t } = useI18n();
