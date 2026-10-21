@@ -47,12 +47,11 @@ final class PermissionService
 
     public function capabilities(array $principal): array
     {
+        $grants = $this->grants($principal);
+
         return [
-            'permissions' => $this->grants($principal),
-            'actions' => array_values(array_unique(array_merge(...array_map(
-                fn(array $grant): array => array_map('strval', (array) ($grant['actions'] ?? $grant['action'] ?? [])),
-                $this->grants($principal),
-            )))),
+            'permissions' => $grants,
+            'actions' => array_values(array_unique(array_merge(...array_column($grants, 'actions')))),
         ];
     }
 
@@ -78,7 +77,7 @@ final class PermissionService
                 continue;
             }
 
-            $grant = $this->normalizeGrant($grant);
+            $grant = self::normalizeGrant($grant);
             if ($grant['effect'] === 'deny') {
                 continue;
             }
@@ -219,7 +218,7 @@ final class PermissionService
         if (($principal['_principal_type'] ?? 'user') !== 'token') {
             $role = (string) ($principal['role'] ?? 'viewer');
             foreach ($this->roles->permissions($role) as $grant) {
-                $grants[] = $this->normalizeGrant($grant);
+                $grants[] = self::normalizeGrant($grant);
             }
 
             return $grants;
@@ -227,14 +226,18 @@ final class PermissionService
 
         foreach ((array) ($principal['permissions'] ?? []) as $grant) {
             if (is_array($grant)) {
-                $grants[] = $this->normalizeGrant($grant);
+                $grants[] = self::normalizeGrant($grant);
             }
         }
 
         return $grants;
     }
 
-    private function normalizeGrant(array $grant): array
+    /**
+     * Canonical grant shape shared by roles, tokens and permission checks.
+     * Singular `action` / `resource` keys and scalar values are still accepted inputs.
+     */
+    public static function normalizeGrant(array $grant): array
     {
         $actions = $grant['actions'] ?? $grant['action'] ?? [];
         $resources = $grant['resources'] ?? $grant['resource'] ?? [];
@@ -246,6 +249,31 @@ final class PermissionService
             'fields' => array_key_exists('fields', $grant) ? array_values(array_filter(array_map('strval', (array) $grant['fields']))) : null,
             'conditions' => is_array($grant['conditions'] ?? null) ? $grant['conditions'] : null,
         ], static fn(mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * Normalize a stored grant list, dropping entries without actions or resources.
+     */
+    public static function normalizeGrants(mixed $grants): array
+    {
+        if (!is_array($grants)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($grants as $grant) {
+            if (!is_array($grant)) {
+                continue;
+            }
+
+            $grant = self::normalizeGrant($grant);
+            if ($grant['actions'] !== [] && $grant['resources'] !== []) {
+                $normalized[] = $grant;
+            }
+        }
+
+        return $normalized;
     }
 
     private function grantApplies(array $grant, string $action, array $context, array $fields): bool

@@ -109,17 +109,17 @@ Before removing a handler, check every workspace (including archived ones), revi
 
 ### API tokens inside user records
 
-- **Handles:** tokens stored in `users/{id}.json` under `api_tokens`. They move to `api-tokens/` and keep a `legacy_user_id`.
-- **Where:** [ApiTokenRepository::migrateLegacyUserTokens()](cms/app/Auth/ApiTokenRepository.php#L123), called from `all()`, `find()` and `findByToken()`. It scans users and removes `api_tokens` after copying missing tokens. `legacy_user_id` is written but has no consumer in this repository.
+- **Handles:** tokens stored in `users/{id}.json` under `api_tokens`. They move to `api-tokens/`. Tokens migrated by earlier releases may still carry a `legacy_user_id`; it is no longer written and nothing in this repository reads it.
+- **Where:** [ApiTokenRepository::migrateLegacyUserTokens()](cms/app/Auth/ApiTokenRepository.php#L123), called from `all()`, `find()` and `findByToken()`. It scans users and removes `api_tokens` after copying missing tokens.
 - **Safe to remove:** once the token migration has actually run successfully on every installation and old user records cannot be reintroduced. Merely starting the release is insufficient. The current `restoreUsers()` strips embedded tokens rather than migrating them; `restoreApiTokens()` reads `tokens.json`, so do not assume old users-only backups restore those tokens.
-- **Streamlining:** remove the user scans and the token repository's `UserRepository` dependency. Stop writing `legacy_user_id`; remove existing copies only if no external tooling needs the provenance.
+- **Streamlining:** remove the user scans and the token repository's `UserRepository` dependency. Remove existing `legacy_user_id` copies only if no external tooling needs the provenance.
 
 ### Singular permission keys and encoded token permissions
 
 - **Handles:** grants using `action` / `resource` instead of `actions` / `resources`, including scalar values cast to lists. Token permissions can also arrive as a JSON-encoded string. Roles can be read/restored with `name` as the fallback for a missing `id`.
-- **Where:** `normalizePermissions()` in [ApiTokenRepository.php](cms/app/Auth/ApiTokenRepository.php) and [RoleRepository.php](cms/app/Auth/RoleRepository.php), `normalizeGrant()` / `capabilities()` in [PermissionService.php](cms/app/Auth/PermissionService.php), and the role id fallback in [RestoreService::restoreRoles()](cms/app/Backups/RestoreService.php). [PermissionServiceTest.php](tests/php/PermissionServiceTest.php) still passes a singular grant to `firstUncovered()`.
+- **Where:** the shared `PermissionService::normalizeGrant()` / `normalizeGrants()` in [PermissionService.php](cms/app/Auth/PermissionService.php), used by roles, tokens and permission evaluation; the JSON-string decoding in `ApiTokenRepository::normalizePermissions()` ([ApiTokenRepository.php](cms/app/Auth/ApiTokenRepository.php)); and the role id fallback in [RestoreService::restoreRoles()](cms/app/Backups/RestoreService.php). [PermissionServiceTest.php](tests/php/PermissionServiceTest.php) still passes a singular grant to `firstUncovered()`.
 - **Safe to remove:** after canonicalizing stored roles and tokens and supported backups, and moving callers to plural list keys and explicit role ids. These forms are still accepted inputs; removing them requires retiring that input contract as well. Token save/authentication normalizes grants, while reading a role alone does not rewrite its JSON.
-- **Streamlining:** share one grant normalizer between roles, tokens and permission evaluation, then retire aliases at the input boundary. Keep deny precedence, field restrictions and conditions unchanged. Decide separately whether JSON-string input is still needed by any direct repository caller.
+- **Streamlining:** roles, tokens and permission evaluation now share one grant normalizer, so retiring the aliases is a single change in `normalizeGrant()` plus the input boundary. Keep deny precedence, field restrictions and conditions unchanged. Decide separately whether JSON-string input is still needed by any direct repository caller.
 
 ### Unscoped permission resources for workspace requests
 
@@ -131,9 +131,9 @@ Before removing a handler, check every workspace (including archived ones), revi
 ### Discarded per-user permissions
 
 - **Handles:** a `permissions` property on user records. User authorization now comes from the assigned role; token authorization comes from the token's own grants.
-- **Where:** [UserRepository::save()](cms/app/Auth/UserRepository.php) unsets the property; [RestoreService::restoreUsers()](cms/app/Backups/RestoreService.php) strips it again. [PermissionService::grants()](cms/app/Auth/PermissionService.php) ignores user-level grants.
+- **Where:** [UserRepository::save()](cms/app/Auth/UserRepository.php) unsets the property, which also covers users restored by [RestoreService::restoreUsers()](cms/app/Backups/RestoreService.php). [PermissionService::grants()](cms/app/Auth/PermissionService.php) ignores user-level grants.
 - **Safe to remove:** the cleanup can go after all user records and supported backups have been cleaned and old writers retired. Keep the rule that user-supplied permissions never grant access. Do not migrate discarded user grants into roles without reviewing the resulting access.
-- **Streamlining:** centralize user-record cleanup in `UserRepository::save()`; the duplicate `permissions` unset in restore can then go independently of the old-data retirement. Embedded-token handling still needs its own decision.
+- **Streamlining:** embedded-token handling in `restoreUsers()` still needs its own decision.
 
 ### Old thumbnail cache (`media-thumbs/`)
 
@@ -158,10 +158,10 @@ These are follow-up changes, not migrations implemented by this document update.
 | Finish theme-folder and component-id retirement as one change | Removes migration locks/scans, alias lookups, reserved id patterns and restore path remapping | Verify every workspace and revision, expire stale clients, and settle the old-backup support window. |
 | Consolidate forms and collection cards | Removes two storage/rendering paths and repeated legacy-form scans during schema reads | Implement migrations first; preserve card appearance, component placements and differing settings for forms sharing a type. |
 | Materialize schema flags and immutable entry ids | Removes inferred API/submission flags and legacy identifier generation | Preserve private access and existing references; audit config schemas, deleted content, revisions and backups too. |
-| Share permission normalization and user cleanup | Removes repeated grant conversion and redundant restore cleanup | Keep existing access decisions and accepted inputs until callers have migrated; retain global workspace grants while built-in roles depend on them. |
+| Retire permission input aliases | Removes singular-key and JSON-string handling from the shared grant normalizer | Keep existing access decisions; move callers to plural list keys first; retain global workspace grants while built-in roles depend on them. |
 | Retire disposable cache cleanup and completed icon migration | Removes filesystem work from media construction and workspace listing | Verify cleanup/migration succeeded in every workspace. Removing `/media-thumbs` from reserved routes is a separate URL-policy decision. |
 
-Start with shared normalization and duplicate cleanup, which can preserve today's behavior. The larger reductions need migration tooling and a declared minimum supported data/backup version. The backup manifest already records the CMS version, but [RestoreService::restore()](cms/app/Backups/RestoreService.php) currently only requires the manifest to exist; it does not enforce a minimum supported version.
+Shared grant normalization and the duplicate user cleanup are done (2026-10-21). The larger reductions need migration tooling and a declared minimum supported data/backup version. The backup manifest already records the CMS version, but [RestoreService::restore()](cms/app/Backups/RestoreService.php) currently only requires the manifest to exist; it does not enforce a minimum supported version.
 
 ## Keep as current behavior
 

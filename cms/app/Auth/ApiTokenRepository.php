@@ -135,8 +135,6 @@ final class ApiTokenRepository
                 }
 
                 $token['description'] = (string) ($token['description'] ?? '');
-                $token['legacy_user_id'] = (string) ($user['id'] ?? '');
-                $token['permissions'] = $this->normalizePermissions($token['permissions'] ?? []);
                 $this->save($token);
             }
 
@@ -148,44 +146,11 @@ final class ApiTokenRepository
 
     private function normalizePermissions(mixed $permissions): array
     {
+        // Direct callers may still pass grants as a JSON-encoded string.
         if (is_string($permissions)) {
-            $decoded = json_decode($permissions, true);
-            $permissions = is_array($decoded) ? $decoded : [];
+            $permissions = json_decode($permissions, true);
         }
 
-        if (!is_array($permissions)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($permissions as $grant) {
-            if (!is_array($grant)) {
-                continue;
-            }
-
-            $actions = $grant['actions'] ?? $grant['action'] ?? [];
-            $resources = $grant['resources'] ?? $grant['resource'] ?? [];
-
-            $item = [
-                'effect' => ($grant['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',
-                'actions' => array_values(array_filter(array_map('strval', (array) $actions))),
-                'resources' => array_values(array_filter(array_map('strval', (array) $resources))),
-            ];
-
-            if (array_key_exists('fields', $grant)) {
-                $item['fields'] = array_values(array_filter(array_map('strval', (array) $grant['fields'])));
-            }
-
-            if (is_array($grant['conditions'] ?? null)) {
-                $item['conditions'] = $grant['conditions'];
-            }
-
-            if ($item['actions'] !== [] && $item['resources'] !== []) {
-                $normalized[] = $item;
-            }
-        }
-
-        return $normalized;
+        return PermissionService::normalizeGrants($permissions);
     }
 }

@@ -429,7 +429,7 @@ final class RestoreService
             }
 
             $user['username'] = trim((string) ($user['username'] ?? $id));
-            unset($user['permissions'], $user['api_tokens']);
+            unset($user['api_tokens']);
             $repository->save($user);
             $restored++;
         }
