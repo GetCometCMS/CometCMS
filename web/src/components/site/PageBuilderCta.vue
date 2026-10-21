@@ -3,7 +3,7 @@
     <h2 :id="headingId" class="card-title">{{ title }}</h2>
 
     <div class="flex flex-col items-center gap-4 py-2 text-center">
-      <p v-if="description" :id="hintId" class="max-w-2xl text-sm text-slate-500">{{ description }}</p>
+      <p v-if="description" :id="hintId" class="page-builder-cta-description max-w-2xl text-sm text-slate-500">{{ description }}</p>
       <router-link
         :to="to"
         class="btn-primary justify-center"
@@ -45,7 +45,17 @@ const hintId = `${headingId}-hint`;
 :root[data-theme="dark"] .page-builder-cta {
   background-color: rgb(var(--color-surface));
   background-image:
-    linear-gradient(90deg, rgb(var(--color-surface)) 0%, rgb(var(--color-surface) / 0.94) 35%, rgb(var(--color-surface) / 0.88) 60%, rgb(var(--color-surface) / 0.8) 100%),
-    url("../../assets/page-builder-background.svg");
+    linear-gradient(
+      90deg,
+      rgb(var(--color-surface)) 0%,
+      rgb(var(--color-surface) / 0.94) 35%,
+      rgb(var(--color-surface) / 0.55) 60%,
+      rgb(var(--color-surface) / 0.15) 100%
+    ),
+    url("../../assets/page-builder-background-dark.svg");
+}
+
+:root[data-theme="dark"] .page-builder-cta-description {
+  color: rgb(var(--color-slate-700));
 }
 </style>
