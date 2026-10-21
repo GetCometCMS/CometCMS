@@ -14,7 +14,7 @@
     <Transition name="sidebar">
       <aside
         id="primary-navigation"
-        class="admin-sidebar fixed inset-y-0 left-0 z-40 w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col lg:static lg:translate-x-0 lg:z-20"
+        class="admin-sidebar fixed inset-y-0 left-0 z-40 w-[17.5rem] max-w-[calc(100vw-2rem)] flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col lg:static lg:translate-x-0 lg:z-20"
         :class="[
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           { 'is-collapsed': sidebarCollapsed },
@@ -49,13 +49,14 @@
           class="px-3 pb-2 relative"
           ref="switcherRef"
         >
-          <button
-            type="button"
-            :aria-expanded="workspaceSwitcherOpen"
-            :aria-label="`${t('app.nav.switchWorkspace')}: ${activeWorkspaceLabel}`"
+          <component
+            :is="canSwitchWorkspaces ? 'button' : 'div'"
+            :type="canSwitchWorkspaces ? 'button' : undefined"
+            :aria-expanded="canSwitchWorkspaces ? workspaceSwitcherOpen : undefined"
+            :aria-label="`${t(canSwitchWorkspaces ? 'app.nav.switchWorkspace' : 'app.nav.workspace')}: ${activeWorkspaceLabel}`"
             :title="sidebarCollapsed ? activeWorkspaceLabel : undefined"
-            aria-haspopup="menu"
-            @click="workspaceSwitcherOpen = !workspaceSwitcherOpen"
+            :aria-haspopup="canSwitchWorkspaces ? 'menu' : undefined"
+            @click="canSwitchWorkspaces && (workspaceSwitcherOpen = !workspaceSwitcherOpen)"
             class="sidebar-workspace sidebar-surface w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 group"
           >
             <div
@@ -78,14 +79,15 @@
               </div>
             </div>
             <Icon
+              v-if="canSwitchWorkspaces"
               icon="mdi:unfold-more-horizontal"
               class="sidebar-text w-4 h-4 opacity-50 shrink-0 group-hover:opacity-80 transition-opacity"
             />
-          </button>
+          </component>
 
           <Transition name="ws-dropdown">
             <div
-              v-if="workspaceSwitcherOpen"
+              v-if="canSwitchWorkspaces && workspaceSwitcherOpen"
               role="menu"
               class="sidebar-menu absolute left-3 right-3 top-full z-50 mt-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             >
@@ -182,27 +184,29 @@
                   <Icon :icon="item.icon" class="nav-icon" />
                   <span class="sidebar-text truncate">{{ item.label }}</span>
                 </router-link>
-                <!-- A section opens its sub-pages while one of them is shown. -->
                 <div v-else>
-                  <router-link
-                    :to="item.to"
-                    class="nav-link"
+                  <button
+                    type="button"
+                    class="nav-link w-full text-left"
                     :class="{ 'is-section-active': isActive(item, route.path) }"
                     :aria-label="item.label"
+                    :aria-expanded="!navigationCollapsed && isSectionExpanded(item)"
+                    :aria-controls="`nav-section-${item.key}`"
                     :title="sidebarCollapsed ? item.label : undefined"
-                    @click="sidebarOpen = false"
+                    @click="toggleNavSection(item)"
                   >
                     <Icon :icon="item.icon" class="nav-icon" />
-                    <span class="sidebar-text flex-1 truncate">{{ item.label }}</span>
+                    <span class="sidebar-text min-w-0 flex-1 truncate">{{ item.label }}</span>
                     <Icon
                       icon="mdi:chevron-right"
                       class="sidebar-text nav-chevron"
-                      :class="{ 'rotate-90': isActive(item, route.path) }"
+                      :class="{ 'rotate-90': isSectionExpanded(item) }"
                       aria-hidden="true"
                     />
-                  </router-link>
+                  </button>
                   <div
-                    v-if="isActive(item, route.path)"
+                    v-show="!navigationCollapsed && isSectionExpanded(item)"
+                    :id="`nav-section-${item.key}`"
                     class="nav-sub"
                     role="group"
                     :aria-label="item.label"
@@ -393,6 +397,7 @@ import ApiEndpointFooter from "./ApiEndpointFooter.vue";
 import ToastStack from "./ToastStack.vue";
 import CommandPalette from "./CommandPalette.vue";
 import { useNavigation } from "../composables/useNavigation.js";
+import { useNavigationSections } from "../composables/useNavigationSections.js";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -414,6 +419,23 @@ const appVersion = ref("");
 const sidebarOpen = ref(false);
 const sidebarStorageKey = "cometcms-admin-sidebar-collapsed";
 const sidebarCollapsed = ref(readSidebarCollapsed());
+const desktopViewport = ref(false);
+const navigationCollapsed = computed(() => sidebarCollapsed.value && desktopViewport.value);
+const { isExpanded: isSectionExpanded, toggle: toggleSection, reveal: revealSection } = useNavigationSections(
+  navGroups, computed(() => route.path), isActive,
+);
+let desktopQuery;
+function syncDesktopViewport() {
+  desktopViewport.value = desktopQuery.matches;
+}
+function toggleNavSection(item) {
+  if (navigationCollapsed.value) {
+    sidebarCollapsed.value = false;
+    revealSection(item);
+  } else {
+    toggleSection(item);
+  }
+}
 const sidebarToggleLabel = computed(() =>
   t(sidebarCollapsed.value ? "app.actions.expandNavigation" : "app.actions.collapseNavigation"),
 );
@@ -435,8 +457,10 @@ watch(sidebarCollapsed, (collapsed) => {
 });
 
 const workspaces = ref([]);
+const canSwitchWorkspaces = computed(() => workspaces.value.length > 1);
 const selectedWorkspace = ref(getActiveWorkspace());
 const workspaceSwitcherOpen = ref(false);
+watch(canSwitchWorkspaces, () => { workspaceSwitcherOpen.value = false; });
 const switcherRef = ref(null);
 const accountMenuOpen = ref(false);
 const accountMenuRef = ref(null);
@@ -505,6 +529,9 @@ watch(
 
 
 onMounted(() => {
+  desktopQuery = window.matchMedia("(min-width: 1024px)");
+  syncDesktopViewport();
+  desktopQuery.addEventListener("change", syncDesktopViewport);
   if (auth.can("workspaces.read")) {
     fetchWorkspaces();
   }
@@ -516,6 +543,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  desktopQuery?.removeEventListener("change", syncDesktopViewport);
   document.removeEventListener("click", handleSwitcherOutsideClick);
   document.removeEventListener("keydown", handleGlobalShortcut);
   window.removeEventListener(workspaceSyncEvent, handleWorkspaceSync);
@@ -598,24 +626,9 @@ async function handleLogout() {
     padding-right: 0;
   }
 
-  /* Sub-pages have no room here; the section's link stands in for them. */
+  /* The section button expands the sidebar to reveal its sub-pages. */
   .is-collapsed .nav-sub {
     display: none;
-  }
-
-  .is-collapsed .nav-link.is-section-active {
-    background: var(--sidebar-active-bg);
-  }
-
-  .is-collapsed .nav-link.is-section-active::before {
-    content: "";
-    position: absolute;
-    left: -0.75rem;
-    top: 0.5rem;
-    bottom: 0.5rem;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: var(--sidebar-indicator);
   }
 
   .is-collapsed .sidebar-nav-group + .sidebar-nav-group {

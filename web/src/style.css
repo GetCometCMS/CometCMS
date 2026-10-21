@@ -238,13 +238,18 @@
   /* ---------------------------------------------------------------------- */
 
   .nav-link {
-    @apply relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors;
+    @apply relative flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors;
     color: rgb(var(--color-sidebar-text));
   }
 
   .nav-link .nav-icon {
     @apply h-[18px] w-[18px] shrink-0 transition-colors;
     color: rgb(var(--color-sidebar-muted));
+  }
+
+  .nav-link:focus-visible,
+  .nav-sublink:focus-visible {
+    @apply outline-none ring-2 ring-inset ring-theme-500;
   }
 
   .nav-link:hover {
@@ -256,7 +261,8 @@
     color: rgb(var(--color-sidebar-hover-text));
   }
 
-  .nav-link.is-active {
+  .nav-link.is-active,
+  .nav-link.is-section-active[aria-expanded="false"] {
     background: var(--sidebar-active-bg);
     color: rgb(var(--color-sidebar-active-text));
   }
@@ -265,7 +271,8 @@
     color: var(--sidebar-indicator);
   }
 
-  .nav-link.is-active::before {
+  .nav-link.is-active::before,
+  .nav-link.is-section-active[aria-expanded="false"]::before {
     content: "";
     position: absolute;
     left: -0.75rem;
@@ -297,7 +304,7 @@
   }
 
   .nav-sublink {
-    @apply relative flex h-8 items-center rounded-md px-2.5 text-[13px] transition-colors;
+    @apply relative flex min-h-8 items-center rounded-md px-2.5 py-1 text-[13px] transition-colors;
     color: rgb(var(--color-sidebar-muted));
   }
 
@@ -324,8 +331,19 @@
   }
 
   .sidebar-label {
-    @apply px-2.5 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-[0.08em];
+    @apply flex items-center gap-3 px-2.5 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.12em];
     color: rgb(var(--color-sidebar-heading));
+  }
+
+  .sidebar-nav-group > .sidebar-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgb(var(--color-sidebar-border) / var(--color-sidebar-border-alpha));
+  }
+
+  div.sidebar-workspace.sidebar-surface:hover {
+    background: var(--sidebar-surface);
   }
 
   .sidebar-muted {

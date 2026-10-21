@@ -32,7 +32,14 @@ After login, you can add more workspaces in **Administration → Workspaces**. S
 
 ## Finding your way around
 
-The sidebar groups the admin into **Content** (your content types and media), **Website** (the Page Builder, once enabled) and **Administration** (content types, users and roles, workspaces, API & integrations, backups and updates).
+The sidebar groups the admin by task:
+
+- **Content**: edit your entries and manage media. Content types open directly.
+- **Website**: **Design & layout** contains global design, menus, components and fonts once the Page Builder is enabled. **Website settings** contains general settings and SEO & sharing.
+- **Developer**: define fields in **Content types**, or connect external services under **API & integrations**.
+- **Administration**: manage users and roles, workspaces, backups and updates.
+
+Click a section's name or arrow to expand its submenu without leaving your current page. The section containing your current page opens automatically. In the collapsed desktop sidebar, clicking a section expands the sidebar to show its options. Only destinations available to your account are shown.
 
 Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (<kbd>⌘</kbd> + <kbd>K</kbd> on macOS), or click **Search** in the sidebar, to jump to any page, find entries by title, or start a new entry.
 

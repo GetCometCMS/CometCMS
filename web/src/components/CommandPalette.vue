@@ -155,6 +155,7 @@ const navigationItems = computed(() =>
         id: `nav:${item.key}`,
         label: item.label,
         hint: group.label ?? "",
+        keywords: item.description,
         icon: item.icon,
         to: item.to,
       },
