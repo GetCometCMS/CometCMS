@@ -53,11 +53,29 @@
         <h2 class="card-title">{{ t("site.overview.languages") }}</h2>
         <p class="mt-1 text-sm text-slate-500">{{ t("site.overview.languagesHint") }}</p>
       </div>
-      <p class="text-sm text-slate-700">{{ settings.locales.map(localeLabel).join(", ") }}</p>
-      <p class="text-xs text-slate-500">{{ t("site.overview.defaultLanguage") }}: {{ localeLabel(settings.default_locale) }}</p>
-      <RouterLink v-if="auth.can('workspaces.manage')" to="/website/workspaces" class="inline-flex text-sm text-theme-700 hover:underline">
-        {{ t("workspaces.manageLanguages") }}
-      </RouterLink>
+      <div v-if="auth.can('workspaces.manage')" class="grid gap-4 sm:grid-cols-3">
+        <div class="min-w-0 sm:col-span-2">
+          <div class="form-label">{{ t("localization.languages") }}</div>
+          <SearchableSelect
+            v-model="languages.locales"
+            :options="LOCALE_OPTIONS"
+            :aria-label="t('localization.languages')"
+            multiple
+          />
+        </div>
+        <div class="min-w-0">
+          <div class="form-label">{{ t("localization.default") }}</div>
+          <SearchableSelect
+            v-model="languages.default_locale"
+            :options="defaultLocaleOptions"
+            :aria-label="t('localization.default')"
+          />
+        </div>
+      </div>
+      <template v-else>
+        <p class="text-sm text-slate-700">{{ settings.locales.map(localeLabel).join(", ") }}</p>
+        <p class="text-xs text-slate-500">{{ t("site.overview.defaultLanguage") }}: {{ localeLabel(settings.default_locale) }}</p>
+      </template>
     </section>
 
     <!-- Domains -->
@@ -95,9 +113,10 @@
 import { computed, ref, watch } from "vue";
 import LocalizedInput from "../LocalizedInput.vue";
 import MediaSelect from "./MediaSelect.vue";
+import SearchableSelect from "../SearchableSelect.vue";
 import { useAuthStore } from "../../stores/auth.js";
 import { api } from "../../api/index.js";
-import { localeLabel } from "../../composables/localeOptions.js";
+import { LOCALE_OPTIONS, localeLabel } from "../../composables/localeOptions.js";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
 
@@ -105,6 +124,16 @@ const site = useSiteStore();
 const { t } = useI18n();
 const auth = useAuthStore();
 const settings = computed(() => site.draft.settings);
+// Languages belong to the workspace; they are edited here and saved with the settings.
+const languages = computed(() => site.draft.languages);
+const defaultLocaleOptions = computed(() => LOCALE_OPTIONS.filter((option) => languages.value.locales.includes(option.value)));
+watch(
+  () => languages.value.locales,
+  (locales) => {
+    if (locales.length && !locales.includes(languages.value.default_locale)) languages.value.default_locale = locales[0];
+  },
+  { deep: true },
+);
 const homeEntries = ref([]);
 const loadingEntries = ref(false);
 

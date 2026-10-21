@@ -198,25 +198,6 @@
             class="mt-5 space-y-5 border-t border-slate-100 pt-5"
             @submit.prevent="handleUpdate(workspace.slug)"
           >
-            <div class="grid gap-4 sm:grid-cols-3">
-              <div class="min-w-0 sm:col-span-2">
-                <div class="form-label">{{ t('localization.languages') }}</div>
-                <SearchableSelect
-                  v-model="editForm.languages.locales"
-                  :options="LOCALE_OPTIONS"
-                  :aria-label="t('localization.languages')"
-                  multiple
-                />
-              </div>
-              <div class="min-w-0">
-                <div class="form-label">{{ t('localization.default') }}</div>
-                <SearchableSelect
-                  v-model="editForm.languages.default_locale"
-                  :options="editDefaultLocaleOptions"
-                  :aria-label="t('localization.default')"
-                />
-              </div>
-            </div>
             <p v-if="editError" class="text-sm text-red-600" role="alert">{{ editError }}</p>
             <div class="flex flex-wrap justify-end gap-2">
               <button type="button" @click="cancelEdit" class="btn-secondary">
@@ -246,7 +227,7 @@
 
 <script setup>
 import { ADMIN_API_BASE } from "../basePath.js";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import AvatarUpload from "./AvatarUpload.vue";
 import ConfirmModal from "./ConfirmModal.vue";
@@ -258,9 +239,6 @@ import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { buildAdminApiUrl } from "../composables/apiEndpoint.js";
 import { useToastStore } from "../stores/toast.js";
-import SearchableSelect from "./SearchableSelect.vue";
-import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
-import { updateWorkspaceLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { useAutoSlug } from "../composables/useAutoSlug.js";
 import { installStarterFonts } from "../composables/starterFonts.js";
@@ -300,9 +278,6 @@ const editingSlug = ref(null);
 const saving = ref(false);
 const editError = ref("");
 const editForm = ref({ label: "" });
-const editDefaultLocaleOptions = computed(() =>
-  LOCALE_OPTIONS.filter((option) => editForm.value.languages?.locales.includes(option.value)),
-);
 const editInput = ref(null);
 
 // Archive
@@ -378,7 +353,7 @@ async function handleCreate() {
 
 function startEdit(workspace) {
   editingSlug.value = workspace.slug;
-  editForm.value = { label: workspace.label, languages: JSON.parse(JSON.stringify(workspace.languages)) };
+  editForm.value = { label: workspace.label };
   editError.value = "";
   nextTick(() => {
     if (editInput.value) {
@@ -399,8 +374,8 @@ async function handleUpdate(slug) {
   editError.value = "";
   saving.value = true;
   try {
-    const response = await api.workspaces.update(slug, editForm.value);
-    updateWorkspaceLanguages(slug, response.data.languages);
+    await api.workspaces.update(slug, editForm.value);
+    // The website settings carry the workspace label along when saving languages.
     if (slug === getActiveWorkspace()) { siteStore.invalidate(); contentTypesStore.invalidate(); }
     toast.success(t("workspaces.updated"));
     editingSlug.value = null;

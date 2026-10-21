@@ -2,16 +2,7 @@
   <div>
     <div class="editor-sticky-header flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <h1 class="page-title">{{ t("site.title") }}</h1>
-          <span
-            v-if="site.data"
-            class="badge badge-dot"
-            :class="site.data.settings.enabled ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/15'"
-          >
-            {{ site.data.settings.enabled ? t("site.status.live") : t("site.status.off") }}
-          </span>
-        </div>
+        <h1 class="page-title">{{ t("site.title") }}</h1>
         <p class="mt-0.5 text-sm text-slate-500">{{ t("site.description") }}</p>
       </div>
 
@@ -43,20 +34,6 @@
     </div>
 
     <template v-else-if="site.draft">
-      <div
-        v-if="!site.live"
-        class="mb-6 flex flex-col gap-3 rounded-xl border border-theme-200 bg-theme-50 px-4 py-3 text-sm text-theme-900 sm:flex-row sm:items-center"
-      >
-        <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
-        <p class="flex-1">{{ t("site.offNotice") }}</p>
-        <router-link to="/website/general#homepage" class="btn-secondary btn-sm shrink-0">
-          {{ t("site.chooseHomepage") }}
-        </router-link>
-        <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
-          {{ t("site.enablePages") }}
-        </router-link>
-      </div>
-
       <div
         v-if="Object.keys(site.fieldErrors).length > 0"
         class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -118,8 +95,8 @@ const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-/** Settings, global design and menus share a draft across these tabs. */
-const PARTS = ["settings", "theme", "menus"];
+/** Global design and menus share a draft across these tabs. */
+const PARTS = ["theme", "menus"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 // Opens the homepage layout, or the header when no homepage is chosen. Uses saved
 // settings because leaving discards any pending edits.

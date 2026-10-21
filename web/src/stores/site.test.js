@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const mocks = vi.hoisted(() => ({ workspace: 'default' }))
-vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { fonts: { list: vi.fn() }, site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
+vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { fonts: { list: vi.fn() }, workspaces: { update: vi.fn() }, site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
 import { useSiteStore } from './site.js'
 import { api } from '../api/index.js'
 
@@ -11,7 +11,7 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
-const siteData = (workspace) => ({ workspace, settings: { title: workspace }, theme: {}, menus: [] })
+const siteData = (workspace) => ({ workspace, settings: { title: workspace, locales: ['en'], default_locale: 'en' }, theme: {}, menus: [] })
 
 describe('workspace loads', () => {
   beforeEach(() => {
@@ -92,7 +92,7 @@ describe('website revision restoration', () => {
 
   it('applies a restored theme and preserves pending edits to settings and menus', () => {
     const site = useSiteStore()
-    site.data = { settings: { title: 'Saved' }, theme: { base_size: 17 }, menus: [] }
+    site.data = { settings: { title: 'Saved', locales: ['en'], default_locale: 'en' }, theme: { base_size: 17 }, menus: [] }
     site.resetDraft()
     site.draft.settings.title = 'Pending settings'
     site.draft.menus.push({ name: 'pending-menu' })
@@ -118,7 +118,7 @@ describe('menu saves', () => {
 
   it('keeps incomplete menu drafts and reports errors before saving other dirty parts', async () => {
     const site = useSiteStore()
-    site.data = { settings: { title: 'Saved' }, theme: {}, menus: [] }
+    site.data = { settings: { title: 'Saved', locales: ['en'], default_locale: 'en' }, theme: {}, menus: [] }
     site.resetDraft()
     site.draft.settings.title = 'Pending'
     site.draft.menus = [{ name: 'main', items: [{ id: 'bad', label: 'Custom', link: { type: 'url', url: '' }, children: [] }] }]
@@ -132,7 +132,7 @@ describe('menu saves', () => {
 
   it('saves nested menus with their IDs and resets the dirty flag after success', async () => {
     const site = useSiteStore()
-    site.data = { settings: {}, theme: {}, menus: [], menus_revision: 'm1' }
+    site.data = { settings: { locales: ['en'], default_locale: 'en' }, theme: {}, menus: [], menus_revision: 'm1' }
     site.resetDraft()
     const menus = [{ name: 'main', items: [{ id: 'parent', label: 'Group', link: { type: 'none' }, children: [{ id: 'child', label: 'Contact', link: { type: 'anchor', anchor: 'contact' }, children: [] }] }] }]
     site.draft.menus = menus
@@ -151,7 +151,7 @@ describe('design edits from the builder', () => {
 
   it('saves only the requested parts and keeps other pending edits', async () => {
     const site = useSiteStore()
-    site.data = { settings: { title: 'Saved' }, theme: { base_size: 17 }, menus: [] }
+    site.data = { settings: { title: 'Saved', locales: ['en'], default_locale: 'en' }, theme: { base_size: 17 }, menus: [] }
     site.resetDraft()
     site.draft.settings.title = 'Pending'
     site.draft.theme.base_size = 20
@@ -163,9 +163,25 @@ describe('design edits from the builder', () => {
     expect(site.draft.settings.title).toBe('Pending')
   })
 
+  it('saves workspace languages before the settings validated against them', async () => {
+    const site = useSiteStore()
+    site.data = { workspace_label: 'Main', settings: { title: 'Saved', locales: ['en'], default_locale: 'en' }, theme: {}, menus: [] }
+    site.resetDraft()
+    site.draft.languages.locales.push('de')
+    site.draft.settings.title = 'Pending'
+    const order = []
+    api.workspaces.update.mockImplementation(async () => { order.push('languages'); return { data: { languages: { locales: ['en', 'de'], default_locale: 'en' } } } })
+    api.site.saveSettings.mockImplementation(async (settings) => { order.push('settings'); return { data: settings } })
+    await site.save({ parts: ['languages', 'settings'] })
+    expect(order).toEqual(['languages', 'settings'])
+    expect(api.workspaces.update).toHaveBeenCalledWith('default', { label: 'Main', languages: { locales: ['en', 'de'], default_locale: 'en' } })
+    expect(api.site.saveSettings.mock.calls[0][0].locales).toEqual(['en', 'de'])
+    expect(site.dirtyParts).toEqual([])
+  })
+
   it('discards pending design edits only', () => {
     const site = useSiteStore()
-    site.data = { settings: { title: 'Saved' }, theme: { base_size: 17 }, menus: [] }
+    site.data = { settings: { title: 'Saved', locales: ['en'], default_locale: 'en' }, theme: { base_size: 17 }, menus: [] }
     site.resetDraft()
     site.draft.settings.title = 'Pending'
     site.draft.theme.base_size = 20

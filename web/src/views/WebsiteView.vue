@@ -61,6 +61,20 @@
 
       <template v-else-if="site.draft">
         <div
+          v-if="!site.live"
+          class="mb-6 flex flex-col gap-3 rounded-xl border border-theme-200 bg-theme-50 px-4 py-3 text-sm text-theme-900 sm:flex-row sm:items-center"
+        >
+          <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
+          <p class="flex-1">{{ t("site.offNotice") }}</p>
+          <router-link to="/website/general#homepage" class="btn-secondary btn-sm shrink-0">
+            {{ t("site.chooseHomepage") }}
+          </router-link>
+          <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
+            {{ t("site.enablePages") }}
+          </router-link>
+        </div>
+
+        <div
           v-if="Object.keys(site.fieldErrors).length > 0"
           class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
@@ -88,7 +102,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -99,6 +113,7 @@ import SiteGeneralPanel from "../components/site/SiteGeneralPanel.vue";
 import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
+import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
@@ -107,9 +122,12 @@ import { useI18n } from "../i18n/index.js";
 const route = useRoute();
 const auth = useAuthStore();
 const site = useSiteStore();
+const contentTypes = useContentTypesStore();
 const toast = useToastStore();
 const { t } = useI18n();
-const isDirty = computed(() => site.dirtyParts.includes("settings"));
+/** Settings and the workspace languages edited on the General tab save together. */
+const PARTS = ["languages", "settings"];
+const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
 const tabs = computed(() =>
@@ -125,11 +143,18 @@ const activeTab = computed(() =>
 const editsSite = computed(() => activeTab.value !== "workspaces" && auth.can("site.manage"));
 
 async function save() {
+  const languagesChanged = site.dirtyParts.includes("languages");
   try {
-    await site.save({ parts: ["settings"] });
+    await site.save({ parts: PARTS });
     toast.success(t("site.saved"));
   } catch (err) {
     toast.error(err.message);
+  } finally {
+    // Languages may have saved even when the settings after them failed.
+    if (languagesChanged && !site.dirtyParts.includes("languages")) {
+      contentTypes.invalidate();
+      window.dispatchEvent(new CustomEvent("cometcms:workspaces-updated"));
+    }
   }
 }
 
@@ -157,6 +182,18 @@ watch(
   editsSite,
   (edits) => {
     if (edits) site.load().catch(() => {});
+  },
+  { immediate: true },
+);
+
+// Links like "Choose homepage" jump to the homepage card once it is rendered.
+watch(
+  () => route.hash === "#homepage" && activeTab.value === "general" && !!site.draft,
+  async (ready) => {
+    if (!ready) return;
+    await nextTick();
+    document.getElementById("homepage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("site-home-type")?.focus({ preventScroll: true });
   },
   { immediate: true },
 );
