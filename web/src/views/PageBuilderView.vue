@@ -54,7 +54,23 @@
       </TabNavigation>
 
       <div v-if="activeTab === 'design'" class="grid items-start gap-6 lg:grid-cols-2">
-        <SiteDesignPanel layout="page" class="min-w-0" />
+        <div class="min-w-0 space-y-4">
+          <SiteDesignPanel layout="page" />
+          <button
+            type="button"
+            class="btn-secondary w-full"
+            :aria-expanded="cssEditorOpen"
+            aria-controls="design-custom-css"
+            @click="cssEditorOpen = !cssEditorOpen"
+          >
+            <Icon icon="mdi:language-css3" class="h-4 w-4" />
+            {{ t("site.theme.customCss") }}
+            <Icon :icon="cssEditorOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="ml-auto h-4 w-4" />
+          </button>
+          <section v-if="cssEditorOpen" id="design-custom-css" class="card h-[28rem] overflow-hidden" :aria-label="t('site.theme.customCss')">
+            <CustomCssPanel :show-header="false" />
+          </section>
+        </div>
         <SiteThemePreview class="min-w-0 lg:sticky lg:top-24" />
       </div>
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
@@ -81,7 +97,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -89,6 +105,7 @@ import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import LanguageTabs from "../components/LanguageTabs.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
+import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteThemePreview from "../components/site/SiteThemePreview.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
@@ -103,6 +120,7 @@ const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
+const cssEditorOpen = ref(false);
 provideLanguageSwitcher();
 /** Global design and menus share a draft across these tabs. */
 const PARTS = ["theme", "menus"];

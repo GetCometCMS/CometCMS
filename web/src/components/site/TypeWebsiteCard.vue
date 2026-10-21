@@ -33,6 +33,7 @@
           />
           <p v-if="errors.pattern" class="mt-1 text-xs text-red-600">{{ errors.pattern }}</p>
           <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.entryUrlHint") }}</p>
+          <p v-if="fullUrl(route.pattern)" class="mt-2 break-all font-mono text-xs text-slate-600">{{ fullUrl(route.pattern) }}</p>
         </div>
 
         <div>
@@ -47,6 +48,7 @@
           />
           <p v-if="errors.index_path" class="mt-1 text-xs text-red-600">{{ errors.index_path }}</p>
           <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.listUrlHint") }}</p>
+          <p v-if="fullUrl(route.index_path)" class="mt-2 break-all font-mono text-xs text-slate-600">{{ fullUrl(route.index_path) }}</p>
         </div>
       </div>
 
@@ -114,11 +116,19 @@ const editable = computed(() => !!props.modelValue && !!props.status?.can_manage
 
 // Follow the current route, including changes not yet saved.
 const languages = useLanguages();
-const pathText = (value) => resolveLocalized(value, languages.defaultLocale.value, languages.defaultLocale.value);
+const pathText = (value) => resolveLocalized(value, languages.activeLocale.value, languages.defaultLocale.value);
+function fullUrl(value) {
+  const path = pathText(value);
+  if (!path) return "";
+  const base = (props.status?.site_url ?? "").replace(/\/+$/, "");
+  const locale = languages.activeLocale.value;
+  const prefix = locale !== languages.defaultLocale.value ? `/${locale}` : "";
+  return `${base}${prefix}${prefix && path === "/" ? "" : `/${path.replace(/^\/+/, "")}`}`;
+}
 const summary = computed(() => {
   if (props.visibility === "private") return t("site.typeCard.private");
   if (route.value.enabled || route.value.pages_enabled) {
-    const where = !pathText(route.value.index_path) ? pathText(route.value.pattern) : `${pathText(route.value.index_path)} · ${pathText(route.value.pattern)}`;
+    const where = [fullUrl(route.value.index_path), fullUrl(route.value.pattern)].filter(Boolean).join(" · ");
     return `${t("site.typeCard.published")} ${where}`;
   }
   return t("site.typeCard.notPublished");
