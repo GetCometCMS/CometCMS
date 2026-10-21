@@ -4,7 +4,9 @@
 
 When you visit `/admin` for the first time (or after a [user reset](./recovery)), CometCMS shows the **setup screen** instead of the login page.
 
-Enter a username and password (minimum 8 characters), then choose the first workspace name (optional custom slug).
+Choose the first workspace name (optional custom slug), its languages and default language, and a starting point. Then enter a username and password (minimum 8 characters).
+
+Workspace languages apply to the website and all content types. Sample pages and events are saved under the selected default language; additional languages are available for translations. Sample text remains in English until you edit it. These choices are separate from the admin interface language.
 
 Submitting setup creates:
 

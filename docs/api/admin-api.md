@@ -21,6 +21,8 @@ https://yourdomain.com/admin/api
 | `POST` | `/admin/api/login`  | Log in with `username` + `password`.                                     |
 | `POST` | `/admin/api/logout` | Log out and destroy session.                                             |
 
+Setup accepts `username`, `password`, `workspace`, `workspace_slug`, optional `starter_template` (`website` by default, or `empty`), and optional `languages`, e.g. `{"locales":["de","fr"],"default_locale":"de"}`. The default language must be included in `locales`. Omitting `languages` selects English. Languages are validated before creating the admin account and saved before generating sample content, which is assigned to the default language.
+
 ---
 
 ## Dashboard
@@ -50,7 +52,7 @@ Workspace-scoped admin requests send `X-Comet-Workspace: {workspace}`. Content t
 
 ---
 
-Workspace creation accepts `label`, `slug`, and optional `starter_template` (`website` or `empty`). `website` creates a Pages collection whose Landing Page entry is the homepage, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
+Workspace creation accepts `label`, `slug`, optional `languages` (the same shape as setup), and optional `starter_template` (`website` or `empty`). `website` creates a Pages collection whose Landing Page entry is the homepage, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
 
 ## Content types
 

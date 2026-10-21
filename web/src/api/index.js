@@ -290,7 +290,7 @@ export const api = {
   me:     ()                  => request('GET',    '/me'),
   login:  (username, password, remember = false)=> request('POST', '/login', { username, password, remember }),
   logout: ()                  => request('POST',   '/logout'),
-  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'website')=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate }),
+  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'website', languages = { locales: ['en'], default_locale: 'en' })=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate, languages }),
   appInfo: ()                  => request('GET',    '/app'),
   languages: ()                => request('GET', '/languages'),
   workspaces: {

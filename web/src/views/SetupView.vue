@@ -139,6 +139,8 @@
             </p>
           </div>
 
+          <WorkspaceLanguageFields v-model="languages" class="setup-languages" />
+
           <fieldset class="space-y-2" aria-describedby="setup-starting-point-help">
             <legend class="setup-label">{{ t("setup.startingPoint") }}</legend>
             <label
@@ -167,7 +169,7 @@
           <button
             type="submit"
             class="btn-primary w-full justify-center"
-            :disabled="slugInvalid"
+            :disabled="slugInvalid || !languages.locales.length"
           >
             {{ t("setup.continue") }}
           </button>
@@ -261,6 +263,7 @@ import { Icon } from "@iconify/vue";
 import { useI18n } from "../i18n/index.js";
 import { useAutoSlug } from "../composables/useAutoSlug.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
+import WorkspaceLanguageFields from "../components/WorkspaceLanguageFields.vue";
 
 const auth = useAuthStore();
 const toast = useToastStore();
@@ -271,6 +274,7 @@ const step = ref(1);
 const username = ref("admin");
 const password = ref("");
 const workspaceName = ref("");
+const languages = ref({ locales: ['en'], default_locale: 'en' });
 const starterTemplate = ref("website");
 const startingPoints = [
   { value: "website", title: "setup.startWebsite", description: "setup.startWebsiteBody" },
@@ -299,6 +303,7 @@ const slugInvalid = computed(
 
 function handleStep1() {
   errorMsg.value = "";
+  if (!languages.value.locales.length) return;
   const slug = toSlug(workspaceSlug.value);
   if (!slug || !SLUG_RE.test(slug)) {
     slugTouched.value = true;
@@ -318,6 +323,7 @@ async function handleSetup() {
       workspaceName.value,
       workspaceSlug.value,
       starterTemplate.value,
+      languages.value,
     );
     if (starterTemplate.value === "website") {
       installingFonts.value = true;
@@ -445,6 +451,11 @@ async function handleSetup() {
 .setup-input.setup-input-invalid { border-color: #fca5a5; }
 .setup-input.setup-input-invalid:focus { box-shadow: 0 0 0 3px #f8717126; }
 .setup-input:autofill { box-shadow: 0 0 0 1000px #111d35 inset; }
+
+.setup-languages :deep(.form-label) { color: #d9e2f3; }
+.setup-languages :deep(.text-slate-500) { color: #96a5bf; }
+.setup-languages :deep([role="combobox"]) { background: #090f1e; border-color: #b5c5ff30; color: #f1f5ff; }
+.setup-languages :deep([role="combobox"] .text-slate-900) { color: #f1f5ff; }
 
 .setup-option {
   background: #090f1e66;

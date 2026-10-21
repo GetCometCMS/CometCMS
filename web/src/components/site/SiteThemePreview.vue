@@ -1,28 +1,23 @@
 <template>
   <section class="card" :aria-label="t('site.theme.previewTitle')">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-      <div>
-        <h2 class="card-title">{{ t('site.theme.previewTitle') }}</h2>
-        <p class="card-description">{{ t('site.theme.previewHint') }}</p>
-      </div>
-      <DeviceToggle v-model="device" allow-full-width />
+    <div class="border-b border-slate-200 px-5 py-4">
+      <h2 class="card-title">{{ t('site.theme.previewTitle') }}</h2>
+      <p class="card-description">{{ t('site.theme.previewHint') }}</p>
     </div>
     <div class="h-[min(44rem,70vh)] min-h-[24rem] rounded-b-xl bg-slate-100 p-3">
-      <SitePreviewFrame :body="previewBody" :device="device" :title="t('site.theme.previewTitle')" :head-css="specimenCss" />
+      <SitePreviewFrame :body="previewBody" device="full" :title="t('site.theme.previewTitle')" :head-css="specimenCss" />
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import DeviceToggle from './DeviceToggle.vue';
+import { computed } from 'vue';
 import SitePreviewFrame from './SitePreviewFrame.vue';
 import { useSiteStore } from '../../stores/site.js';
 import { useI18n } from '../../i18n/index.js';
 
 const site = useSiteStore();
 const { t } = useI18n();
-const device = ref('full');
 
 // Render a standalone specimen through the existing region preview. Hide the
 // surrounding page and saved footer; the sample never changes a saved region.

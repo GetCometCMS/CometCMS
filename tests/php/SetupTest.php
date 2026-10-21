@@ -21,13 +21,26 @@ register_shutdown_function(static function (): void {
     $workspace = new \CometCMS\Workspaces\WorkspaceContext('my-website');
     $types = new \CometCMS\Content\ContentTypeRepository($workspace);
     $content = \CometCMS\Content\ContentRepository::make($workspace);
+    $site = new \CometCMS\Site\SiteRepository($workspace);
+    $rendered = [];
+    if ($types->find('pages') !== null) {
+        $service = new \CometCMS\Site\SiteService(\CometCMS\Site\SiteContext::make($site));
+        foreach (['/', '/about', '/events/community-meetup'] as $path) {
+            $response = $service->respond($path, []);
+            preg_match('/<html lang="([^"]+)"/', $response['body'], $match);
+            $rendered[$path] = ['status' => $response['status'], 'language' => $match[1] ?? null];
+        }
+    }
     echo "\n--state--\n" . json_encode([
         'users' => count((new \CometCMS\Auth\UserRepository())->all()),
         'types' => array_column($types->all(), 'name'),
         'api_enabled' => array_column($types->all(), 'api_enabled'),
+        'type_languages' => array_map(static fn(array $type): array => [$type['locales'], $type['default_locale']], $types->all()),
+        'languages' => (new \CometCMS\Localization\LanguageSettings($workspace))->all(),
         'pages' => $content->all('pages'),
         'events' => $content->all('events'),
-        'settings' => (new \CometCMS\Site\SiteRepository($workspace))->settings(),
+        'settings' => $site->settings(),
+        'rendered' => $rendered,
     ]);
 });
 PHP;
@@ -85,6 +98,7 @@ test('setup defaults to the website starter with a landing page entry pages and 
 
     assert_same(201, $status);
     assert_same('my-website', $json['meta']['workspace']);
+    assert_same(['locales' => ['en'], 'default_locale' => 'en'], $state['languages']);
     assert_same(['pages', 'events'], $state['types']);
     assert_same([false, false], $state['api_enabled']);
     $slugs = array_column($state['pages'], 'slug');
@@ -105,6 +119,64 @@ test('setup rejects unknown and malformed starting points before creating an acc
     foreach (['unknown', ['website'], true] as $choice) {
         [$status, $json, $state] = comet_setup_request(['starter_template' => $choice]);
 
+        assert_same(422, $status);
+        assert_same('validation_failed', $json['error']['code']);
+        assert_same(0, $state['users']);
+        assert_same([], $state['types']);
+    }
+});
+
+test('setup assigns sample content to the chosen default workspace language', function (): void {
+    [$status, , $state] = comet_setup_request([
+        'languages' => ['locales' => ['de_AT', 'fr'], 'default_locale' => 'de_AT'],
+    ]);
+
+    assert_same(201, $status);
+    assert_same(['locales' => ['de-at', 'fr'], 'default_locale' => 'de-at'], $state['languages']);
+    assert_same(['de-at', 'fr'], $state['settings']['locales']);
+    assert_same('de-at', $state['settings']['default_locale']);
+    foreach ($state['type_languages'] as [$locales, $default]) {
+        assert_same(['de-at', 'fr'], $locales);
+        assert_same('de-at', $default);
+    }
+    assert_same(5, count([...$state['pages'], ...$state['events']]));
+    foreach ([...$state['pages'], ...$state['events']] as $entry) {
+        assert_same('de-at', $entry['locale']);
+        assert_same(['de-at'], array_keys($entry['publication']));
+        assert_same('published', $entry['publication']['de-at']['status']);
+        foreach ($entry['values'] as $value) {
+            if (\CometCMS\Localization\LocalizedValue::is($value)) assert_same(['de-at'], array_keys($value['values']));
+        }
+    }
+
+    foreach (['/', '/about', '/events/community-meetup'] as $path) {
+        assert_same(['status' => 200, 'language' => 'de-at'], $state['rendered'][$path]);
+    }
+});
+
+test('empty setup saves workspace languages without creating sample data', function (): void {
+    [$status, , $state] = comet_setup_request([
+        'starter_template' => 'empty',
+        'languages' => ['locales' => ['de'], 'default_locale' => 'de'],
+    ]);
+
+    assert_same(201, $status);
+    assert_same(['locales' => ['de'], 'default_locale' => 'de'], $state['languages']);
+    assert_same([], $state['types']);
+    assert_same([], $state['pages']);
+    assert_same([], $state['events']);
+});
+
+test('setup rejects invalid workspace languages before creating an account', function (): void {
+    foreach ([
+        null, 'de', [],
+        ['locales' => [], 'default_locale' => 'de'],
+        ['locales' => ['de'], 'default_locale' => 'en'],
+        ['locales' => ['invalid!'], 'default_locale' => 'invalid!'],
+        ['locales' => [['de']], 'default_locale' => 'de'],
+        ['locales' => ['de'], 'default_locale' => ['de']],
+    ] as $languages) {
+        [$status, $json, $state] = comet_setup_request(['languages' => $languages]);
         assert_same(422, $status);
         assert_same('validation_failed', $json['error']['code']);
         assert_same(0, $state['users']);

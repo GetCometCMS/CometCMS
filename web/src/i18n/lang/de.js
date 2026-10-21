@@ -265,6 +265,7 @@ const messages = {
   'setup.usernameLocked': 'Benutzername nicht geändert werden kann',
   'setup.afterSetup': 'nach der Einrichtung.',
   'setup.workspace': 'Workspace-Name',
+  'setup.languagesHelp': 'Diese Sprachen gelten für alle Inhalte im Workspace. Beispielinhalte werden der Standardsprache zugewiesen.',
   'setup.startingPoint': 'Wie möchtest du starten?',
   'setup.startEmpty': 'Leer starten',
   'setup.startEmptyBody': 'Ein leerer Workspace für deine Inhalte und API. Der Page Builder ist nicht aktiviert.',

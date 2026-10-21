@@ -49,6 +49,7 @@
             />
           </div>
         </div>
+        <WorkspaceLanguageFields v-model="createLanguages" />
         <fieldset class="space-y-2">
           <legend class="form-label">{{ t("setup.startingPoint") }}</legend>
           <div class="grid gap-3 sm:grid-cols-2">
@@ -67,7 +68,7 @@
           </div>
         </fieldset>
         <div class="flex justify-end gap-2">
-          <button type="submit" :disabled="creating" class="btn-primary">
+          <button type="submit" :disabled="creating || !createLanguages.locales.length" class="btn-primary">
             {{ installingFonts ? t("site.fonts.installingDemo") : creating ? t("common.saving") : t("workspaces.create") }}
           </button>
           <button
@@ -242,6 +243,7 @@ import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
 import { useAutoSlug } from "../composables/useAutoSlug.js";
 import { installStarterFonts } from "../composables/starterFonts.js";
+import WorkspaceLanguageFields from "./WorkspaceLanguageFields.vue";
 
 const toast = useToastStore();
 const auth = useAuthStore();
@@ -262,6 +264,7 @@ const creating = ref(false);
 const installingFonts = ref(false);
 const createError = ref("");
 const createLabel = ref("");
+const createLanguages = ref({ locales: ['en'], default_locale: 'en' });
 const createStarterTemplate = ref("website");
 const startingPoints = [
   { value: "website", title: "setup.startWebsite", description: "workspaces.startWebsiteBody" },
@@ -319,6 +322,7 @@ async function load() {
 }
 
 async function handleCreate() {
+  if (!createLanguages.value.locales.length) return;
   createError.value = "";
   creating.value = true;
   try {
@@ -326,6 +330,7 @@ async function handleCreate() {
       label: createLabel.value,
       slug: createSlug.value || undefined,
       starter_template: createStarterTemplate.value,
+      languages: createLanguages.value,
     });
     if (createStarterTemplate.value === "website") {
       installingFonts.value = true;
@@ -337,6 +342,7 @@ async function handleCreate() {
     }
     toast.success(t("workspaces.created"));
     createLabel.value = "";
+    createLanguages.value = { locales: ['en'], default_locale: 'en' };
     createStarterTemplate.value = "website";
     resetCreateSlug();
     showCreateForm.value = false;

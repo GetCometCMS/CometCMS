@@ -90,8 +90,9 @@ The previously default workspace is not automatically reassigned — it remains 
 1. Go to **Settings → Workspaces**.
 2. Click **New workspace**.
 3. Enter a label and (optionally) a custom slug. The slug is derived from the label automatically.
-4. Choose a starting point. **Start with a website** is selected by default and creates a Pages collection with sample content, a Landing Page entry as the homepage, navigation, and a configured homepage. The Page Builder is enabled. **Start empty** creates no content types or entries.
-5. Click **Create**.
+4. Select the workspace languages and default language. Sample content is assigned to the default language, and additional languages are available for translations.
+5. Choose a starting point. **Start with a website** is selected by default and creates a Pages collection with sample content, a Landing Page entry as the homepage, navigation, and a configured homepage. The Page Builder is enabled. **Start empty** creates no content types or entries.
+6. Click **Create**.
 
 New-workspace website starters omit Events; the first-install website starter still includes them.
 

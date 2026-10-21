@@ -61,6 +61,21 @@ PHP;
     }
 }
 
+test('new workspace starter uses its selected languages for sample pages', function (): void {
+    [$status, $json, $state] = comet_workspace_creation_request([
+        'starter_template' => 'website',
+        'languages' => ['locales' => ['de', 'fr'], 'default_locale' => 'de'],
+    ]);
+    assert_same(201, $status);
+    assert_same(['locales' => ['de', 'fr'], 'default_locale' => 'de'], $json['data']['languages']);
+    assert_same(200, $state['homepage_status']);
+    assert_same(3, count($state['pages']));
+    foreach ($state['pages'] as $page) {
+        assert_same('de', $page['locale']);
+        assert_same(['de'], array_keys($page['publication']));
+    }
+});
+
 test('new workspace website starter creates pages and a working homepage without events', function (): void {
     [$status, $json, $state] = comet_workspace_creation_request(['starter_template' => 'website']);
     assert_same(201, $status);
