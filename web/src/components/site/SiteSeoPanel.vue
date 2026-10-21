@@ -1,29 +1,5 @@
 <template>
   <div class="space-y-6">
-    <!-- Identity -->
-    <section class="card space-y-4 p-6">
-      <h2 class="card-title">{{ t("site.overview.identity") }}</h2>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label class="form-label" for="site-title">{{ t("site.overview.siteTitle") }}</label>
-          <LocalizedInput id="site-title" v-model="settings.title" class="w-full" :placeholder="site.data.workspace_label"  />
-        </div>
-        <div>
-          <label class="form-label" for="site-tagline">{{ t("site.overview.tagline") }}</label>
-          <LocalizedInput id="site-tagline" v-model="settings.tagline" class="w-full" :placeholder="t('site.overview.taglinePlaceholder')"  />
-        </div>
-        <div>
-          <span class="form-label">{{ t("site.overview.logo") }}</span>
-          <LocalizedInput v-model="settings.logo"><template #default="{ value, update }"><MediaSelect :model-value="value" name="site-logo" @update:model-value="update" /></template></LocalizedInput>
-        </div>
-        <div>
-          <span class="form-label">{{ t("site.overview.favicon") }}</span>
-          <MediaSelect v-model="settings.favicon" name="site-favicon" />
-          <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.faviconHint") }}</p>
-        </div>
-      </div>
-    </section>
-
     <section class="card space-y-4 p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="card-title">{{ t("site.overview.seo") }}</h2>
@@ -72,7 +48,7 @@ import ToggleSwitch from "../ToggleSwitch.vue";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
 
-/** Site identity and site-wide defaults for search engines and link previews. */
+/** Site-wide defaults for search engines and link previews. */
 const site = useSiteStore();
 const { t } = useI18n();
 const settings = computed(() => site.draft.settings);

@@ -1,18 +1,17 @@
 <template>
   <div>
-    <PageHeader :title="t('workspaces.title')" :description="t('workspaces.defaultNotice')">
-      <template #actions>
-        <button
-          v-if="auth.can('workspaces.manage')"
-          type="button"
-          @click="showCreateForm = !showCreateForm"
-          class="btn-primary"
-        >
-          <Icon icon="mdi:plus" class="h-4 w-4" />
-          {{ t("workspaces.new") }}
-        </button>
-      </template>
-    </PageHeader>
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <p class="max-w-3xl text-sm text-slate-500">{{ t("workspaces.defaultNotice") }}</p>
+      <button
+        v-if="auth.can('workspaces.manage')"
+        type="button"
+        @click="showCreateForm = !showCreateForm"
+        class="btn-primary shrink-0"
+      >
+        <Icon icon="mdi:plus" class="h-4 w-4" />
+        {{ t("workspaces.new") }}
+      </button>
+    </div>
 
     <!-- Create form -->
     <div v-if="showCreateForm" class="card p-6 mb-6">
@@ -246,13 +245,12 @@
 </template>
 
 <script setup>
-import PageHeader from "../components/PageHeader.vue";
 import { ADMIN_API_BASE } from "../basePath.js";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
-import AvatarUpload from "../components/AvatarUpload.vue";
-import ConfirmModal from "../components/ConfirmModal.vue";
-import LoadingSpinner from "../components/LoadingSpinner.vue";
+import AvatarUpload from "./AvatarUpload.vue";
+import ConfirmModal from "./ConfirmModal.vue";
+import LoadingSpinner from "./LoadingSpinner.vue";
 import { api, getActiveWorkspace, setDefaultWorkspace } from "../api/index.js";
 import { useSiteStore } from "../stores/site.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
@@ -260,7 +258,7 @@ import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { buildAdminApiUrl } from "../composables/apiEndpoint.js";
 import { useToastStore } from "../stores/toast.js";
-import SearchableSelect from "../components/SearchableSelect.vue";
+import SearchableSelect from "./SearchableSelect.vue";
 import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
 import { updateWorkspaceLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";

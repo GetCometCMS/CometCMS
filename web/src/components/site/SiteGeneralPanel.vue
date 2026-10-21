@@ -1,5 +1,28 @@
 <template>
   <div class="space-y-6">
+    <!-- Identity -->
+    <section class="card space-y-4 p-6">
+      <h2 class="card-title">{{ t("site.overview.identity") }}</h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label class="form-label" for="site-title">{{ t("site.overview.siteTitle") }}</label>
+          <LocalizedInput id="site-title" v-model="settings.title" class="w-full" :placeholder="site.data.workspace_label"  />
+        </div>
+        <div>
+          <label class="form-label" for="site-tagline">{{ t("site.overview.tagline") }}</label>
+          <LocalizedInput id="site-tagline" v-model="settings.tagline" class="w-full" :placeholder="t('site.overview.taglinePlaceholder')"  />
+        </div>
+        <div>
+          <span class="form-label">{{ t("site.overview.logo") }}</span>
+          <LocalizedInput v-model="settings.logo"><template #default="{ value, update }"><MediaSelect :model-value="value" name="site-logo" @update:model-value="update" /></template></LocalizedInput>
+        </div>
+        <div>
+          <span class="form-label">{{ t("site.overview.favicon") }}</span>
+          <MediaSelect v-model="settings.favicon" name="site-favicon" />
+          <p class="mt-1 text-xs text-slate-500">{{ t("site.overview.faviconHint") }}</p>
+        </div>
+      </div>
+    </section>
 
     <!-- Homepage -->
     <section id="homepage" class="card scroll-mt-24 space-y-4 p-6">
@@ -24,14 +47,6 @@
       </div>
     </section>
 
-    <PageBuilderCta
-      v-if="homeType && builderLink"
-      :title="t('site.builderCta.title')"
-      :description="t('site.builderCta.description')"
-      :to="builderLink"
-      :action-label="t('site.builderCta.open')"
-    />
-
     <!-- Languages -->
     <section class="card space-y-4 p-6">
       <div>
@@ -40,7 +55,7 @@
       </div>
       <p class="text-sm text-slate-700">{{ settings.locales.map(localeLabel).join(", ") }}</p>
       <p class="text-xs text-slate-500">{{ t("site.overview.defaultLanguage") }}: {{ localeLabel(settings.default_locale) }}</p>
-      <RouterLink v-if="auth.can('workspaces.manage')" to="/workspaces" class="inline-flex text-sm text-theme-700 hover:underline">
+      <RouterLink v-if="auth.can('workspaces.manage')" to="/website/workspaces" class="inline-flex text-sm text-theme-700 hover:underline">
         {{ t("workspaces.manageLanguages") }}
       </RouterLink>
     </section>
@@ -78,8 +93,8 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import PageBuilderCta from "./PageBuilderCta.vue";
 import LocalizedInput from "../LocalizedInput.vue";
+import MediaSelect from "./MediaSelect.vue";
 import { useAuthStore } from "../../stores/auth.js";
 import { api } from "../../api/index.js";
 import { localeLabel } from "../../composables/localeOptions.js";
@@ -94,19 +109,6 @@ const homeEntries = ref([]);
 const loadingEntries = ref(false);
 
 const publicTypes = computed(() => site.data.types.filter((type) => type.visibility !== "private"));
-// Navigation uses saved settings because leaving discards any pending edits.
-const builderLink = computed(() => {
-  const saved = site.data.settings;
-  const homepage = saved.homepage;
-  const type = publicTypes.value.find((type) => type.name === homepage.type);
-  if (!type) return null;
-
-  const variant = !type.singleton && !homepage.entry ? "index" : "detail";
-  return {
-    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${variant}`,
-    query: !type.singleton && homepage.entry ? { entry: homepage.entry } : {},
-  };
-});
 const homeType = computed(() => publicTypes.value.find((type) => type.name === settings.value.homepage.type) ?? null);
 const homeEntryOptions = computed(() => [
   { value: "", label: t("site.overview.homepageList") },

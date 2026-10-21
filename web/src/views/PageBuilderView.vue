@@ -15,16 +15,10 @@
         <p class="mt-0.5 text-sm text-slate-500">{{ t("site.description") }}</p>
       </div>
 
-      <a
-        v-if="site.data?.settings.enabled"
-        :href="site.data.site_url + '/'"
-        target="_blank"
-        rel="noopener"
-        class="btn-secondary"
-      >
-        <Icon icon="mdi:open-in-new" class="h-4 w-4" />
-        {{ t("site.openWebsite") }}
-      </a>
+      <router-link v-if="site.data" :to="builderLink" class="btn-secondary">
+        <Icon icon="mdi:view-dashboard-edit-outline" class="h-4 w-4" />
+        {{ t("site.builderCta.open") }}
+      </router-link>
       <button
         v-if="site.draft"
         type="button"
@@ -55,7 +49,7 @@
       >
         <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
         <p class="flex-1">{{ t("site.offNotice") }}</p>
-        <router-link v-if="activeTab !== 'overview'" to="/page-builder/overview" class="btn-secondary btn-sm shrink-0">
+        <router-link to="/website/general#homepage" class="btn-secondary btn-sm shrink-0">
           {{ t("site.chooseHomepage") }}
         </router-link>
         <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
@@ -80,9 +74,7 @@
         :aria-label="t('site.navigation')"
       />
 
-      <SiteOverviewPanel v-if="activeTab === 'overview'" />
-      <SiteDesignPanel v-else-if="activeTab === 'design'" layout="page" />
-      <SiteSeoPanel v-else-if="activeTab === 'seo'" />
+      <SiteDesignPanel v-if="activeTab === 'design'" layout="page" />
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <section v-else-if="activeTab === 'fonts'" class="card p-6">
         <div class="mb-4">
@@ -113,9 +105,7 @@ import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
-import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
-import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import FontLibrary from "../components/site/FontLibrary.vue";
@@ -131,14 +121,25 @@ const { t } = useI18n();
 /** Settings, global design and menus share a draft across these tabs. */
 const PARTS = ["settings", "theme", "menus"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
+// Opens the homepage layout, or the header when no homepage is chosen. Uses saved
+// settings because leaving discards any pending edits.
+const builderLink = computed(() => {
+  const homepage = site.data.settings.homepage;
+  const type = site.data.types.find((type) => type.name === homepage.type && type.visibility !== "private");
+  if (!type) return "/page-builder/builder/region/header";
+
+  const variant = !type.singleton && !homepage.entry ? "index" : "detail";
+  return {
+    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${variant}`,
+    query: !type.singleton && homepage.entry ? { entry: homepage.entry } : {},
+  };
+});
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "design", "seo", "menus", "fonts", "components"]);
-const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
+const validTabs = new Set(["design", "menus", "fonts", "components"]);
+const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "design"));
 const tabs = computed(() => [
-  { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
-  { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
   { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline", to: "/page-builder/components" },
   { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },

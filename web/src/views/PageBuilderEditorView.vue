@@ -596,7 +596,7 @@ const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
   if (target === "component") return COMPONENTS_PATH;
-  return target === "region" ? "/page-builder/overview" : `/content-types/${name}/edit#website`;
+  return target === "region" ? "/page-builder/design" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => {
   if (target === "component") return component.value?.name ?? "";

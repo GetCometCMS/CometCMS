@@ -68,14 +68,21 @@ export function useNavigation() {
       ],
     })
 
-    if (showPageBuilder.value) {
-      result.push({
-        key: 'website',
-        label: t('app.nav.websiteGroup'),
-        items: [
-          { key: 'page-builder', label: t('app.nav.website'), icon: 'mdi:web', to: '/page-builder', match: ['/page-builder'] },
-        ],
+    const website = []
+    if (auth.can('site.manage') || auth.can('workspaces.manage')) {
+      website.push({
+        key: 'website-settings',
+        label: t('app.nav.websiteSettings'),
+        icon: 'mdi:web',
+        to: auth.can('site.manage') ? '/website/general' : '/website/workspaces',
+        match: ['/website'],
       })
+    }
+    if (showPageBuilder.value) {
+      website.push({ key: 'page-builder', label: t('app.nav.website'), icon: 'mdi:view-dashboard-edit-outline', to: '/page-builder', match: ['/page-builder'] })
+    }
+    if (website.length > 0) {
+      result.push({ key: 'website', label: t('app.nav.websiteGroup'), items: website })
     }
 
     const admin = []
@@ -86,9 +93,6 @@ export function useNavigation() {
       admin.push({ key: 'users', label: t('app.nav.usersRoles'), icon: 'mdi:account-group-outline', to: '/users', match: ['/users', '/roles'] })
     } else if (auth.can('roles.read')) {
       admin.push({ key: 'roles', label: t('app.nav.roles'), icon: 'mdi:shield-account-outline', to: '/roles', match: ['/roles'] })
-    }
-    if (auth.can('workspaces.manage')) {
-      admin.push({ key: 'workspaces', label: t('app.nav.workspaces'), icon: 'mdi:folder-multiple-outline', to: '/workspaces', match: ['/workspaces'] })
     }
     admin.push({ key: 'connect', label: t('app.nav.connect'), icon: 'mdi:api', to: '/connect/access-tokens', match: ['/connect'] })
     if (auth.can('backups.read')) {

@@ -17,7 +17,7 @@
     >
       <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" />
       <span class="flex-1">{{ t("site.typeCard.siteOff") }}</span>
-      <router-link to="/page-builder/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
+      <router-link to="/website/general" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
     </div>
 
     <template v-if="editable && route.enabled">

@@ -34,7 +34,7 @@ You can change a collection to a single page only when it has at most one active
 
 ## Localization
 
-Configure available languages and the default language once in **Workspaces → Edit workspace**. Every content type and the website use exactly those settings, including languages added later. There are no per-type language overrides or inheritance settings. Previous per-type subsets no longer restrict the available languages. A single-language workspace uses the same model.
+Configure available languages and the default language once in **Website settings → Workspaces & languages**. Every content type and the website use exactly those settings, including languages added later. There are no per-type language overrides or inheritance settings. Previous per-type subsets no longer restrict the available languages. A single-language workspace uses the same model.
 
 Each entry has localized titles, slugs, field values, publication status, and publication dates. IDs, authors, creation dates, and fields marked **Shared across languages** remain shared. Shared values are stored once and edited in the default language.
 
