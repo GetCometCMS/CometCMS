@@ -3,7 +3,7 @@
     <fieldset :disabled="builder.translating?.value && !def.localized" class="min-w-0">
     <div v-if="!def.binding" class="mb-1 flex items-center justify-between gap-2">
       <div class="flex min-w-0 items-center gap-1.5">
-        <label class="text-xs font-medium text-slate-700" :for="inputId">{{ label }}</label>
+        <label class="text-xs text-slate-500" :for="inputId">{{ label }}</label>
         <BuilderTranslationStatus v-if="def.localized" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="builder.resetTranslation(node.id, group, name)" />
       </div>
       <span v-if="hint" class="truncate text-[10px] text-slate-400">{{ hint }}</span>
