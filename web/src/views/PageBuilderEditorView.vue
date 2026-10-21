@@ -164,6 +164,7 @@
         :title="panel.label"
         :icon="panel.icon"
         @dock="panelLayout.open(panel.value, $event)"
+        @toggle-dock="panelLayout.toggleDock(panel.value)"
         @close="panelLayout.close(panel.value)"
         @focus="panelLayout.focus(panel.value)"
         @resize="(width, height) => panelLayout.resize(panel.value, width, height)"
@@ -225,12 +226,14 @@
       </main>
 
       <div
-        v-if="panelLayout.snap.value"
-        class="pointer-events-none absolute inset-y-2 z-[200] w-72 rounded-xl border-2 border-theme-500 bg-theme-100/70"
-        :class="panelLayout.snap.value === 'left' ? 'left-[84px]' : 'right-2'"
+        v-if="dropPreview"
+        class="pointer-events-none absolute inset-y-0 z-[200] flex flex-col items-center justify-center gap-1 border-2 border-dashed border-theme-500 bg-theme-100/70 p-4 text-center"
+        :style="{ [dropPreview.side]: `${dropPreview.offset}px`, width: `${dropPreview.width}px` }"
         aria-hidden="true"
       >
-        <p class="p-3 text-center text-sm font-semibold text-theme-800">{{ t(panelLayout.snap.value === 'left' ? 'site.builder.dockLeft' : 'site.builder.dockRight') }}</p>
+        <Icon :icon="dropPreview.side === 'left' ? 'mdi:dock-left' : 'mdi:dock-right'" class="h-6 w-6 text-theme-600" />
+        <p class="text-sm font-semibold text-theme-800">{{ t(dropPreview.side === 'left' ? 'site.builder.dockLeft' : 'site.builder.dockRight') }}</p>
+        <p v-if="dropPreview.occupant" class="text-xs text-theme-700">{{ t(`site.builder.dockOutcome.${dropPreview.outcome}`, { panel: panelLabel(dropPreview.occupant) }) }}</p>
       </div>
       <div v-if="panelLayout.dragging.value" class="absolute inset-0 z-[1000] select-none" :class="panelLayout.resizing.value ? 'cursor-se-resize' : 'cursor-move'" aria-hidden="true"></div>
 
@@ -428,9 +431,10 @@ const builderAreaRef = ref(null);
 const panelLayout = useBuilderPanels({
   area: builderAreaRef,
   ids: ["inspector", "add", "outline", "fields", "design", "css", "history"],
-  initial: ["design", "css"].includes(route.query.settings) ? route.query.settings : "inspector",
+  initial: ["design", "css"].includes(route.query.settings) ? route.query.settings : null,
 });
 const panelWindows = panelLayout.windows;
+const dropPreview = panelLayout.dropPreview;
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
@@ -444,6 +448,9 @@ const panels = computed(() => [
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
 ].map((panel) => ({ ...panel, short: t(`site.builder.rail.${panel.value}`) })));
 const visiblePanels = computed(() => panels.value.filter((panel) => panelWindows.value[panel.value].open));
+function panelLabel(value) {
+  return panels.value.find((panel) => panel.value === value)?.label ?? value;
+}
 function panelHint(panel) {
   const key = `site.builder.panelHint.${panel}`;
   const text = t(key);

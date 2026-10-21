@@ -1,26 +1,40 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
-const STORAGE_KEY = 'cometcms-builder-panels'
-const MODES = ['left', 'right', 'floating']
+const STORAGE_KEY = 'cometcms-builder-panels-v2'
+const DOCKS = ['left', 'right']
+const MODES = [...DOCKS, 'floating']
 const RAIL_WIDTH = 76
 const GAP = 8
+/** Distance from an edge at which a dragged panel offers to dock. */
+const SNAP_ZONE = 64
+/** Pointer travel before a press becomes a drag; docked panels need a more deliberate pull. */
+const MOVE_THRESHOLD = 6
+const TEAR_OFF_THRESHOLD = 10
 const minimumWidth = (id) => ({ inspector: 288, design: 320, css: 360, fields: 320 })[id] ?? 224
 const maximumWidth = (id) => id === 'css' ? 720 : 560
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
-/** One panel per dock, with independent floating windows inside the editor. */
-export function useBuilderPanels({ area, ids, initial = 'inspector', storage } = {}) {
+/**
+ * One panel per dock, with independent floating windows inside the editor.
+ * Docking onto an occupied side swaps the panels instead of hiding one of them.
+ */
+export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'inspector' }, initial = null, storage } = {}) {
   if (storage === undefined) {
     try { storage = globalThis.localStorage } catch { storage = null }
   }
   const bounds = ref({ width: globalThis.innerWidth ?? 1280, height: Math.max(1, (globalThis.innerHeight ?? 856) - 56) })
-  const windows = ref(Object.fromEntries(ids.map((id, index) => [id, {
-    open: id === initial, mode: 'left', width: Math.max(minimumWidth(id), 320),
-    height: 560, x: RAIL_WIDTH + 24 + index * 24, y: 24 + index * 24, z: index,
-  }])))
+  const windows = ref(Object.fromEntries(ids.map((id, index) => {
+    const side = DOCKS.find((key) => docked[key] === id)
+    return [id, {
+      open: !!side, mode: side ?? 'left', dock: side ?? 'left', width: Math.max(minimumWidth(id), 320),
+      height: 560, x: RAIL_WIDTH + 24 + index * 24, y: 24 + index * 24, z: index,
+    }]
+  })))
   const dragging = ref(false)
   const resizing = ref(false)
   const snap = ref(null)
+  /** The panel being dragged and where it was before the drag began. */
+  const gesture = ref(null)
   const suppressClick = ref(false)
   let cleanupGesture = null
   let observer = null
@@ -36,13 +50,14 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
       if (!value || !MODES.includes(value.mode)) continue
       const panel = windows.value[id]
       panel.mode = value.mode
+      panel.dock = DOCKS.includes(value.dock) ? value.dock : DOCKS.includes(value.mode) ? value.mode : panel.dock
       panel.open = value.open === true && (value.mode === 'floating' || !occupied.has(value.mode))
       if (panel.open) occupied.add(panel.mode)
       for (const key of ['width', 'height', 'x', 'y', 'z']) if (Number.isFinite(value[key])) panel[key] = value[key]
     }
-    // Explicit settings links should open the requested panel.
-    if (initial !== 'inspector') open(initial, 'left')
   } catch { /* Local preferences are optional. */ }
+  // Explicit settings links should open the requested panel.
+  if (initial) open(initial, 'left')
 
   function limits(id) {
     const panel = windows.value[id]
@@ -71,12 +86,53 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
     order.forEach((key, index) => { windows.value[key].z = index })
   }
 
-  function open(id, mode = windows.value[id]?.mode) {
-    if (!windows.value[id] || !MODES.includes(mode)) return
+  /** Whether no other floating window covers this one. */
+  function inFront(id) {
+    const z = windows.value[id].z
+    return ids.every((key) => key === id || !windows.value[key].open || windows.value[key].mode !== 'floating' || windows.value[key].z < z)
+  }
+
+  function occupantOf(side, except) {
+    return ids.find((key) => key !== except && windows.value[key].open && windows.value[key].mode === side) ?? null
+  }
+
+  /** Places a panel leaving a dock right next to where it was docked. */
+  function popOut(id, side) {
+    const panel = windows.value[id]
+    panel.x = side === 'right' ? bounds.value.width - panel.width - GAP * 3 : RAIL_WIDTH + GAP * 3
+    panel.y = GAP * 3
+  }
+
+  /** What happens to a docked panel when another one takes its side. */
+  function outcome(origin, side) {
+    if (!origin.open) return 'replace'
+    return DOCKS.includes(origin.mode) && origin.mode !== side ? 'swap' : 'float'
+  }
+
+  function displace(id, origin, side) {
+    const panel = windows.value[id]
+    const result = outcome(origin, side)
+    if (result === 'swap') Object.assign(panel, { mode: origin.mode, dock: origin.mode })
+    else if (result === 'float') Object.assign(panel, { mode: 'floating', x: origin.x, y: origin.y })
+    else panel.open = false
+  }
+
+  /**
+   * Shows a panel in the given place. `origin` is where the panel was before,
+   * so a displaced panel can take over that place.
+   */
+  function open(id, mode = windows.value[id]?.mode, origin = windows.value[id]) {
+    const panel = windows.value[id]
+    if (!panel || !MODES.includes(mode)) return
+    const from = { open: origin.open, mode: origin.mode, x: origin.x, y: origin.y }
     if (mode !== 'floating') {
-      for (const [key, item] of Object.entries(windows.value)) if (key !== id && item.mode === mode) item.open = false
+      const occupant = occupantOf(mode, id)
+      if (occupant) displace(occupant, from, mode)
+      panel.dock = mode
+    } else if (from.open && from.mode !== 'floating') {
+      popOut(id, from.mode)
     }
-    Object.assign(windows.value[id], { open: true, mode })
+    Object.assign(panel, { open: true, mode })
     makeRoom(id)
     ids.forEach(constrain)
     focus(id)
@@ -87,15 +143,25 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
     if (panel.mode === 'floating') return
     const other = ids.find((key) => key !== id && windows.value[key].open && windows.value[key].mode !== 'floating')
     if (other && bounds.value.width < RAIL_WIDTH + minimumWidth(id) + minimumWidth(other) + 320) {
+      popOut(other, windows.value[other].mode)
       windows.value[other].mode = 'floating'
       constrain(other)
     }
   }
 
+  /** Rail click: a floating window hidden behind another comes forward before it closes. */
   function toggle(id) {
     if (suppressClick.value) { suppressClick.value = false; return }
-    if (windows.value[id].open) windows.value[id].open = false
+    const panel = windows.value[id]
+    if (panel.open && panel.mode === 'floating' && !inFront(id)) focus(id)
+    else if (panel.open) panel.open = false
     else open(id)
+  }
+
+  /** Floats a docked panel, or returns a floating one to the side it last docked on. */
+  function toggleDock(id) {
+    const panel = windows.value[id]
+    open(id, panel.mode === 'floating' ? panel.dock : 'floating')
   }
 
   function resize(id, width, height = windows.value[id].height) {
@@ -115,35 +181,41 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
     const target = event.currentTarget
     if (fromRail) target.focus?.()
     target.setPointerCapture?.(event.pointerId)
-    const start = { ...windows.value[id] }
+    const origin = { ...windows.value[id] }
+    const start = { ...origin }
     const pointer = { x: event.clientX, y: event.clientY }
+    const tearsOff = !resizeWindow && (fromRail || !origin.open || origin.mode !== 'floating')
+    const threshold = tearsOff ? TEAR_OFF_THRESHOLD : MOVE_THRESHOLD
     let moved = false
-    focus(id)
+    // A rail press may still turn out to be a click, which decides on its own whether to focus.
+    if (!fromRail) focus(id)
 
     function update(current) {
       if (current.pointerId !== event.pointerId) return
       const dx = current.clientX - pointer.x
       const dy = current.clientY - pointer.y
-      if (!moved && Math.hypot(dx, dy) < 6) return
+      if (!moved && Math.hypot(dx, dy) < threshold) return
       if (!moved) {
         moved = true
         dragging.value = true
         resizing.value = resizeWindow
         suppressClick.value = fromRail
-        if (!resizeWindow && (fromRail || windows.value[id].mode !== 'floating')) {
+        gesture.value = { id, origin }
+        if (tearsOff) {
           open(id, 'floating')
           const rect = area.value?.getBoundingClientRect() ?? { left: 0, top: 0 }
+          start.width = windows.value[id].width
           start.x = pointer.x - rect.left - Math.min(start.width / 2, 120)
           start.y = pointer.y - rect.top - 20
         }
-        if (!resizeWindow) open(id, 'floating')
+        focus(id)
       }
       if (resizeWindow) resize(id, start.width + dx, start.height + dy)
       else {
         move(id, start.x + dx, start.y + dy)
         const rect = area.value?.getBoundingClientRect() ?? { left: 0 }
         const x = current.clientX - rect.left
-        snap.value = x <= RAIL_WIDTH + 40 ? 'left' : x >= bounds.value.width - 40 ? 'right' : null
+        snap.value = x <= RAIL_WIDTH + SNAP_ZONE ? 'left' : x >= bounds.value.width - SNAP_ZONE ? 'right' : null
       }
     }
 
@@ -151,8 +223,21 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
       if (current.pointerId !== event.pointerId) return
       const destination = current.type === 'pointerup' && moved ? snap.value : null
       cleanupGesture?.()
-      if (destination) open(id, destination)
+      if (destination) open(id, destination, origin)
       // Pointer capture can generate a click immediately after the drag.
+      if (fromRail) setTimeout(() => { suppressClick.value = false }, 0)
+    }
+
+    /** Escape puts the panel back where the drag started. */
+    function abort(current) {
+      if (current.key !== 'Escape') return
+      current.preventDefault?.()
+      current.stopPropagation?.()
+      const restore = moved
+      cleanupGesture?.()
+      if (!restore) return
+      Object.assign(windows.value[id], origin)
+      ids.forEach(constrain)
       if (fromRail) setTimeout(() => { suppressClick.value = false }, 0)
     }
 
@@ -160,19 +245,36 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
       window.removeEventListener('pointermove', update)
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', finish)
+      window.removeEventListener('keydown', abort, true)
       window.removeEventListener('blur', cancel)
       if (target.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId)
       dragging.value = false
       resizing.value = false
       snap.value = null
+      gesture.value = null
       cleanupGesture = null
     }
     function cancel() { cleanupGesture?.() }
     window.addEventListener('pointermove', update)
     window.addEventListener('pointerup', finish)
     window.addEventListener('pointercancel', finish)
+    window.addEventListener('keydown', abort, true)
     window.addEventListener('blur', cancel)
   }
+
+  /** Where a drop would dock the dragged panel and what happens to the panel already there. */
+  const dropPreview = computed(() => {
+    if (!snap.value || !gesture.value) return null
+    const { id, origin } = gesture.value
+    const occupant = occupantOf(snap.value, id)
+    return {
+      side: snap.value,
+      offset: snap.value === 'left' ? RAIL_WIDTH : 0,
+      width: clamp(windows.value[id].width, minimumWidth(id), maximumWidth(id)),
+      occupant,
+      outcome: occupant ? outcome(origin, snap.value) : null,
+    }
+  })
 
   watch(area, (element) => {
     observer?.disconnect()
@@ -192,7 +294,7 @@ export function useBuilderPanels({ area, ids, initial = 'inspector', storage } =
   onScopeDispose(() => { cleanupGesture?.(); observer?.disconnect() })
 
   return {
-    windows, bounds, dragging, resizing, snap, limits, open, toggle, resize, move, focus,
+    windows, bounds, dragging, resizing, snap, dropPreview, limits, open, toggle, toggleDock, resize, move, focus,
     visible: computed(() => ids.filter((id) => windows.value[id].open)),
     close: (id) => { windows.value[id].open = false },
     startMove: (event, id, fromRail = false) => startGesture(event, id, false, fromRail),

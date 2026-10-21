@@ -47,12 +47,11 @@ beforeEach(() => {
 afterEach(() => { scope?.stop(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('builder panel docking', () => {
-  it('starts with the inspector on the left and allows either dock plus multiple floating panels', async () => {
+  it('starts with tools on the left and the inspector on the right, plus multiple floating panels', async () => {
     await fixture()
-    expect(layout.visible.value).toEqual(['inspector'])
-    expect(layout.windows.value.inspector.mode).toBe('left')
-    layout.open('inspector', 'right')
-    layout.open('add', 'left')
+    expect(layout.visible.value).toEqual(['inspector', 'add'])
+    expect(layout.windows.value.inspector.mode).toBe('right')
+    expect(layout.windows.value.add.mode).toBe('left')
     layout.open('outline', 'floating')
     layout.open('css', 'floating')
     expect(layout.visible.value).toEqual(['inspector', 'add', 'outline', 'css'])
@@ -77,7 +76,7 @@ describe('builder panel docking', () => {
     await fixture()
     observe([{ contentRect: { width: 1200, height: 900 } }])
     layout.resize('inspector', 560)
-    layout.open('css', 'right')
+    layout.open('css', 'left')
     const { inspector, css } = layout.windows.value
     expect(inspector.open && css.open).toBe(true)
     expect(inspector.width + css.width + 76 + 320).toBeLessThanOrEqual(1200)
@@ -112,6 +111,38 @@ describe('builder panel docking', () => {
   it('restores a partial preference without opening two panels in the same dock', async () => {
     await fixture({ storage: { getItem: () => JSON.stringify({ add: { mode: 'left', open: true } }) } })
     expect(layout.visible.value).toEqual(['add'])
+  })
+
+  it('swaps panels when docking onto an occupied side instead of hiding one', async () => {
+    await fixture()
+    layout.open('inspector', 'left')
+    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'right' })
+    layout.open('outline', 'floating')
+    layout.open('outline', 'right')
+    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'floating' })
+    layout.open('history')
+    expect(layout.windows.value.inspector.open).toBe(false)
+  })
+
+  it('pops a docked panel out next to its dock and returns it to that dock', async () => {
+    await fixture()
+    layout.toggleDock('inspector')
+    const { inspector } = layout.windows.value
+    expect(inspector.mode).toBe('floating')
+    expect(inspector.x + inspector.width).toBeGreaterThan(1300)
+    layout.toggleDock('inspector')
+    expect(inspector.mode).toBe('right')
+  })
+
+  it('brings a covered floating window forward before a rail click closes it', async () => {
+    await fixture()
+    layout.open('outline', 'floating')
+    layout.open('css', 'floating')
+    layout.toggle('outline')
+    expect(layout.windows.value.outline.open).toBe(true)
+    expect(layout.windows.value.outline.z).toBeGreaterThan(layout.windows.value.css.z)
+    layout.toggle('outline')
+    expect(layout.windows.value.outline.open).toBe(false)
   })
 
   it('ignores broken preferences and works when browser storage is unavailable', async () => {
@@ -164,6 +195,32 @@ describe('builder panel gestures', () => {
     vi.runAllTimers()
     layout.toggle('outline')
     expect(layout.windows.value.outline.open).toBe(false)
+  })
+
+  it('previews a swap and moves the displaced panel to the side the dragged one left', async () => {
+    await fixture()
+    start()
+    pointer('pointermove', 650, 250)
+    pointer('pointermove', 140, 260)
+    expect(layout.dropPreview.value).toMatchObject({ side: 'left', occupant: 'add', outcome: 'swap' })
+    pointer('pointerup', 140, 260)
+    expect(layout.windows.value.inspector.mode).toBe('left')
+    expect(layout.windows.value.add).toMatchObject({ open: true, mode: 'right' })
+    expect(layout.dropPreview.value).toBe(null)
+  })
+
+  it('needs a deliberate pull to undock and restores the panel when Escape cancels the drag', async () => {
+    await fixture()
+    start()
+    pointer('pointermove', 408, 160)
+    expect(layout.dragging.value).toBe(false)
+    pointer('pointermove', 650, 250)
+    expect(layout.windows.value.inspector.mode).toBe('floating')
+    const escape = new Event('keydown')
+    escape.key = 'Escape'
+    window.dispatchEvent(escape)
+    expect(layout.windows.value.inspector).toMatchObject({ open: true, mode: 'right' })
+    expect(layout.dragging.value).toBe(false)
   })
 
   it('cancels a snap on pointer cancellation and removes gesture listeners when disposed', async () => {
