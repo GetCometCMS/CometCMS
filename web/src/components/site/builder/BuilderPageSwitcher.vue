@@ -3,7 +3,7 @@
     <button
       ref="triggerRef"
       type="button"
-      class="-mx-1 flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-slate-100"
+      class="page-switcher-trigger -mx-1 flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
       :title="t('site.builder.switchPage')"
       aria-haspopup="menu"
       :aria-expanded="open"
@@ -12,8 +12,8 @@
       @keydown.down.prevent="openMenu()"
       @keydown.esc.stop.prevent="close(true)"
     >
-      <span class="truncate text-sm font-semibold leading-tight text-slate-900">{{ heading }}</span>
-      <Icon icon="mdi:chevron-down" class="h-4 w-4 shrink-0 text-slate-400 transition-transform" :class="{ 'rotate-180': open }" aria-hidden="true" />
+      <span class="truncate text-sm font-semibold leading-tight">{{ heading }}</span>
+      <Icon icon="mdi:chevron-down" class="h-4 w-4 shrink-0 opacity-70 transition-transform" :class="{ 'rotate-180': open }" aria-hidden="true" />
     </button>
 
     <div
@@ -207,3 +207,13 @@ function onFocusout(event) {
 onMounted(() => document.addEventListener("pointerdown", onOutsidePointerdown));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePointerdown));
 </script>
+
+<style scoped>
+.page-switcher-trigger {
+  color: rgb(var(--builder-toolbar-text, var(--color-slate-900)));
+}
+.page-switcher-trigger:hover,
+.page-switcher-trigger[aria-expanded="true"] {
+  background: var(--builder-toolbar-hover, rgb(var(--color-slate-100)));
+}
+</style>

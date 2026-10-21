@@ -939,15 +939,9 @@
   color: rgb(var(--color-theme-text));
 }
 
-/* Page builder: chrome sits on the surface level, the canvas on a darker,
-   dotted stage so the previewed page stands out as the focus. */
+/* Page builder: a darker, dotted stage keeps the previewed page in focus. */
 :root[data-theme="dark"] .builder-shell {
   background-color: rgb(var(--color-app-bg));
-}
-
-:root[data-theme="dark"] .builder-shell > header {
-  background-color: rgb(var(--color-surface));
-  box-shadow: 0 1px 0 rgb(0 0 0 / 0.4);
 }
 
 :root[data-theme="dark"] .builder-stage {

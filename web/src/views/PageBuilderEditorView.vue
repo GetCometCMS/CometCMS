@@ -1,7 +1,7 @@
 <template>
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
-    <header class="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-2">
+    <header class="builder-topbar flex h-12 shrink-0 items-center gap-2 border-b px-2">
       <router-link :to="backTo" class="topbar-action" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
@@ -10,16 +10,15 @@
 
       <div class="min-w-32 max-w-64 pl-1">
         <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
-        <p class="truncate text-[11px] leading-tight text-slate-500">{{ subheading }}</p>
+        <p class="topbar-muted truncate text-[11px] leading-tight">{{ subheading }}</p>
       </div>
 
-      <nav v-if="variants.length > 1" class="hidden rounded-lg bg-slate-100 p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+      <nav v-if="variants.length > 1" class="topbar-variants hidden rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
         <button
           v-for="item in variants"
           :key="item"
           type="button"
           class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-          :class="item === variant ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
           :aria-pressed="item === variant"
           @click="goToVariant(item)"
         >
@@ -36,8 +35,8 @@
             class="hidden min-w-0 items-center gap-1 pl-2 lg:flex"
             :title="t('site.builder.sampleEntry')"
           >
-            <Icon icon="mdi:eye-outline" class="h-4 w-4 shrink-0 text-slate-400" />
-            <span class="sr-only xl:not-sr-only xl:whitespace-nowrap xl:text-xs xl:text-slate-500">{{ t("site.builder.previewWith") }}</span>
+            <Icon icon="mdi:eye-outline" class="topbar-muted h-4 w-4 shrink-0" />
+            <span class="topbar-muted sr-only xl:not-sr-only xl:whitespace-nowrap xl:text-xs">{{ t("site.builder.previewWith") }}</span>
             <select
               v-model="sampleId"
               :disabled="saving"
@@ -52,7 +51,7 @@
 
           <!-- The language also sets the mode: other languages only translate texts. -->
           <div v-if="locales.length > 1" class="flex items-center gap-2 px-1.5">
-            <LanguageTabs v-model="locale" :locales="locales" :disabled="saving" compact />
+            <LanguageTabs v-model="locale" class="topbar-languages" :locales="locales" :disabled="saving" compact />
             <span
               v-if="builder.translating.value"
               class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
@@ -64,7 +63,7 @@
           </div>
         </div>
 
-        <DeviceToggle v-model="device" allow-full-width />
+        <DeviceToggle v-model="device" class="topbar-devices" allow-full-width />
 
         <span class="topbar-divider" aria-hidden="true"></span>
         <button type="button" class="topbar-action" :disabled="!builder.canUndo.value" :title="`${t('site.builder.undo')} (Ctrl+Z)`" @click="builder.undo()">
@@ -81,7 +80,7 @@
         <span
           v-if="saveStatus !== 'saved'"
           class="hidden items-center gap-1.5 whitespace-nowrap px-1 text-xs xl:flex"
-          :class="saveStatus === 'unsaved' ? 'font-medium text-amber-700' : 'text-slate-500'"
+          :class="saveStatus === 'unsaved' ? 'font-medium text-white' : 'topbar-muted'"
           role="status"
           :title="saveStatus === 'unsaved' ? t('site.builder.status.unsavedHint') : undefined"
         >
@@ -91,6 +90,7 @@
         </span>
 
         <SplitButton
+          variant="inverse"
           :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
@@ -98,7 +98,7 @@
         >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <template #badge>
-            <span v-if="(builder.isDirty.value || themeDirty || entryFields.isDirty.value) && !saving" class="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white"></span>
+            <span v-if="(builder.isDirty.value || themeDirty || entryFields.isDirty.value) && !saving" class="topbar-save-badge pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2"></span>
           </template>
         </SplitButton>
       </div>
@@ -915,6 +915,59 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.builder-topbar {
+  --builder-toolbar-text: 255 255 255;
+  --builder-toolbar-hover: rgb(255 255 255 / 0.15);
+  --builder-toolbar-selected: #fff;
+  --builder-toolbar-selected-text: rgb(var(--color-theme-800));
+  background: rgb(var(--color-theme-700));
+  border-color: rgb(0 0 0 / 0.12);
+  color: rgb(var(--builder-toolbar-text));
+}
+.builder-topbar :deep(:is(button, a, select):focus-visible) {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+.builder-topbar :deep([role="menu"] :is(button, a):focus-visible) {
+  outline-color: rgb(var(--color-theme-500));
+  outline-offset: -2px;
+}
+.topbar-muted {
+  color: rgb(var(--builder-toolbar-text) / 0.8);
+}
+.topbar-variants,
+.builder-topbar :deep(.topbar-devices) {
+  background: rgb(0 0 0 / 0.12);
+}
+.topbar-variants button,
+.builder-topbar :deep(.topbar-devices button) {
+  background: transparent;
+  color: rgb(var(--builder-toolbar-text) / 0.8);
+}
+.topbar-variants button:hover,
+.builder-topbar :deep(.topbar-devices button:hover) {
+  background: var(--builder-toolbar-hover);
+  color: rgb(var(--builder-toolbar-text));
+}
+.topbar-variants button[aria-pressed="true"],
+.builder-topbar :deep(.topbar-devices button[aria-pressed="true"]) {
+  background: var(--builder-toolbar-selected);
+  color: var(--builder-toolbar-selected-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+.builder-topbar :deep(.topbar-languages [data-tab-value]) {
+  background: transparent;
+  color: rgb(var(--builder-toolbar-text) / 0.8);
+  --tw-ring-color: rgb(var(--builder-toolbar-text) / 0.3);
+}
+.builder-topbar :deep(.topbar-languages [data-tab-value]:has([aria-selected="true"])) {
+  background: var(--builder-toolbar-selected);
+  color: var(--builder-toolbar-selected-text);
+  --tw-ring-color: transparent;
+}
+.topbar-save-badge {
+  --tw-ring-color: rgb(var(--color-theme-700));
+}
 .topbar-action {
   position: relative;
   display: inline-flex;
@@ -924,12 +977,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  color: rgb(var(--color-slate-600));
+  color: rgb(var(--builder-toolbar-text) / 0.85);
   transition: background-color 150ms, color 150ms;
 }
 .topbar-action:hover:not(:disabled) {
-  background: rgb(var(--color-slate-100));
-  color: rgb(var(--color-slate-900));
+  background: var(--builder-toolbar-hover);
+  color: rgb(var(--builder-toolbar-text));
 }
 .topbar-action:disabled {
   opacity: 0.35;
@@ -938,17 +991,17 @@ onBeforeUnmount(() => {
   height: 1.25rem;
   width: 1px;
   flex-shrink: 0;
-  background: rgb(var(--color-slate-200));
+  background: rgb(var(--builder-toolbar-text) / 0.25);
 }
 .topbar-group {
   height: 2rem;
   min-width: 0;
   align-items: center;
   border-radius: 0.5rem;
-  background: rgb(var(--color-slate-100));
+  background: rgb(0 0 0 / 0.12);
 }
 .topbar-group > * + * {
-  border-left: 1px solid rgb(var(--color-slate-200));
+  border-left: 1px solid rgb(var(--builder-toolbar-text) / 0.25);
 }
 .topbar-select {
   min-width: 0;
@@ -958,7 +1011,8 @@ onBeforeUnmount(() => {
   background-position: right 0.375rem center;
   font-size: 0.75rem;
   font-weight: 500;
-  color: rgb(var(--color-slate-800));
+  color: rgb(var(--builder-toolbar-text));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
   cursor: pointer;
 }
 .topbar-select:focus {
@@ -967,7 +1021,11 @@ onBeforeUnmount(() => {
 }
 .topbar-group label:focus-within {
   border-radius: 0.375rem;
-  box-shadow: inset 0 0 0 2px rgb(var(--color-theme-500));
+  box-shadow: inset 0 0 0 2px rgb(var(--builder-toolbar-text) / 0.8);
+}
+.topbar-select option {
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-slate-800));
 }
 .builder-stage {
   background-color: rgb(var(--color-slate-100));

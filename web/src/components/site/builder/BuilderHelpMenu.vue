@@ -121,12 +121,12 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePoint
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  color: rgb(var(--color-slate-600));
+  color: rgb(var(--builder-toolbar-text, var(--color-slate-600)) / 0.85);
   transition: background-color 150ms, color 150ms;
 }
 .topbar-action:hover,
 .topbar-action.is-open {
-  background: rgb(var(--color-slate-100));
-  color: rgb(var(--color-slate-900));
+  background: var(--builder-toolbar-hover, rgb(var(--color-slate-100)));
+  color: rgb(var(--builder-toolbar-text, var(--color-slate-900)));
 }
 </style>

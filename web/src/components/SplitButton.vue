@@ -13,7 +13,7 @@
       ref="triggerRef"
       type="button"
       class="rounded-l-none border-l px-2"
-      :class="[buttonClass, variant === 'secondary' ? '-ml-px' : 'border-white/25']"
+      :class="[buttonClass, variant === 'primary' ? 'border-white/25' : '-ml-px']"
       :disabled="disabled"
       :aria-label="menuLabel"
       aria-haspopup="menu"
@@ -69,13 +69,13 @@ const props = defineProps({
   /** Each item has a key and label, and optionally an href, target, icon, title or disabled flag. */
   items: { type: Array, default: () => [] },
   menuLabel: { type: String, required: true },
-  variant: { type: String, default: 'primary', validator: (value) => ['primary', 'secondary'].includes(value) },
+  variant: { type: String, default: 'primary', validator: (value) => ['primary', 'secondary', 'inverse'].includes(value) },
   disabled: { type: Boolean, default: false },
   /** Disable only the primary action, keeping the menu available. */
   primaryDisabled: { type: Boolean, default: false },
 });
 const emit = defineEmits(["click", "select"]);
-const buttonClass = computed(() => props.variant === 'secondary' ? 'btn-secondary' : 'btn-primary');
+const buttonClass = computed(() => props.variant === 'inverse' ? 'btn btn-inverse' : props.variant === 'secondary' ? 'btn-secondary' : 'btn-primary');
 const rootRef = ref(null);
 const triggerRef = ref(null);
 const menuRef = ref(null);
@@ -145,3 +145,18 @@ watch(() => props.disabled || !props.items.length, (unavailable) => {
 onMounted(() => document.addEventListener("pointerdown", onOutsidePointerdown));
 onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePointerdown));
 </script>
+
+<style scoped>
+.btn-inverse {
+  border-color: rgb(var(--color-theme-800) / 0.2);
+  background: #fff;
+  color: rgb(var(--color-theme-800));
+}
+.btn-inverse:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.btn-inverse:disabled {
+  background: rgb(255 255 255 / 0.65);
+  cursor: not-allowed;
+}
+</style>
