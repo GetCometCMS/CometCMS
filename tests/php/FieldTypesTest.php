@@ -193,9 +193,8 @@ test('html fields keep editor formatting marks but drop inline styles', function
 
 test('relation fields validate target collection lookup', function (): void {
     $field = new RelationFieldType();
-    $store = new JsonStore(WorkspaceContext::active()->path('content'));
-
-    $store->write(['id' => 'entry-1', 'title' => 'Entry 1'], 'posts', 'entry-1');
+    (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+    \CometCMS\Content\ContentRepository::make()->save('posts', ['title' => 'Entry 1', 'slug' => 'entry-1'], ['id' => 'writer']);
 
     assert_true($field->validate('entry-1', ['target' => 'posts'])['valid']);
     assert_false($field->validate('missing', ['target' => 'posts'])['valid']);

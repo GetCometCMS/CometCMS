@@ -535,3 +535,39 @@ describe('loading layout revisions', () => {
     expect(builder.isDirty.value).toBe(false)
   })
 })
+
+describe('builder localization', () => {
+  it('keeps translated values on node identities through language changes history and duplication', async () => {
+    const builder = await builderFixture()
+    builder.settings.value = { default_locale: 'en', locales: ['en', 'de'] }
+    builder.spec.value.kinds.heading.props.text.localized = true
+    builder.locale.value = 'en'
+    const column = builder.nodes.value[0].children[0].children[0]
+    const heading = builder.make('heading', { text: 'English' })
+    builder.insert(heading, column.id)
+    builder.locale.value = 'de'
+    builder.editingMode.value = 'translate'
+    builder.updateValue(heading.id, 'props', 'text', 'Deutsch')
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
+    expect(findNode(builder.nodes.value, heading.id).props.text.values).toEqual({ en: 'English', de: 'Deutsch' })
+    expect(builder.insert(builder.make('text'), column.id)).toBe(false)
+    builder.remove(heading.id)
+    expect(findNode(builder.nodes.value, heading.id)).not.toBeNull()
+    builder.undo()
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('English')
+    builder.redo()
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
+    builder.editingMode.value = 'design'
+    builder.duplicate(heading.id)
+    const copy = builder.selected.value
+    expect(copy.id).not.toBe(heading.id)
+    expect(copy.props.text.values).toEqual({ en: 'English', de: 'Deutsch' })
+    builder.locale.value = 'en'
+    builder.updateValue(heading.id, 'props', 'text', 'Changed source')
+    builder.locale.value = 'de'
+    expect(builder.translationState(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('review')
+    expect(builder.valueFor(copy, 'props', 'text')).toBe('Deutsch')
+    builder.resetTranslation(heading.id, 'props', 'text')
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Changed source')
+  })
+})

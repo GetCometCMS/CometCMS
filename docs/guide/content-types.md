@@ -17,9 +17,8 @@ The headless API is disabled for new types. Enable **Expose content fields throu
    - **Collection** for repeatable content with many entries.
    - **Single page** for one fixed entry.
 5. Add content fields (see [Field Types](./field-types)).
-6. Optional: add locales and choose a default locale.
-7. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
-8. Click **Save**.
+6. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
+7. Click **Save**.
 
 Single page content types appear under **Content** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
 
@@ -35,17 +34,15 @@ You can change a collection to a single page only when it has at most one active
 
 ## Localization
 
-Content types can define `locales` and a `default_locale`. Leave locales empty to disable multi-language editing for that type.
+Configure available languages and the default language once in **Website settings → General → Languages** (permission `workspaces.manage`). Every content type and the website use exactly those settings, including languages added later. There are no per-type language overrides or inheritance settings. Previous per-type subsets no longer restrict the available languages. A single-language workspace uses the same model.
 
-Localized entries store translated `title` and custom field values per locale. Slug, status, author, publish date, timestamps, and entry ID are shared by all locales.
+Each entry has localized titles, slugs, field values, publication status, and publication dates. IDs, authors, creation dates, and fields marked **Shared across languages** remain shared. Shared values are stored once and edited in the default language.
 
-Changing locale settings is non-destructive:
+A missing value inherits the default-language value. An intentional empty value stays empty. An absent or unpublished entry translation stays unavailable publicly, and public fallback never reveals a draft in another language.
 
-- Adding a locale makes it available for future translations. Existing entries show it as missing until an editor saves that locale.
-- Enabling localization for an existing non-localized content type copies each entry's root content into the new default locale.
-- Removing a locale hides it from the editor and from `?locale=` resolution, but saved translation data is kept in storage.
-- Changing the default locale updates existing entries to use that locale as their fallback root value when a translation exists.
-- Disabling localization keeps existing translation data in storage, but the admin and API use the shared root values until localization is enabled again.
+Changing workspace languages never copies content or automatically publishes new entry translations. Workspace languages with saved translations cannot be removed until those translations are removed. Unpublish entry translations to hide them publicly without deleting their language or values.
+
+Field labels, help text, and select-option labels also support translations, independently of whether the field's stored values are shared. Option keys and validation rules stay shared.
 
 ## Workspace-scoped API access
 
@@ -72,15 +69,13 @@ Deleting a content type also removes all entries in that collection. This action
 
 ## Content type schema (JSON)
 
-Content types are stored in `cms/storage/content-types/{name}.json`. A typical schema looks like:
+Content types are stored in `cms/storage/workspaces/{workspace}/content-types/{name}.json`. A typical schema looks like:
 
 ```json
 {
   "name": "posts",
   "label": "Posts",
   "singleton": false,
-  "locales": ["en", "de"],
-  "default_locale": "en",
   "api_enabled": true,
   "fields": {
     "title": { "type": "text", "required": true },
@@ -95,3 +90,5 @@ Content types are stored in `cms/storage/content-types/{name}.json`. A typical s
   }
 }
 ```
+
+The schema API returns read-only `locales` and `default_locale` from the workspace. Language settings are not stored in content type schemas or configurable through schema writes. Old language overrides are ignored and removed when the schema is next saved.

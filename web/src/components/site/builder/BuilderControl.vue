@@ -1,5 +1,13 @@
 <template>
   <div>
+    <div v-if="def.localized" class="mb-2 space-y-1 text-xs text-slate-500">
+      <span>{{ t(`localization.${translationState}`) }}</span>
+      <template v-if="builder.locale.value !== builder.defaultLocale.value">
+        <p class="break-words">{{ t('localization.source') }}: {{ sourceText }}</p>
+        <button v-if="translationState !== 'inherited'" type="button" class="text-theme-700 underline" @click="builder.resetTranslation(node.id, group, name)">{{ t('localization.reset') }}</button>
+      </template>
+    </div>
+    <fieldset :disabled="builder.translating?.value && !def.localized" class="min-w-0">
     <div v-if="!def.binding" class="mb-1 flex items-center justify-between gap-2">
       <label class="text-xs font-medium text-slate-700" :for="inputId">{{ label }}</label>
       <span v-if="hint" class="truncate text-[10px] text-slate-400">{{ hint }}</span>
@@ -99,7 +107,7 @@
       :disabled="!node.children.length"
       @change="emitNumber($event.target.value)"
     >
-      <option v-for="(child, index) in node.children" :key="child.id" :value="index + 1">{{ child.props.title || t('site.tabs.tabTitle', { number: index + 1 }) }}</option>
+      <option v-for="(child, index) in node.children" :key="child.id" :value="index + 1">{{ builder.valueFor(child, 'props', 'title') || t('site.tabs.tabTitle', { number: index + 1 }) }}</option>
     </select>
 
     <OptionBar
@@ -238,6 +246,7 @@
     <p v-if="def.type === 'form' && selectOptions.length === 1" class="mt-2 text-xs text-slate-500">
       {{ t("site.forms.noEligibleTypes") }}
     </p>
+    </fieldset>
   </div>
 </template>
 
@@ -263,6 +272,7 @@ import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { localeFlagCountry } from "../../../composables/localeOptions.js";
 import FontPicker from "../FontPicker.vue";
+import { resolveLocalized } from '../../../composables/localizedValues.js';
 import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -284,6 +294,9 @@ const props = defineProps({
 const emit = defineEmits(["update"]);
 const builder = useSiteBuilder();
 const site = useSiteStore();
+const value = computed(() => resolveLocalized(props.value, builder.locale.value || builder.defaultLocale?.value || 'en', builder.defaultLocale?.value || 'en'));
+const translationState = computed(() => builder.translationState?.(props.node, props.group, props.name) || 'shared');
+const sourceText = computed(() => { const value = resolveLocalized(props.value, builder.defaultLocale?.value || 'en', builder.defaultLocale?.value || 'en'); return typeof value === 'string' ? value.replace(/<[^>]*>/g, '') : JSON.stringify(value); });
 const linkSettings = computed(() => site.data?.workspace === getActiveWorkspace() && site.draft ? site.draft.settings : builder.settings.value);
 const { t } = useI18n();
 const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.name}`);
@@ -303,8 +316,8 @@ const label = computed(() => {
 const hint = computed(() => {
   if (props.name === "class") return t("site.builder.classHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
-  if (props.node.kind === "section" && props.name === "sticky" && props.value !== "none") return t("site.builder.stickyHint");
-  if (props.node.kind === "section" && props.name === "overlap" && props.value) return t("site.builder.overlapHint");
+  if (props.node.kind === "section" && props.name === "sticky" && value.value !== "none") return t("site.builder.stickyHint");
+  if (props.node.kind === "section" && props.name === "overlap" && value.value) return t("site.builder.overlapHint");
   return "";
 });
 
@@ -371,18 +384,18 @@ const setOptions = computed(() => {
     title: t("site.builder.hideOnDevice", { device: t(`site.device.${option}`) }),
   }));
 });
-const allSet = computed(() => (props.def.options ?? []).every((option) => (props.value ?? []).includes(option)));
+const allSet = computed(() => (props.def.options ?? []).every((option) => (value.value ?? []).includes(option)));
 
 function spanCellClass(device, span) {
-  const own = props.value?.[device] ?? 0;
+  const own = value.value?.[device] ?? 0;
   if (own > 0) return span <= own ? "bg-theme-500" : "bg-white hover:bg-theme-100";
   // Inherited from the smaller device: shown lighter.
-  return span <= effectiveSpan(props.value, device) ? "bg-theme-200" : "bg-white hover:bg-theme-100";
+  return span <= effectiveSpan(value.value, device) ? "bg-theme-200" : "bg-white hover:bg-theme-100";
 }
 
 // A field without a chosen display uses its type's first display.
 const enumValue = computed(() =>
-  props.def.type === "display" && !props.value ? (enumOptions.value[0]?.value ?? "") : props.value,
+  props.def.type === "display" && !value.value ? (enumOptions.value[0]?.value ?? "") : value.value,
 );
 
 const collectionType = computed(() => builder.types.value.find((type) => type.name === props.node.props?.type) ?? null);
@@ -419,7 +432,7 @@ const selectOptions = computed(() => {
       // Show one choice per content type, retaining existing placement IDs.
       const forms = new Map();
       for (const form of builder.forms.value) {
-        if (!forms.has(form.type) || form.id === props.value) forms.set(form.type, form);
+        if (!forms.has(form.type) || form.id === value.value) forms.set(form.type, form);
       }
       return [
         { value: "", label: t("site.forms.choose") },

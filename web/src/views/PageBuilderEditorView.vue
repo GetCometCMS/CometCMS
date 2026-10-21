@@ -57,6 +57,10 @@
           <option v-for="item in locales" :key="item" :value="item">{{ item.toUpperCase() }}</option>
         </select>
 
+        <select v-model="builder.editingMode.value" class="form-select rounded-lg border-slate-300 py-1 text-xs" :aria-label="t('localization.mode')">
+          <option value="design">{{ t('localization.design') }}</option>
+          <option value="translate">{{ t('localization.translate') }}</option>
+        </select>
         <DeviceToggle v-model="device" allow-full-width />
 
         <div class="flex items-center">
@@ -323,6 +327,8 @@ import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js
 import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
+import { resolveLocalized } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
 const route = useRoute();
@@ -333,6 +339,7 @@ const auth = useAuthStore();
 const { canContent } = usePermissions();
 const toast = useToastStore();
 const { t, locale: uiLocale } = useI18n();
+const editorLanguages = useLanguages();
 const builder = createSiteBuilder({
   t,
   componentApi: {
@@ -493,6 +500,7 @@ const variant = String(route.params.variant || "detail");
 
 const loading = ref(true);
 const upgradeRequired = ref(false);
+const layoutRevision = ref(null);
 const loadError = ref("");
 const saving = ref(false);
 const samples = ref([]);
@@ -528,8 +536,15 @@ const entryFields = useBuilderEntry({
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
   if (target === "component") return null;
-  if (target === "region") return homeUrl.value;
-  if (variant === "index") return indexUrl.value;
+  const settings = builder.settings.value;
+  const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
+  const root = (homeUrl.value || '').replace(/\/$/, '');
+  if (target === "region") return root + prefix || homeUrl.value;
+  if (variant === "index") {
+    const home = settings?.homepage;
+    const path = home?.type === name && !home.entry ? '/' : resolveLocalized(settings?.routes?.[name]?.index_path, locale.value, settings?.default_locale);
+    return path ? root + prefix + (path === '/' && prefix ? '' : path) : indexUrl.value;
+  }
   return entryUrl.value;
 });
 const liveHint = computed(() => (target === "layout" && variant === "detail" && previewEntry.value ? t("site.builder.notLive") : ""));
@@ -562,11 +577,11 @@ const saveMenuItems = computed(() => {
   }
   return items;
 });
-watch(previewEntry, async (entry) => {
+watch([previewEntry, locale], async ([entry]) => {
   entryUrl.value = null;
   if (target !== "layout" || !entry) return;
   try {
-    entryUrl.value = (await api.site.links(name, entry)).data?.url ?? null;
+    entryUrl.value = (await api.site.links(name, entry, { locale: locale.value })).data?.url ?? null;
   } catch {
     entryUrl.value = null;
   }
@@ -581,7 +596,7 @@ const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
   if (target === "component") return COMPONENTS_PATH;
-  return target === "region" ? "/page-builder/overview" : `/content-types/${name}/edit#website`;
+  return target === "region" ? "/page-builder/design" : `/content-types/${name}/edit#website`;
 });
 const heading = computed(() => {
   if (target === "component") return component.value?.name ?? "";
@@ -658,7 +673,7 @@ watch(leftPanel, (panel) => {
   if (["design", "css", "fields"].includes(panel)) leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
 }, { immediate: true });
 
-watch(locale, (value) => { builder.locale.value = value; });
+watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; if (value !== builder.defaultLocale.value) builder.editingMode.value = "translate"; });
 
 async function load() {
   loading.value = true;
@@ -671,6 +686,7 @@ async function load() {
       ? await api.site.region(name)
       : target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
     const data = res.data;
+    layoutRevision.value = data.revision;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
     builder.forms.value = data.forms ?? [];
@@ -698,7 +714,7 @@ async function load() {
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
-    locale.value = data.default_locale ?? "";
+    locale.value = locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
   } catch (err) {
     loadError.value = err.message;
@@ -731,13 +747,14 @@ async function save() {
       if (restoreDefault) {
         res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
       } else if (target === "region") {
-        res = await api.site.saveRegion(name, nodes);
+        res = await api.site.saveRegion(name, nodes, layoutRevision.value);
       } else if (target === "component") {
-        res = await api.site.saveComponent(name, nodes);
+        res = await api.site.saveComponent(name, nodes, layoutRevision.value);
       } else {
-        res = await api.site.saveLayout(name, variant, nodes);
+        res = await api.site.saveLayout(name, variant, nodes, layoutRevision.value);
       }
       builder.markSaved(res.data.nodes);
+      layoutRevision.value = res.data.revision;
       upgradeRequired.value = false;
       loadedRevisions.value.layout = null;
       if (target === "component") component.value = res.data.component;

@@ -97,8 +97,17 @@ const routes = [
     path: '/page-builder/forms',
     redirect: '/content-types',
   },
+  // Site settings and SEO moved to the Website page.
   {
-    path: '/page-builder/:tab(overview|design|seo|menus|fonts|components)?',
+    path: '/page-builder/overview',
+    redirect: (to) => ({ path: '/website/general', query: to.query, hash: to.hash }),
+  },
+  {
+    path: '/page-builder/seo',
+    redirect: '/website/seo',
+  },
+  {
+    path: '/page-builder/:tab(design|menus|fonts|components)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },
@@ -112,6 +121,11 @@ const routes = [
     path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',
     component: () => import('../views/PageBuilderEditorView.vue'),
     meta: { requiresAuth: true, bare: true },
+  },
+  {
+    path: '/website/:tab(general|seo|workspaces)?',
+    component: () => import('../views/WebsiteView.vue'),
+    meta: { requiresAuth: true },
   },
   // Old /website URLs (bookmarks, links in notes).
   {
@@ -133,8 +147,7 @@ const routes = [
   },
   {
     path: '/workspaces',
-    component: () => import('../views/WorkspacesView.vue'),
-    meta: { requiresAuth: true },
+    redirect: '/website/workspaces',
   },
   {
     // Unknown admin URLs (typos, removed pages, stale bookmarks).

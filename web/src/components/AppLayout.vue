@@ -131,7 +131,7 @@
               <template v-if="auth.can('workspaces.manage')">
                 <div class="my-1 border-t border-slate-100" />
                 <router-link
-                  to="/workspaces"
+                  to="/website/workspaces"
                   @click="
                     workspaceSwitcherOpen = false;
                     sidebarOpen = false;

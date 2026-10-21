@@ -99,6 +99,7 @@ function comet_test_reset_storage(): void
 
     $_SESSION = [];
     \CometCMS\Workspaces\WorkspaceContext::reset();
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de', 'de-at', 'tlh', 'en-us', 'de-de'], 'default_locale' => 'en']);
 }
 
 function comet_test_workspace_path(string $workspace = 'default'): string

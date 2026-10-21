@@ -8,6 +8,8 @@ use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -95,11 +97,22 @@ final class SiteRepository
 
     public function saveSettings(array $input): array
     {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($input): array {
+            $this->settingsCache = null;
+            if (isset($input['revision']) && $input['revision'] !== ($this->settings()['revision'] ?? '')) throw new \CometCMS\Core\ConflictException();
+            return $this->saveSettingsUnlocked($input);
+        }, 'routing');
+    }
+
+    private function saveSettingsUnlocked(array $input): array
+    {
         $settings = $this->normalizeSettings($input);
-        $this->validateSettings($settings);
+        foreach ($settings['locales'] as $locale) $this->validateSettings(LocalizedValue::tree($settings, $locale, $settings['default_locale']));
+        $this->validateEntryUrls($settings);
         $settings['updated_at'] = Security::now();
-        // "enabled" is derived on every read and never stored.
-        $this->store->write(array_diff_key($settings, ['enabled' => true]), 'settings');
+        $settings['revision'] = bin2hex(random_bytes(12));
+        // Workspace languages and website availability are derived on every read.
+        $this->store->write(array_diff_key($settings, array_flip(['enabled', 'locales', 'default_locale'])), 'settings');
         $this->settingsCache = $settings;
         $this->clearCache();
 
@@ -138,18 +151,10 @@ final class SiteRepository
         ];
     }
 
-    /** Locales any content type defines; the website can offer a subset. */
+    /** Workspace languages used throughout the website. */
     public function availableLocales(): array
     {
-        $locales = [];
-
-        foreach ($this->types() as $type) {
-            foreach ((array) ($type['locales'] ?? []) as $locale) {
-                $locales[(string) $locale] = true;
-            }
-        }
-
-        return array_keys($locales);
+        return (new LanguageSettings($this->workspace))->all()['locales'];
     }
 
     // ─── Theme ───────────────────────────────────────────────────────────────
@@ -238,7 +243,7 @@ final class SiteRepository
         if ($stored === null) {
             return [
                 ['name' => 'main', 'label' => 'Main', 'items' => [
-                    ['id' => 'home', 'label' => 'Home', 'labels' => [], 'link' => ['type' => 'home', 'new_tab' => false], 'children' => []],
+                    ['id' => 'home', 'label' => 'Home', 'link' => ['type' => 'home', 'new_tab' => false], 'children' => []],
                 ]],
                 ['name' => 'footer', 'label' => 'Footer', 'items' => []],
             ];
@@ -258,7 +263,15 @@ final class SiteRepository
         return null;
     }
 
-    public function saveMenus(array $menus): array
+    public function saveMenus(array $menus, ?string $revision = null): array
+    {
+        return $this->store->synchronized(function () use ($menus, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->menus())) throw new \CometCMS\Core\ConflictException();
+            return $this->saveMenusUnlocked($menus);
+        }, 'menus');
+    }
+
+    private function saveMenusUnlocked(array $menus): array
     {
         $this->validateMenus($menus);
         $menus = $this->normalizeMenus($menus);
@@ -285,7 +298,15 @@ final class SiteRepository
         return ($this->themeStore->read('regions', $region)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
-    public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($region, $nodes, $user, $event, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->region($region))) throw new \CometCMS\Core\ConflictException();
+            return $this->saveRegionUnlocked($region, $nodes, $user, $event);
+        }, ...['regions', $region]);
+    }
+
+    private function saveRegionUnlocked(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $this->assertRegion($region);
         $nodes = LayoutSchema::normalize($nodes);
@@ -325,7 +346,15 @@ final class SiteRepository
         return ($this->themeStore->read('layouts', $type, $variant)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
-    public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($type, $variant, $nodes, $user, $event, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->layout($type, $variant))) throw new \CometCMS\Core\ConflictException();
+            return $this->saveLayoutUnlocked($type, $variant, $nodes, $user, $event);
+        }, ...['layouts', $type, $variant]);
+    }
+
+    private function saveLayoutUnlocked(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
@@ -452,7 +481,15 @@ final class SiteRepository
         return $this->writeComponent($component);
     }
 
-    public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($id, $nodes, $user, $event, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->component($id)['nodes'])) throw new \CometCMS\Core\ConflictException();
+            return $this->saveComponentUnlocked($id, $nodes, $user, $event);
+        }, ...['components', $id]);
+    }
+
+    private function saveComponentUnlocked(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $current = $this->requireComponent($id);
         $component = $this->validateComponent($current, $nodes, $current['type']);
@@ -969,6 +1006,11 @@ final class SiteRepository
 
     // ─── Normalization & validation ──────────────────────────────────────────
 
+    private function localized(mixed $value, callable $normalize): mixed
+    {
+        return LocalizedValue::normalize($value, $normalize, (new LanguageSettings($this->workspace))->all()['locales']);
+    }
+
     private function normalizeSettings(array $input): array
     {
         $types = $this->types();
@@ -979,9 +1021,9 @@ final class SiteRepository
             $default = $this->defaultRoute($type);
             $routes[$name] = [
                 'enabled' => (bool) ($route['enabled'] ?? $default['enabled']),
-                'pattern' => self::normalizePath((string) ($route['pattern'] ?? $default['pattern'])),
-                'index_path' => empty($type['singleton']) ? self::normalizePath((string) ($route['index_path'] ?? $default['index_path'])) : '',
-                'index_title' => self::line($route['index_title'] ?? '', 200),
+                'pattern' => $this->localized($route['pattern'] ?? $default['pattern'], self::normalizePath(...)),
+                'index_path' => empty($type['singleton']) ? $this->localized($route['index_path'] ?? $default['index_path'], self::normalizePath(...)) : '',
+                'index_title' => $this->localized($route['index_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
                 'seo_description_field' => LayoutSchema::key($route['seo_description_field'] ?? ''),
                 'seo_image_field' => LayoutSchema::key($route['seo_image_field'] ?? ''),
                 'sitemap' => (bool) ($route['sitemap'] ?? true),
@@ -994,24 +1036,17 @@ final class SiteRepository
             }
         }
 
-        $available = $this->availableLocales();
-        $locales = array_values(array_intersect(
-            $available,
-            array_map('strval', is_array($input['locales'] ?? null) ? $input['locales'] : [])
-        ));
-        $defaultLocale = (string) ($input['default_locale'] ?? '');
-        if ($locales === []) {
-            $defaultLocale = '';
-        } elseif (!in_array($defaultLocale, $locales, true)) {
-            $defaultLocale = $locales[0];
-        }
+        $languages = (new LanguageSettings($this->workspace))->all();
+        $defaultLocale = $languages['default_locale'];
+        $locales = $languages['locales'];
 
         $homepage = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
         $homeType = LayoutSchema::key($homepage['type'] ?? '');
         $homeType = isset($types[$homeType]) ? $homeType : '';
+        $homeEntry = $homeType !== '' && !empty($homepage['entry']) ? \CometCMS\Content\ContentRepository::make($this->workspace)->findByIdentifier($homeType, (string) $homepage['entry']) : null;
         $homepage = [
             'type' => $homeType,
-            'entry' => $homeType !== '' ? LayoutSchema::key($homepage['entry'] ?? '') : '',
+            'entry' => $homeEntry !== null ? $homeEntry['uid'] : ($homeType !== '' ? LayoutSchema::key($homepage['entry'] ?? '') : ''),
         ];
 
         return [
@@ -1022,22 +1057,23 @@ final class SiteRepository
                 'homepage' => ($types[$homeType]['visibility'] ?? 'public') === 'private' ? [] : $homepage,
                 'routes' => $routes,
             ]),
-            'title' => self::line($input['title'] ?? '', 120),
-            'tagline' => self::line($input['tagline'] ?? '', 200),
-            'logo' => self::media($input['logo'] ?? ''),
+            'title' => $this->localized($input['title'] ?? '', static fn(mixed $v): string => self::line($v, 120)),
+            'tagline' => $this->localized($input['tagline'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
+            'logo' => $this->localized($input['logo'] ?? '', self::media(...)),
             'favicon' => self::media($input['favicon'] ?? ''),
             'homepage' => $homepage,
             'locales' => $locales,
             'default_locale' => $defaultLocale,
             'domains' => self::domains($input['domains'] ?? []),
-            'title_template' => self::line($input['title_template'] ?? '{title} · {site}', 200) ?: '{title} · {site}',
-            'description' => self::line($input['description'] ?? '', 300),
-            'og_image' => self::media($input['og_image'] ?? ''),
+            'title_template' => $this->localized($input['title_template'] ?? '{title} · {site}', static fn(mixed $v): string => self::line($v, 200)) ?: '{title} · {site}',
+            'description' => $this->localized($input['description'] ?? '', static fn(mixed $v): string => self::line($v, 300)),
+            'og_image' => $this->localized($input['og_image'] ?? '', self::media(...)),
             'noindex' => (bool) ($input['noindex'] ?? false),
-            'not_found_title' => self::line($input['not_found_title'] ?? '', 200) ?: 'Page not found',
-            'not_found_message' => self::line($input['not_found_message'] ?? '', 500) ?: 'The page you are looking for does not exist or has moved.',
+            'not_found_title' => $this->localized($input['not_found_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
+            'not_found_message' => $this->localized($input['not_found_message'] ?? '', static fn(mixed $v): string => self::line($v, 500)),
             'routes' => $routes,
             'updated_at' => (string) ($input['updated_at'] ?? ''),
+            'revision' => (string) ($input['revision'] ?? ''),
         ];
     }
 
@@ -1112,6 +1148,9 @@ final class SiteRepository
             return 'Use lowercase letters, numbers, dashes and slashes only.';
         }
 
+        $first = explode('/', ltrim($path, '/'))[0];
+        if (in_array($first, $this->availableLocales(), true)) return 'Language prefixes are reserved by CometCMS.';
+
         foreach (self::RESERVED_PREFIXES as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
                 return $prefix . ' is reserved by CometCMS.';
@@ -1123,6 +1162,37 @@ final class SiteRepository
         }
 
         return null;
+    }
+
+    /** Check final paths as well as route templates, before either settings or entries change. */
+    public function validateEntryUrls(array $settings, ?array $candidate = null): void
+    {
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach ($settings['locales'] as $locale) {
+            $resolved = LocalizedValue::tree($settings, $locale, $settings['default_locale']);
+            $paths = [];
+            $claim = static function (string $path, string $owner) use (&$paths, $locale): void {
+                if ($path === '') return;
+                if (isset($paths[$path]) && $paths[$path] !== $owner) throw new ValidationException(['slug' => 'URL collision in ' . $locale . ': ' . $path]);
+                $paths[$path] = $owner;
+            };
+            foreach ($this->types() as $name => $type) {
+                $route = $resolved['routes'][$name] ?? null;
+                if (empty($route['enabled'])) continue;
+                if ($type['singleton']) $claim($route['pattern'], 'single:' . $name);
+                else $claim($route['index_path'], 'index:' . $name);
+                $entries = $content->all($name);
+                if (($candidate['collection'] ?? '') === $name) {
+                    $entries = array_values(array_filter($entries, static fn(array $entry): bool => $entry['id'] !== $candidate['id']));
+                    $entries[] = $candidate;
+                }
+                foreach ($entries as $entry) {
+                    if (!isset($entry['publication'][$locale])) continue;
+                    $entry = $content->resolveLocaleFields($entry, $locale);
+                    $claim(str_replace('{slug}', rawurlencode((string) $entry['slug']), $route['pattern']), $type['singleton'] ? 'single:' . $name : 'entry:' . $name . ':' . $entry['id']);
+                }
+            }
+        }
     }
 
     public function normalizeMenus(mixed $menus): array
@@ -1161,19 +1231,10 @@ final class SiteRepository
                 continue;
             }
 
-            $labels = [];
-            foreach (is_array($item['labels'] ?? null) ? $item['labels'] : [] as $locale => $value) {
-                $text = self::line($value, 120);
-                if ($text !== '' && preg_match('/^[a-z0-9-]{1,20}$/', (string) $locale)) {
-                    $labels[(string) $locale] = $text;
-                }
-            }
-
             $normalized[] = [
                 'id' => LayoutSchema::key($item['id'] ?? '') ?: LayoutSchema::newId(),
-                'label' => self::line($item['label'] ?? '', 120),
-                'labels' => $labels,
-                'link' => LayoutSchema::normalizeLink($item['link'] ?? []),
+                'label' => $this->localized($item['label'] ?? '', static fn(mixed $v): string => self::line($v, 120)),
+                'link' => $this->localized($item['link'] ?? [], LayoutSchema::normalizeLink(...)),
                 'children' => $depth + 1 < self::MENU_LIMITS['max_depth'] ? $this->normalizeMenuItems($item['children'] ?? [], $depth + 1) : [],
             ];
         }
@@ -1184,6 +1245,11 @@ final class SiteRepository
     /** Validate submissions before normalization, which defensively bounds stored data. */
     public function validateMenus(array $menus, bool $validateDestinations = true): void
     {
+        if ($menus !== LocalizedValue::tree($menus, '', '')) {
+            $languages = (new LanguageSettings($this->workspace))->all();
+            foreach ($languages['locales'] as $locale) $this->validateMenus(LocalizedValue::tree($menus, $locale, $languages['default_locale']), $validateDestinations);
+            return;
+        }
         $errors = [];
         if (count($menus) > self::MENU_LIMITS['max_menus']) {
             $errors['menus'] = 'A website can have at most ' . self::MENU_LIMITS['max_menus'] . ' menus.';

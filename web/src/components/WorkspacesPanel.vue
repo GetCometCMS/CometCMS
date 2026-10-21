@@ -1,18 +1,17 @@
 <template>
   <div>
-    <PageHeader :title="t('workspaces.title')" :description="t('workspaces.defaultNotice')">
-      <template #actions>
-        <button
-          v-if="auth.can('workspaces.manage')"
-          type="button"
-          @click="showCreateForm = !showCreateForm"
-          class="btn-primary"
-        >
-          <Icon icon="mdi:plus" class="h-4 w-4" />
-          {{ t("workspaces.new") }}
-        </button>
-      </template>
-    </PageHeader>
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <p class="max-w-3xl text-sm text-slate-500">{{ t("workspaces.defaultNotice") }}</p>
+      <button
+        v-if="auth.can('workspaces.manage')"
+        type="button"
+        @click="showCreateForm = !showCreateForm"
+        class="btn-primary shrink-0"
+      >
+        <Icon icon="mdi:plus" class="h-4 w-4" />
+        {{ t("workspaces.new") }}
+      </button>
+    </div>
 
     <!-- Create form -->
     <div v-if="showCreateForm" class="card p-6 mb-6">
@@ -101,8 +100,11 @@
           :key="workspace.slug"
           class="card p-5"
         >
-          <div class="flex items-center justify-between gap-4">
-            <div class="flex items-center gap-3 min-w-0">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              class="flex min-w-0 items-center gap-4"
+              :class="editingSlug === workspace.slug ? 'w-full max-w-xl' : ''"
+            >
               <AvatarUpload
                 :src="
                   workspace.has_icon
@@ -118,54 +120,45 @@
                 @upload="(file) => handleIconUpload(workspace.slug, file)"
                 @delete="handleIconDelete(workspace.slug)"
               />
-              <div class="min-w-0">
+              <div class="min-w-0 flex-1">
                 <template v-if="editingSlug === workspace.slug">
+                  <label :for="`workspace-label-${workspace.slug}`" class="form-label">{{ t('workspaces.label') }}</label>
                   <input
+                    :id="`workspace-label-${workspace.slug}`"
                     v-model="editForm.label"
                     type="text"
-                    class="form-input rounded-lg border-slate-300 text-sm w-48"
+                    class="form-input w-full rounded-lg border-slate-300 text-sm"
                     @keydown.enter.prevent="handleUpdate(workspace.slug)"
                     @keydown.escape="cancelEdit"
                     ref="editInput"
                   />
                 </template>
                 <template v-else>
-                  <span class="font-medium text-slate-900">{{
+                  <div class="flex flex-wrap items-center gap-2">
+                  <span class="break-words font-medium text-slate-900">{{
                     workspace.label
                   }}</span>
                   <span
                     v-if="workspace.slug === activeWorkspace"
-                    class="badge badge-dot ml-2 bg-theme-50 text-theme-700 ring-theme-600/20"
+                    class="badge badge-dot bg-theme-50 text-theme-700 ring-theme-600/20"
                   >
                     {{ t("workspaces.active") }}
                   </span>
                   <span
                     v-if="workspace.default"
-                    class="badge ml-2 bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                    class="badge bg-emerald-50 text-emerald-700 ring-emerald-600/20"
                   >
                     {{ t("workspaces.default") }}
                   </span>
+                  </div>
                 </template>
-                <div class="text-xs text-slate-400 font-mono mt-0.5">
+                <div class="mt-1 break-all font-mono text-xs text-slate-400">
                   {{ workspace.slug }}
                 </div>
               </div>
             </div>
 
-            <div class="flex items-center gap-2 shrink-0">
-              <template v-if="editingSlug === workspace.slug">
-                <button
-                  @click="handleUpdate(workspace.slug)"
-                  :disabled="saving"
-                  class="btn-primary text-xs"
-                >
-                  {{ saving ? t("common.saving") : t("workspaces.save") }}
-                </button>
-                <button @click="cancelEdit" class="btn-secondary btn-sm">
-                  {{ t("common.cancel") }}
-                </button>
-              </template>
-              <template v-else>
+            <div v-if="editingSlug !== workspace.slug" class="flex flex-wrap items-center gap-2 sm:justify-end">
                 <button
                   v-if="auth.can('workspaces.manage')"
                   @click="startEdit(workspace)"
@@ -198,15 +191,23 @@
                 >
                   {{ t("workspaces.archive") }}
                 </button>
-              </template>
             </div>
           </div>
-          <p
-            v-if="editError && editingSlug === workspace.slug"
-            class="mt-2 text-sm text-red-600"
+          <form
+            v-if="editingSlug === workspace.slug"
+            class="mt-5 space-y-5 border-t border-slate-100 pt-5"
+            @submit.prevent="handleUpdate(workspace.slug)"
           >
-            {{ editError }}
-          </p>
+            <p v-if="editError" class="text-sm text-red-600" role="alert">{{ editError }}</p>
+            <div class="flex flex-wrap justify-end gap-2">
+              <button type="button" @click="cancelEdit" class="btn-secondary">
+                {{ t("common.cancel") }}
+              </button>
+              <button type="submit" :disabled="saving" class="btn-primary">
+                {{ saving ? t("common.saving") : t("workspaces.save") }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </template>
@@ -225,14 +226,15 @@
 </template>
 
 <script setup>
-import PageHeader from "../components/PageHeader.vue";
 import { ADMIN_API_BASE } from "../basePath.js";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
-import AvatarUpload from "../components/AvatarUpload.vue";
-import ConfirmModal from "../components/ConfirmModal.vue";
-import LoadingSpinner from "../components/LoadingSpinner.vue";
+import AvatarUpload from "./AvatarUpload.vue";
+import ConfirmModal from "./ConfirmModal.vue";
+import LoadingSpinner from "./LoadingSpinner.vue";
 import { api, getActiveWorkspace, setDefaultWorkspace } from "../api/index.js";
+import { useSiteStore } from "../stores/site.js";
+import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { buildAdminApiUrl } from "../composables/apiEndpoint.js";
@@ -243,6 +245,8 @@ import { installStarterFonts } from "../composables/starterFonts.js";
 
 const toast = useToastStore();
 const auth = useAuthStore();
+const siteStore = useSiteStore();
+const contentTypesStore = useContentTypesStore();
 const { t } = useI18n();
 const apiEndpointStore = useApiEndpointStore();
 const apiEndpointOwner = "workspaces";
@@ -370,7 +374,9 @@ async function handleUpdate(slug) {
   editError.value = "";
   saving.value = true;
   try {
-    await api.workspaces.update(slug, { label: editForm.value.label });
+    await api.workspaces.update(slug, editForm.value);
+    // The website settings carry the workspace label along when saving languages.
+    if (slug === getActiveWorkspace()) { siteStore.invalidate(); contentTypesStore.invalidate(); }
     toast.success(t("workspaces.updated"));
     editingSlug.value = null;
     await load();

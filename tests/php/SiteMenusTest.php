@@ -11,7 +11,7 @@ use CometCMS\Site\SiteRepository;
 
 function comet_menu_test_item(string $id, array $children = [], array $link = ['type' => 'home']): array
 {
-    return ['id' => $id, 'label' => $id, 'labels' => ['de' => 'DE ' . $id], 'link' => $link, 'children' => $children];
+    return ['id' => $id, 'label' => ['type' => 'localized', 'values' => ['en' => $id, 'de' => 'DE ' . $id]], 'link' => $link, 'children' => $children];
 }
 
 function comet_menu_test_chain(int $levels): array
@@ -150,7 +150,7 @@ test('menus preserve five levels with IDs labels links and sibling order after r
     $node = $saved[0]['items'][0];
     for ($level = 5; $level > 0; $level--) {
         assert_same('level' . $level, $node['id']);
-        assert_same('DE level' . $level, $node['labels']['de']);
+        assert_same('DE level' . $level, $node['label']['values']['de']);
         assert_same('home', $node['link']['type']);
         if ($level > 1) $node = $node['children'][0];
     }
@@ -203,7 +203,9 @@ test('published menus render independent disclosures and localized prefixed anch
     (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'languages', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
     $site = new SiteRepository();
     $site->saveSettings(['enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en', 'routes' => ['blog' => ['enabled' => true], 'about' => ['enabled' => true]]]);
+    (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'blog', 'locales' => ['en', 'de']]);
     $entry = ContentRepository::make()->findByIdentifier('blog', 'hello');
+    ContentRepository::make()->save('blog', ['locale' => 'de', 'title' => 'Hallo', 'slug' => 'hello', 'status' => 'published'], comet_site_test_user(), $entry['id']);
     ContentRepository::make()->save('blog', ['title' => 'Future', 'slug' => 'future', 'status' => 'published', 'published_at' => gmdate('c', time() + 86400)], comet_site_test_user());
     $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [
         comet_menu_test_item('home', [comet_menu_test_chain(4)], ['type' => 'home', 'anchor' => '#intro']),

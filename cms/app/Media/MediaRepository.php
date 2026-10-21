@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace CometCMS\Media;
 
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
+
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -483,6 +486,7 @@ final class MediaRepository
             'alt'         => $fileMeta['alt'] ?? '',
             'title'       => $fileMeta['title'] ?? '',
             'visibility'  => $fileMeta['visibility'] ?? 'public',
+            'revision' => LocalizedValue::hash($fileMeta),
         ];
     }
 
@@ -507,7 +511,16 @@ final class MediaRepository
         $this->writeMetadata($metadata);
     }
 
-    public function updateMeta(string $file, string $alt, string $title): ?array
+    public function updateMeta(string $file, mixed $alt, mixed $title, ?string $revision = null): ?array
+    {
+        return (new \CometCMS\Storage\JsonStore($this->workspace->path('media-meta')))->synchronized(function () use ($file, $alt, $title, $revision): ?array {
+            $current = $this->find($file);
+            if ($current !== null && $revision !== null && $revision !== $current['revision']) throw new \CometCMS\Core\ConflictException();
+            return $this->updateMetaUnlocked($file, $alt, $title);
+        }, 'metadata');
+    }
+
+    private function updateMetaUnlocked(string $file, mixed $alt, mixed $title): ?array
     {
         $file = basename(rawurldecode($file));
         $path = $this->path($file);
@@ -516,8 +529,10 @@ final class MediaRepository
             return null;
         }
 
-        $alt   = substr(trim($alt), 0, 500);
-        $title = substr(trim($title), 0, 500);
+        $normalize = static fn(mixed $value): string => is_scalar($value) ? substr(trim((string) $value), 0, 500) : '';
+        $locales = (new LanguageSettings($this->workspace))->all()['locales'];
+        $alt = LocalizedValue::normalize($alt, $normalize, $locales);
+        $title = LocalizedValue::normalize($title, $normalize, $locales);
 
         $metadata = $this->metadata();
         $metadata['files'][$file] ??= [];
@@ -1222,10 +1237,10 @@ final class MediaRepository
                     $entry['uploaded_at'] = (string) $item['uploaded_at'];
                 }
                 if (isset($item['alt']) && $item['alt'] !== '') {
-                    $entry['alt'] = (string) $item['alt'];
+                    $entry['alt'] = LocalizedValue::normalize($item['alt'], static fn(mixed $v): string => is_scalar($v) ? substr(trim((string) $v), 0, 500) : '', (new LanguageSettings($this->workspace))->all()['locales']);
                 }
                 if (isset($item['title']) && $item['title'] !== '') {
-                    $entry['title'] = (string) $item['title'];
+                    $entry['title'] = LocalizedValue::normalize($item['title'], static fn(mixed $v): string => is_scalar($v) ? substr(trim((string) $v), 0, 500) : '', (new LanguageSettings($this->workspace))->all()['locales']);
                 }
                 if (isset($item['visibility']) && $item['visibility'] === 'private') {
                     $entry['visibility'] = 'private';

@@ -60,6 +60,22 @@ final class JsonStore
         rename($tmp, $path);
     }
 
+    /** Serialize read/modify/write operations, including optimistic revision checks. */
+    public function synchronized(callable $operation, string ...$segments): mixed
+    {
+        $directory = COMET_STORAGE . '/locks';
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) throw new \RuntimeException('Cannot create lock directory.');
+        $handle = fopen($directory . '/' . hash('sha256', $this->root . '/' . implode('/', $segments)) . '.lock', 'c');
+        if ($handle === false) throw new \RuntimeException('Cannot open storage lock.');
+        try {
+            if (!flock($handle, LOCK_EX)) throw new \RuntimeException('Cannot lock storage.');
+            return $operation();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
     public function delete(string ...$segments): void
     {
         $path = $this->path(...$segments) . '.json';

@@ -17,42 +17,40 @@
     >
       <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" />
       <span class="flex-1">{{ t("site.typeCard.siteOff") }}</span>
-      <router-link to="/page-builder/overview" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
+      <router-link to="/website/general" class="font-medium underline">{{ t("site.typeCard.openWebsite") }}</router-link>
     </div>
 
     <template v-if="editable && route.enabled">
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div class="grid grid-cols-1 gap-5" :class="singleton ? 'max-w-3xl' : 'md:grid-cols-2'">
         <div>
-          <label class="form-label" for="type-route-pattern">{{ singleton ? t("site.pages.pageUrl") : t("site.pages.entryUrl") }}</label>
-          <input
+          <LocalizedInput
             id="type-route-pattern"
-            :value="route.pattern"
-            type="text"
-            class="form-input w-full rounded-lg font-mono text-sm"
-            :class="errors.pattern ? 'border-red-400' : 'border-slate-300'"
-            @input="update({ pattern: $event.target.value })"
+            :label="singleton ? t('site.pages.pageUrl') : t('site.pages.entryUrl')"
+            :model-value="route.pattern"
+            class="w-full"
+            :invalid="!!errors.pattern"
+            @update:model-value="(value) => update({ pattern: value })"
           />
           <p v-if="errors.pattern" class="mt-1 text-xs text-red-600">{{ errors.pattern }}</p>
           <p v-else class="mt-1 text-xs text-slate-500">{{ singleton ? t("site.pages.pageUrlHint") : t("site.pages.entryUrlHint") }}</p>
         </div>
 
         <div v-if="!singleton">
-          <label class="form-label" for="type-route-index">{{ t("site.pages.listUrl") }}</label>
-          <input
+          <LocalizedInput
             id="type-route-index"
-            :value="route.index_path"
-            type="text"
-            class="form-input w-full rounded-lg font-mono text-sm"
-            :class="errors.index_path ? 'border-red-400' : 'border-slate-300'"
+            :label="t('site.pages.listUrl')"
+            :model-value="route.index_path"
+            class="w-full"
+            :invalid="!!errors.index_path"
             :placeholder="t('site.pages.listUrlNone')"
-            @input="update({ index_path: $event.target.value })"
+            @update:model-value="(value) => update({ index_path: value })"
           />
           <p v-if="errors.index_path" class="mt-1 text-xs text-red-600">{{ errors.index_path }}</p>
           <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.listUrlHint") }}</p>
         </div>
       </div>
 
-      <details class="group">
+      <details class="group border-t border-slate-100 pt-4">
         <summary class="cursor-pointer list-none text-sm font-medium text-slate-600 hover:text-slate-900">
           <Icon icon="mdi:chevron-right" class="-ml-1 inline h-4 w-4 transition-transform group-open:rotate-90" />
           {{ t("site.pages.seo") }}
@@ -60,7 +58,7 @@
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div v-if="!singleton">
             <label class="form-label" for="type-route-index-title">{{ t("site.pages.listTitle") }}</label>
-            <input id="type-route-index-title" :value="route.index_title" type="text" class="form-input w-full rounded-lg border-slate-300 text-sm" :placeholder="label" @input="update({ index_title: $event.target.value })" />
+            <LocalizedInput id="type-route-index-title" :model-value="route.index_title" class="w-full" :placeholder="label" @update:model-value="(value) => update({ index_title: value })" />
           </div>
           <div>
             <label class="form-label" for="type-route-description">{{ t("site.pages.descriptionField") }}</label>
@@ -87,6 +85,9 @@
 </template>
 
 <script setup>
+import LocalizedInput from "../LocalizedInput.vue";
+import { resolveLocalized } from "../../composables/localizedValues.js";
+import { useLanguages } from "../../composables/useLanguages.js";
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
 import ToggleSwitch from "../ToggleSwitch.vue";
@@ -113,10 +114,12 @@ const route = computed(() => props.modelValue ?? props.status?.types?.[props.nam
 const editable = computed(() => !!props.modelValue && !!props.status?.can_manage && props.visibility !== "private");
 
 // Follow the current route, including changes not yet saved.
+const languages = useLanguages();
+const pathText = (value) => resolveLocalized(value, languages.defaultLocale.value, languages.defaultLocale.value);
 const summary = computed(() => {
   if (props.visibility === "private") return t("site.typeCard.private");
   if (route.value.enabled || route.value.pages_enabled) {
-    const where = props.singleton || !route.value.index_path ? route.value.pattern : `${route.value.index_path} · ${route.value.pattern}`;
+    const where = props.singleton || !pathText(route.value.index_path) ? pathText(route.value.pattern) : `${pathText(route.value.index_path)} · ${pathText(route.value.pattern)}`;
     return `${t("site.typeCard.published")} ${where}`;
   }
   return t("site.typeCard.notPublished");

@@ -184,7 +184,7 @@ const gettingStartedSteps = computed(() => {
       title: t("dashboard.start.connectTitle"),
       body: t("dashboard.start.connectBody"),
       done: false,
-      to: "/page-builder/overview",
+      to: "/website/general",
     },
   ];
 });

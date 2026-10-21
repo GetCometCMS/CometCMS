@@ -4,7 +4,7 @@
     class="!p-5"
     :title="t('site.builderCta.title')"
     :description="t(status.homepage_editor ? 'site.builderCta.description' : 'dashboard.site.noHomepage')"
-    :to="status.homepage_editor || '/page-builder/overview#homepage'"
+    :to="status.homepage_editor || '/website/general#homepage'"
     :action-label="t(status.homepage_editor ? 'site.builderCta.open' : 'dashboard.site.chooseHomepage')"
   />
 </template>

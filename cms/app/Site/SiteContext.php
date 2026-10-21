@@ -6,6 +6,7 @@ namespace CometCMS\Site;
 
 use CometCMS\Content\ContentRepository;
 use CometCMS\Media\MediaRepository;
+use CometCMS\Localization\LocalizedValue;
 
 /**
  * Everything one website render needs: configuration, content access, URL
@@ -62,7 +63,10 @@ final class SiteContext
 
     public function settings(): array
     {
-        return $this->overrides['settings'] ?? $this->site->settings();
+        $raw = $this->overrides['settings'] ?? $this->site->settings();
+        $resolved = LocalizedValue::tree($raw, $this->locale ?: $this->defaultLocale(), $this->defaultLocale());
+        foreach ($raw as $key => $value) if (LocalizedValue::is($value)) $resolved['_localized'][$key] = true;
+        return $resolved;
     }
 
     public function theme(): array
@@ -72,7 +76,7 @@ final class SiteContext
 
     public function menus(): array
     {
-        return $this->overrides['menus'] ?? $this->site->menus();
+        return LocalizedValue::tree($this->overrides['menus'] ?? $this->site->menus(), $this->htmlLang(), $this->defaultLocale());
     }
 
     public function menu(string $name): ?array
@@ -125,7 +129,9 @@ final class SiteContext
             $this->formCache[$id] = $this->forms()->find($id);
         }
 
-        return $this->formCache[$id];
+        $form = LocalizedValue::tree($this->formCache[$id], $this->htmlLang(), $this->defaultLocale());
+        if ($form !== null) foreach ($this->formCache[$id] as $key => $value) if (LocalizedValue::is($value)) $form['_localized'][$key] = true;
+        return $form;
     }
 
     public function forms(): FormRepository
@@ -148,7 +154,7 @@ final class SiteContext
 
     public function type(string $name): ?array
     {
-        return $this->site->types()[$name] ?? null;
+        return LocalizedValue::tree($this->site->types()[$name] ?? null, $this->htmlLang(), $this->defaultLocale());
     }
 
     /** Public content types can be shown; private ones never leave the API. */
@@ -163,12 +169,12 @@ final class SiteContext
     {
         $route = $this->settings()['routes'][$type] ?? null;
 
-        return is_array($route) && $route['enabled'] && $this->isPublicType($type) ? $route : null;
+        return is_array($route) && $route['enabled'] && $this->isPublicType($type) && in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true) ? $route : null;
     }
 
     public function defaultLocale(): string
     {
-        return (string) ($this->settings()['default_locale'] ?? '');
+        return (string) (($this->overrides['settings'] ?? $this->site->settings())['default_locale'] ?? 'en');
     }
 
     /** @return list<string> */
@@ -220,7 +226,7 @@ final class SiteContext
             return null;
         }
 
-        if (($home['type'] ?? '') === $type && (!empty($schema['singleton']) || ($home['entry'] ?? '') === $slug)) {
+        if (($home['type'] ?? '') === $type && (!empty($schema['singleton']) || ($home['entry'] ?? '') === ($entry['uid'] ?? $entry['id']))) {
             return '/';
         }
 
@@ -234,9 +240,14 @@ final class SiteContext
 
     public function entryUrl(string $type, array $entry, ?string $locale = null): ?string
     {
-        $path = $this->entryPath($type, $entry);
-
-        return $path === null ? null : $this->path($path, $locale);
+        $before = $this->locale;
+        $this->locale = $locale ?? ($this->locale ?: $this->defaultLocale());
+        try {
+            if (!in_array($this->locale, $this->locales(), true)) return null;
+            $entry = $this->content->resolveLocaleFields($entry, $this->locale, !$this->preview);
+            $path = $this->entryPath($type, $entry);
+            return $path === null ? null : $this->path($path, $this->locale);
+        } finally { $this->locale = $before; }
     }
 
     public function indexPath(string $type): ?string
@@ -259,9 +270,13 @@ final class SiteContext
 
     public function indexUrl(string $type, ?string $locale = null): ?string
     {
-        $path = $this->indexPath($type);
-
-        return $path === null ? null : $this->path($path, $locale);
+        $before = $this->locale;
+        $this->locale = $locale ?? ($this->locale ?: $this->defaultLocale());
+        try {
+            if (!in_array($this->locale, $this->locales(), true)) return null;
+            $path = $this->indexPath($type);
+            return $path === null ? null : $this->path($path, $this->locale);
+        } finally { $this->locale = $before; }
     }
 
     public function mediaUrl(string $file, array $query = []): string
@@ -298,13 +313,14 @@ final class SiteContext
             return null;
         }
 
+        if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return null;
         $key = $type . '|' . $identifier . '|' . ($allowHidden ? '1' : '0') . '|' . $this->locale;
         if (array_key_exists($key, $this->entries)) {
             return $this->entries[$key];
         }
 
-        $entry = $this->content->findByIdentifier($type, $identifier);
-        if ($entry !== null && !$allowHidden && !$this->content->isPubliclyVisible($entry)) {
+        $entry = $this->content->findByIdentifier($type, $identifier, false, $this->locale);
+        if ($entry !== null && !$allowHidden && !$this->content->isPubliclyVisible($entry, $this->locale ?: $this->defaultLocale())) {
             $entry = null;
         }
 
@@ -327,8 +343,8 @@ final class SiteContext
             return ['data' => [], 'total' => 0];
         }
 
-        $schema = $this->type($type);
-        if ($this->locale !== '' && in_array($this->locale, (array) ($schema['locales'] ?? []), true)) {
+        if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return ['data' => [], 'total' => 0];
+        if ($this->locale !== '') {
             $params['locale'] = $this->locale;
         }
 
@@ -339,13 +355,11 @@ final class SiteContext
 
     public function localize(string $type, array $entry): array
     {
-        $schema = $this->type($type);
-
-        if ($this->locale !== '' && in_array($this->locale, (array) ($schema['locales'] ?? []), true)) {
-            return $this->content->resolveLocaleFields($entry, $this->locale);
+        if ($this->locale !== '' && in_array($this->locale, $this->locales(), true)) {
+            return $this->content->resolveLocaleFields($entry, $this->locale, !$this->preview);
         }
 
-        return $entry;
+        return $this->content->resolveLocaleFields($entry, $this->defaultLocale(), !$this->preview);
     }
 
     /** Public media metadata, or null for missing and private files. */
@@ -362,7 +376,7 @@ final class SiteContext
             $this->mediaItems[$file] = $item !== null && ($item['visibility'] ?? 'public') !== 'private' ? $item : null;
         }
 
-        return $this->mediaItems[$file];
+        return LocalizedValue::tree($this->mediaItems[$file], $this->htmlLang(), $this->defaultLocale());
     }
 
     public function variantDescriptor(string $file): ?array

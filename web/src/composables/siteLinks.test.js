@@ -41,7 +41,7 @@ describe('website destinations', () => {
   })
 
   it('uses localized titles and stable identifiers, falling back for legacy content', () => {
-    expect(entryTitle({ title: 'About', translations: { de: { title: 'Über uns' } } }, 'de')).toBe('Über uns')
+    expect(entryTitle({ title: 'About', values: { title: { type: 'localized', values: { en: 'About', de: 'Über uns' } } } }, 'de')).toBe('Über uns')
     expect(entryIdentifier({ uid: 'stable', slug: 'changed', id: 'old' })).toBe('stable')
     expect(entryIdentifier({ slug: 'legacy', id: 'old' })).toBe('legacy')
   })

@@ -62,7 +62,7 @@ final class SiteService
                 continue;
             }
 
-            foreach ($this->ctx->content->all($name) as $entry) {
+            foreach ($this->ctx->content->all($name) as $rawEntry) foreach ($rawEntry['publication'] as $entry) {
                 if (($entry['status'] ?? '') !== 'published') {
                     continue;
                 }
@@ -185,9 +185,7 @@ final class SiteService
             return null;
         }
 
-        if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
-            $this->ctx->locale = $locale;
-        }
+        $this->ctx->locale = $this->ctx->content->locale($locale);
 
         $entry = $this->ctx->findEntry($type, $identifier, true);
 
@@ -206,13 +204,13 @@ final class SiteService
         if (!empty($type['singleton'])) {
             $entry = $this->ctx->singletonEntry($home['type']);
 
-            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
+            return $entry !== null ? $this->html($renderer->entryPage($type, $entry, $page)) : ($this->ctx->locale === $this->ctx->defaultLocale() ? $this->html($renderer->autoHome()) : $this->notFound($renderer, '/'));
         }
 
         if ($home['entry'] !== '') {
             $entry = $this->ctx->findEntry($home['type'], $home['entry']);
 
-            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
+            return $entry !== null ? $this->html($renderer->entryPage($type, $entry, $page)) : ($this->ctx->locale === $this->ctx->defaultLocale() ? $this->html($renderer->autoHome()) : $this->notFound($renderer, '/'));
         }
 
         return $this->html($renderer->indexPage($type, $page));
@@ -247,16 +245,15 @@ final class SiteService
 
         foreach ($locales as $locale) {
             $this->ctx->locale = $locale;
-            $urls[$this->ctx->homeUrl($locale)] = null;
+            $home = $this->ctx->settings()['homepage'];
+            if ($home['type'] !== '') {
+                $homeEntry = $home['entry'] !== '' ? $this->ctx->findEntry($home['type'], $home['entry']) : (!empty($this->ctx->type($home['type'])['singleton']) ? $this->ctx->singletonEntry($home['type']) : null);
+                if ($homeEntry !== null || (empty($this->ctx->type($home['type'])['singleton']) && $home['entry'] === '')) $urls[$this->ctx->homeUrl($locale)] = null;
+            }
 
             foreach ($this->ctx->site->types() as $name => $type) {
                 $route = $this->ctx->route($name);
                 if ($route === null || !$route['sitemap']) {
-                    continue;
-                }
-
-                $typeLocales = (array) ($type['locales'] ?? []);
-                if ($locale !== '' && $typeLocales !== [] && !in_array($locale, $typeLocales, true)) {
                     continue;
                 }
 
@@ -265,7 +262,7 @@ final class SiteService
                     $urls[$index] ??= null;
                 }
 
-                foreach ($this->ctx->content->query($name, [], false)['data'] as $entry) {
+                foreach ($this->ctx->content->query($name, ['locale' => $locale], false)['data'] as $entry) {
                     $url = $this->ctx->entryUrl($name, $entry, $locale);
                     if ($url !== null) {
                         $urls[$url] = (string) ($entry['updated_at'] ?? '');

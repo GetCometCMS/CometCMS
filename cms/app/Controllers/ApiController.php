@@ -182,7 +182,6 @@ final class ApiController
             $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
         }
         $schema = $this->types->find($name);
-        $this->content->syncLocalization($name, $schema);
         $this->cache->clear();
         (new Logger())->info('content_type.updated', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->response->data($schema);
@@ -250,9 +249,10 @@ final class ApiController
             }
         }
 
-        $entry = $this->content->findByIdentifier($collection, $id, $user !== null);
+        $locale = $this->content->locale((string) ($_GET['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($collection, $id, $user !== null, $locale);
 
-        if ($entry === null || ($user === null && !$this->content->isPubliclyVisible($entry))) {
+        if ($entry === null || ($user === null && !$this->content->isPubliclyVisible($entry, $locale))) {
             $this->response->error('not_found', 'Content entry not found.', 404);
         }
 
@@ -262,12 +262,7 @@ final class ApiController
 
         $this->readPrincipal = $user;
 
-        $locale = (string) ($_GET['locale'] ?? '');
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $entry = $this->content->resolveLocaleFields($entry, $locale);
-        }
+        $entry = $this->content->resolveLocaleFields($entry, $locale, $user === null);
 
         $entry = $this->content->expandRelations($entry, $collection, $this->includeFields(), $locale);
         $body = ['data' => $this->publicEntry($entry, $collection, $user !== null)];
@@ -278,7 +273,8 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $user = $this->requireToken('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $user = $this->requireToken('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishToken($user, $collection, null, $body);
 
         try {
@@ -294,14 +290,16 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $existing = $this->content->findByIdentifier($collection, $id, true);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $existing = $this->content->findByIdentifier($collection, $id, true, $body['locale']);
 
         if ($existing === null) {
             $this->response->error('not_found', 'Content entry not found.', 404);
         }
 
+        $existing = $this->content->resolveLocaleFields($existing, $body['locale']);
         try {
-            $user = $this->requireToken('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+            $user = $this->requireToken('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
             $this->requirePublishToken($user, $collection, $existing, $body);
             $entry = $this->content->save($collection, $body, $user, (string) $existing['id'], true);
         } catch (ValidationException $e) {
@@ -314,7 +312,7 @@ final class ApiController
     public function contentDelete(string $collection, string $id): never
     {
         $this->requireCollection($collection);
-        $entry = $this->content->findByIdentifier($collection, $id, true);
+        $entry = $this->content->findByIdentifier($collection, $id, true, (string) ($_GET['locale'] ?? ''));
 
         if ($entry === null) {
             $this->response->error('not_found', 'Content entry not found.', 404);
@@ -515,7 +513,7 @@ final class ApiController
     {
         $this->requireToken('media.update', $this->media->permissionContext(rawurldecode($file)));
         $body = $this->http->requestJson();
-        $item = $this->media->updateMeta($file, (string) ($body['alt'] ?? ''), (string) ($body['title'] ?? ''));
+        $item = $this->media->updateMeta($file, $body['alt'] ?? '', $body['title'] ?? '', $body['revision'] ?? null);
 
         if ($item === null) {
             $this->response->error('not_found', 'Media file not found.', 404);
@@ -655,6 +653,8 @@ final class ApiController
             'id' => $this->content->stableId($entry),
             'slug' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
             'type' => $collection,
+            'locale' => $entry['locale'],
+            'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
             'published_at' => $entry['published_at'] ?? null,
@@ -753,6 +753,9 @@ final class ApiController
 
     private function publicMediaItem(array $file): array
     {
+        $languages = (new \CometCMS\Localization\LanguageSettings($this->workspace))->all();
+        $locale = (new \CometCMS\Localization\LanguageSettings($this->workspace))->requireLocale((string) ($_GET['locale'] ?? ''));
+        $file = \CometCMS\Localization\LocalizedValue::tree($file, $locale, $languages['default_locale']);
         $variantDescriptor = $this->media->variantDescriptor((string) $file['name']);
         $variants = null;
 
@@ -785,6 +788,7 @@ final class ApiController
             'uploaded_at' => $file['uploaded_at'] ?? null,
             'width' => $file['width'] ?? null,
             'height' => $file['height'] ?? null,
+            'revision' => $file['revision'],
             'alt' => $file['alt'] ?? '',
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
@@ -894,7 +898,7 @@ final class ApiController
             return $value;
         }
 
-        $entry = $this->content->find($target, (string) $value);
+        $entry = $this->content->findByIdentifier($target, (string) $value);
 
         if ($entry === null) {
             return (string) $value;
@@ -1071,7 +1075,7 @@ final class ApiController
 
     private function payloadFields(array $payload): array
     {
-        return array_values(array_diff(array_keys($payload), ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale']));
+        return array_values(array_unique(array_merge((array) ($payload['reset_fields'] ?? []), array_diff(array_keys($payload), ['revision', 'reset_fields', 'id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'values', 'publication', 'revision', 'reset_fields', 'locale']))));
     }
 
     private function requirePublishToken(array $user, string $collection, ?array $entry, array $payload): void
@@ -1080,7 +1084,7 @@ final class ApiController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug()])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

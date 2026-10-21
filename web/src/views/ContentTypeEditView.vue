@@ -172,56 +172,6 @@
         @touched="routeTouched = true"
       />
 
-      <!-- Localization -->
-      <div class="card p-6 space-y-4">
-        <div>
-          <h2 class="card-title">
-            {{ t("contentTypeEdit.localization") }}
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">
-            {{ t("contentTypeEdit.localizationHint") }}
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
-            <SearchableSelect
-              v-model="form.locales"
-              :options="LOCALE_OPTIONS"
-              :multiple="true"
-              :searchable="true"
-              :placeholder="t('contentTypeEdit.searchLocales')"
-            />
-          </div>
-
-          <div>
-            <label class="form-label">{{
-              t("contentTypeEdit.defaultLocale")
-            }}</label>
-            <SearchableSelect
-              v-model="form.default_locale"
-              :options="selectedLocaleOptions"
-              :disabled="form.locales.length === 0"
-              :placeholder="t('contentTypeEdit.addLocalesFirst')"
-            />
-            <p
-              v-if="form.locales.length > 0"
-              class="mt-1 text-xs text-slate-500"
-            >
-              {{ t("contentTypeEdit.defaultLocaleHint") }}
-            </p>
-          </div>
-        </div>
-
-        <div
-          v-if="localizationChanged"
-          class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-        >
-          {{ t("contentTypeEdit.localizationWarning") }}
-        </div>
-      </div>
-
       <!-- Custom content fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
@@ -325,10 +275,8 @@ import IconPickerGrid from "../components/IconPickerGrid.vue";
 import ToggleSwitch from "../components/ToggleSwitch.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
-import SearchableSelect from "../components/SearchableSelect.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
-import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -365,36 +313,8 @@ const form = ref({
   api_enabled: false,
   allow_submissions: false,
   submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
-  locales: [],
-  default_locale: "",
   fields: {},
 });
-const originalLocalization = ref({ locales: [], default_locale: "" });
-
-// Derived option list for the default_locale select (only chosen locales)
-const selectedLocaleOptions = computed(() =>
-  LOCALE_OPTIONS.filter((o) => form.value.locales.includes(o.value)),
-);
-const localizationChanged = computed(() => {
-  if (isNew.value) return false;
-  return (
-    JSON.stringify([...form.value.locales].sort()) !==
-      JSON.stringify([...originalLocalization.value.locales].sort()) ||
-    form.value.default_locale !== originalLocalization.value.default_locale
-  );
-});
-
-// Auto-set default_locale when locales change; clear it if it's no longer in the list
-watch(
-  () => form.value.locales,
-  (locales) => {
-    if (locales.length === 0) {
-      form.value.default_locale = "";
-    } else if (!locales.includes(form.value.default_locale)) {
-      form.value.default_locale = locales[0];
-    }
-  },
-);
 // While creating a type, derive the API name from the label until it is edited by hand.
 const nameTouched = ref(false);
 watch(
@@ -576,10 +496,6 @@ onMounted(async () => {
         api_enabled: type.visibility !== "private" && !!type.api_enabled,
         submission_settings: type.submission_settings,
       };
-      originalLocalization.value = {
-        locales: Array.isArray(type.locales) ? [...type.locales] : [],
-        default_locale: type.default_locale ?? "",
-      };
 
       // Strip built-in fields; only show the extras in the builder.
       const builtins = new Set(["title", "slug"]);
@@ -652,8 +568,9 @@ async function handleSave() {
       }
     }
 
+    const { locales, default_locale, ...schema } = form.value;
     const payload = {
-      ...form.value,
+      ...schema,
       fields,
       ...(!isNew.value && migrations.length ? { migrations } : {}),
     };
@@ -667,12 +584,9 @@ async function handleSave() {
       // If the website settings were rejected, continue on the new type to fix them.
       router.push(websiteSaved ? "/content-types" : `/content-types/${name}/edit#website`);
     } else {
-      await api.contentTypes.update(route.params.name, payload);
+      const response = await api.contentTypes.update(route.params.name, payload);
+      form.value.revision = response.data.revision;
       toast.success(t("contentTypeEdit.updated"));
-      originalLocalization.value = {
-        locales: [...form.value.locales],
-        default_locale: form.value.default_locale,
-      };
       await saveWebsiteRoute(route.params.name);
     }
 

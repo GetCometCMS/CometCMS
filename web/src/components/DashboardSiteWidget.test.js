@@ -28,7 +28,7 @@ describe('dashboard website widget', () => {
     expect(html).toContain('page-builder-cta')
     expect(html).toContain('Page Builder')
     expect(html).toContain('No homepage is set up yet.')
-    expect(html).toContain('href="/page-builder/overview#homepage"')
+    expect(html).toContain('href="/website/general#homepage"')
     expect(html).toContain('Choose homepage')
   })
 

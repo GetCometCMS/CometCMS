@@ -228,7 +228,7 @@
               <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer group" :class="selectedIds.has(entry.id)
                 ? '!bg-theme-50 hover:!bg-theme-100'
                 : ''
-                " @click="router.push(`/content/${collection}/${entry.id}`)">
+                " @click="router.push(`/content/${collection}/${entry.uid || entry.id}`)">
                 <td v-if="canSelectEntries" class="w-10 !px-3" @click.stop>
                   <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
@@ -244,7 +244,7 @@
                       <template v-if="column.key === 'title'">
                         <span class="inline-flex items-center gap-1.5">
                           {{ entry.title ?? entry.id }}
-                          <Icon v-if="homepageEntry && homepageEntry === (entry.slug ?? entry.id)"
+                          <Icon v-if="homepageEntry && homepageEntry === (entry.uid ?? entry.id)"
                             icon="mdi:home" class="h-3.5 w-3.5 shrink-0 text-slate-400"
                             role="img" :aria-label="t('site.overview.homepage')"
                             :title="t('site.overview.homepage')" />
@@ -453,6 +453,7 @@ import { usePermissions } from "../composables/usePermissions.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { contentCollectionEndpoint } from "../composables/apiEndpoint.js";
+import { resolveLocalizedTree } from "../composables/localizedValues.js";
 import { useI18n } from "../i18n/index.js";
 import {
   localeFlagCountry,
@@ -554,7 +555,7 @@ async function loadContentType() {
 
   try {
     const res = await api.contentTypes.get(collection.value);
-    contentTypeSchema.value = res.data;
+    contentTypeSchema.value = resolveLocalizedTree(res.data, res.data.default_locale, res.data.default_locale);
 
     if (res.data?.singleton) {
       return;
@@ -932,8 +933,9 @@ async function handleInlineSave({ entryId, fieldKey, value }) {
   savingCell.value = cellKey;
 
   try {
-    const res = await api.content.update(collection.value, entryId, {
-      [fieldKey]: value,
+    const entry = col.value.entries.find((entry) => entry.id === entryId);
+    const res = await api.content.update(collection.value, entry?.uid || entryId, {
+      [fieldKey]: value, locale: entry?.locale, revision: entry?.revision,
     });
     const index = col.value.entries.findIndex((entry) => entry.id === entryId);
     if (index !== -1 && res?.data) {
@@ -1012,9 +1014,9 @@ function entryLabel(count) {
 }
 
 function entryLocaleBadges(entry) {
-  if (!entry?.translations || contentTypeLocales.value.length === 0) return [];
+  if (!entry?.publication || contentTypeLocales.value.length === 0) return [];
   return orderedContentTypeLocales.value.filter((loc) =>
-    Object.prototype.hasOwnProperty.call(entry.translations, loc),
+    Object.prototype.hasOwnProperty.call(entry.publication, loc),
   );
 }
 

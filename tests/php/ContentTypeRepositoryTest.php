@@ -5,6 +5,7 @@ declare(strict_types=1);
 use CometCMS\Content\ContentTypeRepository;
 
 test('content type repository saves normalized schemas', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en-us', 'de-de'], 'default_locale' => 'de-de']);
     $repository = new ContentTypeRepository();
 
     $repository->save([

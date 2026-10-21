@@ -693,6 +693,8 @@ import {
   uploadedMediaFilename,
 } from "../composables/mediaUtils.js";
 import { selectOptions } from "../composables/fieldBuilderUtils.js";
+import { resolveLocalizedTree } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
 const { t } = useI18n();
@@ -700,11 +702,15 @@ const { t } = useI18n();
 const props = defineProps({
   name: { type: String, required: true },
   config: { type: Object, required: true },
+  locale: { type: String, default: "" },
   modelValue: { default: null },
   readonly: { type: Boolean, default: false },
   /** Smaller media thumbnail and buttons, for narrow sidebars. */
   compact: { type: Boolean, default: false },
 });
+
+const languages = useLanguages();
+const config = computed(() => resolveLocalizedTree(props.config, props.locale || languages.defaultLocale.value, languages.defaultLocale.value));
 
 const emit = defineEmits(["update:modelValue"]);
 const pickerOpen = ref(false);
@@ -719,11 +725,11 @@ const richTextMode = ref("visual");
 const richTextToolbar = ref(null);
 
 const isRichTextField = computed(() =>
-  ["markdown", "html"].includes(props.config.type),
+  ["markdown", "html"].includes(config.value.type),
 );
 
 function richTextToEditorHtml(value) {
-  if (props.config.type === "html") {
+  if (config.value.type === "html") {
     return sanitizeHtml(value);
   }
 
@@ -733,7 +739,7 @@ function richTextToEditorHtml(value) {
 function editorStoredValue() {
   const html = sanitizeHtml(editor.value?.getHTML() ?? "");
 
-  if (props.config.type === "html") {
+  if (config.value.type === "html") {
     return html;
   }
 
@@ -760,7 +766,7 @@ const editor = useEditor({
     if (!isRichTextField.value) return;
     if (richTextMode.value === "visual") {
       const value =
-        props.config.type === "html"
+        config.value.type === "html"
           ? sanitizeHtml(editor.getHTML())
           : turndown.turndown(sanitizeHtml(editor.getHTML()));
       if (value !== String(props.modelValue ?? "")) {
@@ -796,7 +802,7 @@ watch(
 watch(
   () => props.modelValue,
   (val) => {
-    if (props.config.type !== "media") return;
+    if (config.value.type !== "media") return;
 
     const normalized = normalizeMediaModel(val);
 
@@ -819,8 +825,8 @@ watch(
 watch(
   () => props.modelValue,
   (val) => {
-    if (!props.config.multiple) return;
-    if (props.config.type !== "relation" && props.config.type !== "select")
+    if (!config.value.multiple) return;
+    if (config.value.type !== "relation" && config.value.type !== "select")
       return;
 
     const normalized = normalizeChoiceValues(val);
@@ -867,21 +873,21 @@ const readonlyMarkdownHtml = computed(() =>
 
 const readonlyHtml = computed(() => sanitizeHtml(props.modelValue));
 
-const rangeMin = computed(() => numberOr(props.config.min, 0));
+const rangeMin = computed(() => numberOr(config.value.min, 0));
 const rangeMax = computed(() =>
-  Math.max(numberOr(props.config.max, 100), rangeMin.value),
+  Math.max(numberOr(config.value.max, 100), rangeMin.value),
 );
 const rangeStep = computed(() => {
-  const step = numberOr(props.config.step, 1);
+  const step = numberOr(config.value.step, 1);
   return step > 0 ? step : 1;
 });
 const rangeValue = computed(() => {
   const fallback =
-    props.config.default === null ||
-    props.config.default === undefined ||
-    props.config.default === ""
+    config.value.default === null ||
+    config.value.default === undefined ||
+    config.value.default === ""
       ? rangeMin.value
-      : props.config.default;
+      : config.value.default;
 
   return clamp(
     numberOr(props.modelValue, numberOr(fallback, rangeMin.value)),
@@ -924,7 +930,7 @@ function formatRangeNumber(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value ?? "");
 
-  const decimals = props.config.display_decimals;
+  const decimals = config.value.display_decimals;
   if (decimals === "full") {
     return String(value);
   }
@@ -1034,7 +1040,7 @@ async function uploadDroppedMedia(files) {
 
     emit(
       "update:modelValue",
-      props.config.multiple ? uploadedNames : uploadedNames.slice(0, 1),
+      config.value.multiple ? uploadedNames : uploadedNames.slice(0, 1),
     );
   } catch (err) {
     mediaUploadError.value = err.message ?? t("fieldInput.uploadFailed");
@@ -1046,7 +1052,7 @@ async function uploadDroppedMedia(files) {
 const mediaValues = computed(() => normalizeMediaValues(props.modelValue));
 const mediaLabel = computed(() => {
   if (mediaValues.value.length === 0) return t("fieldInput.noMedia");
-  if (props.config.multiple)
+  if (config.value.multiple)
     return t(mediaValues.value.length === 1 ? "fieldInput.mediaSelectedOne" : "fieldInput.mediaSelectedMany", { count: mediaValues.value.length });
   return mediaValues.value[0];
 });
@@ -1066,9 +1072,9 @@ const mediaPreviewEmptyTiles = computed(() =>
 );
 const mediaPreviewUrl = computed(() => mediaUrl(mediaPreviewFile.value));
 const mediaPreviewIsImage = computed(() => isImage(mediaPreviewFile.value));
-const selectInputOptions = computed(() => selectOptions(props.config.options));
+const selectInputOptions = computed(() => selectOptions(config.value.options));
 const relationValue = computed(() => {
-  if (props.config.multiple) {
+  if (config.value.multiple) {
     return normalizeChoiceValues(props.modelValue);
   }
 
@@ -1084,7 +1090,7 @@ function normalizeMediaValues(value) {
 }
 
 function normalizeMediaModel(value) {
-  return normalizeMediaModelValue(value, props.config.multiple);
+  return normalizeMediaModelValue(value, config.value.multiple);
 }
 
 function mediaUrl(value) {
@@ -1114,13 +1120,13 @@ function onRelationSearch(q) {
 
 const relationOptions = computed(() =>
   relationEntries.value.map((entry) => ({
-    value: entry.id,
+    value: entry.uid || entry.id,
     label: entry.title || entry.id,
   })),
 );
 
 async function loadRelationEntries() {
-  if (props.config.type !== "relation" || !props.config.target) {
+  if (config.value.type !== "relation" || !config.value.target) {
     relationEntries.value = [];
     return;
   }
@@ -1132,7 +1138,7 @@ async function loadRelationEntries() {
       params.q = relationSearch.value.trim();
     }
 
-    const res = await api.content.list(props.config.target, params);
+    const res = await api.content.list(config.value.target, params);
     relationEntries.value = res.data;
   } finally {
     relationLoading.value = false;
@@ -1142,9 +1148,9 @@ async function loadRelationEntries() {
 onMounted(loadRelationEntries);
 
 watch(
-  () => props.config.target,
+  () => config.value.target,
   () => {
-    emit("update:modelValue", props.config.multiple ? [] : null);
+    emit("update:modelValue", config.value.multiple ? [] : null);
     loadRelationEntries();
   },
 );
@@ -1168,7 +1174,7 @@ const collapsedRows = ref(new Set());
 watch(
   () => props.modelValue,
   (val) => {
-    if (props.config.type !== "repeater") return;
+    if (config.value.type !== "repeater") return;
     // Only sync from outside if it genuinely differs (avoid stomping in-progress edits)
     const external = repeaterRows.value.map(({ _rid, ...r }) => r);
     if (JSON.stringify(external) !== JSON.stringify(val)) {
@@ -1187,7 +1193,7 @@ function emitRepeater() {
 
 function addRepeaterRow() {
   const row = { _rid: ridCounter++ };
-  for (const sub of props.config.subfields ?? []) {
+  for (const sub of config.value.subfields ?? []) {
     row[sub.key] = fieldDefaultValue(sub);
   }
   repeaterRows.value.push(row);
@@ -1214,7 +1220,7 @@ function toggleRepeaterRow(rid) {
 }
 
 function repeaterRowSummary(row) {
-  for (const sub of props.config.subfields ?? []) {
+  for (const sub of config.value.subfields ?? []) {
     const val = row[sub.key];
     if (val === null || val === undefined || val === "") continue;
     if (typeof val === "string")
@@ -1240,7 +1246,7 @@ function updateRepeaterCell(rowIndex, key, value) {
 }
 
 const subFieldGridCols = computed(() => {
-  const count = (props.config.subfields ?? []).length;
+  const count = (config.value.subfields ?? []).length;
   if (count >= 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
   if (count === 2) return "grid-cols-1 sm:grid-cols-2";
   return "grid-cols-1";

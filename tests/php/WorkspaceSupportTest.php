@@ -115,6 +115,7 @@ test('setup controller construction does not create a default workspace before s
 });
 
 test('setup pruning removes empty pre-setup workspaces but keeps workspaces with data', function (): void {
+    unlink(comet_test_workspace_path() . '/languages.json');
     @unlink(COMET_STORAGE . '/settings.json');
     // A request served before setup leaves an empty "default" skeleton behind.
     (new WorkspaceContext('default'))->ensure();

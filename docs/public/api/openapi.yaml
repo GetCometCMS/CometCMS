@@ -59,7 +59,7 @@ components:
       schema:
         type: string
         pattern: "^[A-Za-z0-9_-]+$"
-      description: Locale code for localized content types. Resolves translated values before search, filters, sorting, and relation expansion.
+      description: Workspace language to read. Resolves translated values and publication state before search, filters, sorting, and relations. Unsupported languages return 422.
   schemas:
     Error:
       type: object
@@ -114,6 +114,9 @@ components:
           fields,
         ]
       properties:
+        revision:
+          type: string
+          description: Resource revision for stale-save detection.
         name:
           type: string
         label:
@@ -139,14 +142,20 @@ components:
               enum: [draft, published]
               default: draft
             submit_label:
-              type: string
-              maxLength: 80
+              oneOf:
+                - type: string
+                  maxLength: 80
+                - $ref: "#/components/schemas/LocalizedValue"
             success_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             error_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             captcha:
               type: string
               enum: [none]
@@ -161,10 +170,14 @@ components:
           type: string
         locales:
           type: array
+          readOnly: true
+          description: Workspace languages, used by all content types and the website.
           items:
             type: string
         default_locale:
           type: string
+          readOnly: true
+          description: Workspace default language.
         fields:
           type: object
           description: Field definitions. Supported field types may include a `default` value, which is applied when creating entries with that field omitted.
@@ -199,14 +212,20 @@ components:
               enum: [draft, published]
               default: draft
             submit_label:
-              type: string
-              maxLength: 80
+              oneOf:
+                - type: string
+                  maxLength: 80
+                - $ref: "#/components/schemas/LocalizedValue"
             success_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             error_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             captcha:
               type: string
               enum: [none]
@@ -219,15 +238,12 @@ components:
           additionalProperties:
             type: object
             additionalProperties: true
-        locales:
-          type: array
-          items:
-            type: string
-        default_locale:
-          type: string
     ContentTypeUpdateInput:
       type: object
       properties:
+        revision:
+          type: string
+          description: Resource revision for stale-save detection.
         name:
           type: string
           description: Ignored; the path collection is used.
@@ -253,14 +269,20 @@ components:
               enum: [draft, published]
               default: draft
             submit_label:
-              type: string
-              maxLength: 80
+              oneOf:
+                - type: string
+                  maxLength: 80
+                - $ref: "#/components/schemas/LocalizedValue"
             success_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             error_message:
-              type: string
-              maxLength: 1000
+              oneOf:
+                - type: string
+                  maxLength: 1000
+                - $ref: "#/components/schemas/LocalizedValue"
             captcha:
               type: string
               enum: [none]
@@ -272,15 +294,49 @@ components:
           additionalProperties:
             type: object
             additionalProperties: true
-        locales:
+    LocalizedValue:
+      type: object
+      description: Resource-owned localized text or content. Absent language keys inherit the default; intentional empty values do not inherit. Used by schema presentation metadata and website resources. Entry writes accept ordinary values scoped by locale instead.
+      required: [type, values]
+      properties:
+        type:
+          const: localized
+        values:
+          type: object
+          additionalProperties: true
+        sources:
+          type: object
+          description: Source fingerprints for review indicators, maintained by the editor and server.
+          additionalProperties:
+            type: string
+    EntryWriteInput:
+      type: object
+      additionalProperties: true
+      description: Ordinary field values for one language; omitted fields and other language values are preserved.
+      properties:
+        locale:
+          type: string
+        revision:
+          type: string
+          description: Expected revision from a prior read. A mismatch returns 409.
+        reset_fields:
           type: array
           items:
             type: string
-        default_locale:
+          description: Remove localized overrides and inherit default-language values.
+        title:
           type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, protected, archived]
+        published_at:
+          type: [string, "null"]
+          format: date-time
     Entry:
       type: object
-      required: [id, slug, type, status, title, created_at, updated_at, data]
+      required: [id, slug, type, locale, revision, status, title, created_at, updated_at, data]
       properties:
         id:
           type: string
@@ -290,6 +346,12 @@ components:
           description: Human-readable URL key. May change.
         type:
           type: string
+        locale:
+          type: string
+          description: Requested language, or the workspace default when omitted.
+        revision:
+          type: string
+          description: Send with updates for optimistic concurrency; stale revisions return 409.
         status:
           type: string
           enum: [draft, published, scheduled, protected, archived]
@@ -316,6 +378,9 @@ components:
       required:
         [filename, name, url, thumb_url, size, mime, category, alt, title, visibility, variants]
       properties:
+        revision:
+          type: string
+          description: Resource revision for stale-save detection.
         filename:
           type: string
         name:
@@ -547,6 +612,12 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/ContentType"
+        "409":
+          description: The resource changed since the supplied revision was read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -710,8 +781,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: "#/components/schemas/EntryWriteInput"
       responses:
         "201":
           description: Entry created.
@@ -793,7 +863,7 @@ paths:
     put:
       tags: [Content]
       summary: Update a content entry
-      description: Requires `content.update` on `content:{collection}:{identifier}`. If the payload sets `status` to `published`, also requires `content.publish` on the entry. For localized content types, include `locale` in the JSON body to update that locale variant. Slug, status, author, and publish date remain shared.
+      description: Requires `content.update` on `content:{collection}:{identifier}`. If the payload sets `status` to `published`, also requires `content.publish` on the entry. For localized content types, include `locale` in the JSON body to update that locale variant. Slug, status, and publication date belong to the requested locale. IDs and author remain shared. Include revision to reject stale writes with 409, and reset_fields to remove localized overrides. Omitted fields and other locales are preserved.
       x-required-permission:
         - effect: allow
           actions: [content.update]
@@ -812,8 +882,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: "#/components/schemas/EntryWriteInput"
       responses:
         "200":
           description: Entry updated.
@@ -825,6 +894,12 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/Entry"
+        "409":
+          description: The resource changed since the supplied revision was read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -1454,10 +1529,16 @@ paths:
             schema:
               type: object
               properties:
+                revision:
+                  type: string
                 alt:
-                  type: string
+                  oneOf:
+                    - type: string
+                    - $ref: "#/components/schemas/LocalizedValue"
                 title:
-                  type: string
+                  oneOf:
+                    - type: string
+                    - $ref: "#/components/schemas/LocalizedValue"
       responses:
         "200":
           description: Updated media item.
@@ -1469,6 +1550,12 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/MediaItem"
+        "409":
+          description: The resource changed since the supplied revision was read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -1507,9 +1594,13 @@ paths:
               type: object
               properties:
                 alt:
-                  type: string
+                  oneOf:
+                    - type: string
+                    - $ref: "#/components/schemas/LocalizedValue"
                 title:
-                  type: string
+                  oneOf:
+                    - type: string
+                    - $ref: "#/components/schemas/LocalizedValue"
       responses:
         "200":
           description: Updated media item.

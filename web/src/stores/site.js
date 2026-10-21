@@ -3,14 +3,17 @@ import { computed, ref, watch } from 'vue'
 import { api, getActiveWorkspace } from '../api/index.js'
 import { isSiteLive, menuErrors } from '../composables/siteLinks.js'
 import { DEFAULT_MENU_LIMITS } from '../composables/menuTree.js'
+import { updateWorkspaceLanguages } from '../composables/useLanguages.js'
 import { t } from '../i18n/index.js'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
+/** The workspace languages that the settings carry along (they are saved on the workspace). */
+const languagesOf = (settings) => ({ locales: clone(settings.locales), default_locale: settings.default_locale })
 
 /**
  * Website configuration of the active workspace. `data` is what the server
- * last returned; `draft` holds the editable copies of settings, theme and
- * menus that the Website screen saves together.
+ * last returned; `draft` holds the editable copies of settings, workspace
+ * languages, theme and menus.
  */
 export const useSiteStore = defineStore('site', () => {
   const data = ref(null)
@@ -30,9 +33,10 @@ export const useSiteStore = defineStore('site', () => {
 
   const dirtyParts = computed(() => {
     if (!data.value || !draft.value) return []
-    return ['settings', 'theme', 'menus'].filter(
-      (part) => JSON.stringify(draft.value[part]) !== JSON.stringify(data.value[part]),
-    )
+    return ['languages', 'settings', 'theme', 'menus'].filter((part) => {
+      const saved = part === 'languages' ? languagesOf(data.value.settings) : data.value[part]
+      return JSON.stringify(draft.value[part]) !== JSON.stringify(saved)
+    })
   })
   const isDirty = computed(() => dirtyParts.value.length > 0)
   /** Whether the draft settings publish anything; the saved state is `data.settings.enabled`. */
@@ -79,7 +83,7 @@ export const useSiteStore = defineStore('site', () => {
 
   function resetDraft() {
     draft.value = data.value
-      ? { settings: clone(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus) }
+      ? { settings: clone(data.value.settings), languages: languagesOf(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus) }
       : null
     fieldErrors.value = {}
   }
@@ -130,19 +134,30 @@ export const useSiteStore = defineStore('site', () => {
 
     try {
       if (pending.includes('menus')) {
-        const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits })
+        const fields = menuErrors(draft.value.menus, t, { ...DEFAULT_MENU_LIMITS, ...data.value.menu_limits }, draft.value.settings.default_locale)
         if (Object.keys(fields).length) {
           throw Object.assign(new Error(t('site.saveErrors')), { fields })
         }
       }
+      // Languages first: the settings are validated against the workspace's languages.
       for (const part of pending) {
+        if (part === 'languages') {
+          const slug = getActiveWorkspace()
+          const languages = (await api.workspaces.update(slug, { label: data.value.workspace_label, languages: draft.value.languages })).data.languages
+          updateWorkspaceLanguages(slug, languages)
+          for (const target of [data.value.settings, draft.value.settings]) Object.assign(target, clone(languages))
+          draft.value.languages = languagesOf(data.value.settings)
+          continue
+        }
         if (part === 'settings') {
           data.value.settings = (await api.site.saveSettings(draft.value.settings)).data
           syncPageBuilderActive()
         } else if (part === 'theme') {
           data.value.theme = (await api.site.saveTheme(draft.value.theme)).data
         } else {
-          data.value.menus = (await api.site.saveMenus(draft.value.menus)).data
+          const response = await api.site.saveMenus(draft.value.menus, data.value.menus_revision)
+          data.value.menus = response.data
+          data.value.menus_revision = response.meta?.revision
         }
         draft.value[part] = clone(data.value[part])
       }
@@ -165,7 +180,12 @@ export const useSiteStore = defineStore('site', () => {
     const saved = (await api.site.saveSettings(settings)).data
     data.value.settings = saved
     syncPageBuilderActive()
-    if (draft.value) draft.value.settings.routes[name] = clone(saved.routes[name])
+    if (draft.value) {
+      draft.value.settings.routes[name] = clone(saved.routes[name])
+      for (const key of ['revision', 'updated_at', 'enabled', 'locales', 'default_locale']) {
+        draft.value.settings[key] = clone(saved[key])
+      }
+    }
     // New types bring new layouts and routes; refresh what the Website screen lists.
     if (!isDirty.value) await load({ force: true })
     return saved.routes[name]

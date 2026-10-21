@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Core\Security;
+use CometCMS\Localization\Messages;
 
 /**
  * Builds complete HTML documents: header region, the layout of the page,
@@ -72,6 +73,7 @@ final class PageRenderer
     public function notFound(string $path): string
     {
         $settings = $this->ctx->settings();
+        foreach (['not_found_title', 'not_found_message'] as $key) if ($settings[$key] === '' && empty($settings['_localized'][$key])) $settings[$key] = Messages::get($key, $this->ctx->htmlLang());
         $state = $this->state(null, null, $path, 1, []);
         $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
             . '<div class="c-el"><h1 class="c-heading">' . Security::e($settings['not_found_title']) . '</h1></div>'
@@ -100,10 +102,15 @@ final class PageRenderer
 
         if ($variant === 'index') {
             $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
-            $state = $this->state(null, $type, $url, 1, []);
+            $alternates = [];
+            foreach ($this->ctx->locales() as $locale) {
+                $alternate = $this->ctx->indexUrl($name, $locale);
+                if ($alternate !== null) $alternates[$locale] = $alternate;
+            }
+            $state = $this->state(null, $type, $url, 1, $alternates);
         } else {
             $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
-            $state = $this->state($entry, $type, $url, 1, []);
+            $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
         }
 
         $main = $this->nodes->render($layout, $state);
@@ -134,7 +141,7 @@ final class PageRenderer
         if ($type !== null) {
             $entry ??= $this->sampleEntry($type);
             $url = $this->ctx->entryUrl((string) $type['name'], $entry) ?? $this->ctx->homeUrl();
-            $state = $this->state($entry, $type, $url, 1, []);
+            $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
         } else {
             $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         }
@@ -271,7 +278,7 @@ final class PageRenderer
         return '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
             . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">'
             . $banner
-            . '<a class="c-skip-link" href="#main">Skip to content</a>'
+            . '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>'
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
@@ -303,15 +310,9 @@ final class PageRenderer
     private function entryAlternates(array $type, array $entry): array
     {
         $alternates = [];
-        $typeLocales = (array) ($type['locales'] ?? []);
 
         foreach ($this->ctx->locales() as $locale) {
-            if (!in_array($locale, $typeLocales, true)) {
-                continue;
-            }
-
-            $translated = is_array($entry['translations'] ?? null) && is_array($entry['translations'][$locale] ?? null);
-            if ($translated || $locale === ($type['default_locale'] ?? '')) {
+            if ($this->ctx->content->isPubliclyVisible($entry, $locale)) {
                 $url = $this->ctx->entryUrl((string) $type['name'], $entry, $locale);
                 if ($url !== null) {
                     $alternates[$locale] = $url;
@@ -339,7 +340,7 @@ final class PageRenderer
 
     private function homeLabel(): string
     {
-        return in_array(substr($this->ctx->htmlLang(), 0, 2), ['de'], true) ? 'Zur Startseite' : 'Back to the homepage';
+        return Messages::get('back_home', $this->ctx->htmlLang());
     }
 
     private function entryDescription(array $type, array $entry): string

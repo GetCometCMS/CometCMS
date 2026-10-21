@@ -8,7 +8,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with the **Page Builder enabled**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
-Open **Page Builder** under **Website** in the admin sidebar (permission `site.manage`; shown once a content type has the Page Builder enabled or the website is online) to choose the homepage in the **Overview** tab, which also shows whether the website is online and which content types publish pages. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
+Open **Website settings** under **Website** in the admin sidebar (permission `site.manage`) to choose the homepage in the **General** tab, next to the site title, tagline, logo, favicon, the workspace languages, domains and the 404 page. The header shows whether the website is online. **SEO & sharing** holds the title template, meta description, share image and **Hide from search engines**; **Workspaces** (permission `workspaces.manage`) creates, renames and archives workspaces. The **Page Builder** entry next to it (shown once a content type has the Page Builder enabled or the website is online) holds the design, menus, components and fonts. Under **Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -217,13 +217,19 @@ Workspaces from earlier versions move their headers, footers, layouts and compon
 
 ## Languages
 
-Content types with locales can be published in several languages. Choose the website languages in **Overview**: the default language lives at the root (`/blog/hello`), others under their code (`/de/blog/hello`). Pages link their translations with `hreflang`.
+Configure languages once in **Website settings → General → Languages** (permission `workspaces.manage`; others see the current choice). They belong to the active workspace: the website and every content type always use those languages and their default directly. The default language lives at the root; other languages use their code as a prefix. Slugs and route paths can be translated, for example `/articles/about` and `/de/artikel/ueber-uns`. Internal links use stable entry IDs, so changing a slug does not break them.
 
-The **Languages** element links each page to its translations. **Flags** shows the text only, a flag beside the text, or the flag alone; a flag on its own is named for screen readers and shows the language name on hover. Flags stand for languages, so they follow a convention: English shows the British flag and regional codes use their region (`de-at` shows Austria's flag, `pt-br` Brazil's). A language without a flag keeps its text.
+The builder keeps one shared structure and design. Choose a language to edit its headings, rich text, button labels, images, links, tabs, and other visitor-facing values. **Translate content** prevents structural edits; **Shared design** enables shared layout changes. Source text, inheritance, reset actions, and review indicators appear in the inspector. Component translations apply wherever the component is used; header and footer translations work the same way. A literal in a collection layout applies to every entry using it; bind a custom field when the value should differ per entry.
+
+Site identity, metadata, error pages, navigation, form text, field presentation labels, and media alternative text and captions use the same localized-value model. Language selectors in these editors share the active language. Built-in visitor messages use a separate language dictionary.
+
+Publish entry translations independently. Missing values within a published translation inherit public default-language content; an empty override stays empty. Missing or unpublished page variants return 404. Sitemaps, canonical URLs, `hreflang`, and the language switcher use available published variants. Shared design, components, and settings keep their existing save lifecycle.
+
+The **Languages** element links each page to its published translations and omits unavailable languages. **Flags** shows the text only, a flag beside the text, or the flag alone; a flag on its own is named for screen readers and shows the language name on hover. Flags stand for languages, so they follow a convention: English shows the British flag and regional codes use their region (`de-at` shows Austria's flag, `pt-br` Brazil's). A language without a flag keeps its text.
 
 ## Search engines
 
-Pages get a title (template in **Overview**, e.g. `{title} · {site}`), a description and a share image taken from the entry (or chosen per content type), a canonical URL, `/sitemap.xml` and `/robots.txt`. **Hide from search engines** adds `noindex` while a site is being built.
+Pages get a title (template in **Website settings → SEO & sharing**, e.g. `{title} · {site}`), a description and a share image taken from the entry (or chosen per content type), a canonical URL, `/sitemap.xml` and `/robots.txt`. **Hide from search engines** adds `noindex` while a site is being built.
 
 ## Previewing drafts
 
@@ -231,7 +237,7 @@ People who manage the website get a **Page design** section between **Core** and
 
 ## Domains and workspaces
 
-The default workspace's website answers on the server's own address. To serve another workspace's website, add its domains in **Overview → Domains** and point those domains at the same installation.
+The default workspace's website answers on the server's own address. To serve another workspace's website, add its domains in **Website settings → General → Domains** and point those domains at the same installation.
 
 ## Performance and security
 
