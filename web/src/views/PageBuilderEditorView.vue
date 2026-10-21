@@ -163,7 +163,6 @@
         :limits="panelLayout.limits(panel.value)"
         :title="panel.label"
         :icon="panel.icon"
-        @dock="panelLayout.open(panel.value, $event)"
         @toggle-dock="panelLayout.toggleDock(panel.value)"
         @close="panelLayout.close(panel.value)"
         @focus="panelLayout.focus(panel.value)"

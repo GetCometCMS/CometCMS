@@ -21,21 +21,6 @@
     >
       <Icon :icon="icon" class="h-4 w-4 shrink-0 text-slate-400" />
       <h2 class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800">{{ title }}</h2>
-      <div class="placement" role="group" :aria-label="t('site.builder.panelPlacement')">
-        <button
-          v-for="option in placements"
-          :key="option.value"
-          type="button"
-          class="window-action"
-          :class="state.mode === option.value ? 'bg-white !text-theme-600 shadow-xs' : ''"
-          :aria-pressed="state.mode === option.value"
-          :title="option.label"
-          :aria-label="option.label"
-          @click="$emit('dock', option.value)"
-        >
-          <Icon :icon="option.icon" class="h-3.5 w-3.5" />
-        </button>
-      </div>
       <button type="button" class="window-action" :title="t('site.builder.closePanel')" :aria-label="t('site.builder.closePanel')" @click="$emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
       </button>
@@ -57,7 +42,6 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import ResizableSidebar from './ResizableSidebar.vue'
 import { useI18n } from '../../../i18n/index.js'
@@ -67,14 +51,8 @@ const props = defineProps({
   title: { type: String, required: true },
   icon: { type: String, required: true },
 })
-const emit = defineEmits(['dock', 'toggle-dock', 'close', 'resize', 'resize-start', 'move', 'focus'])
+const emit = defineEmits(['toggle-dock', 'close', 'resize', 'resize-start', 'move', 'focus'])
 const { t } = useI18n()
-/** Ordered like the editor itself: left dock, floating over the canvas, right dock. */
-const placements = computed(() => [
-  { value: 'left', icon: 'mdi:dock-left', label: t('site.builder.dockLeft') },
-  { value: 'floating', icon: 'mdi:dock-window', label: t('site.builder.floatPanel') },
-  { value: 'right', icon: 'mdi:dock-right', label: t('site.builder.dockRight') },
-])
 function toggleDock(event) {
   if (event.target?.closest?.('button')) return
   emit('toggle-dock')
@@ -100,21 +78,8 @@ function resizeWithKeyboard(event) {
   border-radius: 0.375rem;
   color: rgb(var(--color-slate-500));
 }
-.window-action:not([aria-pressed="true"]):hover {
+.window-action:hover {
   background: rgb(var(--color-slate-200));
   color: rgb(var(--color-slate-900));
-}
-.placement {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 1px;
-  border-radius: 0.5rem;
-  background: rgb(var(--color-slate-200) / 0.7);
-  padding: 2px;
-}
-.placement .window-action {
-  width: 1.375rem;
-  height: 1.375rem;
 }
 </style>
