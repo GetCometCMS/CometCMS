@@ -1,6 +1,6 @@
 <template>
   <div :class="layout === 'page' ? 'card' : 'flex h-full flex-col'">
-    <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
+    <div v-if="showHeader" class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
       <Icon icon="mdi:palette-outline" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
         <div :class="layout === 'sidebar' ? 'flex min-w-0 items-center gap-1' : ''">
@@ -242,6 +242,7 @@ import { newId } from "../../../composables/layoutTree.js";
 
 /** Global design of the website, shared by the backend settings and builder sidebar. */
 defineProps({
+  showHeader: { type: Boolean, default: true },
   layout: { type: String, default: "sidebar", validator: (value) => ["sidebar", "page"].includes(value) },
   draftNodes: { type: Array, default: () => [] },
 });

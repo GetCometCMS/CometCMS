@@ -113,7 +113,7 @@
 
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
-    <div v-else ref="builderAreaRef" class="flex min-h-0 flex-1">
+    <div v-else ref="builderAreaRef" class="relative isolate flex min-h-0 flex-1 overflow-hidden">
 
 <!-- Panel rail -->
 <nav
@@ -131,11 +131,12 @@
     <button
       type="button"
       class="rail-action"
-      :class="{ 'is-active': leftPanel === panel.value }"
-      :aria-pressed="leftPanel === panel.value"
+      :class="{ 'is-active': panelWindows[panel.value]?.open }"
+      :aria-pressed="panelWindows[panel.value]?.open ?? false"
       :aria-label="panel.label"
-      :title="panel.label"
-      @click="togglePanel(panel.value)"
+      :title="t('site.builder.panelWindowHint', { panel: panel.label })"
+      @pointerdown="panelLayout.startMove($event, panel.value, true)"
+      @click="panelLayout.toggle(panel.value)"
     >
       <Icon :icon="panel.icon" class="h-5 w-5" />
       <span class="rail-label" aria-hidden="true">{{ panel.short }}</span>
@@ -155,34 +156,37 @@
 </nav>
 
 
-      <ResizableSidebar
-        v-if="leftPanel"
-        v-model="leftWidth"
-        side="left"
-        :label="t('site.builder.resizeLeft')"
-        :min="leftMinWidth"
-        :max="leftMaxWidth"
-        class="border-r border-slate-200"
+      <BuilderPanelWindow
+        v-for="panel in visiblePanels"
+        :key="panel.value"
+        :state="panelWindows[panel.value]"
+        :limits="panelLayout.limits(panel.value)"
+        :title="panel.label"
+        :icon="panel.icon"
+        @dock="panelLayout.open(panel.value, $event)"
+        @close="panelLayout.close(panel.value)"
+        @focus="panelLayout.focus(panel.value)"
+        @resize="(width, height) => panelLayout.resize(panel.value, width, height)"
+        @move="panelLayout.startMove($event, panel.value)"
+        @resize-start="panelLayout.startResize($event, panel.value)"
       >
-        <SiteDesignPanel v-if="leftPanel === 'design'" :draft-nodes="builder.nodes.value" @close="leftPanel = null" />
-        <CustomCssPanel v-else-if="leftPanel === 'css'" @close="leftPanel = null" />
+        <SiteDesignPanel v-if="panel.value === 'design'" :show-header="false" :draft-nodes="builder.nodes.value" />
+        <CustomCssPanel v-else-if="panel.value === 'css'" :show-header="false" />
+        <BuilderInspector v-else-if="panel.value === 'inspector'" :template-part="selectedTemplatePart" @edit-template-part="editTemplatePart">
+          <template #empty>
+            <BuilderOverview
+              :title="overview.title"
+              :description="overview.description"
+              :icon="overview.icon"
+              :with-fields="hasEntryFields"
+              @open-panel="panelLayout.open($event)"
+              @open-guide="guideOpen = true"
+            />
+          </template>
+        </BuilderInspector>
         <template v-else>
-          <div class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
-            <div class="flex min-w-0 flex-1 items-center gap-1">
-              <h2 class="truncate text-sm font-semibold text-slate-900">{{ activePanel.label }}</h2>
-              <BuilderHelp
-                v-if="activePanelHint"
-                :key="leftPanel"
-                :label="`${activePanel.label} — ${t('site.builder.help')}`"
-                :hints="[activePanelHint]"
-              />
-            </div>
-            <button type="button" class="panel-close" :title="t('site.builder.closePanel')" @click="leftPanel = null">
-              <Icon icon="mdi:chevron-double-left" class="h-4 w-4" />
-              <span class="sr-only">{{ t("site.builder.closePanel") }}</span>
-            </button>
-          </div>
-          <div v-if="leftPanel === 'history'" class="border-b border-slate-200 p-2">
+          <p v-if="panelHint(panel.value)" class="border-b border-slate-100 px-3 py-2 text-xs leading-relaxed text-slate-500">{{ panelHint(panel.value) }}</p>
+          <div v-if="panel.value === 'history'" class="border-b border-slate-200 p-2">
             <SegmentedControl
               v-model="historyScope"
               :options="[
@@ -192,9 +196,9 @@
             />
           </div>
           <div class="relative z-0 min-h-0 flex-1 overflow-y-auto">
-            <BuilderPalette v-if="leftPanel === 'add'" :with-fields="builder.currentAvailable.value" />
-            <BuilderOutline v-else-if="leftPanel === 'outline'" />
-            <BuilderEntryFields v-else-if="leftPanel === 'fields'" :state="entryFields" :busy="saving" />
+            <BuilderPalette v-if="panel.value === 'add'" :with-fields="builder.currentAvailable.value" />
+            <BuilderOutline v-else-if="panel.value === 'outline'" />
+            <BuilderEntryFields v-else-if="panel.value === 'fields'" :state="entryFields" :busy="saving" />
             <BuilderHistory
               v-else-if="historyScope === 'theme'"
               :key="`theme-${historyVersion}`"
@@ -213,35 +217,23 @@
             />
           </div>
         </template>
-      </ResizableSidebar>
+      </BuilderPanelWindow>
 
       <!-- Canvas -->
-      <main class="builder-stage min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
+      <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-3 xl:p-5'">
         <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" />
       </main>
 
-      <!-- Inspector -->
-      <ResizableSidebar
-        v-model="rightWidth"
-        side="right"
-        :label="t('site.builder.resizeRight')"
-        :min="256"
-        :max="rightMaxWidth"
-        class="border-l border-slate-200"
+      <div
+        v-if="panelLayout.snap.value"
+        class="pointer-events-none absolute inset-y-2 z-[200] w-72 rounded-xl border-2 border-theme-500 bg-theme-100/70"
+        :class="panelLayout.snap.value === 'left' ? 'left-[84px]' : 'right-2'"
+        aria-hidden="true"
       >
-        <BuilderInspector :template-part="selectedTemplatePart" @edit-template-part="editTemplatePart">
-          <template #empty>
-            <BuilderOverview
-              :title="overview.title"
-              :description="overview.description"
-              :icon="overview.icon"
-              :with-fields="hasEntryFields"
-              @open-panel="(panel) => (leftPanel = panel)"
-              @open-guide="guideOpen = true"
-            />
-          </template>
-        </BuilderInspector>
-      </ResizableSidebar>
+        <p class="p-3 text-center text-sm font-semibold text-theme-800">{{ t(panelLayout.snap.value === 'left' ? 'site.builder.dockLeft' : 'site.builder.dockRight') }}</p>
+      </div>
+      <div v-if="panelLayout.dragging.value" class="absolute inset-0 z-[1000] select-none" :class="panelLayout.resizing.value ? 'cursor-se-resize' : 'cursor-move'" aria-hidden="true"></div>
+
     </div>
 
     <BuilderContextMenu :device="device" />
@@ -306,12 +298,11 @@ import SegmentedControl from "../components/site/SegmentedControl.vue";
 import BuilderCanvas from "../components/site/builder/BuilderCanvas.vue";
 import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vue";
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
-import BuilderHelp from "../components/site/builder/BuilderHelp.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
-import ResizableSidebar from "../components/site/builder/ResizableSidebar.vue";
+import BuilderPanelWindow from "../components/site/builder/BuilderPanelWindow.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
@@ -320,6 +311,7 @@ import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
+import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
 import { usePermissions } from "../composables/usePermissions.js";
 import { findNode } from "../composables/layoutTree.js";
@@ -431,18 +423,19 @@ const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
   { guardUpdates: true },
 );
 
-const RAIL_WIDTH = 76;
-const DESIGN_MIN_WIDTH = 320;
-/** Code reads better wide, so the stylesheet panel may grow further. */
-const CSS_MIN_WIDTH = 360;
-const CSS_MAX_WIDTH = 720;
 const COMPONENTS_PATH = "/page-builder/components";
-/** The open left panel, or null when collapsed. */
-const leftPanel = ref(["design", "css"].includes(route.query.settings) ? route.query.settings : "add");
+const builderAreaRef = ref(null);
+const panelLayout = useBuilderPanels({
+  area: builderAreaRef,
+  ids: ["inspector", "add", "outline", "fields", "design", "css", "history"],
+  initial: ["design", "css"].includes(route.query.settings) ? route.query.settings : "inspector",
+});
+const panelWindows = panelLayout.windows;
 const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
 const panels = computed(() => [
+  { value: "inspector", label: t("site.builder.inspector"), icon: "mdi:tune-variant" },
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
   ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
@@ -450,12 +443,12 @@ const panels = computed(() => [
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
 ].map((panel) => ({ ...panel, short: t(`site.builder.rail.${panel.value}`) })));
-const activePanel = computed(() => panels.value.find((panel) => panel.value === leftPanel.value));
-const activePanelHint = computed(() => {
-  const key = `site.builder.panelHint.${leftPanel.value}`;
+const visiblePanels = computed(() => panels.value.filter((panel) => panelWindows.value[panel.value].open));
+function panelHint(panel) {
+  const key = `site.builder.panelHint.${panel}`;
   const text = t(key);
   return text === key ? "" : text;
-});
+}
 
 const GUIDE_SEEN_KEY = "cometcms-builder-guide-seen";
 const guideOpen = ref(false);
@@ -468,31 +461,6 @@ try {
 } catch {
   // Storage may be unavailable (private mode); the guide stays one click away.
 }
-
-const builderAreaRef = ref(null);
-const builderWidth = ref(window.innerWidth);
-const leftWidth = ref(window.innerWidth >= 1280 ? 288 : 256);
-const rightWidth = ref(window.innerWidth >= 1280 ? 320 : 288);
-const leftMinWidth = computed(() => ({ design: DESIGN_MIN_WIDTH, css: CSS_MIN_WIDTH, fields: 320 })[leftPanel.value] ?? 224);
-/** Width the left panel takes from the canvas: nothing while collapsed. */
-const leftSpace = computed(() => RAIL_WIDTH + (leftPanel.value ? leftWidth.value : 0));
-const leftMaxWidth = computed(() => Math.max(leftMinWidth.value, Math.min(leftPanel.value === "css" ? CSS_MAX_WIDTH : 480, builderWidth.value - RAIL_WIDTH - rightWidth.value - 320)));
-const rightMaxWidth = computed(() => Math.max(256, Math.min(560, builderWidth.value - leftSpace.value - 320)));
-let builderResizeObserver = null;
-
-watch(builderAreaRef, (area) => {
-  builderResizeObserver?.disconnect();
-  if (!area) return;
-  builderResizeObserver = new ResizeObserver(([entry]) => {
-    builderWidth.value = entry.contentRect.width;
-  });
-  builderResizeObserver.observe(area);
-});
-watch([leftMaxWidth, rightMaxWidth], () => {
-  leftWidth.value = Math.min(leftWidth.value, leftMaxWidth.value);
-  rightWidth.value = Math.min(rightWidth.value, rightMaxWidth.value);
-}, { immediate: true });
-onBeforeUnmount(() => builderResizeObserver?.disconnect());
 
 const target = route.params.target;
 const name = String(route.params.name);
@@ -525,6 +493,9 @@ const previewEntry = computed(() => (builder.type.value?.singleton ? builder.typ
 /** Layouts of single entries and components of a content type preview an entry. */
 const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
 const hasEntryFields = computed(() => showsSamples.value && !!previewEntry.value);
+watch([hasEntryFields, loading], ([available, pending]) => {
+  if (!available && !pending) panelLayout.close("fields");
+});
 const entryFields = useBuilderEntry({
   type: builder.type,
   entryId: computed(() => hasEntryFields.value ? previewEntry.value : ""),
@@ -656,22 +627,20 @@ function isBuilderPath(path) {
   return typeof path === "string" && path.startsWith("/page-builder/builder/");
 }
 
-function togglePanel(panel) {
-  leftPanel.value = leftPanel.value === panel ? null : panel;
-}
-
 function editTemplatePart(part) {
   if (!["header", "footer"].includes(part)) return;
   router.push({ path: `/page-builder/builder/region/${part}`, query: { back: route.fullPath } });
 }
 
 watch(() => builder.selectedId.value, (id) => {
-  if (id) selectedTemplatePart.value = null;
+  if (id) {
+    selectedTemplatePart.value = null;
+    panelLayout.open("inspector");
+  }
 });
-
-watch(leftPanel, (panel) => {
-  if (["design", "css", "fields"].includes(panel)) leftWidth.value = Math.max(leftWidth.value, Math.min(leftMinWidth.value, leftMaxWidth.value));
-}, { immediate: true });
+watch(selectedTemplatePart, (part) => {
+  if (part) panelLayout.open("inspector");
+});
 
 watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; if (value !== builder.defaultLocale.value) builder.editingMode.value = "translate"; });
 
@@ -773,7 +742,7 @@ async function save() {
     if (err.entryId) {
       sampleId.value = err.entryId;
       locale.value = err.locale;
-      leftPanel.value = "fields";
+      panelLayout.open("fields");
     }
     toast.error(err.message);
   } finally {
@@ -946,6 +915,7 @@ onBeforeUnmount(() => {
   opacity: 0.35;
 }
 .rail-action {
+  touch-action: none;
   position: relative;
   display: flex;
   width: 4.25rem;
@@ -974,18 +944,5 @@ onBeforeUnmount(() => {
   font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 0.875rem;
-}
-.panel-close {
-  display: inline-flex;
-  height: 1.75rem;
-  width: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.375rem;
-  color: rgb(var(--color-slate-500));
-}
-.panel-close:hover {
-  background: rgb(var(--color-slate-100));
-  color: rgb(var(--color-slate-900));
 }
 </style>
