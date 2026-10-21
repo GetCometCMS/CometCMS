@@ -1597,6 +1597,7 @@ const messages = {
     'site.builder.closePanel': 'Collapse panel',
     'site.builder.floatPanel': 'Float panel',
     'site.builder.dockPanel': 'Dock panel',
+    'site.builder.resetLayout': 'Reset panel layout',
     'site.history.scope.layout': 'Layout',
     'site.history.scope.component': 'Component',
     'site.history.scope.design': 'Global Design',

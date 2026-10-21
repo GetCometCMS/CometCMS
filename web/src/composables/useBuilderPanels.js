@@ -23,13 +23,15 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
     try { storage = globalThis.localStorage } catch { storage = null }
   }
   const bounds = ref({ width: globalThis.innerWidth ?? 1280, height: Math.max(1, (globalThis.innerHeight ?? 856) - 48) })
-  const windows = ref(Object.fromEntries(ids.map((id, index) => {
+  /** The layout a first visit starts with. */
+  const defaults = () => Object.fromEntries(ids.map((id, index) => {
     const side = DOCKS.find((key) => docked[key] === id)
     return [id, {
       open: !!side, mode: side ?? 'left', dock: side ?? 'left', width: Math.max(minimumWidth(id), 320),
       height: 560, x: RAIL_WIDTH + 24 + index * 24, y: 24 + index * 24, z: index,
     }]
-  })))
+  }))
+  const windows = ref(defaults())
   const dragging = ref(false)
   const resizing = ref(false)
   const snap = ref(null)
@@ -148,6 +150,14 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
   function toggleDock(id) {
     const panel = windows.value[id]
     open(id, panel.mode === 'floating' ? panel.dock : 'floating')
+  }
+
+  /** Back to the default layout, for when panels end up somewhere unhelpful. */
+  function reset() {
+    cleanupGesture?.()
+    windows.value = defaults()
+    if (windows.value[docked.left]) makeRoom(docked.left)
+    ids.forEach(constrain)
   }
 
   function resize(id, width, height = windows.value[id].height) {
@@ -280,7 +290,7 @@ export function useBuilderPanels({ area, ids, docked = { left: 'add', right: 'in
   onScopeDispose(() => { cleanupGesture?.(); observer?.disconnect() })
 
   return {
-    windows, bounds, dragging, resizing, snap, dropPreview, limits, open, toggle, toggleDock, resize, move, focus,
+    windows, bounds, dragging, resizing, snap, dropPreview, limits, open, toggle, toggleDock, reset, resize, move, focus,
     visible: computed(() => ids.filter((id) => windows.value[id].open)),
     close: (id) => { windows.value[id].open = false },
     startMove: (event, id, fromRail = false) => startGesture(event, id, false, fromRail),

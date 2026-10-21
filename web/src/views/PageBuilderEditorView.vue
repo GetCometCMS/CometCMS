@@ -82,10 +82,7 @@
           <Icon icon="mdi:redo" class="h-[18px] w-[18px]" />
           <span class="sr-only">{{ t("site.builder.redo") }}</span>
         </button>
-        <button type="button" class="topbar-action" :title="`${t('site.builder.help')} (?)`" @click="guideOpen = true">
-          <Icon icon="mdi:help-circle-outline" class="h-[18px] w-[18px]" />
-          <span class="sr-only">{{ t("site.builder.help") }}</span>
-        </button>
+        <BuilderHelpMenu @guide="guideOpen = true" @reset-layout="panelLayout.reset()" />
         <span class="topbar-divider" aria-hidden="true"></span>
 
         <span
@@ -327,6 +324,7 @@ import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
 import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import BuilderGuide from "../components/site/builder/BuilderGuide.vue";
+import BuilderHelpMenu from "../components/site/builder/BuilderHelpMenu.vue";
 import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import { api } from "../api/index.js";

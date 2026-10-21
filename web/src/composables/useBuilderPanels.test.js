@@ -125,6 +125,17 @@ describe('builder panel docking', () => {
     expect(layout.windows.value.inspector).toMatchObject({ open: true, mode: 'left' })
   })
 
+  it('resets to the default layout', async () => {
+    await fixture()
+    layout.open('outline', 'left')
+    layout.open('css', 'floating')
+    layout.resize('inspector', 500)
+    layout.reset()
+    expect(layout.visible.value).toEqual(['inspector', 'add'])
+    expect(layout.windows.value.add.mode).toBe('left')
+    expect(layout.windows.value.inspector).toMatchObject({ mode: 'right', width: 320 })
+  })
+
   it('pops a docked panel out next to its dock and returns it to that dock', async () => {
     await fixture()
     layout.toggleDock('inspector')

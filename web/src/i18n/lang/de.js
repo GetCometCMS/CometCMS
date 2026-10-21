@@ -1602,6 +1602,7 @@ const messages = {
   'site.builder.closePanel': 'Bereich einklappen',
   'site.builder.floatPanel': 'Bereich lösen',
   'site.builder.dockPanel': 'Bereich andocken',
+  'site.builder.resetLayout': 'Bereichslayout zurücksetzen',
   'site.history.scope.layout': 'Layout',
   'site.history.scope.component': 'Komponente',
   'site.history.scope.design': 'Globales Design',
