@@ -53,7 +53,10 @@
         <template v-if="activeTab === 'menus'" #end><LanguageTabs /></template>
       </TabNavigation>
 
-      <SiteDesignPanel v-if="activeTab === 'design'" layout="page" />
+      <div v-if="activeTab === 'design'" class="grid items-start gap-6 lg:grid-cols-2">
+        <SiteDesignPanel layout="page" class="min-w-0" />
+        <SiteThemePreview class="min-w-0 lg:sticky lg:top-24" />
+      </div>
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <section v-else-if="activeTab === 'fonts'" class="card p-6">
         <div class="mb-4">
@@ -86,6 +89,7 @@ import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import LanguageTabs from "../components/LanguageTabs.vue";
 import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
+import SiteThemePreview from "../components/site/SiteThemePreview.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
 import FontLibrary from "../components/site/FontLibrary.vue";
