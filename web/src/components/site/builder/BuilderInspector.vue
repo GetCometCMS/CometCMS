@@ -62,7 +62,7 @@
       </button>
     </div>
 
-    <div v-if="!isInstance" class="flex shrink-0 gap-4 border-b border-slate-200 px-3" role="tablist">
+    <div v-if="!isInstance" class="mx-3 mb-1 flex shrink-0 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1" role="tablist">
       <button
         v-for="option in inspectorTabs"
         :key="option.value"
@@ -405,33 +405,33 @@ function updateProp(key, value) {
   opacity: 0.35;
 }
 .inspector-tab {
-  position: relative;
   display: inline-flex;
+  flex: 1;
+  min-height: 2rem;
   align-items: center;
+  justify-content: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.125rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: rgb(var(--color-slate-500));
-  transition: color 150ms;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgb(var(--color-slate-600));
+  transition: color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms;
 }
 .inspector-tab:hover {
+  background: rgb(var(--color-slate-50));
   color: rgb(var(--color-slate-900));
 }
 .inspector-tab.is-active {
+  background: rgb(var(--color-surface));
+  border-color: rgb(var(--color-theme-200));
   color: rgb(var(--color-theme-700));
-}
-.inspector-tab.is-active::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 -1px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: rgb(var(--color-theme-600));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
 }
 .inspector-tab:focus-visible {
-  outline: none;
-  box-shadow: inset 0 -2px 0 rgb(var(--color-theme-500));
+  outline: 2px solid rgb(var(--color-theme-500));
+  outline-offset: 1px;
 }
 .kbd {
   display: inline-block;
