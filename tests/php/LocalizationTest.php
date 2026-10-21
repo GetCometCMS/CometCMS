@@ -247,11 +247,11 @@ test('website routes localized slugs and paths and only advertises published ent
     assert_false(str_contains($sitemap, '/de/articles/about'));
 });
 
-test('final localized URLs reject collisions between collection entries and fixed pages', function (): void {
+test('final localized URLs reject collisions between collection entries and list pages', function (): void {
     $content = comet_localization_setup();
-    (new ContentTypeRepository())->save(['name' => 'contact', 'singleton' => true]);
+    (new ContentTypeRepository())->save(['name' => 'contact']);
     $site = new SiteRepository();
-    $site->saveSettings(['routes' => ['articles' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '/articles'], 'contact' => ['enabled' => true, 'pattern' => '/contact']]]);
+    $site->saveSettings(['routes' => ['articles' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '/articles'], 'contact' => ['enabled' => true, 'pattern' => '/contact/{slug}', 'index_path' => '/contact']]]);
     assert_throws(ValidationException::class, fn() => $content->save('articles', ['title' => 'Contact', 'slug' => 'contact'], comet_localization_user()));
 });
 

@@ -244,13 +244,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const slugField = schema?.slug_field ?? 'slug'
     const list = [
       { key: 'title', label: t('site.systemField.title'), type: 'text', config: { type: 'text' }, system: true },
+      { key: 'published_at', label: t('site.systemField.published_at'), type: 'datetime', config: { type: 'datetime' }, system: true },
+      { key: 'updated_at', label: t('site.systemField.updated_at'), type: 'datetime', config: { type: 'datetime' }, system: true },
     ]
-
-    if (!schema?.singleton) {
-      list.push({ key: 'published_at', label: t('site.systemField.published_at'), type: 'datetime', config: { type: 'datetime' }, system: true })
-    }
-
-    list.push({ key: 'updated_at', label: t('site.systemField.updated_at'), type: 'datetime', config: { type: 'datetime' }, system: true })
 
     for (const [key, config] of Object.entries(fields)) {
       if (key === 'title' || key === 'slug' || key === slugField || !config) continue

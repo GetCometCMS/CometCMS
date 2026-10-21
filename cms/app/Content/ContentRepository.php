@@ -86,7 +86,6 @@ final class ContentRepository
         $locale = $this->locale($locale);
         $direct = $this->find($collection, $identifier, $includeDeleted);
         if ($direct !== null && ($this->stableId($direct) === $identifier || $this->resolveLocaleFields($direct, $locale)['slug'] === $identifier)) return $direct;
-        if ($identifier === $collection && $this->isSingleton($collection)) return $this->singletonEntry($collection, $includeDeleted);
         foreach ($this->all($collection, $includeDeleted) as $candidate) {
             if ($this->stableId($candidate) === $identifier || $this->resolveLocaleFields($candidate, $locale)['slug'] === $identifier) return $candidate;
         }
@@ -136,12 +135,6 @@ final class ContentRepository
         $oldStatus = $existing['publication'][$locale]['status'] ?? null;
         $oldId = $existing['id'] ?? null;
 
-        if ($existing === null && $this->isSingleton($collection) && $this->singletonEntry($collection) !== null) {
-            throw new ValidationException([
-                'singleton' => 'This single page already has content. Edit the existing page instead.',
-            ]);
-        }
-
         if ($existing !== null) {
             if ($oldId !== null && $oldId !== $entry['id']) {
                 $this->moveRevisionHistory($collection, (string) $oldId, (string) $entry['id']);
@@ -179,7 +172,6 @@ final class ContentRepository
     {
         $existing = $this->find($collection, $id, true);
         if ($existing === null) return null;
-        if ($this->isSingleton($collection)) throw new ValidationException(['singleton' => 'This single page already has content.']);
         $entry = $this->stored($existing);
         $entry['id'] = Security::opaqueId();
         $entry['uid'] = Security::opaqueId();
@@ -288,29 +280,14 @@ final class ContentRepository
             return null;
         }
 
-        $targetId = $id;
-        if ($this->isSingleton($collection)) {
-            $active = $this->singletonEntry($collection);
-            if ($active !== null) {
-                return null;
-            }
-
-            $targetId = $collection;
-            $entry['id'] = $collection;
-            $entry['slug'] = $collection;
-        }
-
         unset($entry['deleted_at'], $entry['deleted_by']);
         $entry['updated_at'] = Security::now();
         $entry['revision'] = bin2hex(random_bytes(12));
         $site = new \CometCMS\Site\SiteRepository($this->workspace);
         $site->validateEntryUrls($site->settings(), $entry);
-        $this->store->write($this->stored($entry), $collection, $targetId);
-        if ($targetId !== $id) {
-            $this->store->delete($collection, $id);
-        }
+        $this->store->write($this->stored($entry), $collection, $id);
         (new TrashStore($this->workspace))->removeContent($collection, $id);
-        $this->afterWrite('content.restored', $collection, $targetId, $user ?? []);
+        $this->afterWrite('content.restored', $collection, $id, $user ?? []);
 
         return $this->normalizeStoredEntry($entry);
     }
@@ -555,7 +532,7 @@ final class ContentRepository
             if (LocalizedValue::is($value)) { $errors[$name] = 'Write one locale at a time.'; continue; }
             if ($name === $slugField || $name === 'slug') {
                 $source = $payload[$schema['slug_source'] ?? 'title'] ?? $resolved['title'] ?? '';
-                $value = !empty($schema['singleton']) ? $collection : Security::slug((string) ($value ?: $source));
+                $value = Security::slug((string) ($value ?: $source));
                 $unique = $this->uniqueSlug($collection, $value, (string) ($existing['id'] ?? ''), $locale);
                 if ($unique !== $value && $provided) $errors[$name] = 'Slug must be unique in this language.';
                 elseif ($autoResolveSlugConflicts) $value = $unique;
@@ -568,7 +545,7 @@ final class ContentRepository
         // Slugs are explicit for every locale, even when its other content inherits.
         if (!isset($entry['values'][$slugField]['values'][$locale])) {
             $source = (string) ($payload['title'] ?? $resolved['title'] ?? $collection);
-            $slug = !empty($schema['singleton']) ? $collection : $this->uniqueSlug($collection, Security::slug($source), (string) ($existing['id'] ?? ''), $locale);
+            $slug = $this->uniqueSlug($collection, Security::slug($source), (string) ($existing['id'] ?? ''), $locale);
             $entry['values'][$slugField] = LocalizedValue::set($entry['values'][$slugField] ?? null, $locale, $slug, $default);
         }
         if ($slugField !== 'slug') $entry['values']['slug'] = $entry['values'][$slugField];
@@ -576,7 +553,7 @@ final class ContentRepository
         $publishedAt = $this->normalizeDateTime($payload['published_at'] ?? $entry['publication'][$locale]['published_at'] ?? null);
         if ($status === 'published' && $publishedAt === null) $publishedAt = Security::now();
         $entry['publication'][$locale] = ['status' => $status, 'published_at' => $publishedAt];
-        $entry['id'] = $existing['id'] ?? (!empty($schema['singleton']) ? $collection : (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $default));
+        $entry['id'] = $existing['id'] ?? (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $default);
         if ($existing === null && $this->store->read($collection, $entry['id']) !== null) $entry['id'] = $entry['uid'];
         $entry['revision'] = bin2hex(random_bytes(12));
         $entry['updated_at'] = Security::now();
@@ -592,22 +569,6 @@ final class ContentRepository
             if ($errors !== []) throw new ValidationException($errors);
         }
         return $entry;
-    }
-
-    private function isSingleton(string $collection): bool
-    {
-        $schema = $this->types->find($collection);
-
-        return !empty($schema['singleton']);
-    }
-
-    private function singletonEntry(string $collection, bool $includeDeleted = false): ?array
-    {
-        foreach ($this->all($collection, $includeDeleted) as $entry) {
-            return $entry;
-        }
-
-        return null;
     }
 
     private function normalizeRevision(array $revision): array

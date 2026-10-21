@@ -13,8 +13,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * Maps a request path to a website response.
  *
  * Matching order: robots.txt / sitemap.xml, an optional locale prefix, the
- * homepage, fixed URLs (single pages and list pages), then collection
- * patterns with a {slug}. Anything else renders the site's 404 page.
+ * homepage, list pages, then collection patterns with a {slug}. Anything
+ * else renders the site's 404 page.
  */
 final class SiteService
 {
@@ -145,20 +145,14 @@ final class SiteService
                 continue;
             }
 
-            if (!empty($type['singleton']) && $route['pattern'] === $path) {
-                $entry = $this->ctx->singletonEntry($name);
-
-                return $entry === null ? $this->notFound($renderer, $path) : $this->html($renderer->entryPage($type, $entry, $page));
-            }
-
-            if (empty($type['singleton']) && $route['index_path'] !== '' && $route['index_path'] === $path) {
+            if ($route['index_path'] !== '' && $route['index_path'] === $path) {
                 return $this->html($renderer->indexPage($type, $page));
             }
         }
 
         foreach ($this->ctx->site->types() as $name => $type) {
             $route = $this->ctx->route($name);
-            if ($route === null || !empty($type['singleton'])) {
+            if ($route === null) {
                 continue;
             }
 
@@ -201,12 +195,6 @@ final class SiteService
             return $this->html($renderer->autoHome());
         }
 
-        if (!empty($type['singleton'])) {
-            $entry = $this->ctx->singletonEntry($home['type']);
-
-            return $entry !== null ? $this->html($renderer->entryPage($type, $entry, $page)) : ($this->ctx->locale === $this->ctx->defaultLocale() ? $this->html($renderer->autoHome()) : $this->notFound($renderer, '/'));
-        }
-
         if ($home['entry'] !== '') {
             $entry = $this->ctx->findEntry($home['type'], $home['entry']);
 
@@ -247,8 +235,7 @@ final class SiteService
             $this->ctx->locale = $locale;
             $home = $this->ctx->settings()['homepage'];
             if ($home['type'] !== '') {
-                $homeEntry = $home['entry'] !== '' ? $this->ctx->findEntry($home['type'], $home['entry']) : (!empty($this->ctx->type($home['type'])['singleton']) ? $this->ctx->singletonEntry($home['type']) : null);
-                if ($homeEntry !== null || (empty($this->ctx->type($home['type'])['singleton']) && $home['entry'] === '')) $urls[$this->ctx->homeUrl($locale)] = null;
+                if ($home['entry'] === '' || $this->ctx->findEntry($home['type'], $home['entry']) !== null) $urls[$this->ctx->homeUrl($locale)] = null;
             }
 
             foreach ($this->ctx->site->types() as $name => $type) {

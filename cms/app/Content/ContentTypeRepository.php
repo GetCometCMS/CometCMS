@@ -225,12 +225,11 @@ final class ContentTypeRepository
             'name' => $name,
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
-            'singleton' => (bool) ($schema['singleton'] ?? false),
             // API exposure and website pages are independent. Keep legacy private
             // protection until the owner explicitly enables the public API.
             'api_enabled' => $apiEnabled,
             'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
-            'allow_submissions' => empty($schema['singleton']) && (bool) ($schema['allow_submissions'] ?? ($legacyForms !== [])),
+            'allow_submissions' => (bool) ($schema['allow_submissions'] ?? ($legacyForms !== [])),
             'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),

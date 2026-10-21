@@ -46,8 +46,8 @@ async function builderFixture() {
     text: { props: { html: { default: '' } }, children: [] }, heading: { props: { text: { default: '' } }, children: [] }, field: { props: { source: { default: '' } }, children: ['text', 'heading', 'field'] },
   } }
   builder.type.value = { name: 'posts', fields: { intro: { type: 'text' } } }
-  builder.types.value = [builder.type.value, { name: 'company', singleton: true, fields: { steps: { type: 'repeater', subfields: [{ key: 'detail', type: 'textarea' }] } } }]
-  const repeater = builder.make('field', { source: { ...reference('steps', 'single'), collection: 'company' } }, {}, [builder.make('text', { html: reference('detail', 'item') })])
+  builder.types.value = [builder.type.value, { name: 'company', fields: { steps: { type: 'repeater', subfields: [{ key: 'detail', type: 'textarea' }] } } }]
+  const repeater = builder.make('field', { source: { ...reference('steps', 'entry'), collection: 'company', entry: 'CompanyUid' } }, {}, [builder.make('text', { html: reference('detail', 'item') })])
   builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [builder.make('text', { html: reference('intro') }), repeater])])])])
   return builder
 }
@@ -95,7 +95,7 @@ describe('builder page navigation', () => {
     expect(builder.pageTypes.value).toEqual([])
   })
 
-  it('retains a public homepage without a separate route for single pages and collections', async () => {
+  it('retains a public homepage without a separate route', async () => {
     const builder = await builderFixture()
     builder.settings.value = { routes: {}, homepage: { type: 'company', entry: '' } }
     expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['company'])
@@ -429,11 +429,11 @@ async function contentFixture(fieldApi) {
     field: { props: { source: { default: '' } }, children: ['heading'] },
   } }
   builder.type.value = { name: 'posts', label: 'Posts', fields: { title: { type: 'text' }, heading: { type: 'text' } } }
-  builder.types.value = [builder.type.value, { name: 'company', singleton: true, fields: { steps: { type: 'repeater', subfields: [{ key: 'name', type: 'text' }] } } }]
+  builder.types.value = [builder.type.value, { name: 'company', fields: { steps: { type: 'repeater', subfields: [{ key: 'name', type: 'text' }] } } }]
   const heading = builder.make('heading', { text: 'Our story' })
   const image = builder.make('image', { media: 'team.jpg' })
   const bound = builder.make('heading', { text: reference('title') })
-  const template = builder.make('field', { source: { ...reference('steps', 'single'), collection: 'company' } }, {}, [builder.make('heading', { text: 'Step' })])
+  const template = builder.make('field', { source: { ...reference('steps', 'entry'), collection: 'company', entry: 'CompanyUid' } }, {}, [builder.make('heading', { text: 'Step' })])
   builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [heading, image, bound, template])])])])
   return { builder, heading, image, bound, item: template.children[0] }
 }

@@ -62,10 +62,10 @@ test('public gallery pages permit only the bundled viewer hash in root and subdi
     $root = comet_site_preview_test_install();
     comet_test_run_php(['-r', 'require ' . var_export($root . '/app/bootstrap.php', true) . ';' . <<<'PHP'
 (new \CometCMS\Workspaces\WorkspaceRepository())->all();
-(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'about', 'singleton' => true]);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'about']);
 \CometCMS\Content\ContentRepository::make()->save('about', ['title' => 'About', 'status' => 'published'], ['id' => 'admin']);
 $site = new \CometCMS\Site\SiteRepository();
-$site->saveSettings(['routes' => ['about' => ['enabled' => true]]]);
+$site->saveSettings(['routes' => ['about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']]]);
 file_put_contents($site->workspace()->path('media') . '/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40"></svg>');
 $gallery = \CometCMS\Site\LayoutSchema::node('gallery', ['media' => ['photo.svg'], 'lightbox' => true]);
 $site->saveLayout('about', 'detail', [\CometCMS\Site\LayoutSchema::node('section', [], [], [\CometCMS\Site\LayoutSchema::node('row', [], [], [\CometCMS\Site\LayoutSchema::node('column', [], [], [$gallery])])])]);

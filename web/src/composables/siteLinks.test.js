@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
 const types = [
-  { name: 'about', singleton: true, label: 'About' },
-  { name: 'home', singleton: true },
+  { name: 'about', label: 'About' },
+  { name: 'home' },
   { name: 'blog' }, { name: 'portfolio' },
-  { name: 'private', visibility: 'private', singleton: true },
+  { name: 'private', visibility: 'private' },
 ]
 const settings = { homepage: { type: 'home', entry: '' }, routes: {
   about: { enabled: true }, blog: { enabled: true, index_path: '/blog' },
@@ -23,12 +23,13 @@ describe('website live state', () => {
 })
 
 describe('website destinations', () => {
-  it('separates routable pages, content and listings, retaining homepage exceptions', () => {
-    expect(eligibleTypes(types, settings, 'page').map((type) => type.name)).toEqual(['about', 'home'])
-    expect(eligibleTypes(types, settings, 'entry').map((type) => type.name)).toEqual(['blog'])
-    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['blog'])
+  it('separates routable content and listings, retaining homepage exceptions', () => {
+    expect(eligibleTypes(types, settings, 'entry').map((type) => type.name)).toEqual(['about', 'blog'])
+    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['home', 'blog'])
     const homepage = { ...settings, homepage: { type: 'portfolio', entry: '' } }
     expect(eligibleTypes(types, homepage, 'index').map((type) => type.name)).toEqual(['blog', 'portfolio'])
+    const homeEntry = { ...settings, homepage: { type: 'home', entry: 'welcome' } }
+    expect(eligibleTypes(types, homeEntry, 'entry').map((type) => type.name)).toEqual(['about', 'home', 'blog'])
   })
 
   it('does not treat unrelated entries as routable when only the homepage entry is enabled', () => {

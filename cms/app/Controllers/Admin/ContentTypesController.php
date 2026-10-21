@@ -81,13 +81,6 @@ final class ContentTypesController extends BaseController
 
         $body['name'] = $name;
 
-        if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
-            $this->json(['error' => [
-                'code' => 'validation_failed',
-                'message' => 'Single page content types can only be enabled when there is at most one active entry.',
-            ]], 422);
-        }
-
         try {
             $this->types->save($body);
         } catch (ValidationException $e) {
@@ -129,13 +122,6 @@ final class ContentTypesController extends BaseController
         $migrations = is_array($body['migrations'] ?? null) ? $body['migrations'] : [];
         unset($body['migrations']);
         $body['name'] = $name;
-
-        if (!empty($body['singleton']) && count($this->content->all($name)) > 1) {
-            $this->json(['error' => [
-                'code' => 'validation_failed',
-                'message' => 'Single page content types can only be enabled when there is at most one active entry.',
-            ]], 422);
-        }
 
         try {
             $this->types->save($body);

@@ -32,7 +32,7 @@
         <!-- What the canvas shows: sample entry, language and editing mode in one group. -->
         <div class="topbar-group hidden md:flex">
           <label
-            v-if="showsSamples && !builder.type.value?.singleton && samples.length"
+            v-if="showsSamples && samples.length"
             class="hidden min-w-0 items-center gap-1 pl-2 lg:flex"
             :title="t('site.builder.sampleEntry')"
           >
@@ -512,8 +512,8 @@ const converting = ref(false);
 /** The layout has changes that can be saved. */
 const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.value) && !builder.hasSyntaxErrors.value);
 
-/** The entry the preview shows: the chosen sample, or the single page itself. */
-const previewEntry = computed(() => (builder.type.value?.singleton ? builder.type.value.name : sampleId.value));
+/** The entry the preview shows: the chosen sample. */
+const previewEntry = computed(() => sampleId.value);
 /** Layouts of single entries and components of a content type preview an entry. */
 const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
 const hasEntryFields = computed(() => showsSamples.value && !!previewEntry.value);
@@ -584,7 +584,7 @@ watch([previewEntry, locale], async ([entry]) => {
 
 const variants = computed(() => {
   if (target !== "layout" || !builder.type.value) return [];
-  return builder.type.value.singleton ? ["detail"] : ["detail", "index"];
+  return ["detail", "index"];
 });
 // Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {

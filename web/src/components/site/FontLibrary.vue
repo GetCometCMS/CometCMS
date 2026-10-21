@@ -66,10 +66,16 @@
       <!-- Catalogue -->
       <template v-else-if="tab === 'catalogue'">
         <div class="space-y-3">
-          <form class="relative" role="search" @submit.prevent="search(0)">
-            <Icon icon="mdi:magnify" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input v-model="query" type="search" :aria-label="t('site.fonts.search')" :placeholder="t('site.fonts.search')" class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm" />
-          </form>
+          <div class="flex flex-wrap items-center gap-2">
+            <form class="relative min-w-0 flex-1" role="search" @submit.prevent="search(0)">
+              <Icon icon="mdi:magnify" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input v-model="query" type="search" :aria-label="t('site.fonts.search')" :placeholder="t('site.fonts.search')" class="form-input w-full rounded-lg border-slate-300 pl-9 text-sm" />
+            </form>
+            <select v-model="sortOrder" class="form-input w-auto text-sm" :aria-label="t('site.fonts.sort')" :disabled="!!busy" @change="search(0)">
+              <option value="popular">{{ t('site.fonts.popular') }}</option>
+              <option value="alphabetical">{{ t('site.fonts.alphabetical') }}</option>
+            </select>
+          </div>
           <div class="flex flex-wrap items-center gap-1.5" role="group" :aria-label="t('site.fonts.allCategories')">
             <button v-for="category in ['', ...catalogueCategories]" :key="category || 'all'" type="button" class="rounded-full border px-3 py-1 text-xs font-medium transition-colors" :class="categoryFilter === category ? 'border-theme-600 bg-theme-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'" :aria-pressed="categoryFilter === category" @click="setCategory(category)">{{ category ? categoryLabel(category) : t('site.fonts.allCategories') }}</button>
             <span class="ml-auto text-xs tabular-nums text-slate-500">{{ t('site.fonts.results', { count: total }) }}</span>
@@ -181,6 +187,7 @@ const tab = ref('installed'), error = ref(''), notice = ref(''), busy = ref('')
 const families = computed(() => site.data?.font_families ?? [])
 const jobs = ref([]), runningJob = ref('')
 const query = ref(''), categoryFilter = ref(''), catalogue = ref([]), total = ref(0), stale = ref(false)
+const sortOrder = ref('popular')
 const selected = ref(null), selectedSubsets = ref([]), removing = ref(null)
 const sampleInput = ref(''), sampleSize = ref(24)
 const sampleText = computed(() => sampleInput.value.trim() || t('site.fonts.sample'))
@@ -323,7 +330,7 @@ async function search(nextOffset, append = false) {
   clearTimeout(searchTimer)
   if (!append) clearPreviewQueue()
   await perform('search', async (active) => {
-    const response = await api.fonts.catalogue({ q: query.value, category: categoryFilter.value, offset: nextOffset })
+    const response = await api.fonts.catalogue({ q: query.value, category: categoryFilter.value, sort: sortOrder.value, offset: nextOffset })
     if (!active()) return
     catalogue.value = append ? [...catalogue.value, ...response.data.families] : response.data.families
     total.value = response.data.total

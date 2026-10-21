@@ -12,15 +12,16 @@ Expand **Website settings** under **Website** in the admin sidebar (permission `
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
-| Entry URL     | `/blog/{slug}`  | Where each entry lives. Collections need exactly one `{slug}`.    |
-| Page URL      | `/about`        | The fixed address of a single page.                               |
+| Entry URL     | `/blog/{slug}`  | Where each entry lives. Needs exactly one `{slug}`.               |
 | List page URL | `/blog`         | Optional page listing all entries of a collection, with paging.   |
 
 `/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
 
 The **Page Builder** column in the content types table shows which types have the Page Builder enabled. Users with `site.manage` can change this setting in the type’s base settings; other users see its status. The Page Builder cannot be enabled for private types. Enabling it for the first content type of a headless workspace puts its website online.
 
-The homepage can be a single page, one entry, or a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Pages for content types with the Page Builder enabled remain accessible at their own URLs. Set the homepage to **None** and disable the Page Builder for all content types to return to a fully headless setup.
+Each content type needs its own entry URL pattern. The website starter serves its **Pages** collection at `/{slug}`, so its entries live at addresses like `/about`.
+
+The homepage can be one entry, a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Pages for content types with the Page Builder enabled remain accessible at their own URLs. Set the homepage to **None** and disable the Page Builder for all content types to return to a fully headless setup.
 
 ## Layouts and the builder
 
@@ -127,7 +128,7 @@ Forms let visitors send messages, sign-ups or requests. Every submission is save
 
 Set forms up on the **content type edit page** by enabling **Allow Submissions**:
 
-- The current content type receives the submissions and becomes available in the **Form** element's **Content type** selector. Single pages cannot receive submissions.
+- The current content type receives the submissions and becomes available in the **Form** element's **Content type** selector.
 - The form shows **every field of that type** that visitors can fill in, in the type's order, so the form and the entries it creates always match. Labels, help texts, required flags, select options and widths (1/3, 1/2, 2/3) come from the content type's field builder; change them there. Text, textarea, Markdown, number, range, yes/no, select, date, date-time, colour and media fields are shown; relations, repeaters, HTML and JSON fields are left out, and a type where one of those is required cannot be used. Title and slug are filled in automatically.
 - **Status of new entries** is *Draft* by default, so submissions wait for review.
 - The button label and the messages shown after sending can be changed; empty texts use defaults in the page's language.
@@ -263,11 +264,10 @@ The picker offers these sources:
 | --- | --- |
 | Current entry | `{{ current.intro_text }}` |
 | Current repeater item | `{{ item.heading }}` |
-| Single page | `{{ single.company.phone }}` |
 | Specific entry | `{{ entry.services["stable_uid"].description }}` |
 | Site information | `{{ site.title }}`, `{{ site.tagline }}`, `{{ site.year }}` |
 
-A single-entry relation can be followed, such as `{{ current.author.bio }}`. Entry sources expose `url`, including `{{ current.author.url }}`. Specific entries use stable UIDs so slug changes do not break references. Inside a repeater, Current item means its row and Current entry means the containing entry. Inside an entry list's card, Current entry is that card's entry. Current entry is unavailable in shared header/footer and list-page editors; use a singleton or a specific entry there.
+A single-entry relation can be followed, such as `{{ current.author.bio }}`. Entry sources expose `url`, including `{{ current.author.url }}`. Specific entries use stable UIDs so slug changes do not break references. Inside a repeater, Current item means its row and Current entry means the containing entry. Inside an entry list's card, Current entry is that card's entry. Current entry is unavailable in shared header/footer and list-page editors; use a specific entry there.
 
 Text can combine references with manual content, such as `Meet {{ current.author.title }}.` Images and link destinations require a complete reference of a compatible type. Multiple values need a specialized list/gallery/repeater display; a scalar element never silently selects the first value. Rich text and Markdown render their formatting when bound as the entire Text content. References embedded within other text become escaped plain text. Tags cannot be inserted into HTML attributes; use the dedicated image and link properties.
 

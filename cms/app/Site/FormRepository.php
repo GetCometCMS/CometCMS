@@ -190,10 +190,10 @@ final class FormRepository
         return $key === 'title' ? 'Title' : ucfirst(str_replace(['_', '-'], ' ', $key));
     }
 
-    /** Content types a form can submit to: single pages already have their one entry. */
+    /** Content types a form can submit to. */
     public function types(): array
     {
-        return array_filter($this->site->types(), static fn(array $type): bool => empty($type['singleton']) && !empty($type['allow_submissions']));
+        return array_filter($this->site->types(), static fn(array $type): bool => !empty($type['allow_submissions']));
     }
 
     private function validate(array $input): array

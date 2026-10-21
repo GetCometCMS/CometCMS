@@ -87,7 +87,7 @@ Creates a new content type schema.
 
 **Required permission:** `schema.create` on `schema:{name}`
 
-Request body fields: `name` (required), `label`, `icon`, `singleton`, `fields`, `locales`, `default_locale`.
+Request body fields: `name` (required), `label`, `icon`, `fields`, `locales`, `default_locale`.
 
 ### `PUT /api/v1/workspaces/{workspace}/content-types/{collection}`
 
@@ -96,8 +96,6 @@ Updates an existing content type schema.
 **Required permission:** `schema.update` on `schema:{collection}`
 
 Existing entries are not modified — new fields will be absent until entries are re-saved.
-
-Setting `singleton: true` makes the content type a single page. Single pages allow at most one active entry and use the content type name as their fixed slug.
 
 ### `DELETE /api/v1/workspaces/{workspace}/content-types/{collection}`
 
@@ -109,7 +107,7 @@ Permanently deletes a content type and all its entries. This action is irreversi
 
 ### `GET /api/v1/workspaces/{workspace}/content/{collection}`
 
-Returns entries in a collection. For single page content types, this route returns the fixed entry object instead of a list.
+Returns entries in a collection.
 
 Without a token, only `published` entries and `scheduled` entries whose `published_at` is in the past are returned. With a token that has `content.read` on the collection, drafts and protected entries are included.
 
@@ -190,8 +188,6 @@ Creating an entry with `status: "published"` also requires `content.publish` on 
 For localized content types, include `locale` in the body to create that locale variant. The default locale is used when `locale` is omitted.
 
 When a content type field defines a supported `default`, omitted values are created with that default before validation and normalization.
-
-For single page content types, creation is allowed only while no active entry exists. The entry slug is forced to the content type name.
 
 ### `PUT /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
 

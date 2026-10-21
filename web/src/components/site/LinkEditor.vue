@@ -18,15 +18,6 @@
       </button>
     </div>
 
-    <label v-if="mode === 'page'" class="block">
-      <span :class="labelClass">{{ t('site.link.page') }}</span>
-      <select :value="pageValue" :class="fieldClass" class="form-select w-full rounded-lg border-slate-300" @change="choosePage($event.target.value)">
-        <option v-if="allow.includes('home')" value="home">{{ t('site.link.home') }}</option>
-        <option v-if="link.type === 'entry' && !pages.some((type) => type.name === link.collection)" :value="link.collection" disabled>{{ link.collection }} · {{ t('site.link.unavailableShort') }}</option>
-        <option v-for="page in pages" :key="page.name" :value="page.name">{{ page.label }}</option>
-      </select>
-    </label>
-
     <label v-if="mode === 'entry' || mode === 'index'" class="block">
       <span :class="labelClass">{{ t('site.link.collection') }}</span>
       <select :value="link.collection || ''" :class="fieldClass" class="form-select w-full rounded-lg border-slate-300" @change="chooseCollection($event.target.value)">
@@ -39,7 +30,7 @@
     <ContentLinkPicker v-if="mode === 'entry' && link.collection" :key="`${context}:${link.collection}`"
       :model-value="link.entry || ''" :collection="link.collection" :locale="settings?.default_locale || ''" :context="context" :only-identifier="onlyIdentifier"
       @update:model-value="update({ entry: $event })" @select="chosenEntry" @resolved="resolvedEntry = $event" />
-    <MenuLinkSummary v-if="mode === 'page'" :link="link" :types="types" :settings="settings" :context="context" verbose @resolved="resolvedPage" />
+    <MenuLinkSummary v-if="mode === 'home'" :link="link" :types="types" :settings="settings" :context="context" verbose />
     <p v-if="unavailableRoute" class="text-xs text-amber-700" role="status">{{ t('site.link.unavailableRoute') }}</p>
 
     <label v-if="mode === 'url'" class="block">
@@ -91,16 +82,12 @@ const link = computed(() => props.modelValue ?? { type: 'none' })
 const labelClass = computed(() => props.compact ? 'mb-1 block text-xs font-medium text-slate-600' : 'form-label')
 const fieldClass = computed(() => props.compact ? 'py-1.5 text-xs' : 'text-sm')
 const resolvedEntry = ref(null)
-const pendingPage = ref('')
-watch(() => props.context, () => { pendingPage.value = '' })
 watch(() => [link.value.collection, link.value.entry], () => { resolvedEntry.value = null })
 const onlyIdentifier = computed(() => !props.settings?.routes?.[link.value.collection]?.enabled && props.settings?.homepage?.type === link.value.collection ? props.settings.homepage.entry || '' : '')
-const pages = computed(() => props.allow.includes('entry') ? eligibleTypes(props.types, props.settings, 'page') : [])
-const mode = computed(() => link.value.type === 'home' || (link.value.type === 'entry' && props.types.find((type) => type.name === link.value.collection)?.singleton) ? 'page' : link.value.type)
-const pageValue = computed(() => link.value.type === 'home' ? 'home' : link.value.collection)
+const mode = computed(() => link.value.type)
 const collections = computed(() => eligibleTypes(props.types, props.settings, mode.value))
 const modes = computed(() => [
-  { value: 'page', label: t('site.link.pages'), icon: 'mdi:file-document-outline', enabled: props.allow.includes('home') || pages.value.length > 0 },
+  { value: 'home', label: t('site.link.home'), icon: 'mdi:home-outline', enabled: props.allow.includes('home') },
   { value: 'entry', label: t('site.link.content'), icon: 'mdi:database-outline', enabled: props.allow.includes('entry') },
   { value: 'index', label: t('site.link.listing'), icon: 'mdi:format-list-bulleted', enabled: props.allow.includes('index') },
   { value: 'url', label: t('site.link.custom'), icon: 'mdi:link', enabled: props.allow.includes('url') },
@@ -113,26 +100,12 @@ const issue = computed(() => ['none', 'current'].includes(link.value.type) ? '' 
 function update(patch) { emit('update:modelValue', { ...link.value, ...patch }) }
 function setMode(value) {
   if (value === mode.value) return
-  if (value === 'page') {
-    choosePage(props.allow.includes('home') ? 'home' : pages.value[0]?.name)
-  } else {
-    emit('update:modelValue', { type: value, new_tab: value === 'anchor' ? false : !!link.value.new_tab })
-  }
-}
-function choosePage(value) {
-  pendingPage.value = value === 'home' ? '' : value
-  emit('update:modelValue', value === 'home' ? { type: 'home', new_tab: !!link.value.new_tab } : { type: 'entry', collection: value, entry: value, new_tab: !!link.value.new_tab })
+  emit('update:modelValue', { type: value, new_tab: value === 'anchor' ? false : !!link.value.new_tab })
   if (value === 'home') emit('destination-label', t('site.link.home'))
 }
 function chooseCollection(value) {
   update({ collection: value, entry: '', anchor: '' })
   if (mode.value === 'index' && value) emit('destination-label', resolveLocalized(props.settings?.routes?.[value]?.index_title, props.settings?.default_locale, props.settings?.default_locale) || props.types.find((type) => type.name === value)?.label || value)
-}
-function resolvedPage(entry) {
-  if (pendingPage.value && pendingPage.value === link.value.collection && link.value.type === 'entry') {
-    emit('destination-label', entryTitle(entry, props.settings?.default_locale))
-    pendingPage.value = ''
-  }
 }
 function chosenEntry(entry) { resolvedEntry.value = entry; emit('destination-label', entryTitle(entry, props.settings?.default_locale)) }
 </script>

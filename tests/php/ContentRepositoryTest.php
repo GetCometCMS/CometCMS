@@ -110,20 +110,6 @@ test('content repository duplicates entries as draft copies', function (): void 
     assert_same(true, $copy['featured']);
 });
 
-test('content repository enforces singleton content types', function (): void {
-    comet_content_test_types()->save([
-        'name' => 'homepage',
-        'singleton' => true,
-    ]);
-    $repository = comet_content_test_repository();
-    $user = comet_content_test_user();
-
-    $entry = $repository->save('homepage', ['title' => 'Home'], $user);
-
-    assert_same('homepage', $entry['id']);
-    assert_throws(ValidationException::class, static fn() => $repository->save('homepage', ['title' => 'Another Home'], $user));
-});
-
 test('content repository soft deletes restores and purges entries', function (): void {
     comet_content_test_save_posts_schema();
     $repository = comet_content_test_repository();

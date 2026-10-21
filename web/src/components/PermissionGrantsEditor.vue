@@ -339,10 +339,6 @@ const summary = computed(() => {
   return t("perm.summary", { actions, resource: resourceForCurrentSelection() });
 });
 
-const selectedContentType = computed(() =>
-  contentTypes.list.find((type) => type.name === selectedCollection.value),
-);
-
 const entriesLoading = computed(
   () => entryLoadState.value[selectedCollection.value]?.loading === true,
 );
@@ -534,31 +530,18 @@ async function loadEntries() {
   };
 
   try {
-    if (selectedContentType.value?.singleton) {
-      entriesByCollection.value = {
-        ...entriesByCollection.value,
-        [collection]: [
-          {
-            id: collection,
-            slug: collection,
-            title: selectedContentType.value.label || collection,
-          },
-        ],
-      };
-    } else {
-      const res = await api.content.list(collection, {
-        limit: 200,
-        sort: "title",
-      });
-      entriesByCollection.value = {
-        ...entriesByCollection.value,
-        [collection]: (res.data ?? []).map((entry) => ({
-          id: entry.id,
-          slug: entry.slug ?? "",
-          title: entry.title ?? "",
-        })),
-      };
-    }
+    const res = await api.content.list(collection, {
+      limit: 200,
+      sort: "title",
+    });
+    entriesByCollection.value = {
+      ...entriesByCollection.value,
+      [collection]: (res.data ?? []).map((entry) => ({
+        id: entry.id,
+        slug: entry.slug ?? "",
+        title: entry.title ?? "",
+      })),
+    };
 
     entryLoadState.value = {
       ...entryLoadState.value,

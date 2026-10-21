@@ -38,7 +38,7 @@
             <option v-for="type in publicTypes" :key="type.name" :value="type.name">{{ type.label }}</option>
           </select>
         </div>
-        <div v-if="homeType && !homeType.singleton">
+        <div v-if="homeType">
           <label class="form-label" for="site-home-entry">{{ t("site.overview.homepageEntry") }}</label>
           <select id="site-home-entry" v-model="settings.homepage.entry" class="form-select w-full rounded-lg border-slate-300 text-sm" :disabled="loadingEntries">
             <option v-for="option in homeEntryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -154,7 +154,7 @@ watch(
   homeType,
   async (type) => {
     homeEntries.value = [];
-    if (!type || type.singleton) return;
+    if (!type) return;
     loadingEntries.value = true;
     try {
       const res = await api.content.list(type.name, { limit: 200, sort: "-updated_at" });

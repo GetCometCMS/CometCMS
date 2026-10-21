@@ -21,21 +21,21 @@
     </div>
 
     <template v-if="editable && route.enabled">
-      <div class="grid grid-cols-1 gap-5" :class="singleton ? 'max-w-3xl' : 'md:grid-cols-2'">
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
           <LocalizedInput
             id="type-route-pattern"
-            :label="singleton ? t('site.pages.pageUrl') : t('site.pages.entryUrl')"
+            :label="t('site.pages.entryUrl')"
             :model-value="route.pattern"
             class="w-full"
             :invalid="!!errors.pattern"
             @update:model-value="(value) => update({ pattern: value })"
           />
           <p v-if="errors.pattern" class="mt-1 text-xs text-red-600">{{ errors.pattern }}</p>
-          <p v-else class="mt-1 text-xs text-slate-500">{{ singleton ? t("site.pages.pageUrlHint") : t("site.pages.entryUrlHint") }}</p>
+          <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.entryUrlHint") }}</p>
         </div>
 
-        <div v-if="!singleton">
+        <div>
           <LocalizedInput
             id="type-route-index"
             :label="t('site.pages.listUrl')"
@@ -56,7 +56,7 @@
           {{ t("site.pages.seo") }}
         </summary>
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div v-if="!singleton">
+          <div>
             <label class="form-label" for="type-route-index-title">{{ t("site.pages.listTitle") }}</label>
             <LocalizedInput id="type-route-index-title" :model-value="route.index_title" class="w-full" :placeholder="label" @update:model-value="(value) => update({ index_title: value })" />
           </div>
@@ -100,7 +100,6 @@ const props = defineProps({
   status: { type: Object, default: null },
   name: { type: String, default: "" },
   label: { type: String, default: "" },
-  singleton: { type: Boolean, default: false },
   visibility: { type: String, default: "public" },
   /** [{ key, type, label }] of the type's own fields. */
   fields: { type: Array, default: () => [] },
@@ -119,7 +118,7 @@ const pathText = (value) => resolveLocalized(value, languages.defaultLocale.valu
 const summary = computed(() => {
   if (props.visibility === "private") return t("site.typeCard.private");
   if (route.value.enabled || route.value.pages_enabled) {
-    const where = props.singleton || !pathText(route.value.index_path) ? pathText(route.value.pattern) : `${pathText(route.value.index_path)} · ${pathText(route.value.pattern)}`;
+    const where = !pathText(route.value.index_path) ? pathText(route.value.pattern) : `${pathText(route.value.index_path)} · ${pathText(route.value.pattern)}`;
     return `${t("site.typeCard.published")} ${where}`;
   }
   return t("site.typeCard.notPublished");

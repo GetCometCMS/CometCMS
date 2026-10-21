@@ -105,6 +105,13 @@ Before removing a handler, check every workspace (including archived ones), revi
 - **Safe to remove:** after backfilling immutable ids into entries (including deleted content and restorable snapshots) and rewriting persisted references such as homepage settings and menu/layout links. Preserve identifiers already issued by `stableId()`, or provide aliases: an ordinary save currently assigns a random `uid` to an entry that lacks one. Old backups and callers must be converted or retired too.
 - **Streamlining:** use `uid` consistently when storing website references. Keep slug/id lookup for routes and API operations that still intentionally accept those identifiers; it is broader than this fallback.
 
+### Single page content types (`singleton: true`)
+
+- **Handles:** content types marked `singleton`, from before every content type was a collection. Their one entry was stored under the type's name and served at a fixed URL such as `/about`, and themes could reference it as `single.{type}.{field}`.
+- **Where:** [SingletonMigration.php](cms/app/Site/SingletonMigration.php), run lazily from the [SiteRepository constructor](cms/app/Site/SiteRepository.php) and after every restore ([RestoreService.php](cms/app/Backups/RestoreService.php)). It gives each one the default collection URL `/{type}/{slug}` without a list page, so a page at `/about` moves to `/about/about`; selects the entry explicitly when the type is the homepage; rewrites `single` smart references in `site/theme/` and `revisions/site/` into `entry` references by `uid`; and finally drops the flag from stored schemas. Configuration-defined schemas keep their flag, which is ignored, and `needed()` checks their routes and homepage instead.
+- **Not handled:** old fixed URLs are not redirected. API clients that read `GET /content/{type}` as one object now receive a list like for every collection, and `singleton` in content type payloads is ignored.
+- **Safe to remove:** once every workspace has been migrated, configuration no longer sets `singleton`, and old backups need not be restorable. Then delete `SingletonMigration` and its two call sites.
+
 ## Accounts, media, workspaces
 
 ### API tokens inside user records

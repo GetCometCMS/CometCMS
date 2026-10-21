@@ -20,7 +20,7 @@ function smart_test_state(): array
     return [$context, ['type' => $context->type('blog'), 'entry' => $context->findEntry('blog', 'hello')]];
 }
 
-test('smart values resolve current items singles stable entries and site information', function (): void {
+test('smart values resolve current items stable entries and site information', function (): void {
     comet_site_test_setup();
     [$context, $state] = smart_test_state();
     $smart = new SmartValue($context);
@@ -28,8 +28,7 @@ test('smart values resolve current items singles stable entries and site informa
     $related = SmartValue::reference('author');
     $related['path'][] = 'bio';
     assert_same('Writes code.', $smart->resolve($related, $state)['value']);
-    $single = SmartValue::reference('intro', 'single') + ['collection' => 'about'];
-    assert_same('We build things.', $smart->resolve($single, [])['value']);
+    assert_throws(ValidationException::class, fn() => SmartValue::normalize(SmartValue::reference('intro', 'single') + ['collection' => 'about']), 'Single page references were migrated to entry references.');
     $author = $context->findEntry('authors', 'ada');
     $explicit = SmartValue::reference('bio', 'entry') + ['collection' => 'authors', 'entry' => $author['uid']];
     assert_same('Writes code.', $smart->resolve($explicit, [])['value']);
@@ -267,13 +266,13 @@ test('smart media and links preserve types and reject unsafe or ambiguous values
 
 test('smart references localize secondary entries and remain workspace scoped', function (): void {
     $types = new ContentTypeRepository();
-    $types->save(['name' => 'company', 'singleton' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => ['intro' => ['type' => 'textarea']]]);
+    $types->save(['name' => 'company', 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => ['intro' => ['type' => 'textarea']]]);
     $content = ContentRepository::make();
-    $content->save('company', ['title' => 'Company', 'intro' => 'English', 'status' => 'published', 'locale' => 'en'], comet_site_test_user());
+    $company = $content->save('company', ['title' => 'Company', 'slug' => 'company', 'intro' => 'English', 'status' => 'published', 'locale' => 'en'], comet_site_test_user());
     $content->save('company', ['title' => 'Firma', 'intro' => 'Deutsch', 'status' => 'published', 'locale' => 'de'], comet_site_test_user(), 'company');
     $site = new SiteRepository();
     $site->saveSettings(['enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en']);
-    $ref = SmartValue::reference('intro', 'single') + ['collection' => 'company'];
+    $ref = SmartValue::reference('intro', 'entry') + ['collection' => 'company', 'entry' => $company['uid']];
     $context = comet_site_test_context();
     $context->locale = 'de';
     assert_same('Deutsch', (new SmartValue($context))->resolve($ref, [])['value']);

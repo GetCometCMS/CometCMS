@@ -62,7 +62,7 @@ final class FormSubmission
 
         $type = $this->site->types()[$form['type']] ?? null;
         $inputs = $this->forms->inputs($form);
-        if ($type === null || empty($type['allow_submissions']) || !empty($type['singleton']) || $inputs === []) {
+        if ($type === null || empty($type['allow_submissions']) || $inputs === []) {
             return ['status' => self::ERROR, 'errors' => ['form' => 'This form is not available.']];
         }
 

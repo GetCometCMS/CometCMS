@@ -181,7 +181,6 @@ Create a new content type.
 | `label`          | string           |          |
 | `icon`           | string           |          |
 | `fields`         | object           |          |
-| `singleton`      | boolean          |          |
 
 **Required permission:** `schema.create` on `schema:{name}`
 
@@ -201,7 +200,6 @@ Surgically update an existing content type. Omitted properties are **preserved**
 | `fields`         | object           |          |
 | `remove_fields`  | array of strings |          |
 | `replace_fields` | boolean          |          |
-| `singleton`      | boolean          |          |
 
 **Required permission:** `schema.update` on `schema:{collection}`
 

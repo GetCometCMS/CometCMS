@@ -1,6 +1,6 @@
 # Content Types
 
-A **content type** defines the structure (schema) for content. Most content types are collections of entries, such as `posts`. A content type can also be marked as a **single page** for one-off content like `start-page`, `contact-page`, or `imprint`.
+A **content type** defines the structure (schema) for content. Every content type is a collection of entries, such as `posts`. One-off content like a start page, contact page or imprint is simply an entry, for example in a `pages` collection.
 
 New content types use the **Page Builder** by default. **Content fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
 
@@ -13,14 +13,9 @@ The headless API is disabled for new types. Enable **Expose content fields throu
 1. In the sidebar, under **Developer**, click **Content types**.
 2. Click **New content type**.
 3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
-4. Choose the **Content model**:
-   - **Collection** for repeatable content with many entries.
-   - **Single page** for one fixed entry.
-5. Add content fields (see [Field Types](./field-types)).
-6. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
-7. Click **Save**.
-
-Single page content types appear under **Content** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
+4. Add content fields (see [Field Types](./field-types)).
+5. For forms, enable **Allow Submissions** and configure the new-entry status, button and messages below.
+6. Click **Save**.
 
 ## Editing a content type
 
@@ -29,8 +24,6 @@ Open an existing content type to add, reorder, remove fields, or set supported f
 ![Editing a content type schema in CometCMS](../screenshots/edit-content-type.png)
 
 Field defaults pre-fill new entries in the admin editor and are applied to API-created entries when the field is omitted.
-
-You can change a collection to a single page only when it has at most one active entry. This avoids ambiguity about which existing entry should become the fixed page content.
 
 ## Localization
 
@@ -75,7 +68,6 @@ Content types are stored in `cms/storage/workspaces/{workspace}/content-types/{n
 {
   "name": "posts",
   "label": "Posts",
-  "singleton": false,
   "api_enabled": true,
   "fields": {
     "title": { "type": "text", "required": true },

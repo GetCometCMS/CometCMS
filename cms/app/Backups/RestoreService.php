@@ -10,6 +10,7 @@ use CometCMS\Auth\UserRepository;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Logging\Logger;
+use CometCMS\Site\SingletonMigration;
 use CometCMS\Site\ThemeMigration;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -154,6 +155,7 @@ final class RestoreService
 
         $zip->close();
         (new ThemeMigration($this->workspace))->run();
+        (new SingletonMigration($this->workspace))->run();
         ApiCache::fromConfig($this->workspace)->clear();
         (new Logger())->info('backup restored', ['summary' => $summary, 'user_id' => $user['id'] ?? null]);
 

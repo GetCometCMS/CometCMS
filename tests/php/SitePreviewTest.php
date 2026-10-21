@@ -168,7 +168,7 @@ $users->create('history-viewer', 'secret-password', 'viewer');
     ['effect' => 'allow', 'actions' => ['site.manage'], 'resources' => ['site:*']],
 ]]);
 $users->create('history-designer', 'secret-password', 'designer');
-(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'about', 'singleton' => true]);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'about']);
 PHP .
         'foreach (["admin", "viewer", "designer"] as $role) { session_id(' . var_export($sessionPrefix, true) . ' . "-" . $role); session_start(); $_SESSION["user_id"] = "history-" . $role; $_SESSION["cometcms_csrf"] = "history-token"; session_write_close(); }'
     ]);
@@ -269,11 +269,11 @@ foreach (['default', 'preview-site'] as $slug) {
     $workspace = new \CometCMS\Workspaces\WorkspaceContext($slug);
     (new \CometCMS\Localization\LanguageSettings($workspace))->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     (new \CometCMS\Content\ContentTypeRepository($workspace))->save([
-        'name' => 'startseite', 'singleton' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en',
+        'name' => 'startseite', 'locales' => ['en', 'de'], 'default_locale' => 'en',
     ]);
     $content = \CometCMS\Content\ContentRepository::make($workspace);
-    $entry = $content->save('startseite', ['title' => $slug . ' English draft', 'locale' => 'en'], ['id' => 'preview-editor']);
-    $content->save('startseite', ['title' => $slug . ' Deutscher Entwurf', 'locale' => 'de'], ['id' => 'preview-editor'], $entry['id']);
+    $entry = $content->save('startseite', ['title' => $slug . ' English draft', 'slug' => 'startseite', 'locale' => 'en'], ['id' => 'preview-editor']);
+    $content->save('startseite', ['title' => $slug . ' Deutscher Entwurf', 'slug' => 'startseite', 'locale' => 'de'], ['id' => 'preview-editor'], $entry['id']);
     (new \CometCMS\Site\SiteRepository($workspace))->saveSettings([
         'enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en',
         'routes' => ['startseite' => ['enabled' => true]],
@@ -306,7 +306,7 @@ PHP .
             assert_same(401, $status, 'An editor session is required to preview a draft.');
         }
 
-        [$status] = comet_site_preview_test_request($port, '/startseite');
+        [$status] = comet_site_preview_test_request($port, '/startseite/startseite');
         assert_same(404, $status, 'The draft stays hidden on the public website.');
     } finally {
         comet_test_stop_process($server);

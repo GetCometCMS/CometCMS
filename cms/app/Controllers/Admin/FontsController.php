@@ -51,18 +51,23 @@ final class FontsController extends BaseController
     {
         $this->access();
         $this->respond(function (): array {
-            $catalogue = (new Fontsource())->catalogue();
+            $provider = new Fontsource();
+            $catalogue = $provider->catalogue();
             $query = strtolower(trim((string) ($_GET['q'] ?? '')));
             $category = (string) ($_GET['category'] ?? '');
             $families = array_values(array_filter($catalogue['families'], static fn(array $font): bool => ($query === '' || str_contains(strtolower($font['family']), $query)) && ($category === '' || $font['category'] === $category)));
-            usort($families, static fn(array $a, array $b): int => strcasecmp($a['family'], $b['family']));
+            $popularity = ($_GET['sort'] ?? 'popular') === 'alphabetical'
+                ? ['scores' => [], 'stale' => false]
+                : $provider->popularity();
+            $scores = $popularity['scores'];
+            usort($families, static fn(array $a, array $b): int => (($scores[$b['id']] ?? 0) <=> ($scores[$a['id']] ?? 0)) ?: strcasecmp($a['family'], $b['family']));
             $installed = $this->fonts->families();
             $offset = max(0, (int) ($_GET['offset'] ?? 0));
             $slice = array_slice($families, $offset, 50);
             foreach ($slice as &$font) {
                 $font['installed'] = isset($installed['fontsource-' . $font['id']]);
             }
-            return ['families' => $slice, 'total' => count($families), 'offset' => $offset, 'stale' => $catalogue['stale']];
+            return ['families' => $slice, 'total' => count($families), 'offset' => $offset, 'stale' => $catalogue['stale'] || $popularity['stale']];
         });
     }
 

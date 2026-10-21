@@ -17,9 +17,8 @@ export function eligibleTypes(types, settings, kind) {
     const route = settings?.routes?.[type.name]
     const home = settings?.homepage
     const homepage = home?.type === type.name
-    if (kind === 'page') return type.singleton && (route?.enabled || homepage)
-    if (kind === 'index') return !type.singleton && ((route?.enabled && route.index_path) || (homepage && !home.entry))
-    return !type.singleton && (route?.enabled || (homepage && !!home.entry))
+    if (kind === 'index') return !!((route?.enabled && route.index_path) || (homepage && !home.entry))
+    return !!(route?.enabled || (homepage && home.entry))
   })
 }
 
@@ -37,10 +36,9 @@ export function destinationAvailable(link, types, settings, entry = null) {
   if (!type || type.visibility === 'private') return false
   const route = settings?.routes?.[type.name]
   const home = settings?.homepage
-  if (link.type === 'index') return !type.singleton && !!((route?.enabled && route.index_path) || (home?.type === type.name && !home.entry))
+  if (link.type === 'index') return !!((route?.enabled && route.index_path) || (home?.type === type.name && !home.entry))
   if (route?.enabled) return true
   if (home?.type !== type.name) return false
-  if (type.singleton) return true
   return !!home.entry && [link.entry, entry?.uid, entry?.slug, entry?.id].filter(Boolean).includes(home.entry)
 }
 

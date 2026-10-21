@@ -579,7 +579,6 @@ final class LayoutSchema
     {
         $fields = is_array($type['fields'] ?? null) ? $type['fields'] : [];
         $slugField = (string) ($type['slug_field'] ?? 'slug');
-        $singleton = !empty($type['singleton']);
 
         if ($variant === 'index') {
             return [
@@ -612,11 +611,10 @@ final class LayoutSchema
                 ]);
             }
 
-            $body = [self::node('field', ['field' => 'title', 'tag' => 'h3', 'link' => true], ['margin_bottom' => 'xs', 'font_size' => 'xl'])];
-
-            if (!$singleton) {
-                $body[] = self::node('field', ['field' => 'published_at', 'display' => 'date'], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'sm']);
-            }
+            $body = [
+                self::node('field', ['field' => 'title', 'tag' => 'h3', 'link' => true], ['margin_bottom' => 'xs', 'font_size' => 'xl']),
+                self::node('field', ['field' => 'published_at', 'display' => 'date'], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'sm']),
+            ];
 
             if ($excerpt !== null) {
                 $body[] = self::node('field', ['field' => $excerpt, 'display' => 'excerpt', 'truncate' => 28], ['margin_bottom' => 'none']);
@@ -631,11 +629,10 @@ final class LayoutSchema
             ];
         }
 
-        $elements = [self::node('field', ['field' => 'title', 'tag' => 'h1'])];
-
-        if (!$singleton) {
-            $elements[] = self::node('field', ['field' => 'published_at', 'display' => 'date', 'date_format' => 'long'], ['text_color' => 'muted', 'margin_bottom' => 'lg']);
-        }
+        $elements = [
+            self::node('field', ['field' => 'title', 'tag' => 'h1']),
+            self::node('field', ['field' => 'published_at', 'display' => 'date', 'date_format' => 'long'], ['text_color' => 'muted', 'margin_bottom' => 'lg']),
+        ];
 
         foreach ($fields as $name => $config) {
             $name = (string) $name;

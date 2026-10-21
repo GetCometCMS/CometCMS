@@ -126,6 +126,4 @@ test('submission-enabled schemas reject unusable fields before changing storage'
         assert_throws(\CometCMS\Core\ValidationException::class, static fn() => $types->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => $fields]));
         assert_false($types->exists('applications'));
     }
-    $types->save(['name' => 'about', 'singleton' => true, 'allow_submissions' => true]);
-    assert_false($types->find('about')['allow_submissions'], 'Single pages cannot receive submissions.');
 });

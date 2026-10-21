@@ -423,7 +423,7 @@ const selectOptions = computed(() => {
       return [
         { value: "", label: t("site.builder.chooseType") },
         ...builder.types.value
-          .filter((type) => !type.singleton && type.visibility !== "private")
+          .filter((type) => type.visibility !== "private")
           .map((type) => ({ value: type.name, label: type.label })),
       ];
     case "menu":

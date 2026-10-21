@@ -28,7 +28,7 @@ const routes = [
   },
   {
     path: '/content/:collection',
-    component: () => import('../views/ContentRouteView.vue'),
+    component: () => import('../views/ContentListView.vue'),
     meta: { requiresAuth: true },
   },
   {

@@ -34,7 +34,7 @@ afterEach(() => scope.stop())
 
 describe('admin navigation', () => {
   it('exposes all design tools while keeping content directly accessible', () => {
-    useContentTypesStore().list = [{ name: 'pages', label: 'Pages', singleton: false }]
+    useContentTypesStore().list = [{ name: 'pages', label: 'Pages' }]
     expect(item('page-builder').children.map((entry) => entry.to)).toEqual([
       '/page-builder/design', '/page-builder/menus', '/page-builder/components', '/page-builder/fonts',
     ])
@@ -75,7 +75,7 @@ describe('admin navigation', () => {
   it('respects content permissions without losing schema order or trash highlighting', () => {
     useContentTypesStore().list = [
       { name: 'private', label: 'Private' },
-      { name: 'pages', label: 'Pages', singleton: true },
+      { name: 'pages', label: 'Pages' },
       { name: 'posts', label: 'Posts' },
     ]
     auth.user = { capabilities: { permissions: [

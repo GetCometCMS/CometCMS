@@ -62,7 +62,7 @@ test('forms show every field of their type that visitors can fill in', function 
         throw new RuntimeException('Expected a validation error.');
     };
     assert_same('applications', $forms->create(['name' => 'Apply', 'type' => 'applications'])['type']);
-    assert_true(isset($rejected(['name' => 'Single page', 'type' => 'about'])['type']), 'Single pages already have their one entry.');
+    assert_true(isset($rejected(['name' => 'About', 'type' => 'about'])['type']), 'Types must allow submissions.');
     assert_true(isset($rejected(['name' => '', 'type' => 'inquiries'])['name']));
 
     $updated = $forms->update($form['id'], ['name' => 'Kontakt', 'type' => 'inquiries', 'status' => 'published', 'captcha' => 'turnstile']);

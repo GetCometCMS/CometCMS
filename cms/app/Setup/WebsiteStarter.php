@@ -24,13 +24,6 @@ final class WebsiteStarter
             'body' => ['type' => 'markdown', 'label' => 'Page content'],
         ];
         $types->save([
-            'name' => 'landing-page',
-            'label' => 'Landing Page',
-            'icon' => 'mdi:home-outline',
-            'singleton' => true,
-            'fields' => [],
-        ]);
-        $types->save([
             'name' => 'pages',
             'label' => 'Pages',
             'icon' => 'mdi:file-document-multiple-outline',
@@ -56,8 +49,11 @@ final class WebsiteStarter
         }
 
         $content = ContentRepository::make($this->workspace);
-        $home = $content->save('landing-page', [
-            'title' => 'Welcome to your website',
+        $home = $content->save('pages', [
+            'title' => 'Landing Page',
+            'slug' => 'landing-page',
+            'intro' => 'Welcome to your website.',
+            'body' => "## Make it yours\n\nThis is your start page. Open it in the Page Builder to design it, or edit its content like any other page.",
             'status' => 'published',
         ], $user);
         $about = $content->save('pages', [
@@ -104,10 +100,9 @@ final class WebsiteStarter
 
         $site = new SiteRepository($this->workspace, $types);
         $site->saveSettings([
-            'homepage' => ['type' => 'landing-page', 'entry' => $home['id']],
+            'homepage' => ['type' => 'pages', 'entry' => $home['id']],
             'routes' => [
-                'landing-page' => ['enabled' => true],
-                'pages' => ['enabled' => true, 'seo_description_field' => 'intro'],
+                'pages' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '', 'seo_description_field' => 'intro'],
                 ...($includeEvents ? ['events' => ['enabled' => true, 'seo_description_field' => 'intro']] : []),
             ],
         ]);

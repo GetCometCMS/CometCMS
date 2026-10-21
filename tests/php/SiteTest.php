@@ -24,8 +24,8 @@ function comet_site_test_user(): array
     return ['id' => 'admin', 'role' => 'admin'];
 }
 
-/** A "blog" collection, an "about" single page and a private "notes" type. */
-function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], 'about' => ['enabled' => true]], array $settings = []): SiteRepository
+/** A "blog" collection, an "about" page served at /about and a private "notes" type. */
+function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']], array $settings = []): SiteRepository
 {
     $types = new ContentTypeRepository();
     $types->save([
@@ -45,7 +45,7 @@ function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], '
             ]],
         ],
     ]);
-    $types->save(['name' => 'about', 'singleton' => true, 'fields' => ['intro' => ['type' => 'textarea']]]);
+    $types->save(['name' => 'about', 'fields' => ['intro' => ['type' => 'textarea']]]);
     $types->save(['name' => 'notes', 'visibility' => 'private', 'fields' => []]);
 
     $content = ContentRepository::make();
@@ -61,7 +61,7 @@ function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], '
         'status' => 'published',
     ], $user);
     $content->save('blog', ['title' => 'Secret draft', 'slug' => 'secret-draft', 'status' => 'draft'], $user);
-    $content->save('about', ['title' => 'About us', 'intro' => 'We build things.', 'status' => 'published'], $user);
+    $content->save('about', ['title' => 'About us', 'slug' => 'about', 'intro' => 'We build things.', 'status' => 'published'], $user);
     $content->save('notes', ['title' => 'Private note', 'status' => 'published'], $user);
 
     $site = new SiteRepository();
@@ -304,7 +304,6 @@ test('default layouts are generated from the content type fields', function (): 
 
     assert_true(str_contains(json_encode($site->layout('blog', 'index')), '"collection"'));
     assert_false($site->layoutCustomized('blog', 'detail'));
-    assert_throws(InvalidArgumentException::class, fn() => $site->layout('about', 'index'));
     assert_throws(InvalidArgumentException::class, fn() => $site->layout('blog', 'card'), 'Cards live in collections now.');
 });
 
@@ -315,8 +314,8 @@ test('website settings reject reserved, malformed and duplicate URLs', function 
     $cases = [
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/admin/{slug}']]],
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/blog']]],
-        ['routes' => ['about' => ['enabled' => true, 'pattern' => '/about/{slug}']]],
-        ['routes' => ['blog' => ['enabled' => true, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/about']]],
+        ['routes' => ['about' => ['enabled' => true, 'pattern' => '/about']]],
+        ['routes' => ['blog' => ['enabled' => true, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/about/{slug}', 'index_path' => '/about']]],
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/Blog Posts/{slug}']]],
     ];
 
@@ -381,7 +380,7 @@ test('website homepage shows a branded placeholder until a homepage is chosen', 
     assert_same(200, comet_site_test_get('/blog/hello')['status'], 'Frontend pages remain accessible.');
 
     $settings = $site->settings();
-    $settings['homepage'] = ['type' => 'about', 'entry' => ''];
+    $settings['homepage'] = ['type' => 'about', 'entry' => 'about'];
     $site->saveSettings($settings);
 
     $home = comet_site_test_get('/');
@@ -1239,10 +1238,9 @@ test('theme spacing and radius tokens drive the stylesheet', function (): void {
     assert_false(array_key_exists('spacing', $legacy));
 });
 
-test('website status opens the homepage editor for single pages selected entries and lists', function (): void {
+test('website status opens the homepage editor for selected entries and lists', function (): void {
     $seed = <<<'PHP'
 $types = new \CometCMS\Content\ContentTypeRepository();
-$types->save(['name' => 'home', 'singleton' => true]);
 $types->save(['name' => 'pages']);
 $content = \CometCMS\Content\ContentRepository::make();
 $entry = $content->save('pages', ['title' => 'Welcome', 'slug' => 'welcome', 'status' => 'published'], ['id' => 'admin']);
@@ -1250,7 +1248,6 @@ $site = new \CometCMS\Site\SiteRepository();
 PHP;
     foreach ([
         ["['type' => '', 'entry' => '']", null],
-        ["['type' => 'home', 'entry' => '']", '/page-builder/builder/layout/home/detail'],
         ["['type' => 'pages', 'entry' => 'welcome']", '/page-builder/builder/layout/pages/detail?entry=welcome'],
         ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '/page-builder/builder/layout/pages/detail?entry=welcome'],
         ["['type' => 'pages', 'entry' => '']", '/page-builder/builder/layout/pages/index'],

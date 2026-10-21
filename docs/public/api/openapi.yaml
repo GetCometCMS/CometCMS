@@ -102,7 +102,6 @@ components:
           name,
           label,
           icon,
-          singleton,
           api_enabled,
           allow_submissions,
           submission_settings,
@@ -123,9 +122,6 @@ components:
           type: string
         icon:
           type: string
-        singleton:
-          type: boolean
-          description: When true, the content type represents one fixed entry whose slug matches the content type name.
         api_enabled:
           type: boolean
           default: false
@@ -194,8 +190,6 @@ components:
           type: string
         icon:
           type: string
-        singleton:
-          type: boolean
         api_enabled:
           type: boolean
           default: false
@@ -251,8 +245,6 @@ components:
           type: string
         icon:
           type: string
-        singleton:
-          type: boolean
         api_enabled:
           type: boolean
           default: false
@@ -687,7 +679,7 @@ paths:
     get:
       tags: [Content]
       summary: List content entries
-      description: Without a token, only public entries from public content types are returned. Private content types require `content.read` on `content:{collection}:*`. With that permission, drafts and protected entries are also included. For singleton content types, this path returns the fixed entry object.
+      description: Without a token, only public entries from public content types are returned. Private content types require `content.read` on `content:{collection}:*`. With that permission, drafts and protected entries are also included.
       x-required-permission:
         effect: allow
         actions: [content.read]
@@ -729,7 +721,7 @@ paths:
           description: Field filters, including `in`, `ne`, `gt`, `gte`, `lt`, `lte`, and `contains` operators.
       responses:
         "200":
-          description: Entry list, or the fixed entry object for singleton content types.
+          description: Entry list.
           content:
             application/json:
               schema:
@@ -763,7 +755,7 @@ paths:
     post:
       tags: [Content]
       summary: Create a content entry
-      description: Requires `content.create` on `content:{collection}:*`. If the payload sets `status` to `published`, also requires `content.publish` on the entry. For localized content types, include `locale` in the JSON body to create that locale variant. The default locale is used when omitted. For singleton content types, only one active entry may exist and its slug is forced to the content type name.
+      description: Requires `content.create` on `content:{collection}:*`. If the payload sets `status` to `published`, also requires `content.publish` on the entry. For localized content types, include `locale` in the JSON body to create that locale variant. The default locale is used when omitted.
       x-required-permission:
         - effect: allow
           actions: [content.create]

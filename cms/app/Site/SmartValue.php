@@ -11,7 +11,7 @@ use CometCMS\Core\ValidationException;
 /** Structured bindings are data, never executable expressions or recursive templates. */
 final class SmartValue
 {
-    public const SOURCES = ['current', 'item', 'single', 'entry', 'site'];
+    public const SOURCES = ['current', 'item', 'entry', 'site'];
     public const DATE_FORMATS = ['date', 'long', 'datetime', 'time'];
     public const PROPERTIES = [
         'heading' => ['text' => 'text', 'link' => 'link'],
@@ -104,15 +104,10 @@ final class SmartValue
             }
         }
         $result = ['type' => 'reference', 'source' => $source, 'path' => $path, 'filters' => []];
-        if (in_array($source, ['single', 'entry'], true)) {
-            $result['collection'] = LayoutSchema::key($value['collection'] ?? '');
-            if ($result['collection'] === '') {
-                self::invalid();
-            }
-        }
         if ($source === 'entry') {
+            $result['collection'] = LayoutSchema::key($value['collection'] ?? '');
             $result['entry'] = LayoutSchema::key($value['entry'] ?? '');
-            if ($result['entry'] === '') {
+            if ($result['collection'] === '' || $result['entry'] === '') {
                 self::invalid();
             }
         }
@@ -174,10 +169,8 @@ final class SmartValue
                     $entry = $state['entry'] ?? null;
                 } else {
                     $type = $this->ctx->type($ref['collection']);
-                    $entry = $source === 'single'
-                        ? (!empty($type['singleton']) ? $this->ctx->singletonEntry($ref['collection']) : null)
-                        : $this->ctx->findEntry($ref['collection'], $ref['entry']);
-                    if ($source === 'entry' && $entry !== null && ($entry['uid'] ?? '') !== $ref['entry']) $entry = null;
+                    $entry = $this->ctx->findEntry($ref['collection'], $ref['entry']);
+                    if ($entry !== null && ($entry['uid'] ?? '') !== $ref['entry']) $entry = null;
                 }
                 $value = $entry;
                 $fields = $type['fields'] ?? [];

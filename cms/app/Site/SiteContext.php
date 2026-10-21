@@ -226,7 +226,7 @@ final class SiteContext
             return null;
         }
 
-        if (($home['type'] ?? '') === $type && (!empty($schema['singleton']) || ($home['entry'] ?? '') === ($entry['uid'] ?? $entry['id']))) {
+        if (($home['type'] ?? '') === $type && ($home['entry'] ?? '') === ($entry['uid'] ?? $entry['id'])) {
             return '/';
         }
 
@@ -255,7 +255,7 @@ final class SiteContext
         $home = $this->settings()['homepage'] ?? [];
         $schema = $this->type($type);
 
-        if ($schema === null || !empty($schema['singleton']) || !$this->isPublicType($type)) {
+        if ($schema === null || !$this->isPublicType($type)) {
             return null;
         }
 
@@ -325,11 +325,6 @@ final class SiteContext
         }
 
         return $this->entries[$key] = $entry === null ? null : $this->localize($type, $entry);
-    }
-
-    public function singletonEntry(string $type, bool $allowHidden = false): ?array
-    {
-        return $this->findEntry($type, $type, $allowHidden);
     }
 
     /**

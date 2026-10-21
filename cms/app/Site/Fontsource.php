@@ -11,7 +11,7 @@ final class Fontsource
 
     public function get(string $url, int $limit = FontFiles::MAX_FILE): string
     {
-        if (!preg_match('~^https://(?:api\.fontsource\.org/v1/(?:fonts(?:/[a-z0-9-]+)?|version/[a-z0-9-]+)|cdn\.jsdelivr\.net/npm/@fontsource(?:-variable)?/[a-z0-9-]+@\d+\.\d+\.\d+/(?:(?:metadata|unicode)\.json|LICENSE|[a-z0-9-]+\.css|files/[a-z0-9-]+\.woff2))$~D', $url)) {
+        if (!preg_match('~^https://(?:api\.fontsource\.org/v1/(?:fonts(?:/[a-z0-9-]+)?|stats|version/[a-z0-9-]+)|cdn\.jsdelivr\.net/npm/@fontsource(?:-variable)?/[a-z0-9-]+@\d+\.\d+\.\d+/(?:(?:metadata|unicode)\.json|LICENSE|[a-z0-9-]+\.css|files/[a-z0-9-]+\.woff2))$~D', $url)) {
             throw new \InvalidArgumentException('Unapproved font download URL.');
         }
         if ($this->transport !== null) {
@@ -76,6 +76,34 @@ final class Fontsource
                 return ['families' => $cached, 'stale' => true];
             }
             throw $e;
+        }
+    }
+
+    /** Monthly npm downloads across static and variable packages, shared by all workspaces. */
+    public function popularity(): array
+    {
+        $path = COMET_STORAGE . '/cache/fonts/popularity.json';
+        $cached = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+        if (is_array($cached) && filemtime($path) > time() - 86400) {
+            return ['scores' => $cached, 'stale' => false];
+        }
+        try {
+            // One aggregate request avoids fetching statistics separately for every family.
+            $data = $this->json('https://api.fontsource.org/v1/stats');
+            $scores = [];
+            foreach ($data as $id => $stats) {
+                $monthly = is_array($stats) ? ($stats['total']['npmDownloadMonthly'] ?? null) : null;
+                if (preg_match('/^[a-z0-9][a-z0-9-]{0,79}$/D', (string) $id) && is_int($monthly) && $monthly >= 0) {
+                    $scores[$id] = $monthly;
+                }
+            }
+            if ($scores === []) {
+                throw new \RuntimeException('Font popularity data is unavailable.');
+            }
+            FontFiles::json($path, $scores);
+            return ['scores' => $scores, 'stale' => false];
+        } catch (\RuntimeException $e) {
+            return ['scores' => is_array($cached) ? $cached : [], 'stale' => true];
         }
     }
 

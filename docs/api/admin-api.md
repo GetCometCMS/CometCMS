@@ -50,7 +50,7 @@ Workspace-scoped admin requests send `X-Comet-Workspace: {workspace}`. Content t
 
 ---
 
-Workspace creation accepts `label`, `slug`, and optional `starter_template` (`website` or `empty`). `website` creates Landing Page and Pages, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
+Workspace creation accepts `label`, `slug`, and optional `starter_template` (`website` or `empty`). `website` creates a Pages collection whose Landing Page entry is the homepage, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
 
 ## Content types
 
@@ -65,7 +65,7 @@ Workspace creation accepts `label`, `slug`, and optional `starter_template` (`we
 
 List and reorder responses include available field type names in `meta.field_types`.
 
-Content type schemas include `singleton`. When `singleton` is `true`, the type represents one fixed entry instead of a repeatable collection. Reordering applies to both collections and single page types; the admin sidebar lists them in this order under **Content**.
+Every content type is a collection of entries. The admin sidebar lists them in the saved order under **Content**.
 
 ---
 
@@ -104,8 +104,6 @@ arrays; single select and relation fields are one value or `null`.
 For localized content types, send `locale` when listing entries to resolve translated values before filtering and sorting. Create and update requests can include `locale` in the JSON body to edit a specific locale variant. The default locale cannot be deleted with the translation delete endpoint.
 
 When a content type field defines a supported `default`, omitted values are created with that default before validation and normalization.
-
-Single page content types use the content type name as the fixed entry id/slug. For example, the admin editor and API use `/admin/api/content/start-page/start-page` for the `start-page` single page. Creating a second active entry is rejected.
 
 ### Revisions
 

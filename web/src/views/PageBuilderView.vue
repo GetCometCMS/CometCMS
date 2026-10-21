@@ -105,10 +105,9 @@ const builderLink = computed(() => {
   const type = site.data.types.find((type) => type.name === homepage.type && type.visibility !== "private");
   if (!type) return "/page-builder/builder/region/header";
 
-  const variant = !type.singleton && !homepage.entry ? "index" : "detail";
   return {
-    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${variant}`,
-    query: !type.singleton && homepage.entry ? { entry: homepage.entry } : {},
+    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${homepage.entry ? "detail" : "index"}`,
+    query: homepage.entry ? { entry: homepage.entry } : {},
   };
 });
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);

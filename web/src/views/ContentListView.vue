@@ -533,7 +533,7 @@ function editCollectionTemplate(variant) {
 }
 
 const canEditTemplates = computed(() =>
-  contentTypeSchema.value && !isSingleton.value
+  contentTypeSchema.value
   && contentTypeSchema.value.visibility !== "private"
   && websiteStatus.value?.can_manage
   && websiteStatus.value.types?.[collection.value]?.routed,
@@ -556,10 +556,6 @@ async function loadContentType() {
   try {
     const res = await api.contentTypes.get(collection.value);
     contentTypeSchema.value = resolveLocalizedTree(res.data, res.data.default_locale, res.data.default_locale);
-
-    if (res.data?.singleton) {
-      return;
-    }
 
     // Auto-show locales column when the content type has locales configured
     if (
@@ -964,7 +960,6 @@ const pageSizeOptions = [20, 30, 40, 50, 100, 200, 300];
 const pageSize = ref(30);
 const pageOffset = ref(0);
 const hasActiveFilters = computed(() => filters.value.q.trim() !== "");
-const isSingleton = computed(() => !!contentTypeSchema.value?.singleton);
 const contentTypeLocales = computed(
   () => contentTypeSchema.value?.locales ?? [],
 );
@@ -1030,8 +1025,6 @@ async function loadTrashCount() {
 }
 
 async function load() {
-  if (isSingleton.value) return;
-
   const params = {
     limit: pageSize.value,
     offset: pageOffset.value,

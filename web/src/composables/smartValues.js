@@ -3,7 +3,6 @@ export const DATE_FORMATS = ['date', 'long', 'datetime', 'time']
 const KEY = '[A-Za-z0-9_-]+'
 const PATH = `(${KEY}(?:\\.${KEY})*)`
 const ROOT = new RegExp(`^(current|item|site)\\.${PATH}$`)
-const SINGLE = new RegExp(`^single\\.(${KEY})\\.${PATH}$`)
 const ENTRY = new RegExp(`^entry\\.(${KEY})\\["(${KEY})"\\]\\.${PATH}$`)
 export const isReference = (value) => value?.type === 'reference'
 export const isSmartValue = (value) => ['reference', 'template', 'invalid'].includes(value?.type)
@@ -28,7 +27,6 @@ export function parseReference(text) {
   const [root, ...operations] = splitFilters(text.trim())
   let match, value
   if ((match = ROOT.exec(root))) value = { type: 'reference', source: match[1], path: match[2].split('.'), filters: [] }
-  else if ((match = SINGLE.exec(root))) value = { type: 'reference', source: 'single', collection: match[1], path: match[2].split('.'), filters: [] }
   else if ((match = ENTRY.exec(root))) value = { type: 'reference', source: 'entry', collection: match[1], entry: match[2], path: match[3].split('.'), filters: [] }
   else throw new Error('syntax')
   if (value.path.length > 6 || value.path.some((key) => key.length > 80) || operations.length > 10) throw new Error('syntax')
@@ -47,7 +45,6 @@ export function parseReference(text) {
 
 export function referenceSyntax(value) {
   let root = value.source
-  if (value.source === 'single') root += `.${value.collection}`
   if (value.source === 'entry') root += `.${value.collection}[${JSON.stringify(value.entry)}]`
   return `${root}.${value.path.join('.')}${(value.filters ?? []).map((filter) => ` | ${filter.name}:${JSON.stringify(filter.value)}`).join('')}`
 }
@@ -100,8 +97,7 @@ export function parseSmartValue(text, target = 'text') {
 export function referenceConfig(ref, { type, types = [], itemFields = [] }) {
   if (!isReference(ref)) return null
   if (ref.source === 'site') return ref.path.length === 1 && ['title', 'tagline', 'year'].includes(ref.path[0]) ? { type: 'text' } : null
-  let schema = ['single', 'entry'].includes(ref.source) ? types.find((item) => item.name === ref.collection && item.visibility !== 'private') : type
-  if (ref.source === 'single' && !schema?.singleton) return null
+  let schema = ref.source === 'entry' ? types.find((item) => item.name === ref.collection && item.visibility !== 'private') : type
   let fields = ref.source === 'item' ? Object.fromEntries(itemFields.map((field) => [field.key, field.config ?? field])) : schema?.fields ?? {}
   let entryContext = ref.source !== 'item'
   for (let i = 0; i < ref.path.length; i++) {
@@ -130,7 +126,7 @@ export function compatibleField(config, target) {
 }
 
 export function smartSummary(value) {
-  if (isReference(value)) return [value.source, ...(['single', 'entry'].includes(value.source) ? [value.collection] : []), ...value.path].join(' › ')
+  if (isReference(value)) return [value.source, ...(value.source === 'entry' ? [value.collection] : []), ...value.path].join(' › ')
   if (value?.type === 'template') return value.parts.map((part) => typeof part === 'string' ? part : `[${smartSummary(part)}]`).join('').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100)
   return typeof value === 'string' ? value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) : ''
 }

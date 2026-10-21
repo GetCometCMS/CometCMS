@@ -139,10 +139,6 @@ final class ApiController
 
         $body['name'] = $name;
 
-        if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
-            $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
-        }
-
         try {
             $this->types->save($body);
         } catch (ValidationException $e) {
@@ -171,10 +167,6 @@ final class ApiController
 
         $body = $this->http->requestJson();
         $body['name'] = $name;
-
-        if (!empty($body['singleton']) && count($this->content->all($name)) > 1) {
-            $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
-        }
 
         try {
             $this->types->save($body);
@@ -205,10 +197,6 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $schema = $this->types->find($collection);
-
-        if (!empty($schema['singleton'])) {
-            $this->contentShow($collection, $collection);
-        }
 
         $this->readPrincipal = ($schema['visibility'] ?? 'public') === 'private'
             ? $this->requireToken('content.read', ['type' => 'content', 'collection' => $collection])

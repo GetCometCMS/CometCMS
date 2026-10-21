@@ -3,7 +3,7 @@ import { compatibleField, fieldShortcut, hasInvalidValues, parseReference, parse
 
 describe('smart tag grammar and structured values', () => {
   it('round trips each source, formatting and literal delimiters', () => {
-    for (const syntax of ['current.intro_text', 'item.heading', 'single.company.phone', 'entry.services["stable_uid"].description', 'site.year', 'current.author.name | fallback:"Our team" | truncate:30', 'current.published_at | date:"long"']) {
+    for (const syntax of ['current.intro_text', 'item.heading', 'entry.services["stable_uid"].description', 'site.year', 'current.author.name | fallback:"Our team" | truncate:30', 'current.published_at | date:"long"']) {
       const value = parseSmartValue(`{{ ${syntax} }}`)
       expect(parseSmartValue(serializeSmartValue(value))).toEqual(value)
     }
@@ -13,7 +13,7 @@ describe('smart tag grammar and structured values', () => {
     expect(parseSmartValue('{{ current.title | fallback:"A }} B | C" }}').filters[0].value).toBe('A }} B | C')
   })
   it('rejects expressions, malformed tags, unsafe positions and scalar/list ambiguity', () => {
-    for (const text of ['{{ current.name', '{{ fetch("evil") }}', '{{ current.a + current.b }}', '{{ current.title | execute:"x" }}', '{{ current.title | truncate:0 }}', '{{ current.date | date:"arbitrary" }}', '{{ current.a.b.c.d.e.f.g }}']) {
+    for (const text of ['{{ current.name', '{{ fetch("evil") }}', '{{ current.a + current.b }}', '{{ current.title | execute:"x" }}', '{{ current.title | truncate:0 }}', '{{ current.date | date:"arbitrary" }}', '{{ current.a.b.c.d.e.f.g }}', '{{ single.company.phone }}']) {
       expect(() => parseSmartValue(text)).toThrow()
     }
     expect(() => parseSmartValue('prefix {{ current.photo }}', 'media')).toThrow()

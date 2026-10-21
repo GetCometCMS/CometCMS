@@ -68,6 +68,10 @@ final class SiteRepository
         if ($migration->needed() && $migration->run()) {
             $this->clearCache();
         }
+        $singletons = new SingletonMigration($this->workspace);
+        if ($singletons->needed() && $singletons->run()) {
+            $this->clearCache();
+        }
     }
 
     public function workspace(): WorkspaceContext
@@ -138,12 +142,11 @@ final class SiteRepository
     public function defaultRoute(array $type): array
     {
         $name = (string) $type['name'];
-        $singleton = !empty($type['singleton']);
 
         return [
             'enabled' => false,
-            'pattern' => $singleton ? '/' . $name : '/' . $name . '/{slug}',
-            'index_path' => $singleton ? '' : '/' . $name,
+            'pattern' => '/' . $name . '/{slug}',
+            'index_path' => '/' . $name,
             'index_title' => '',
             'seo_description_field' => '',
             'seo_image_field' => '',
@@ -813,10 +816,10 @@ final class SiteRepository
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
-    /** Variants a content type can have: single pages have no index. */
+    /** Variants a content type can have. */
     public function variantsFor(array $type): array
     {
-        return !empty($type['singleton']) ? ['detail'] : LayoutSchema::VARIANTS;
+        return LayoutSchema::VARIANTS;
     }
 
     public function themeRevisions(): array
@@ -1022,7 +1025,7 @@ final class SiteRepository
             $routes[$name] = [
                 'enabled' => (bool) ($route['enabled'] ?? $default['enabled']),
                 'pattern' => $this->localized($route['pattern'] ?? $default['pattern'], self::normalizePath(...)),
-                'index_path' => empty($type['singleton']) ? $this->localized($route['index_path'] ?? $default['index_path'], self::normalizePath(...)) : '',
+                'index_path' => $this->localized($route['index_path'] ?? $default['index_path'], self::normalizePath(...)),
                 'index_title' => $this->localized($route['index_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
                 'seo_description_field' => LayoutSchema::key($route['seo_description_field'] ?? ''),
                 'seo_image_field' => LayoutSchema::key($route['seo_image_field'] ?? ''),
@@ -1090,7 +1093,6 @@ final class SiteRepository
             }
 
             $type = $types[$name];
-            $singleton = !empty($type['singleton']);
             $key = 'routes.' . $name;
 
             $pattern = $route['pattern'];
@@ -1098,15 +1100,8 @@ final class SiteRepository
 
             if ($error = $this->pathError($pattern)) {
                 $errors[$key . '.pattern'] = $error;
-            } elseif ($singleton && $placeholders > 0) {
-                $errors[$key . '.pattern'] = 'Single pages use a fixed URL without placeholders.';
-            } elseif (!$singleton && ($placeholders !== 1 || $found[0][0] !== '{slug}')) {
+            } elseif ($placeholders !== 1 || $found[0][0] !== '{slug}') {
                 $errors[$key . '.pattern'] = 'Collection URLs need exactly one {slug} placeholder.';
-            } elseif ($singleton) {
-                if (isset($literal[$pattern])) {
-                    $errors[$key . '.pattern'] = 'This URL is already used by ' . $literal[$pattern] . '.';
-                }
-                $literal[$pattern] = $type['label'];
             } else {
                 if (isset($patterns[$pattern])) {
                     $errors[$key . '.pattern'] = 'This URL pattern is already used by ' . $patterns[$pattern] . '.';
@@ -1179,8 +1174,7 @@ final class SiteRepository
             foreach ($this->types() as $name => $type) {
                 $route = $resolved['routes'][$name] ?? null;
                 if (empty($route['enabled'])) continue;
-                if ($type['singleton']) $claim($route['pattern'], 'single:' . $name);
-                else $claim($route['index_path'], 'index:' . $name);
+                $claim($route['index_path'], 'index:' . $name);
                 $entries = $content->all($name);
                 if (($candidate['collection'] ?? '') === $name) {
                     $entries = array_values(array_filter($entries, static fn(array $entry): bool => $entry['id'] !== $candidate['id']));
@@ -1189,7 +1183,7 @@ final class SiteRepository
                 foreach ($entries as $entry) {
                     if (!isset($entry['publication'][$locale])) continue;
                     $entry = $content->resolveLocaleFields($entry, $locale);
-                    $claim(str_replace('{slug}', rawurlencode((string) $entry['slug']), $route['pattern']), $type['singleton'] ? 'single:' . $name : 'entry:' . $name . ':' . $entry['id']);
+                    $claim(str_replace('{slug}', rawurlencode((string) $entry['slug']), $route['pattern']), 'entry:' . $name . ':' . $entry['id']);
                 }
             }
         }

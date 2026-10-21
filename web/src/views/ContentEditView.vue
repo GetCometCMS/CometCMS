@@ -9,7 +9,7 @@
         <Icon icon="mdi:arrow-left" class="w-[18px] h-[18px]" />
       </router-link>
       <div class="min-w-0">
-        <div v-if="!isSingleton && contentTypeSchema" class="truncate text-xs font-medium text-slate-500">
+        <div v-if="contentTypeSchema" class="truncate text-xs font-medium text-slate-500">
           {{ contentTypeSchema.label }}
         </div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 truncate">
@@ -181,7 +181,7 @@
             />
           </div>
 
-          <div v-if="!isSingleton">
+          <div>
             <label for="content-slug" class="form-label">
               {{ t("contentEdit.slug") }}
 
@@ -299,7 +299,7 @@
       <PageBuilderCta
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
         :title="t('site.builderCta.title')"
-        :description="t(isSingleton ? 'site.entry.editSingletonDesignHint' : 'site.entry.editDesignHint')"
+        :description="t('site.entry.editDesignHint')"
         :to="designLink"
         :action-label="t('site.entry.editDesign')"
       />
@@ -623,34 +623,16 @@ const { canContent } = usePermissions();
 const apiEndpointStore = useApiEndpointStore();
 const collection = route.params.collection;
 const apiEndpointOwner = "content-edit";
-const singletonCreateMode = ref(false);
-const isSingleton = computed(() => !!contentTypeSchema.value?.singleton);
-const entryId = computed(
-  () => route.params.id || (isSingleton.value ? collection : ""),
-);
-const isNew = computed(() => !entryId.value || singletonCreateMode.value);
-const backLink = computed(() =>
-  isSingleton.value ? "/dashboard" : `/content/${collection}`,
-);
+const entryId = computed(() => route.params.id || "");
+const isNew = computed(() => !entryId.value);
+const backLink = computed(() => `/content/${collection}`);
 const editorTitle = computed(() => {
-  if (isSingleton.value)
-    return (
-      contentTypeSchema.value?.label ||
-      form.value.title ||
-      t("contentEdit.singlePage")
-    );
   return isNew.value
     ? t("contentEdit.newEntryTitle")
     : t("contentEdit.editEntryTitle", { title: form.value.title });
 });
-const saveLabel = computed(() =>
-  isSingleton.value ? t("contentEdit.savePage") : t("contentEdit.saveEntry"),
-);
-const deleteLabel = computed(() =>
-  isSingleton.value
-    ? t("contentEdit.deletePage")
-    : t("contentEdit.deleteEntry"),
-);
+const saveLabel = computed(() => t("contentEdit.saveEntry"));
+const deleteLabel = computed(() => t("contentEdit.deleteEntry"));
 const contentTypeEditLink = computed(() => `/content-types/${collection}/edit`);
 const canEditContentType = computed(() => {
   const resource = `schema:${collection}`;
@@ -670,11 +652,7 @@ const canSaveEntry = computed(() =>
   isNew.value ? canCreateEntry.value : canUpdateEntry.value,
 );
 const isReadOnly = computed(() => !isNew.value && !canUpdateEntry.value);
-const deleteMessage = computed(() => {
-  return isSingleton.value
-    ? t("contentEdit.pageTrashMessage")
-    : t("contentEdit.entryTrashMessage");
-});
+const deleteMessage = computed(() => t("contentEdit.entryTrashMessage"));
 const statuses = computed(() =>
   ["draft", "published", "protected", "archived"].map((value) => ({
     value,
@@ -720,12 +698,11 @@ const orderedContentTypeLocales = computed(() =>
   orderLocales(contentTypeLocales.value, defaultLocale.value),
 );
 const apiEndpointUrl = computed(() => {
-  if (!isNew.value || isSingleton.value) {
+  if (!isNew.value) {
     return contentEntryEndpoint({
       collection,
-      entryId: entryId.value || collection,
+      entryId: entryId.value,
       locale: currentLocale.value,
-      singleton: isSingleton.value,
     });
   }
 
@@ -1032,16 +1009,7 @@ onMounted(async () => {
     );
     contentTypeLocales.value = typeRes.data.locales ?? [];
 
-    if (isSingleton.value && route.params.id) {
-      router.replace(`/content/${collection}`);
-      return;
-    }
-
     if (isNew.value) {
-      if (isSingleton.value) {
-        form.value.title = typeRes.data.label || collection;
-        form.value.slug = collection;
-      }
       if (defaultLocale.value) {
         form.value.locale = defaultLocale.value;
         currentLocale.value = defaultLocale.value;
@@ -1093,22 +1061,7 @@ onMounted(async () => {
 
       form.value = applyFieldDefaults(form.value);
     } catch (err) {
-      if (
-        isSingleton.value &&
-        entryId.value === collection &&
-        err.status === 404
-      ) {
-        singletonCreateMode.value = true;
-        form.value = applyFieldDefaults({
-          ...form.value,
-          title: contentTypeSchema.value?.label || collection,
-          slug: collection,
-          locale: defaultLocale.value,
-        });
-        currentLocale.value = defaultLocale.value;
-      } else {
-        loadError.value = err.message;
-      }
+      loadError.value = err.message;
     }
   }
 
@@ -1131,7 +1084,7 @@ watch(
     }
     apiEndpointStore.setEndpoint(
       {
-        label: isNew.value && !isSingleton.value ? "Collection" : "Entry",
+        label: isNew.value ? "Collection" : "Entry",
         url,
       },
       apiEndpointOwner,
@@ -1147,32 +1100,11 @@ async function handleSave() {
   saving.value = true;
 
   try {
-    if (isSingleton.value) {
-      form.value.slug = collection;
-    }
-
     if (isNew.value) {
       const res = await api.content.create(collection, payloadForSave());
-      toast.success(
-        isSingleton.value
-          ? t("contentEdit.pageCreated")
-          : t("contentEdit.entryCreated"),
-      );
-      if (isSingleton.value) {
-        singletonCreateMode.value = false;
-        isDirty.value = false;
-        fullEntry.value = res.data;
-        liveEntryBeforeRestore.value = null;
-        previewingRevision.value = null;
-        entryMeta.value = {
-          created_at: res.data.created_at ?? null,
-          updated_at: res.data.updated_at ?? null,
-          id: res.data.id ?? null,
-        };
-      } else {
-        isDirty.value = false;
-        router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
-      }
+      toast.success(t("contentEdit.entryCreated"));
+      isDirty.value = false;
+      router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
     } else {
       const drafts = { ...localeDrafts.value, [currentLocale.value]: { form: cloneLocaleValue(form.value), resets: [...resetFields.value] } };
       let latest = liveEntryBeforeRestore.value ?? fullEntry.value;
@@ -1191,11 +1123,7 @@ async function handleSave() {
       }
       const res = { data: latest };
       localeDrafts.value = {};
-      toast.success(
-        isSingleton.value
-          ? t("contentEdit.pageSaved")
-          : t("contentEdit.entrySaved"),
-      );
+      toast.success(t("contentEdit.entrySaved"));
       isDirty.value = false;
       fullEntry.value = res.data;
       delete localeDrafts.value[currentLocale.value];
@@ -1207,7 +1135,7 @@ async function handleSave() {
         updated_at: res.data.updated_at ?? null,
         id: res.data.id ?? null,
       };
-      if (!isSingleton.value && res.data.id && (res.data.uid || res.data.id) !== entryId.value) {
+      if (res.data.id && (res.data.uid || res.data.id) !== entryId.value) {
         router.replace(`/content/${collection}/${res.data.uid || res.data.id}`);
       }
     }
@@ -1434,13 +1362,9 @@ async function handleDelete() {
   try {
     deleting.value = true;
     await api.content.delete(collection, entryId.value);
-    toast.success(
-      isSingleton.value
-        ? t("contentEdit.pageMovedTrash")
-        : t("contentEdit.entryMovedTrash"),
-    );
+    toast.success(t("contentEdit.entryMovedTrash"));
     bypassLeaveGuard();
-    router.push(isSingleton.value ? "/dashboard" : `/content/${collection}`);
+    router.push(`/content/${collection}`);
   } catch (err) {
     saveError.value = err.message;
     toast.error(err.message);

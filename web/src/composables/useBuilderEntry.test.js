@@ -70,7 +70,7 @@ describe('builder entry content', () => {
 
   it('keeps translated drafts separate, including shared fields edited in the default language', async () => {
     const { state, locale, contentApi } = await fixture({
-      schema: { singleton: true, locales: ['en', 'de'], default_locale: 'en', fields: {
+      schema: { locales: ['en', 'de'], default_locale: 'en', fields: {
         title: { type: 'text' }, intro: { type: 'html' }, shared: { type: 'text', localized: false },
       } },
       entries: { home: { id: 'home', revision: 'r1', values: {
@@ -134,7 +134,7 @@ describe('builder entry content', () => {
     const scope = effectScope()
     scopes.push(scope)
     const state = scope.run(() => useBuilderEntry({
-      type: ref({ name: 'home', singleton: true, fields: { title: { type: 'text' } } }),
+      type: ref({ name: 'home', fields: { title: { type: 'text' } } }),
       entryId: ref('home'), locale: ref(''), contentApi, canUpdate: () => true,
     }))
     await vi.waitFor(() => expect(state.record.value.error).toBe('Network unavailable'))

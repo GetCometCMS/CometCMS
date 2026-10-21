@@ -5,10 +5,9 @@ import { useSiteStore } from '../stores/site.js'
 import { useI18n } from '../i18n/index.js'
 
 const DEFAULT_COLLECTION_ICON = 'mdi:file-document-outline'
-const DEFAULT_PAGE_ICON = 'mdi:file-document-edit-outline'
 
 export function contentTypeIcon(type) {
-  return type?.icon || (type?.singleton ? DEFAULT_PAGE_ICON : DEFAULT_COLLECTION_ICON)
+  return type?.icon || DEFAULT_COLLECTION_ICON
 }
 
 /**

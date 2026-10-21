@@ -206,7 +206,6 @@ abstract class BaseController
                         'name' => $name,
                         'label' => $type['label'] ?? $name,
                         'icon' => $type['icon'] ?? null,
-                        'singleton' => !empty($type['singleton']),
                     ];
                 }
             }

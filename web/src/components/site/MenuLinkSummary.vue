@@ -20,7 +20,7 @@ const { t } = useI18n()
 const target = computed(() => {
   if (props.link.type === 'entry') return props.link
   const home = props.settings?.homepage
-  if (props.link.type === 'home' && home?.type && (home.entry || props.types.find((type) => type.name === home.type)?.singleton)) return { collection: home.type, entry: home.entry || home.type }
+  if (props.link.type === 'home' && home?.type && home.entry) return { collection: home.type, entry: home.entry }
   return {}
 })
 const { selected, selectedTitle, selectedError, retrySelected } = useLinkEntries({

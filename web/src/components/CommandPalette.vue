@@ -172,7 +172,7 @@ const navigationItems = computed(() =>
 
 const createItems = computed(() => {
   const items = contentTypes.value
-    .filter((type) => !type.singleton && auth.can("content.create", `content:${type.name}:*`))
+    .filter((type) => auth.can("content.create", `content:${type.name}:*`))
     .map((type) => ({
       id: `new:${type.name}`,
       label: t("app.search.newEntry", { type: type.label }),
@@ -256,7 +256,7 @@ watch(query, (value) => {
 });
 
 async function searchEntries(needle, generation) {
-  const types = contentTypes.value.filter((type) => !type.singleton).slice(0, MAX_ENTRY_TYPES);
+  const types = contentTypes.value.slice(0, MAX_ENTRY_TYPES);
   const responses = await Promise.allSettled(
     types.map((type) => api.content.list(type.name, { q: needle, limit: ENTRIES_PER_TYPE, offset: 0 })),
   );

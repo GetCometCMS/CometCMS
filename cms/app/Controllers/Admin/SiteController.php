@@ -100,9 +100,9 @@ final class SiteController extends BaseController
             return null;
         }
 
-        $variant = !empty($type['singleton']) || $homepage['entry'] !== '' ? 'detail' : 'index';
+        $variant = $homepage['entry'] !== '' ? 'detail' : 'index';
         $path = '/page-builder/builder/layout/' . rawurlencode($type['name']) . '/' . $variant;
-        if (empty($type['singleton']) && $homepage['entry'] !== '') {
+        if ($homepage['entry'] !== '') {
             $entry = ContentRepository::make($this->site->workspace())->findByIdentifier($type['name'], $homepage['entry']);
             if ($entry === null) {
                 return null;
@@ -560,9 +560,6 @@ final class SiteController extends BaseController
             if ($schema !== null) {
                 $identifier = LayoutSchema::key($body['entry'] ?? '');
                 $entry = $identifier !== '' ? $context->findEntry((string) $schema['name'], $identifier, true) : null;
-                if ($entry === null && !empty($schema['singleton'])) {
-                    $entry = $context->singletonEntry((string) $schema['name'], true);
-                }
             }
 
             $this->json(['data' => ['html' => $renderer->componentPreview($component, $schema, $entry)]]);
@@ -580,9 +577,6 @@ final class SiteController extends BaseController
 
         $identifier = LayoutSchema::key($body['entry'] ?? '');
         $entry = $identifier !== '' ? $context->findEntry($type, $identifier, true) : null;
-        if ($entry === null && !empty($schema['singleton'])) {
-            $entry = $context->singletonEntry($type, true);
-        }
 
         $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry)]]);
     }

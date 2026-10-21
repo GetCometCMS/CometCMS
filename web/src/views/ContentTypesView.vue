@@ -33,7 +33,6 @@
           <tr>
             <th class="w-10 !px-2"><span class="sr-only">{{ t("contentTypes.reorderHint") }}</span></th>
             <th>{{ t("contentTypes.label") }}</th>
-            <th>{{ t("contentTypes.model") }}</th>
             <th>{{ t("contentTypes.fields") }}</th>
             <th>{{ t("site.typeCard.title") }}</th>
             <th><span class="sr-only">{{ t("common.moreActions") }}</span></th>
@@ -83,12 +82,6 @@
                 </div>
               </div>
             </td>
-            <td>
-              <span :class="modelPillClass(type)">
-                <Icon :icon="type.singleton ? 'mdi:file-outline' : 'mdi:file-multiple-outline'" class="h-3.5 w-3.5" />
-                {{ modelLabel(type) }}
-              </span>
-            </td>
             <td class="tabular-nums text-slate-600">
               {{ Object.keys(type.fields ?? {}).length }}
             </td>
@@ -108,7 +101,7 @@
             <td class="text-right">
               <div class="flex items-center justify-end gap-2" @click.stop>
                 <router-link :to="contentLink(type)" class="btn-secondary btn-sm">
-                  {{ type.singleton ? t("contentTypes.open") : t("contentTypes.browse") }}
+                  {{ t("contentTypes.browse") }}
                 </router-link>
                 <router-link
                   v-if="canSchema('schema.update', type.name)"
@@ -229,21 +222,6 @@ function clearDropTarget(name) {
   if (dropTargetName.value === name) {
     dropTargetName.value = "";
   }
-}
-
-function modelLabel(type) {
-  return type.singleton
-    ? t("contentTypes.single")
-    : t("contentTypes.collection");
-}
-
-function modelPillClass(type) {
-  return [
-    "badge",
-    type.singleton
-      ? "bg-violet-50 text-violet-700 ring-violet-600/20"
-      : "bg-slate-100 text-slate-700 ring-slate-500/15",
-  ];
 }
 
 function contentLink(type) {

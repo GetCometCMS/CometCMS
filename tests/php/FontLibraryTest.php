@@ -317,6 +317,58 @@ test('catalogue metadata falls back to the cached list and rejects oversized res
     assert_throws(RuntimeException::class, static fn() => $oversized->get('https://api.fontsource.org/v1/fonts', 100));
 });
 
+test('font popularity caches combined monthly downloads and survives provider outages', function (): void {
+    $calls = 0;
+    $provider = new Fontsource(static function (string $url) use (&$calls): string {
+        assert_same('https://api.fontsource.org/v1/stats', $url);
+        $calls++;
+        return json_encode([
+            'example' => ['total' => ['npmDownloadMonthly' => 120], 'static' => ['npmDownloadMonthly' => 100], 'variable' => ['npmDownloadMonthly' => 20]],
+            'invalid' => ['total' => ['npmDownloadMonthly' => -1]],
+        ]);
+    });
+    assert_same(['scores' => ['example' => 120], 'stale' => false], $provider->popularity());
+    $provider->popularity();
+    assert_same(1, $calls);
+    $path = COMET_STORAGE . '/cache/fonts/popularity.json';
+    touch($path, time() - 86401);
+    clearstatcache(true, $path);
+    $offline = new Fontsource(static function (): never { throw new RuntimeException('Offline'); });
+    assert_same(['scores' => ['example' => 120], 'stale' => true], $offline->popularity());
+    unlink($path);
+    assert_same(['scores' => [], 'stale' => true], $offline->popularity());
+    $invalid = new Fontsource(static fn(): string => '{"error":"unavailable"}');
+    assert_same(['scores' => [], 'stale' => true], $invalid->popularity());
+});
+
+test('font catalogue defaults to popularity before pagination and supports alphabetical sorting', function (): void {
+    $families = [];
+    $scores = [];
+    for ($i = 0; $i < 55; $i++) {
+        $id = sprintf('font-%02d', $i);
+        $families[] = ['id' => $id, 'family' => $id, 'category' => $i % 2 ? 'serif' : 'sans-serif'];
+        $scores[$id] = $i;
+    }
+    // An equal score uses family name as a stable tie-breaker.
+    $scores['font-53'] = 54;
+    $seed = '\\CometCMS\\Site\\FontFiles::json(COMET_STORAGE . \'/cache/fonts/catalogue.json\', ' . var_export($families, true) . ');'
+        . '\\CometCMS\\Site\\FontFiles::json(COMET_STORAGE . \'/cache/fonts/popularity.json\', ' . var_export($scores, true) . ');';
+    $controller = '(new \\CometCMS\\Controllers\\Admin\\FontsController(new \\CometCMS\\Core\\Http()))->catalogue();';
+    [$status, $response] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/fonts/catalogue', $controller);
+    assert_same(200, $status);
+    assert_same(55, $response['data']['total']);
+    assert_same(50, count($response['data']['families']));
+    assert_same(['font-53', 'font-54', 'font-52'], array_column(array_slice($response['data']['families'], 0, 3), 'id'));
+    assert_false($response['data']['stale']);
+    [, $response] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/fonts/catalogue?offset=50', $controller);
+    assert_same(['font-04', 'font-03', 'font-02', 'font-01', 'font-00'], array_column($response['data']['families'], 'id'));
+    [, $response] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/fonts/catalogue?category=serif&q=font-5', $controller);
+    assert_same(['font-53', 'font-51'], array_column($response['data']['families'], 'id'));
+    [, $response] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/fonts/catalogue?sort=alphabetical', $controller);
+    assert_same('font-00', $response['data']['families'][0]['id']);
+    assert_false($response['data']['stale']);
+});
+
 test('abandoned font jobs and previews expire outside the backed-up theme directory', function (): void {
     $calls = []; $fail = false;
     $fonts = FontRegistry::active();

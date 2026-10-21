@@ -94,33 +94,6 @@
             <IconPickerGrid v-model="form.icon" :placeholder="defaultIcon" />
           </div>
 
-          <div class="col-span-1">
-            <label class="form-label">{{
-              t("contentTypeEdit.contentModel")
-            }}</label>
-            <div
-              class="inline-flex rounded-lg border border-slate-200 bg-white p-1"
-            >
-              <button
-                type="button"
-                :class="modelButtonClass(!form.singleton)"
-                @click="form.singleton = false"
-              >
-                {{ t("contentTypes.collection") }}
-              </button>
-              <button
-                type="button"
-                :class="modelButtonClass(form.singleton)"
-                @click="form.singleton = true"
-              >
-                {{ t("contentTypeEdit.singlePage") }}
-              </button>
-            </div>
-            <p class="mt-1 text-xs text-slate-500">
-              {{ t("contentTypeEdit.singleHint") }}
-            </p>
-          </div>
-
           <div v-if="websiteStatus" id="frontend-page-setting" class="col-span-1 scroll-mt-24">
             <label for="content-type-frontend" class="form-label">{{ t("site.typeCard.title") }}</label>
             <label class="flex items-center gap-3 text-sm text-slate-700">
@@ -149,11 +122,11 @@
           <div class="col-span-1">
             <label for="content-type-submissions" class="form-label">{{ t("site.forms.title") }}</label>
             <label class="flex items-center gap-3 text-sm text-slate-700">
-              <ToggleSwitch id="content-type-submissions" v-model="form.allow_submissions" :disabled="form.singleton" aria-describedby="content-type-submissions-help" />
+              <ToggleSwitch id="content-type-submissions" v-model="form.allow_submissions"  aria-describedby="content-type-submissions-help" />
               {{ t("contentTypeEdit.allowSubmissions") }}
             </label>
             <p v-if="submissionError" class="mt-1 text-xs text-red-600" role="alert">{{ submissionError }}</p>
-            <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t(form.singleton ? "contentTypeEdit.submissionsSingleton" : "contentTypeEdit.submissionsHint") }}</p>
+            <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.submissionsHint") }}</p>
           </div>
         </div>
       </div>
@@ -165,7 +138,6 @@
         :status="websiteStatus"
         :name="isNew ? toSlug(form.name) : form.name"
         :label="form.label"
-        :singleton="form.singleton"
         :visibility="form.visibility"
         :fields="customFields"
         :errors="websiteErrors"
@@ -213,7 +185,7 @@
       </div>
 
       <TypeSubmissionSettings
-        v-if="form.allow_submissions && !form.singleton && !submissionSettingsError"
+        v-if="form.allow_submissions && !submissionSettingsError"
         v-model="form.submission_settings"
         :name="isNew ? '' : form.name"
         :fields="customFields"
@@ -308,7 +280,6 @@ const form = ref({
   name: "",
   label: "",
   icon: defaultIcon,
-  singleton: false,
   visibility: "public",
   api_enabled: false,
   allow_submissions: false,
@@ -396,11 +367,11 @@ const websiteErrors = ref({});
 const routeTouched = ref(false);
 let routeClean = "null";
 
-function defaultRoute(name, singleton) {
+function defaultRoute(name) {
   return {
     enabled: isNew.value,
-    pattern: singleton ? `/${name}` : `/${name}/{slug}`,
-    index_path: singleton ? "" : `/${name}`,
+    pattern: `/${name}/{slug}`,
+    index_path: `/${name}`,
     index_title: "",
     seo_description_field: "",
     seo_image_field: "",
@@ -419,7 +390,7 @@ async function loadWebsite() {
       await site.load();
       const stored = isNew.value ? null : site.data?.settings?.routes?.[route.params.name];
       const name = isNew.value ? toSlug(form.value.name) || "new" : route.params.name;
-      websiteRoute.value = JSON.parse(JSON.stringify(stored ?? defaultRoute(name, form.value.singleton)));
+      websiteRoute.value = JSON.parse(JSON.stringify(stored ?? defaultRoute(name)));
       routeClean = JSON.stringify(websiteRoute.value);
     }
   } catch {
@@ -462,16 +433,15 @@ async function saveWebsiteRoute(name) {
 
 // New types suggest URLs from their name until the URLs are edited by hand.
 watch(
-  () => [form.value.name, form.value.singleton],
+  () => form.value.name,
   () => {
     if (!isNew.value || routeTouched.value || !websiteRoute.value) return;
-    const next = defaultRoute(toSlug(form.value.name) || "new", form.value.singleton);
+    const next = defaultRoute(toSlug(form.value.name) || "new");
     websiteRoute.value = { ...websiteRoute.value, pattern: next.pattern, index_path: next.index_path };
   },
 );
 
 watch(websiteRoute, () => { if (_formLoaded) updateDirtyState(); }, { deep: true });
-watch(() => form.value.singleton, (singleton) => { if (singleton) form.value.allow_submissions = false; });
 watch(() => form.value.api_enabled, (enabled) => { if (enabled) form.value.visibility = "public"; });
 
 onMounted(async () => {
@@ -687,15 +657,6 @@ function fixSlugOnBlur() {
   if (!isNew.value || !form.value.name) return;
   const v = toSlug(form.value.name);
   if (v) form.value.name = v;
-}
-
-function modelButtonClass(active) {
-  return [
-    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-    active
-      ? "bg-theme-600 text-white shadow-sm"
-      : "text-slate-600 hover:bg-slate-50",
-  ];
 }
 
 function validateFieldDefault(field) {

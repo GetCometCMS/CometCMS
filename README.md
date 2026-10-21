@@ -34,7 +34,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 1. Download the latest release from the Github releases.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
-4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages, sets the landing page as your homepage, and downloads Inter and Lora as normal installed fonts that you can replace or remove. If font downloads are unavailable, the website uses system fonts. Empty workspaces start without installed fonts. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
+4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Pages collection with Landing Page, About and Hello World entries, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages, sets the Landing Page entry as your homepage, and downloads Inter and Lora as normal installed fonts that you can replace or remove. If font downloads are unavailable, the website uses system fonts. Empty workspaces start without installed fonts. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
 5. Edit your pages in the Page Builder, add content fields as needed, and enable API exposure only for types you want to use headlessly.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.
@@ -62,7 +62,7 @@ DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}
 
 Entry payloads use `id` for a stable opaque identifier and `slug` for the URL-safe slug. `{identifier}` may be either value.
 
-Content types can be repeatable collections or single pages. Single pages use one fixed entry whose slug matches the content type name, and the default read URL is the collection path itself, e.g. `GET /api/v1/workspaces/{workspace}/content/start-page`.
+Every content type is a collection. One-off content such as a start page is an entry, read like any other, e.g. `GET /api/v1/workspaces/{workspace}/content/pages/landing-page`.
 
 Public reads return only `published` entries, or `scheduled` entries whose `published_at` is in the past. `draft`, `protected`, `archived`, and soft-deleted entries are hidden unless an authenticated token is used.
 
