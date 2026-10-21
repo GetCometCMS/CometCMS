@@ -2051,7 +2051,7 @@ const messages = {
     'site.builder.guide.step1Title': 'Add elements',
     'site.builder.guide.step1Body': 'Open Add in the left rail. Drag sections, headings, images and content fields onto the page, or click to insert after the selection.',
     'site.builder.guide.step2Title': 'Select and adjust',
-    'site.builder.guide.step2Body': 'Click anything on the canvas. The Inspector on the right shows its content and style settings; the path at the top lets you jump to its parents.',
+    'site.builder.guide.step2Body': 'Click anything on the canvas. The Inspector on the right shows its content and style settings; the path at the top lets you jump to its parents. Double-click a heading, text or button to edit its text right on the canvas.',
     'site.builder.guide.step3Title': 'Check every device',
     'site.builder.guide.step3Body': 'Switch between desktop, tablet and mobile in the top bar. Columns and visibility can differ per device.',
     'site.builder.guide.step4Title': 'Save to publish',

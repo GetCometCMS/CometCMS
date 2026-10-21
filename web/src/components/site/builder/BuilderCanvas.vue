@@ -47,6 +47,8 @@ let resizeLabel = null;
 let resizeEdge = null;
 /** Running resize: { el, id, side, startX, start, span, unit, device }. */
 let resizing = null;
+/** Running inline text edit: { target, id, key, rich, original, abort }. */
+let inlineEdit = null;
 
 
 const BUILDER_CSS = `
@@ -289,6 +291,12 @@ const BUILDER_CSS = `
   pointer-events:none;
 }
 
+/* Inline text editing */
+[data-node] [contenteditable]{
+  outline:none;
+  cursor:text;
+}
+
 html.cometcms-resizing,html.cometcms-resizing *{
   cursor:col-resize!important;
   user-select:none!important;
@@ -297,6 +305,13 @@ html.cometcms-resizing,html.cometcms-resizing *{
 
 /** Distance in px from a column edge within which its resize grip appears. */
 const RESIZE_EDGE = 8;
+
+/** Elements whose text is edited on the canvas: the prop and the rendered element holding it. */
+const INLINE_TEXT = {
+  heading: { key: "text", selector: ".c-heading" },
+  text: { key: "html", selector: ".c-prose", rich: true },
+  button: { key: "label", selector: ".c-button" },
+};
 
 
 function attach(document) {
@@ -343,6 +358,7 @@ function attach(document) {
   resizeHandle.addEventListener("pointercancel", onResizeEnd);
 
   doc.addEventListener("click", onClick, true);
+  doc.addEventListener("dblclick", onDoubleClick);
   doc.addEventListener("focusin", (event) => {
     const tab = event.target.closest?.('[data-tabs] > .c-tabs-list > [role="tab"]');
     if (tab && findNode(builder.nodes.value, tab.dataset.tabKey)) builder.select(tab.dataset.tabKey);
@@ -383,6 +399,8 @@ function attach(document) {
 /** Editor markup for the rendered page, on load and after each in-place update. */
 function prepare(document) {
   if (document !== doc) return;
+  // An update replaced the element being edited; keep what was typed.
+  if (inlineEdit && !inlineEdit.target.isConnected) finishInlineEdit(true);
   doc.body.append(indicator, badge, resizeHandle, templateHighlight);
 
   doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
@@ -474,6 +492,8 @@ function positionFor(id) {
 }
 
 function onContextMenu(event) {
+  // The browser's own menu offers spelling and clipboard while editing text.
+  if (inlineEdit?.target.contains(event.target)) return;
   const el = event.target.closest?.("[data-node]");
   if (!el) return;
   event.preventDefault();
@@ -493,6 +513,12 @@ function onClick(event) {
     return;
   }
   if (event.target.closest?.('.c-lightbox')) return;
+  // Clicks in the text being edited place the caret, without following links.
+  if (inlineEdit?.target.contains(event.target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   // A second click on the selected gallery previews its viewer.
   if (event.target.closest?.('[data-gallery-image]') && event.target.closest?.('[data-node]')?.dataset.node === builder.selectedId.value) return;
   // Native disclosure controls remain usable while selecting the element.
@@ -515,6 +541,90 @@ function onClick(event) {
   selectedFromCanvas = true;
   builder.select(part ? null : el?.dataset.node ?? null);
   emit("select-template-part", part);
+}
+
+/** Double-clicking a heading, text or button edits its text in place. */
+function onDoubleClick(event) {
+  if (inlineEdit || resizing) return;
+  const el = event.target.closest?.("[data-node]");
+  const node = el && findNode(builder.nodes.value, el.dataset.node);
+  const config = node && INLINE_TEXT[node.kind];
+  const target = config && el.querySelector(config.selector);
+  if (!target) return;
+  // Bound and templated values are edited in the Inspector.
+  const def = builder.spec.value?.kinds?.[node.kind]?.props?.[config.key];
+  if (typeof builder.valueFor(node, "props", config.key) !== "string" || (builder.translating.value && !def?.localized)) return;
+  event.preventDefault();
+  startInlineEdit(target, node.id, config);
+}
+
+function startInlineEdit(target, id, { key, rich = false }) {
+  const abort = new AbortController();
+  inlineEdit = { target, id, key, rich, original: target.innerHTML, abort };
+  selectedFromCanvas = true;
+  builder.select(id);
+  showResizeEdge(null);
+
+  // Draggable ancestors would turn selecting text with the mouse into a drag.
+  forEachNodeAround(target, (node) => node.setAttribute("draggable", "false"));
+  target.contentEditable = rich ? "true" : "plaintext-only";
+  target.spellcheck = true;
+
+  // Keep the word the double-click selected; focusing would move the caret to the start.
+  const selection = doc.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  target.focus({ preventScroll: true });
+  if (range && target.contains(range.commonAncestorContainer)) {
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  const options = { signal: abort.signal };
+  target.addEventListener("blur", () => finishInlineEdit(true), options);
+  target.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      finishInlineEdit(false);
+    } else if (event.key === "Enter" && (!rich || event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      finishInlineEdit(true);
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      // Save what was typed; the key still reaches the editor to save the page.
+      finishInlineEdit(true);
+    }
+  }, options);
+  // Formatting from other pages stays out of the text.
+  target.addEventListener("paste", (event) => {
+    if (!rich) return;
+    event.preventDefault();
+    doc.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "");
+  }, options);
+}
+
+function finishInlineEdit(commit) {
+  if (!inlineEdit) return;
+  const { target, id, key, rich, original, abort } = inlineEdit;
+  inlineEdit = null;
+  abort.abort();
+  target.removeAttribute("contenteditable");
+  target.removeAttribute("spellcheck");
+  forEachNodeAround(target, (node) => node.setAttribute("draggable", "true"));
+  if (target.isConnected) target.blur();
+
+  const node = findNode(builder.nodes.value, id);
+  const def = node && builder.spec.value?.kinds?.[node.kind]?.props?.[key];
+  const value = rich ? target.innerHTML.trim() : target.textContent.replace(/\s+/g, " ").trim().slice(0, def?.max ?? Infinity);
+  // A heading or button without text would vanish from the page, so empty text is undone like Escape.
+  if (!commit || !node || target.innerHTML === original || (!rich && value === "")) {
+    target.innerHTML = original;
+    return;
+  }
+  if (value !== builder.valueFor(node, "props", key)) builder.updateValue(id, "props", key, value);
+}
+
+function forEachNodeAround(target, callback) {
+  for (let el = target.closest("[data-node]"); el; el = el.parentElement?.closest("[data-node]")) callback(el);
 }
 
 function templatePartAt(target) {
@@ -764,6 +874,7 @@ watch(() => props.selectedTemplatePart, applyTemplatePartHover);
 watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));
 
 onBeforeUnmount(() => {
+  finishInlineEdit(true);
   doc = null;
 });
 

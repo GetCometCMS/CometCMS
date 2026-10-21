@@ -2056,7 +2056,7 @@ const messages = {
   'site.builder.guide.step1Title': 'Elemente hinzufügen',
   'site.builder.guide.step1Body': 'Öffne „Hinzufügen“ in der linken Leiste. Ziehe Abschnitte, Überschriften, Bilder und Inhaltsfelder auf die Seite oder klicke, um nach der Auswahl einzufügen.',
   'site.builder.guide.step2Title': 'Auswählen und anpassen',
-  'site.builder.guide.step2Body': 'Klicke etwas auf der Arbeitsfläche an. Rechts im Inspektor erscheinen Inhalts- und Stileinstellungen; über den Pfad oben springst du zu übergeordneten Elementen.',
+  'site.builder.guide.step2Body': 'Klicke etwas auf der Arbeitsfläche an. Rechts im Inspektor erscheinen Inhalts- und Stileinstellungen; über den Pfad oben springst du zu übergeordneten Elementen. Mit einem Doppelklick auf eine Überschrift, einen Text oder einen Button bearbeitest du den Text direkt auf der Arbeitsfläche.',
   'site.builder.guide.step3Title': 'Alle Geräte prüfen',
   'site.builder.guide.step3Body': 'Wechsle oben zwischen Desktop, Tablet und Smartphone. Spalten und Sichtbarkeit lassen sich je Gerät einstellen.',
   'site.builder.guide.step4Title': 'Speichern zum Veröffentlichen',
