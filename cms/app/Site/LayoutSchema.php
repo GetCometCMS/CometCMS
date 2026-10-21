@@ -532,7 +532,19 @@ final class LayoutSchema
     /** A sensible starting layout built from a content type's fields. */
     public static function defaultLayout(array $type, string $variant): array
     {
-        return self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), self::defaultFields($type));
+        return self::withDefaultIds(self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), self::defaultFields($type)), 'layout:' . ($type['name'] ?? '') . ':' . $variant);
+    }
+
+    /** Generated defaults must keep their revision hash across reads and requests. */
+    private static function withDefaultIds(array $nodes, string $path): array
+    {
+        foreach ($nodes as $index => &$node) {
+            $nodePath = $path . ':' . $index;
+            $node['id'] = 'n' . substr(hash('sha256', $nodePath), 0, 10);
+            $node['children'] = self::withDefaultIds($node['children'] ?? [], $nodePath);
+        }
+
+        return $nodes;
     }
 
     /** The standard card of a content type: one column, as a collection repeats it. */
@@ -716,6 +728,11 @@ final class LayoutSchema
     }
 
     public static function defaultRegion(string $region): array
+    {
+        return self::withDefaultIds(self::buildDefaultRegion($region), 'region:' . $region);
+    }
+
+    private static function buildDefaultRegion(string $region): array
     {
         if ($region === 'header') {
             return [

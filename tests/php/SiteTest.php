@@ -252,6 +252,47 @@ test('collections without a card of their own show the standard card', function 
     assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'An old card layout keeps rendering.');
 });
 
+test('default and legacy builder designs can be saved with their loaded revisions', function (): void {
+    comet_site_test_setup();
+    $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
+
+    foreach ([false, true] as $legacy) {
+        foreach ([['about', 'detail'], ['blog', 'detail'], ['blog', 'index']] as [$type, $variant]) {
+            $theme->delete('layouts', $type, $variant);
+            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'layouts', $type, $variant);
+            $site = new SiteRepository();
+            assert_same($legacy, $site->needsLayoutUpgrade($type, $variant));
+            $nodes = $site->layout($type, $variant);
+            $revision = \CometCMS\Localization\LocalizedValue::hash($nodes);
+            $reloaded = new SiteRepository();
+            assert_same($nodes, $reloaded->layout($type, $variant));
+            $saved = $reloaded->saveLayout($type, $variant, $nodes, [], 'saved', $revision);
+            assert_same($saved, (new SiteRepository())->layout($type, $variant));
+            assert_false($reloaded->needsLayoutUpgrade($type, $variant));
+            assert_throws(\CometCMS\Core\ConflictException::class, fn() => $reloaded->saveLayout($type, $variant, [], [], 'saved', 'stale'));
+            $reset = $reloaded->resetLayout($type, $variant);
+            $reloaded->saveLayout($type, $variant, $reset, [], 'saved', \CometCMS\Localization\LocalizedValue::hash($reset));
+        }
+
+        foreach (['header', 'footer'] as $region) {
+            $theme->delete('regions', $region);
+            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'regions', $region);
+            $site = new SiteRepository();
+            assert_same($legacy, $site->needsRegionUpgrade($region));
+            $nodes = $site->region($region);
+            $revision = \CometCMS\Localization\LocalizedValue::hash($nodes);
+            $reloaded = new SiteRepository();
+            assert_same($nodes, $reloaded->region($region));
+            $saved = $reloaded->saveRegion($region, $nodes, [], 'saved', $revision);
+            assert_same($saved, (new SiteRepository())->region($region));
+            assert_false($reloaded->needsRegionUpgrade($region));
+            assert_throws(\CometCMS\Core\ConflictException::class, fn() => $reloaded->saveRegion($region, [], [], 'saved', 'stale'));
+            $reset = $reloaded->resetRegion($region);
+            $reloaded->saveRegion($region, $reset, [], 'saved', \CometCMS\Localization\LocalizedValue::hash($reset));
+        }
+    }
+});
+
 test('default layouts are generated from the content type fields', function (): void {
     comet_site_test_setup();
     $site = new SiteRepository();
