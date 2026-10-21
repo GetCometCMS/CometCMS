@@ -41,7 +41,7 @@
       <p class="text-sm text-slate-700">{{ settings.locales.map(localeLabel).join(", ") }}</p>
       <p class="text-xs text-slate-500">{{ t("site.overview.defaultLanguage") }}: {{ localeLabel(settings.default_locale) }}</p>
       <RouterLink v-if="auth.can('workspaces.manage')" to="/workspaces" class="inline-flex text-sm text-theme-700 hover:underline">
-        {{ t("contentTypeEdit.manageLanguages") }}
+        {{ t("workspaces.manageLanguages") }}
       </RouterLink>
     </section>
 

@@ -119,17 +119,6 @@ final class ContentTypeRepository
         if (!array_key_exists('submission_settings', $schema)) {
             $schema['submission_settings'] = $previous['submission_settings'] ?? null;
         }
-        // A missing list inherits. Keep existing explicit subsets on partial updates.
-        if (!array_key_exists('locales', $schema) && !array_key_exists('inherit_locales', $schema) && $previous !== null) {
-            $schema['inherit_locales'] = $previous['inherit_locales'];
-            $schema['locales'] = $previous['locales'];
-        }
-        if (empty($schema['inherit_locales']) && isset($schema['locales']) && $schema['locales'] !== []) {
-            if (!is_array($schema['locales'])) throw new ValidationException(['locales' => 'Expected a list of workspace languages.']);
-            $languages = (new LanguageSettings($this->workspace))->all();
-            $requested = array_values(array_filter(array_map(LanguageSettings::code(...), $schema['locales'])));
-            if (array_diff($requested, $languages['locales']) !== [] || !in_array($languages['default_locale'], $requested, true)) throw new ValidationException(['locales' => 'Choose workspace languages, including the default.']);
-        }
         $schema = $this->normalize($name, $schema);
         if ($schema['allow_submissions']) {
             $fillable = array_filter($schema['fields'], static fn(array $config, string $key): bool => FormRepository::accepts($key, $config, $schema), ARRAY_FILTER_USE_BOTH);
@@ -138,8 +127,8 @@ final class ContentTypeRepository
                 throw new ValidationException(['allow_submissions' => 'Submissions need at least one content field visitors can fill in, and all required content fields must support forms.']);
             }
         }
-        $stored = array_diff_key($schema, array_flip(['revision', 'default_locale']));
-        if ($schema['inherit_locales']) unset($stored['locales'], $stored['inherit_locales']);
+        // Language settings are workspace-owned; discard old per-type overrides on save.
+        $stored = array_diff_key($schema, array_flip(['revision', 'locales', 'default_locale']));
         $this->store->write($stored, $name);
         $this->ensureInOrder($name);
         ApiCache::fromConfig($this->workspace)->clear();
@@ -212,18 +201,7 @@ final class ContentTypeRepository
     {
         $name = Security::slug((string) ($schema['name'] ?? $name));
         $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $locales = is_array($schema['locales'] ?? null)
-            ? array_values(array_unique(array_filter(array_map(
-                static fn(mixed $locale): string => self::normalizeLocale((string) $locale),
-                $schema['locales']
-            ), static fn(string $locale): bool => $locale !== '')))
-            : [];
         $languages = (new LanguageSettings($this->workspace))->all();
-        $defaultLocale = $languages['default_locale'];
-        // Lists matching the workspace need no override. Explicit subsets remain supported.
-        $inheritLocales = (bool) ($schema['inherit_locales'] ?? ($locales === [] || (array_diff($locales, $languages['locales']) === [] && array_diff($languages['locales'], $locales) === [])));
-        $locales = $inheritLocales ? $languages['locales'] : $locales;
-        $locales = array_values(array_unique([$defaultLocale, ...array_intersect($locales, $languages['locales'])]));
 
         // Existing forms keep working until their type explicitly disables submissions.
         $legacyForms = [];
@@ -256,9 +234,8 @@ final class ContentTypeRepository
             'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),
-            'locales' => $locales,
-            'default_locale' => $defaultLocale,
-            'inherit_locales' => $inheritLocales,
+            'locales' => $languages['locales'],
+            'default_locale' => $languages['default_locale'],
             'fields' => $fields,
         ];
         return $normalized + ['revision' => LocalizedValue::hash($normalized)];
@@ -321,15 +298,6 @@ final class ContentTypeRepository
         $icon = preg_replace('/[^a-z0-9:._-]/', '', $icon) ?? '';
 
         return $icon !== '' ? $icon : 'mdi:file-document-outline';
-    }
-
-    private static function normalizeLocale(string $locale): string
-    {
-        $locale = strtolower(trim($locale));
-        $locale = str_replace('_', '-', $locale);
-        $locale = preg_replace('/[^a-z0-9-]+/', '-', $locale) ?? '';
-
-        return trim($locale, '-');
     }
 
     private function fallback(string $name): array

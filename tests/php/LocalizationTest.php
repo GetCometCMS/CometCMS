@@ -17,7 +17,7 @@ use CometCMS\Storage\JsonStore;
 function comet_localization_setup(): ContentRepository
 {
     (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
-    (new ContentTypeRepository())->save(['name' => 'articles', 'locales' => ['en', 'de'], 'api_enabled' => true, 'fields' => [
+    (new ContentTypeRepository())->save(['name' => 'articles', 'api_enabled' => true, 'fields' => [
         'intro' => ['type' => 'textarea'], 'sku' => ['type' => 'text', 'localized' => false],
         'enabled' => ['type' => 'boolean'], 'quantity' => ['type' => 'number'],
     ]]);
@@ -80,19 +80,19 @@ test('legacy flat entries retain field values publication and identity when edit
     assert_same('Updated body', $store->read('pages', 'about')['values']['body']['values']['en']);
 });
 
-test('website and content types inherit workspace languages without storing copies', function (): void {
+test('website and content types use workspace languages without storing copies', function (): void {
     $languages = new LanguageSettings();
     $languages->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     $types = new ContentTypeRepository();
     $types->save(['name' => 'inherited']);
-    assert_true($types->find('inherited')['inherit_locales']);
+    assert_false(array_key_exists('inherit_locales', $types->find('inherited')));
     assert_same(['en', 'de'], $types->find('inherited')['locales']);
-    // Ordinary schema edits must keep inheritance instead of freezing the resolved list.
+    // Ordinary schema edits must not store a copy of the workspace language list.
     $types->save([...$types->find('inherited'), 'label' => 'Renamed']);
     $raw = (new JsonStore(comet_test_workspace_path() . '/content-types'))->read('inherited');
     assert_false(array_key_exists('locales', $raw));
     assert_false(array_key_exists('default_locale', $raw));
-    assert_true($types->find('fallback')['inherit_locales']);
+    assert_same(['en', 'de'], $types->find('fallback')['locales']);
 
     // Previously saved website subsets no longer override workspace settings.
     (new JsonStore(comet_test_workspace_path() . '/site'))->write(['locales' => ['en'], 'default_locale' => 'en'], 'settings');
@@ -103,51 +103,64 @@ test('website and content types inherit workspace languages without storing copi
     assert_false(array_key_exists('default_locale', $raw));
 
     $languages->save(['locales' => ['en', 'de', 'fr'], 'default_locale' => 'de']);
-    assert_same(['de', 'en', 'fr'], $types->find('inherited')['locales']);
+    assert_same(['en', 'de', 'fr'], $types->find('inherited')['locales']);
     assert_same('de', $types->find('inherited')['default_locale']);
     $site = new SiteRepository();
     assert_same(['en', 'de', 'fr'], $site->settings()['locales']);
     assert_same('de', $site->settings()['default_locale']);
 });
 
-test('explicit content type subsets survive edits and can return to workspace inheritance', function (): void {
-    (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+test('saved content type language overrides are ignored and removed on the next save', function (): void {
+    $languages = new LanguageSettings();
+    $languages->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $store = new JsonStore(comet_test_workspace_path() . '/content-types');
+    $store->write(['name' => 'limited', 'inherit_locales' => false, 'locales' => ['en'], 'default_locale' => 'en'], 'limited');
     $types = new ContentTypeRepository();
-    $types->save(['name' => 'limited', 'inherit_locales' => false, 'locales' => ['en']]);
-    $types->save(['name' => 'limited', 'label' => 'Renamed']);
-    assert_false($types->find('limited')['inherit_locales']);
-    assert_same(['en'], $types->find('limited')['locales']);
-    (new LanguageSettings())->save(['locales' => ['en', 'de', 'fr'], 'default_locale' => 'de']);
-    assert_same(['de', 'en'], $types->find('limited')['locales']);
-    $types->save([...$types->find('limited'), 'inherit_locales' => true]);
-    assert_true($types->find('limited')['inherit_locales']);
-    assert_same(['de', 'en', 'fr'], $types->find('limited')['locales']);
+    assert_same(['en', 'de'], $types->find('limited')['locales']);
+    assert_false(array_key_exists('inherit_locales', $types->find('limited')));
+    $types->save([...$types->find('limited'), 'label' => 'Renamed']);
+    $raw = $store->read('limited');
+    foreach (['locales', 'default_locale', 'inherit_locales'] as $key) assert_false(array_key_exists($key, $raw));
+    $languages->save(['locales' => ['en', 'de', 'fr'], 'default_locale' => 'de']);
+    assert_same(['en', 'de', 'fr'], $types->find('limited')['locales']);
+    assert_same('de', $types->find('limited')['default_locale']);
 });
 
-test('MCP preserves explicit language inheritance across surgical schema updates', function (): void {
+test('MCP schema tools use workspace languages and expose no language configuration', function (): void {
     (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     $token = comet_test_mcp_token([['actions' => ['schema.create', 'schema.update', 'schema.read'], 'resources' => ['workspace:default:schema:*']]]);
-    [, $created] = comet_test_mcp_tool($token, 'create_content_type', ['name' => 'limited', 'inherit_locales' => false, 'locales' => ['en', 'de']]);
-    assert_false($created['data']['inherit_locales']);
-    [, $updated] = comet_test_mcp_tool($token, 'update_content_type', ['collection' => 'limited', 'label' => 'Renamed']);
-    assert_false($updated['data']['inherit_locales']);
-    [, $inherited] = comet_test_mcp_tool($token, 'update_content_type', ['collection' => 'limited', 'inherit_locales' => true]);
-    assert_true($inherited['data']['inherit_locales']);
-    (new LanguageSettings())->save(['locales' => ['en', 'de', 'fr'], 'default_locale' => 'en']);
-    assert_same(['en', 'de', 'fr'], (new ContentTypeRepository())->find('limited')['locales']);
+    [$tools] = comet_test_mcp_request($token, 'tools/list');
+    foreach ($tools['result']['tools'] as $tool) {
+        if (!in_array($tool['name'], ['create_content_type', 'update_content_type'], true)) continue;
+        foreach (['locales', 'default_locale', 'inherit_locales'] as $key) assert_false(array_key_exists($key, $tool['inputSchema']['properties']));
+    }
+    [, $created] = comet_test_mcp_tool($token, 'create_content_type', ['name' => 'pages']);
+    assert_same(['en', 'de'], $created['data']['locales']);
+    (new LanguageSettings())->save(['locales' => ['en', 'de', 'fr'], 'default_locale' => 'de']);
+    [, $updated] = comet_test_mcp_tool($token, 'update_content_type', ['collection' => 'pages', 'label' => 'Renamed']);
+    assert_same(['en', 'de', 'fr'], $updated['data']['locales']);
+    assert_same('de', $updated['data']['default_locale']);
 });
 
-test('inherited languages support translated pages without per-resource language setup', function (): void {
+test('workspace languages support translated pages without per-resource language setup', function (): void {
     (new LanguageSettings())->save(['locales' => ['en'], 'default_locale' => 'en']);
-    (new ContentTypeRepository())->save(['name' => 'pages']);
+    // A schema saved with a single-language override must not hide workspace languages.
+    (new JsonStore(comet_test_workspace_path() . '/content-types'))->write(['name' => 'pages', 'inherit_locales' => false, 'locales' => ['en']], 'pages');
     (new SiteRepository())->saveSettings(['routes' => ['pages' => ['enabled' => true]]]);
     $content = ContentRepository::make();
     $entry = $content->save('pages', ['title' => 'Hello', 'status' => 'published'], comet_localization_user());
     (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $service = new SiteService(SiteContext::make(new SiteRepository()));
+    assert_same([], $content->query('pages', ['locale' => 'de'])['data']);
+    assert_same(404, $service->respond('/de/pages/hello', [])['status']);
     $content->save('pages', ['locale' => 'de', 'title' => 'Hallo', 'slug' => 'hallo', 'status' => 'published'], comet_localization_user(), $entry['id']);
-    $response = (new SiteService(SiteContext::make(new SiteRepository())))->respond('/de/pages/hallo', []);
+    $service = new SiteService(SiteContext::make(new SiteRepository()));
+    $response = $service->respond('/de/pages/hallo', []);
     assert_same(200, $response['status']);
     assert_true(str_contains($response['body'], 'Hallo'));
+    assert_true(str_contains($response['body'], 'hreflang="de"'));
+    assert_true(str_contains($service->respond('/sitemap.xml', [])['body'], '/de/pages/hallo'));
+    assert_true(str_contains($service->previewEntry('pages', $entry['uid'], 'de'), 'Hallo'));
 });
 
 test('localized values distinguish absence from intentionally empty values and track source review', function (): void {
@@ -265,10 +278,14 @@ test('builder localizes sanitized rich text and dynamic templates before binding
     assert_throws(ConflictException::class, fn() => $site->saveLayout('articles', 'detail', $raw, [], 'saved', $revision));
 });
 
-test('language settings are workspace owned and unsupported type languages are rejected', function (): void {
+test('language settings are workspace owned and per-type language input cannot override them', function (): void {
     comet_localization_setup();
     assert_same(['en', 'de'], (new SiteRepository())->availableLocales());
-    assert_throws(ValidationException::class, fn() => (new ContentTypeRepository())->save(['name' => 'bad', 'locales' => ['en', 'fr']]));
+    $types = new ContentTypeRepository();
+    $types->save(['name' => 'pages', 'locales' => ['en', 'fr'], 'default_locale' => 'fr', 'inherit_locales' => false]);
+    assert_same(['en', 'de'], $types->find('pages')['locales']);
+    assert_same('en', $types->find('pages')['default_locale']);
+    assert_throws(ValidationException::class, fn() => ContentRepository::make()->query('pages', ['locale' => 'fr']));
     (new LanguageSettings())->save(['locales' => ['de'], 'default_locale' => 'de']);
     assert_same(['de'], (new ContentTypeRepository())->find('articles')['locales']);
     assert_same('de', (new ContentTypeRepository())->find('articles')['default_locale']);

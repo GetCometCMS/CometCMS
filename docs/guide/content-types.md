@@ -17,9 +17,8 @@ The headless API is disabled for new types. Enable **Expose content fields throu
    - **Collection** for repeatable content with many entries.
    - **Single page** for one fixed entry.
 5. Add content fields (see [Field Types](./field-types)).
-6. Keep **Use workspace languages** enabled (the default), or turn it off to choose a subset. The workspace default is always included.
-7. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
-8. Click **Save**.
+6. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
+7. Click **Save**.
 
 Single page content types appear under **Content** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
 
@@ -35,13 +34,13 @@ You can change a collection to a single page only when it has at most one active
 
 ## Localization
 
-Configure available languages and the default language once in **Workspaces → Edit workspace**. The website uses these directly. Content types inherit all workspace languages by default, including languages added later. Turn off **Use workspace languages** only when a type needs a smaller subset; the workspace default is always included. Existing explicit subsets are preserved. A single-language workspace uses the same model.
+Configure available languages and the default language once in **Workspaces → Edit workspace**. Every content type and the website use exactly those settings, including languages added later. There are no per-type language overrides or inheritance settings. Previous per-type subsets no longer restrict the available languages. A single-language workspace uses the same model.
 
 Each entry has localized titles, slugs, field values, publication status, and publication dates. IDs, authors, creation dates, and fields marked **Shared across languages** remain shared. Shared values are stored once and edited in the default language.
 
 A missing value inherits the default-language value. An intentional empty value stays empty. An absent or unpublished entry translation stays unavailable publicly, and public fallback never reveals a draft in another language.
 
-Enabling or disabling a language on a content type preserves saved values and never copies or rewrites existing content. Workspace languages with saved translations cannot be removed until those translations are removed. Unpublish entry translations to hide them publicly without deleting their language or values.
+Changing workspace languages never copies content or automatically publishes new entry translations. Workspace languages with saved translations cannot be removed until those translations are removed. Unpublish entry translations to hide them publicly without deleting their language or values.
 
 Field labels, help text, and select-option labels also support translations, independently of whether the field's stored values are shared. Option keys and validation rules stay shared.
 
@@ -92,4 +91,4 @@ Content types are stored in `cms/storage/workspaces/{workspace}/content-types/{n
 }
 ```
 
-The schema API returns effective `locales`, the workspace `default_locale`, and `inherit_locales`. New types inherit by default. Set `inherit_locales: false` with a `locales` subset to override, or `inherit_locales: true` to resume inheritance. Inherited language lists and the workspace default are not duplicated in stored schemas.
+The schema API returns read-only `locales` and `default_locale` from the workspace. Language settings are not stored in content type schemas or configurable through schema writes. Old language overrides are ignored and removed when the schema is next saved.

@@ -59,7 +59,7 @@ components:
       schema:
         type: string
         pattern: "^[A-Za-z0-9_-]+$"
-      description: Enabled workspace language for this content type. Resolves translated values and publication state before search, filters, sorting, and relations. Unsupported languages return 422.
+      description: Workspace language to read. Resolves translated values and publication state before search, filters, sorting, and relations. Unsupported languages return 422.
   schemas:
     Error:
       type: object
@@ -168,19 +168,16 @@ components:
           type: string
         slug_source:
           type: string
-        inherit_locales:
-          type: boolean
-          default: true
-          description: Use workspace languages automatically, including languages added later. Set false with locales to choose an explicit subset.
         locales:
           type: array
-          description: Effective languages on reads; an optional workspace subset on writes. The workspace default is always included.
+          readOnly: true
+          description: Workspace languages, used by all content types and the website.
           items:
             type: string
         default_locale:
           type: string
           readOnly: true
-          description: Derived from the workspace language settings.
+          description: Workspace default language.
         fields:
           type: object
           description: Field definitions. Supported field types may include a `default` value, which is applied when creating entries with that field omitted.
@@ -241,19 +238,6 @@ components:
           additionalProperties:
             type: object
             additionalProperties: true
-        inherit_locales:
-          type: boolean
-          default: true
-          description: Use workspace languages automatically, including languages added later. Set false with locales to choose an explicit subset.
-        locales:
-          type: array
-          description: Effective languages on reads; an optional workspace subset on writes. The workspace default is always included.
-          items:
-            type: string
-        default_locale:
-          type: string
-          readOnly: true
-          description: Derived from the workspace language settings.
     ContentTypeUpdateInput:
       type: object
       properties:
@@ -310,19 +294,6 @@ components:
           additionalProperties:
             type: object
             additionalProperties: true
-        inherit_locales:
-          type: boolean
-          default: true
-          description: Use workspace languages automatically, including languages added later. Set false with locales to choose an explicit subset.
-        locales:
-          type: array
-          description: Effective languages on reads; an optional workspace subset on writes. The workspace default is always included.
-          items:
-            type: string
-        default_locale:
-          type: string
-          readOnly: true
-          description: Derived from the workspace language settings.
     LocalizedValue:
       type: object
       description: Resource-owned localized text or content. Absent language keys inherit the default; intentional empty values do not inherit. Used by schema presentation metadata and website resources. Entry writes accept ordinary values scoped by locale instead.

@@ -172,51 +172,6 @@
         @touched="routeTouched = true"
       />
 
-      <!-- Localization -->
-      <div class="card p-6 space-y-4">
-        <div>
-          <h2 class="card-title">
-            {{ t("contentTypeEdit.localization") }}
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">
-            {{ t("contentTypeEdit.localizationHint") }}
-            <RouterLink
-              v-if="auth.can('workspaces.manage')"
-              to="/workspaces"
-              class="text-primary-600 hover:underline"
-            >
-              {{ t("contentTypeEdit.manageLanguages") }}
-            </RouterLink>
-          </p>
-        </div>
-
-        <label class="flex items-center gap-3 text-sm text-slate-700">
-          <ToggleSwitch v-model="form.inherit_locales" :aria-label="t('contentTypeEdit.inheritLanguages')" />
-          {{ t("contentTypeEdit.inheritLanguages") }}
-        </label>
-        <p v-if="form.inherit_locales" class="text-sm text-slate-600">
-          {{ workspaceLanguages.locales.value.map(localeLabel).join(", ") }}
-        </p>
-        <div v-else>
-          <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
-          <SearchableSelect
-            v-model="form.locales"
-            :options="workspaceLocaleOptions"
-            :multiple="true"
-            :searchable="true"
-            :placeholder="t('contentTypeEdit.searchLocales')"
-          />
-          <p class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.defaultLocaleHint") }}</p>
-        </div>
-
-        <div
-          v-if="localizationChanged"
-          class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-        >
-          {{ t("contentTypeEdit.localizationWarning") }}
-        </div>
-      </div>
-
       <!-- Custom content fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
@@ -320,10 +275,8 @@ import IconPickerGrid from "../components/IconPickerGrid.vue";
 import ToggleSwitch from "../components/ToggleSwitch.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
-import SearchableSelect from "../components/SearchableSelect.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
-import { localeLabel } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -332,7 +285,6 @@ import { useSiteStore } from "../stores/site.js";
 import TypeSubmissionSettings from "../components/site/TypeSubmissionSettings.vue";
 import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
-import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
@@ -361,27 +313,8 @@ const form = ref({
   api_enabled: false,
   allow_submissions: false,
   submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
-  inherit_locales: true,
-  locales: [],
   fields: {},
 });
-const originalLocalization = ref({ inherit_locales: true, locales: [] });
-const workspaceLanguages = useLanguages();
-const workspaceLocaleOptions = computed(() => workspaceLanguages.locales.value.map((value) => ({ value, label: localeLabel(value) })));
-const localizationChanged = computed(() => !isNew.value && (
-  form.value.inherit_locales !== originalLocalization.value.inherit_locales ||
-  (!form.value.inherit_locales && JSON.stringify([...form.value.locales].sort()) !== JSON.stringify([...originalLocalization.value.locales].sort()))
-));
-
-// Only explicit overrides need a list, and the workspace default is always included.
-watch(
-  () => [form.value.inherit_locales, workspaceLanguages.loaded.value, workspaceLanguages.defaultLocale.value, ...form.value.locales],
-  () => {
-    if (form.value.inherit_locales || !workspaceLanguages.loaded.value) return;
-    const defaultLocale = workspaceLanguages.defaultLocale.value;
-    if (!form.value.locales.includes(defaultLocale)) form.value.locales = [defaultLocale, ...form.value.locales];
-  },
-);
 // While creating a type, derive the API name from the label until it is edited by hand.
 const nameTouched = ref(false);
 watch(
@@ -563,10 +496,6 @@ onMounted(async () => {
         api_enabled: type.visibility !== "private" && !!type.api_enabled,
         submission_settings: type.submission_settings,
       };
-      originalLocalization.value = {
-        locales: Array.isArray(type.locales) ? [...type.locales] : [],
-        inherit_locales: type.inherit_locales,
-      };
 
       // Strip built-in fields; only show the extras in the builder.
       const builtins = new Set(["title", "slug"]);
@@ -639,8 +568,9 @@ async function handleSave() {
       }
     }
 
+    const { locales, default_locale, ...schema } = form.value;
     const payload = {
-      ...form.value,
+      ...schema,
       fields,
       ...(!isNew.value && migrations.length ? { migrations } : {}),
     };
@@ -657,10 +587,6 @@ async function handleSave() {
       const response = await api.contentTypes.update(route.params.name, payload);
       form.value.revision = response.data.revision;
       toast.success(t("contentTypeEdit.updated"));
-      originalLocalization.value = {
-        locales: [...form.value.locales],
-        inherit_locales: form.value.inherit_locales,
-      };
       await saveWebsiteRoute(route.params.name);
     }
 

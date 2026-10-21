@@ -217,7 +217,7 @@ Workspaces from earlier versions move their headers, footers, layouts and compon
 
 ## Languages
 
-Configure languages once in **Workspaces → Edit workspace**. The website always uses those languages and their default directly; **Overview** shows the current choices and links to workspace settings. The default language lives at the root; other languages use their code as a prefix. Slugs and route paths can be translated, for example `/articles/about` and `/de/artikel/ueber-uns`. Internal links use stable entry IDs, so changing a slug does not break them.
+Configure languages once in **Workspaces → Edit workspace**. The website and every content type always use those languages and their default directly; **Overview** shows the current choices and links to workspace settings. The default language lives at the root; other languages use their code as a prefix. Slugs and route paths can be translated, for example `/articles/about` and `/de/artikel/ueber-uns`. Internal links use stable entry IDs, so changing a slug does not break them.
 
 The builder keeps one shared structure and design. Choose a language to edit its headings, rich text, button labels, images, links, tabs, and other visitor-facing values. **Translate content** prevents structural edits; **Shared design** enables shared layout changes. Source text, inheritance, reset actions, and review indicators appear in the inspector. Component translations apply wherever the component is used; header and footer translations work the same way. A literal in a collection layout applies to every entry using it; bind a custom field when the value should differ per entry.
 

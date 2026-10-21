@@ -75,7 +75,7 @@ The response includes runtime extension capabilities that affect key features:
 
 ### `GET /api/v1/workspaces/{workspace}/content-types`
 
-Returns all content type schemas.
+Returns all content type schemas. Each schema reports the workspace languages as read-only `locales` and `default_locale`; configure languages in workspace settings, not through content type writes.
 
 ### `GET /api/v1/workspaces/{workspace}/content-types/{collection}`
 

@@ -151,7 +151,7 @@ final class McpServer
             'instructions' => implode(' ', [
                 $this->principal === [] ? 'Unauthenticated access is read-only: only public schemas, published entries, and public media are available. Send a bearer access token for private reads or writes.' : 'Authenticated access uses the bearer token permission grants.',
                 'Use CometCMS tools to inspect schemas, manage entries, and work with media.',
-                'Content type updates are surgical by default: omitted label, icon, language inheritance, and fields are preserved. Languages and their default come from the workspace unless an explicit subset is chosen.',
+                'Content type updates are surgical by default: omitted label, icon, and fields are preserved. All content types use the workspace languages and default language.',
                 'When updating content type fields, pass only the fields to add or change; use remove_fields to delete fields, or replace_fields for a full field map replacement.',
                 'Entry writes target one locale and preserve other languages. Include locale, revision for optimistic concurrency, and reset_fields to remove translated overrides. Publication status and URL slugs belong to each locale.',
             ]),
@@ -274,7 +274,7 @@ final class McpServer
         }
 
         $body = ['name' => $name];
-        foreach (['label', 'icon', 'fields', 'locales', 'inherit_locales', 'singleton', 'visibility'] as $key) {
+        foreach (['label', 'icon', 'fields', 'singleton', 'visibility'] as $key) {
             if (array_key_exists($key, $args)) {
                 $body[$key] = $args[$key];
             }
@@ -360,7 +360,7 @@ final class McpServer
             $this->requirePermission('get_entry', ['collection' => $collection]);
         }
         $admin = $this->principal !== [];
-        $locale = $this->content->locale($collection, (string) ($args['locale'] ?? ''));
+        $locale = $this->content->locale((string) ($args['locale'] ?? ''));
         $entry = $this->content->findByIdentifier($collection, $identifier, $admin, $locale);
         if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry, $locale))) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
@@ -378,7 +378,7 @@ final class McpServer
     {
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
-        $entry['locale'] = $this->content->locale($collection, (string) ($entry['locale'] ?? ''));
+        $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
         $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, null, $entry);
@@ -393,7 +393,7 @@ final class McpServer
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $identifier = $this->segment($args['identifier'] ?? '', 'identifier');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
-        $entry['locale'] = $this->content->locale($collection, (string) ($entry['locale'] ?? ''));
+        $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
         $existing = $this->content->findByIdentifier($collection, $identifier, true, $entry['locale']);
 
@@ -540,8 +540,8 @@ final class McpServer
             'comet_health' => ['title' => 'CometCMS health', 'description' => 'Check the configured CometCMS public API health endpoint.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(true)],
-            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'locales' => ['type' => 'array', 'items' => $string], 'inherit_locales' => ['type' => 'boolean', 'description' => 'Inherit workspace languages automatically (default). Set false with locales to choose a subset.'], 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
-            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['revision' => $optionalString, 'collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'inherit_locales' => ['type' => 'boolean', 'description' => 'Inherit workspace languages automatically (default). Set false with locales to choose a subset.'], 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
+            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['revision' => $optionalString, 'collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_content_type' => ['title' => 'Delete content type', 'description' => 'Permanently delete a content type and all its entries.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection']), 'annotations' => $this->toolAnnotations(true)],
             'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(true)],
@@ -607,7 +607,7 @@ final class McpServer
             return;
         }
 
-        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale($collection)];
+        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()];
         if (!$this->permissions->allows($this->principal, 'content.publish', $context)) {
             throw new McpError('Forbidden.', 403, ['code' => 'forbidden'], [permissionGrant('content.publish', $this->workspace->slug(), $this->contentResource(['collection' => $collection], $entry !== null))]);
         }
@@ -695,8 +695,6 @@ final class McpServer
             'visibility' => $updates['visibility'] ?? $current['visibility'] ?? 'public',
             'slug_field' => $current['slug_field'] ?? null,
             'slug_source' => $current['slug_source'] ?? null,
-            'locales' => array_key_exists('locales', $updates) ? $updates['locales'] : (is_array($current['locales'] ?? null) ? $current['locales'] : []),
-            'inherit_locales' => $updates['inherit_locales'] ?? (array_key_exists('locales', $updates) ? null : ($current['inherit_locales'] ?? true)),
             'fields' => !empty($updates['replace_fields'])
                 ? (is_array($updates['fields'] ?? null) ? $updates['fields'] : [])
                 : array_replace($currentFields, is_array($updates['fields'] ?? null) ? $updates['fields'] : []),

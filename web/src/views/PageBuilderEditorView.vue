@@ -713,7 +713,7 @@ async function load() {
       : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
-    locales.value = (data.locales ?? []).filter((code) => !data.type || data.type.locales.includes(code));
+    locales.value = data.locales ?? [];
     locale.value = locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
   } catch (err) {

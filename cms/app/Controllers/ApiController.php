@@ -249,7 +249,7 @@ final class ApiController
             }
         }
 
-        $locale = $this->content->locale($collection, (string) ($_GET['locale'] ?? ''));
+        $locale = $this->content->locale((string) ($_GET['locale'] ?? ''));
         $entry = $this->content->findByIdentifier($collection, $id, $user !== null, $locale);
 
         if ($entry === null || ($user === null && !$this->content->isPubliclyVisible($entry, $locale))) {
@@ -273,7 +273,7 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $body['locale'] = $this->content->locale($collection, (string) ($body['locale'] ?? ''));
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
         $user = $this->requireToken('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishToken($user, $collection, null, $body);
 
@@ -290,7 +290,7 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $body['locale'] = $this->content->locale($collection, (string) ($body['locale'] ?? ''));
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
         $existing = $this->content->findByIdentifier($collection, $id, true, $body['locale']);
 
         if ($existing === null) {
@@ -1084,7 +1084,7 @@ final class ApiController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale($collection)])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

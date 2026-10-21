@@ -151,7 +151,7 @@ final class SiteRepository
         ];
     }
 
-    /** Locales any content type defines; the website can offer a subset. */
+    /** Workspace languages used throughout the website. */
     public function availableLocales(): array
     {
         return (new LanguageSettings($this->workspace))->all()['locales'];
@@ -1178,7 +1178,7 @@ final class SiteRepository
             };
             foreach ($this->types() as $name => $type) {
                 $route = $resolved['routes'][$name] ?? null;
-                if (empty($route['enabled']) || !in_array($locale, $type['locales'], true)) continue;
+                if (empty($route['enabled'])) continue;
                 if ($type['singleton']) $claim($route['pattern'], 'single:' . $name);
                 else $claim($route['index_path'], 'index:' . $name);
                 $entries = $content->all($name);

@@ -46,7 +46,7 @@ final class ContentController extends BaseController
     {
         $this->requireCollection($collection);
         $body = $this->requestJson();
-        $body['locale'] = $this->content->locale($collection, (string) ($body['locale'] ?? ''));
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
         $user = $this->requirePermission('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishPermission($user, $collection, null, $body);
         $this->verifyCsrf();
@@ -64,7 +64,7 @@ final class ContentController extends BaseController
     {
         $this->requireCollection($collection);
         $body = $this->requestJson();
-        $body['locale'] = $this->content->locale($collection, (string) ($body['locale'] ?? ''));
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
         $existing = $this->content->findByIdentifier($collection, $id, false, $body['locale']);
 
         if ($existing === null) {
@@ -100,7 +100,7 @@ final class ContentController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'data must be a non-empty object.']], 422);
         }
 
-        $data['locale'] = $this->content->locale($collection, (string) ($data['locale'] ?? ''));
+        $data['locale'] = $this->content->locale((string) ($data['locale'] ?? ''));
         $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($data), 'locale' => $data['locale']]);
         $this->verifyCsrf();
 
@@ -299,7 +299,7 @@ final class ContentController extends BaseController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'locale' => $payload['locale'] ?? $this->content->locale($collection)])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

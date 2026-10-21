@@ -105,11 +105,11 @@ final class LanguageSettings
         return preg_match('/^[a-z]{2,8}(?:-[a-z0-9]{2,8})*$/', $value) ? $value : '';
     }
 
-    public function requireLocale(string $locale, ?array $subset = null): string
+    public function requireLocale(string $locale): string
     {
         $settings = $this->all();
         $locale = $locale !== '' ? $locale : $settings['default_locale'];
-        if (!in_array($locale, $subset ?? $settings['locales'], true)) {
+        if (!in_array($locale, $settings['locales'], true)) {
             throw new ValidationException(['locale' => 'Unsupported locale: ' . $locale]);
         }
         return $locale;

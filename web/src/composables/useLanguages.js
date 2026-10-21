@@ -15,7 +15,7 @@ export function useLanguages() {
       finally { state.loading = false }
     }
   })
-  return { loaded: computed(() => state.loaded), locales: computed(() => state.locales), defaultLocale: computed(() => state.default_locale), activeLocale: computed({ get: () => state.active_locale || state.default_locale, set: (value) => { state.active_locale = value } }) }
+  return { locales: computed(() => state.locales), defaultLocale: computed(() => state.default_locale), activeLocale: computed({ get: () => state.active_locale || state.default_locale, set: (value) => { state.active_locale = value } }) }
 }
 
 export function updateWorkspaceLanguages(workspace, languages) {

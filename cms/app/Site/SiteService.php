@@ -185,7 +185,7 @@ final class SiteService
             return null;
         }
 
-        $this->ctx->locale = $this->ctx->content->locale($type, $locale);
+        $this->ctx->locale = $this->ctx->content->locale($locale);
 
         $entry = $this->ctx->findEntry($type, $identifier, true);
 
@@ -254,11 +254,6 @@ final class SiteService
             foreach ($this->ctx->site->types() as $name => $type) {
                 $route = $this->ctx->route($name);
                 if ($route === null || !$route['sitemap']) {
-                    continue;
-                }
-
-                $typeLocales = (array) ($type['locales'] ?? []);
-                if ($locale !== '' && $typeLocales !== [] && !in_array($locale, $typeLocales, true)) {
                     continue;
                 }
 

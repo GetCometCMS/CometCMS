@@ -46,7 +46,7 @@ final class PageRenderer
         $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->indexPath($name) === '/';
         $alternates = [];
-        foreach (array_intersect($this->ctx->locales(), $type['locales']) as $locale) {
+        foreach ($this->ctx->locales() as $locale) {
             $alternates[$locale] = $this->ctx->indexUrl($name, $locale) ?? $this->ctx->homeUrl($locale);
         }
 
@@ -103,7 +103,7 @@ final class PageRenderer
         if ($variant === 'index') {
             $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
             $alternates = [];
-            foreach (array_intersect($this->ctx->locales(), $type['locales']) as $locale) {
+            foreach ($this->ctx->locales() as $locale) {
                 $alternate = $this->ctx->indexUrl($name, $locale);
                 if ($alternate !== null) $alternates[$locale] = $alternate;
             }
@@ -310,13 +310,8 @@ final class PageRenderer
     private function entryAlternates(array $type, array $entry): array
     {
         $alternates = [];
-        $typeLocales = (array) ($type['locales'] ?? []);
 
         foreach ($this->ctx->locales() as $locale) {
-            if (!in_array($locale, $typeLocales, true)) {
-                continue;
-            }
-
             if ($this->ctx->content->isPubliclyVisible($entry, $locale)) {
                 $url = $this->ctx->entryUrl((string) $type['name'], $entry, $locale);
                 if ($url !== null) {

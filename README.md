@@ -125,7 +125,7 @@ All list endpoints support:
 
 Use `filter[...]` for all field queries. Boolean fields accept `true`/`false` (also `1`/`0`). Select fields can be matched by their stored option value; when a field stores an array, filters match if any item in the array matches. Public API media fields are always arrays of absolute media URLs, including single-file media fields. Sorting is type-aware for numeric values and ISO-style dates.
 
-Localized content types expose `locales` and `default_locale` in their schema. Add `?locale={code}` to list or single-entry reads to resolve translated `title` and field values before search, filters, sorting, and relation expansion are applied. Without `locale`, responses use the content type's default-locale fallback copy.
+All content types expose the workspace `locales` and `default_locale` as read-only schema values. Configure languages once in workspace settings. Add `?locale={code}` to list or single-entry reads to resolve translated `title` and field values before search, filters, sorting, and relation expansion are applied. Without `locale`, responses resolve content in the workspace default language.
 
 ```http
 GET /api/v1/workspaces/{workspace}/content/blogpost?filter[is_promo_material]=true

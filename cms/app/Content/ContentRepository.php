@@ -83,7 +83,7 @@ final class ContentRepository
 
     public function findByIdentifier(string $collection, string $identifier, bool $includeDeleted = false, string $locale = ''): ?array
     {
-        $locale = $this->locale($collection, $locale);
+        $locale = $this->locale($locale);
         $direct = $this->find($collection, $identifier, $includeDeleted);
         if ($direct !== null && ($this->stableId($direct) === $identifier || $this->resolveLocaleFields($direct, $locale)['slug'] === $identifier)) return $direct;
         if ($identifier === $collection && $this->isSingleton($collection)) return $this->singletonEntry($collection, $includeDeleted);
@@ -93,10 +93,9 @@ final class ContentRepository
         return null;
     }
 
-    public function locale(string $collection, string $locale = ''): string
+    public function locale(string $locale = ''): string
     {
-        $schema = $this->types->find($collection);
-        return (new LanguageSettings($this->workspace))->requireLocale($locale, $schema['locales'] ?: [(new LanguageSettings($this->workspace))->all()['default_locale']]);
+        return (new LanguageSettings($this->workspace))->requireLocale($locale);
     }
 
     public function stableId(array $entry): string
@@ -133,7 +132,7 @@ final class ContentRepository
         $entry = $this->normalizeAndValidate($collection, $payload, $user, $existing, $autoResolveSlugConflicts, $validateOnlyFields);
         $site = new \CometCMS\Site\SiteRepository($this->workspace);
         $site->validateEntryUrls($site->settings(), $entry);
-        $locale = $this->locale($collection, (string) ($payload['locale'] ?? ''));
+        $locale = $this->locale((string) ($payload['locale'] ?? ''));
         $oldStatus = $existing['publication'][$locale]['status'] ?? null;
         $oldId = $existing['id'] ?? null;
 
@@ -168,7 +167,7 @@ final class ContentRepository
             $this->afterWrite('content.unpublished', $collection, (string) $entry['id'], $user);
         }
 
-        return $this->resolveLocaleFields($entry, $this->locale($collection, (string) ($payload['locale'] ?? '')));
+        return $this->resolveLocaleFields($entry, $this->locale((string) ($payload['locale'] ?? '')));
     }
 
     public function bulkUpdateFields(string $collection, array $existing, array $data, array $user): array
@@ -191,9 +190,9 @@ final class ContentRepository
         foreach ($entry['publication'] as $locale => &$publication) {
             $publication = ['status' => 'draft', 'published_at' => null];
             $title = LocalizedValue::resolve($entry['values']['title'], $locale, $locale);
-            $entry['values']['title'] = LocalizedValue::set($entry['values']['title'], $locale, 'Copy of ' . $title, $this->locale($collection));
+            $entry['values']['title'] = LocalizedValue::set($entry['values']['title'], $locale, 'Copy of ' . $title, $this->locale());
             $slug = (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $locale);
-            $entry['values']['slug'] = LocalizedValue::set($entry['values']['slug'], $locale, $this->uniqueSlug($collection, $slug, '', $locale), $this->locale($collection));
+            $entry['values']['slug'] = LocalizedValue::set($entry['values']['slug'], $locale, $this->uniqueSlug($collection, $slug, '', $locale), $this->locale());
         }
         unset($publication);
         $this->store->write($this->stored($entry), $collection, $entry['id']);
@@ -327,8 +326,8 @@ final class ContentRepository
     public function deleteTranslation(string $collection, string $id, string $locale, array $user): ?array
     {
         $entry = $this->find($collection, $id);
-        if ($entry === null || $locale === $this->locale($collection)) return null;
-        $this->locale($collection, $locale);
+        if ($entry === null || $locale === $this->locale()) return null;
+        $this->locale($locale);
         $entry = $this->stored($entry);
         $this->writeRevision($collection, $id, $entry, 'content.translation_deleted', $user);
         foreach ($entry['values'] as &$value) $value = LocalizedValue::remove($value, $locale);
@@ -380,7 +379,7 @@ final class ContentRepository
     public function isPubliclyVisible(array $entry, string $locale = ''): bool
     {
         if (!empty($entry['deleted_at'])) return false;
-        $locale = $locale ?: ($entry['locale'] ?? $this->locale($entry['collection']));
+        $locale = $locale ?: ($entry['locale'] ?? $this->locale());
         $publication = $entry['publication'][$locale] ?? null;
         if (!is_array($publication) || ($publication['status'] ?? '') !== 'published') return false;
         $at = strtotime((string) ($publication['published_at'] ?? ''));
@@ -391,7 +390,7 @@ final class ContentRepository
     {
         $entries = $this->all($collection, $admin && (($params['trash'] ?? '') === '1'));
 
-        $locale = $this->locale($collection, (string) ($params['locale'] ?? ''));
+        $locale = $this->locale((string) ($params['locale'] ?? ''));
         if (!$admin) $entries = array_values(array_filter($entries, fn(array $entry): bool => $this->isPubliclyVisible($entry, $locale)));
         $entries = array_map(fn(array $entry): array => $this->resolveLocaleFields($entry, $locale, !$admin), $entries);
 
@@ -455,9 +454,9 @@ final class ContentRepository
             }
 
             if ($config['multiple'] ?? false) {
-                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($target, $this->findByIdentifier($target, (string) $id), $locale), (array) $entry[$field])));
+                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($this->findByIdentifier($target, (string) $id), $locale), (array) $entry[$field])));
             } else {
-                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($target, $this->findByIdentifier($target, (string) $entry[$field]), $locale) : null;
+                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($this->findByIdentifier($target, (string) $entry[$field]), $locale) : null;
             }
         }
 
@@ -467,7 +466,7 @@ final class ContentRepository
     public function normalizeStoredEntry(array $entry): array
     {
         if (!array_key_exists('values', $entry)) $entry = $this->upgradeEntry($entry);
-        return $this->resolveLocaleFields($entry, $this->locale((string) $entry['collection']));
+        return $this->resolveLocaleFields($entry, $this->locale());
     }
 
     /** Read old flat entries without rewriting files; the next save stores the new format. */
@@ -518,8 +517,8 @@ final class ContentRepository
     private function normalizeAndValidate(string $collection, array $payload, array $user, ?array $existing, bool $autoResolveSlugConflicts, ?array $validateOnlyFields = null): array
     {
         $schema = $this->types->find($collection);
-        $default = $this->locale($collection);
-        $locale = $this->locale($collection, (string) ($payload['locale'] ?? ''));
+        $default = $this->locale();
+        $locale = $this->locale((string) ($payload['locale'] ?? ''));
         foreach (['values', 'publication', 'translations'] as $reserved) {
             if (array_key_exists($reserved, $payload)) throw new ValidationException([$reserved => 'Write ordinary field values for one explicit locale.']);
         }
@@ -731,7 +730,7 @@ final class ContentRepository
 
     private function uniqueSlug(string $collection, string $slug, string $ignoreId = '', string $locale = ''): string
     {
-        $locale = $this->locale($collection, $locale);
+        $locale = $this->locale($locale);
         $used = [];
         foreach ($this->all($collection, true) as $entry) {
             if ($entry['id'] !== $ignoreId && isset($entry['publication'][$locale])) $used[] = $this->resolveLocaleFields($entry, $locale)['slug'];
@@ -744,8 +743,8 @@ final class ContentRepository
 
     public function resolveLocaleFields(array $entry, string $locale, bool $public = false): array
     {
-        $default = $this->locale((string) $entry['collection']);
-        $this->locale($entry['collection'], $locale);
+        $default = $this->locale();
+        $this->locale($locale);
         $resolved = $this->stored($entry);
         foreach ($entry['values'] ?? [] as $key => $value) {
             if ($public && $locale !== $default && LocalizedValue::is($value) && !array_key_exists($locale, $value['values']) && !$this->isPubliclyVisible($entry, $default)) {
@@ -756,11 +755,10 @@ final class ContentRepository
         return $publication + ['locale' => $locale] + $resolved;
     }
 
-    private function resolveRelationLocale(string $collection, ?array $entry, string $locale): ?array
+    private function resolveRelationLocale(?array $entry, string $locale): ?array
     {
         if ($entry === null) return null;
-        if ($locale !== '' && !in_array($locale, $this->types->find($collection)['locales'], true)) return null;
-        $locale = $this->locale($collection, $locale);
+        $locale = $this->locale($locale);
         return $this->isPubliclyVisible($entry, $locale) ? $this->resolveLocaleFields($entry, $locale, true) : null;
     }
 

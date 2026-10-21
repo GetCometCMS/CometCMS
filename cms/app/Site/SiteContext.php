@@ -169,7 +169,7 @@ final class SiteContext
     {
         $route = $this->settings()['routes'][$type] ?? null;
 
-        return is_array($route) && $route['enabled'] && $this->isPublicType($type) && in_array($this->locale ?: $this->defaultLocale(), $this->type($type)['locales'] ?? [], true) ? $route : null;
+        return is_array($route) && $route['enabled'] && $this->isPublicType($type) && in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true) ? $route : null;
     }
 
     public function defaultLocale(): string
@@ -243,8 +243,7 @@ final class SiteContext
         $before = $this->locale;
         $this->locale = $locale ?? ($this->locale ?: $this->defaultLocale());
         try {
-            $schema = $this->type($type);
-            if (!in_array($this->locale, $schema['locales'] ?? [], true)) return null;
+            if (!in_array($this->locale, $this->locales(), true)) return null;
             $entry = $this->content->resolveLocaleFields($entry, $this->locale, !$this->preview);
             $path = $this->entryPath($type, $entry);
             return $path === null ? null : $this->path($path, $this->locale);
@@ -274,7 +273,7 @@ final class SiteContext
         $before = $this->locale;
         $this->locale = $locale ?? ($this->locale ?: $this->defaultLocale());
         try {
-            if (!in_array($this->locale, $this->type($type)['locales'] ?? [], true)) return null;
+            if (!in_array($this->locale, $this->locales(), true)) return null;
             $path = $this->indexPath($type);
             return $path === null ? null : $this->path($path, $this->locale);
         } finally { $this->locale = $before; }
@@ -314,7 +313,7 @@ final class SiteContext
             return null;
         }
 
-        if (!in_array($this->locale ?: $this->defaultLocale(), $this->type($type)['locales'] ?? [], true)) return null;
+        if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return null;
         $key = $type . '|' . $identifier . '|' . ($allowHidden ? '1' : '0') . '|' . $this->locale;
         if (array_key_exists($key, $this->entries)) {
             return $this->entries[$key];
@@ -344,9 +343,8 @@ final class SiteContext
             return ['data' => [], 'total' => 0];
         }
 
-        $schema = $this->type($type);
-        if (!in_array($this->locale ?: $this->defaultLocale(), $schema['locales'] ?? [], true)) return ['data' => [], 'total' => 0];
-        if ($this->locale !== '' && in_array($this->locale, (array) ($schema['locales'] ?? []), true)) {
+        if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return ['data' => [], 'total' => 0];
+        if ($this->locale !== '') {
             $params['locale'] = $this->locale;
         }
 
@@ -357,9 +355,7 @@ final class SiteContext
 
     public function localize(string $type, array $entry): array
     {
-        $schema = $this->type($type);
-
-        if ($this->locale !== '' && in_array($this->locale, (array) ($schema['locales'] ?? []), true)) {
+        if ($this->locale !== '' && in_array($this->locale, $this->locales(), true)) {
             return $this->content->resolveLocaleFields($entry, $this->locale, !$this->preview);
         }
 

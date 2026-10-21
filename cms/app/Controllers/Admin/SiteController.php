@@ -525,7 +525,7 @@ final class SiteController extends BaseController
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
 
-        $locale = (new \CometCMS\Localization\LanguageSettings($this->site->workspace()))->requireLocale((string) ($body['locale'] ?? ''), $context->locales());
+        $locale = (new \CometCMS\Localization\LanguageSettings($this->site->workspace()))->requireLocale((string) ($body['locale'] ?? ''));
         $target = (string) ($body['target'] ?? 'page');
 
         if ($target === 'page') {
@@ -571,15 +571,12 @@ final class SiteController extends BaseController
         $type = (string) ($body['type'] ?? '');
         $variant = (string) ($body['variant'] ?? 'detail');
         $schema = $this->requireType($type, $variant);
-        $locale = $context->content->locale($type, $locale);
 
         if (array_key_exists('nodes', $body)) {
             $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
         }
 
-        if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
-            $context->locale = $locale;
-        }
+        $context->locale = $locale;
 
         $identifier = LayoutSchema::key($body['entry'] ?? '');
         $entry = $identifier !== '' ? $context->findEntry($type, $identifier, true) : null;
