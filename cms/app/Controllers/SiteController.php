@@ -13,6 +13,7 @@ use CometCMS\Site\FormUploads;
 use CometCMS\Site\GalleryLightbox;
 use CometCMS\Site\Tabs;
 use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\Menus;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -246,7 +247,7 @@ final class SiteController
 
         if (str_starts_with($response['content_type'], 'text/html')) {
             $sources = [];
-            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class, ThemeToggle::class] as $module) {
+            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class, ThemeToggle::class, Menus::class] as $module) {
                 if (str_contains($response['body'], '>' . $module::script() . '</script>')) {
                     $sources[] = $module::cspSource();
                 }

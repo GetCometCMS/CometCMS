@@ -783,7 +783,9 @@ final class NodeRenderer
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Menu “' . Security::e($props['menu']) . '” has no items</div>') : '';
         }
 
-        $list = $this->menuItems($menu['items'], $state, 'c-menu-list');
+        // A component or card can render the same menu node several times.
+        $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
+        $list = $this->menuItems($menu['items'], $state, 'c-menu-list', $id);
         $collapsible = $props['always_button'] || $props['collapse_mobile'];
         $hasPanel = $collapsible && $props['panel'] !== 'dropdown';
         $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
@@ -808,8 +810,6 @@ final class NodeRenderer
         }
 
         if ($collapsible) {
-            // A component or card can render the same menu node several times.
-            $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
             $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="' . Security::e(Messages::get('menu', $this->ctx->htmlLang())) . '">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';
             // A full-screen or side panel covers the menu button, so it brings its own way to close.
@@ -821,15 +821,19 @@ final class NodeRenderer
 
         $style = $panelStyle !== [] ? ' style="' . Security::e(implode(';', $panelStyle)) . '"' : '';
 
-        return $this->element($node, '<nav class="' . $classes . '"' . $style . ' aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
+        // The menu script only closes submenus and panels that are open; the markup works without it.
+        $script = $hasPanel || str_contains($list, 'c-menu-disclosure') ? ' data-menu' : '';
+
+        return $this->element($node, '<nav class="' . $classes . '"' . $style . $script . ' aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
     }
 
-    private function menuItems(array $items, array $state, string $class): string
+    /** Opening an item closes its siblings, which share the disclosure name $group. */
+    private function menuItems(array $items, array $state, string $class, string $group): string
     {
         $html = '';
         $currentPath = (string) ($state['path'] ?? '');
 
-        foreach ($items as $item) {
+        foreach ($items as $index => $item) {
             $link = $this->resolveLink($item['link'], $state);
             $label = (string) $item['label'];
 
@@ -842,12 +846,19 @@ final class NodeRenderer
             $inner = $link !== null
                 ? '<a href="' . Security::e($link['href']) . '"' . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . ($active ? ' aria-current="page"' : '') . '>' . $text . '</a>'
                 : '<span>' . $text . '</span>';
-            $children = $item['children'] !== []
-                ? '<details class="c-menu-disclosure"><summary aria-label="' . Security::e($label) . '"><span aria-hidden="true">⌄</span></summary>'
-                    . $this->menuItems($item['children'], $state, 'c-submenu') . '</details>'
-                : '';
 
-            $html .= '<li' . ($children !== '' ? ' class="c-has-children"' : '') . '><div class="c-menu-label">' . $inner . '</div>' . $children . '</li>';
+            if ($item['children'] === []) {
+                $html .= '<li><div class="c-menu-label">' . $inner . '</div></li>';
+                continue;
+            }
+
+            $submenu = $this->menuItems($item['children'], $state, 'c-submenu', $group . '-' . $index);
+            $details = '<details class="c-menu-disclosure" name="' . $group . '">';
+            $chevron = '<span class="c-menu-chevron" aria-hidden="true"></span>';
+            // A heading without a link opens its submenu itself; a link keeps its target beside a toggle.
+            $html .= $link === null
+                ? '<li class="c-has-children c-menu-group">' . $details . '<summary class="c-menu-label">' . $inner . $chevron . '</summary>' . $submenu . '</details></li>'
+                : '<li class="c-has-children"><div class="c-menu-label">' . $inner . '</div>' . $details . '<summary aria-label="' . Security::e($label) . '">' . $chevron . '</summary>' . $submenu . '</details></li>';
         }
 
         return '<ul class="' . $class . '">' . $html . '</ul>';

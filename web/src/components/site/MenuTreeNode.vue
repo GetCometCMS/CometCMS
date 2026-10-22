@@ -72,7 +72,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'toggle', 'navigate', 'drag', 'move', 'action'])
 const { t } = useI18n()
-const link = computed(() => resolveLocalized(props.item.link, props.settings.default_locale, props.settings.default_locale))
+const link = computed(() => resolveLocalized(props.item.link, props.settings.default_locale, props.settings.default_locale) ?? {})
 const label = computed(() => resolveLocalized(props.item.label, props.settings.default_locale, props.settings.default_locale))
 const expanded = computed(() => props.expandedIds.has(props.item.id))
 const dropPosition = ref('')

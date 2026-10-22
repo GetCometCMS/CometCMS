@@ -10,7 +10,7 @@
             <p v-if="linkIssue(value, item.label, settings.default_locale)" class="text-xs text-amber-700">{{ t(`site.link.${linkIssue(value, item.label, settings.default_locale)}`) }}</p>
             <button type="button" class="text-sm font-medium text-theme-700 underline-offset-2 hover:underline" @click="changeDestination(value, update)">{{ t('site.menus.changeDestination') }}</button>
           </div>
-          <LinkOptions :link="value" task-focused @update="update({ ...value, ...$event })" />
+          <LinkOptions :link="value ?? {}" task-focused @update="update({ ...value, ...$event })" />
         </template>
       </LocalizedInput>
     </div>
@@ -31,7 +31,7 @@ const labelInput = ref(null)
 const destinationOpen = ref(false)
 const destination = ref({})
 let updateDestination = null
-function changeDestination(value, update) { destination.value = value; updateDestination = update; destinationOpen.value = true }
+function changeDestination(value, update) { destination.value = value ?? {}; updateDestination = update; destinationOpen.value = true }
 function applyDestination({ link }) { updateDestination?.(link) }
 defineExpose({ focusLabel: () => labelInput.value?.focus() })
 </script>
