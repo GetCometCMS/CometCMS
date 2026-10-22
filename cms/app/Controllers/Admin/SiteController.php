@@ -258,6 +258,7 @@ final class SiteController extends BaseController
             'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
             'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]),
             'field' => $field,
+            'samples' => $this->samples($type, (string) ($entry['slug'] ?? $entry['id'])),
             'type' => $schema,
             'entry' => ['id' => (string) $entry['id'], 'slug' => (string) ($entry['slug'] ?? $entry['id']), 'title' => (string) ($entry['title'] ?? ''), 'status' => (string) ($entry['status'] ?? 'draft')],
             'home_url' => $this->liveUrl($context->homeUrl(), $context),

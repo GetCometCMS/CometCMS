@@ -14,45 +14,47 @@
       </div>
 
       <!-- The layers of one content type: an entry's own page content, the entry page around it, the list page. -->
-      <nav v-if="views.length > 1" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
-        <button
-          v-for="item in views"
-          :key="item.key"
-          type="button"
-          class="flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-          :aria-pressed="item.key === currentView"
-          :title="item.title"
-          @click="goToView(item)"
-        >
-          <Icon :icon="item.icon" class="h-3.5 w-3.5 shrink-0" />
-          <span class="truncate">{{ item.label }}</span>
-        </button>
+      <nav v-if="views.length || (showsSamples && samples.length)" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+        <BuilderEntrySwitcher
+          v-if="showsSamples && !views.some((item) => item.key === 'page') && samples.length"
+          :label="samples.find((entry) => entry.id === sampleId)?.title || sampleId"
+          :model-value="sampleId"
+          :entries="samples"
+          :navigable="false"
+          :disabled="saving || loading"
+          @update:model-value="selectEntry"
+        />
+        <template v-for="item in views" :key="item.key">
+          <BuilderEntrySwitcher
+            v-if="item.key === 'page'"
+            :label="item.label"
+            :title="item.title"
+            :icon="item.icon"
+            :active="currentView === 'page'"
+            :model-value="target === 'page' ? pageSlug : sampleId"
+            :entries="samples"
+            :disabled="saving || loading"
+            @navigate="goToView(item)"
+            @update:model-value="selectEntry"
+          />
+          <button
+            v-else
+            type="button"
+            class="topbar-view flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            :aria-pressed="item.key === currentView"
+            :title="item.title"
+            @click="goToView(item)"
+          >
+            <Icon :icon="item.icon" class="h-3.5 w-3.5 shrink-0" />
+            <span class="truncate">{{ item.label }}</span>
+          </button>
+        </template>
       </nav>
 
       <div class="ml-auto flex min-w-0 items-center gap-1.5">
-        <!-- What the canvas shows: sample entry, language and editing mode in one group. -->
-        <div class="topbar-group hidden md:flex">
-          <label
-            v-if="showsSamples && samples.length"
-            class="hidden min-w-0 items-center gap-1 pl-2 lg:flex"
-            :title="t('site.builder.sampleEntry')"
-          >
-            <Icon icon="mdi:eye-outline" class="topbar-muted h-4 w-4 shrink-0" />
-            <span class="topbar-muted sr-only xl:not-sr-only xl:whitespace-nowrap xl:text-xs">{{ t("site.builder.previewWith") }}</span>
-            <select
-              v-model="sampleId"
-              :disabled="saving"
-              class="topbar-select max-w-[11rem]"
-              :aria-label="t('site.builder.sampleEntry')"
-            >
-              <option v-for="sample in samples" :key="sample.id" :value="sample.id">
-                {{ sample.title || sample.id }}{{ sample.status !== "published" ? ` (${t(`status.${sample.status}`)})` : "" }}
-              </option>
-            </select>
-          </label>
-
+        <div v-if="locales.length > 1" class="topbar-group hidden md:flex">
           <!-- The language also sets the mode: other languages only translate texts. -->
-          <div v-if="locales.length > 1" class="flex items-center gap-2 px-1.5">
+          <div class="flex items-center gap-2 px-1.5">
             <LanguageTabs v-model="locale" class="topbar-languages" :locales="locales" :disabled="saving" compact />
             <span
               v-if="builder.translating.value"
@@ -318,6 +320,7 @@ import BuilderContextMenu from "../components/site/builder/BuilderContextMenu.vu
 import BuilderInspector from "../components/site/builder/BuilderInspector.vue";
 import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
+import BuilderEntrySwitcher from "../components/site/builder/BuilderEntrySwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import BuilderPanelWindow from "../components/site/builder/BuilderPanelWindow.vue";
@@ -660,7 +663,7 @@ const views = computed(() => {
       icon: "mdi:file-document-outline",
       to: { path: `/page-builder/builder/layout/${name}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
     },
-    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name}/index`, query: back } },
+    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name}/index`, query: { ...(entry ? { entry } : {}), ...back } } },
   ];
 });
 const currentView = computed(() => (target === "page" ? "page" : variant));
@@ -821,10 +824,10 @@ async function load() {
     layoutCustomized.value = !!data.customized;
     defaultNodes.value = data.default_nodes ?? (target === "page" ? data.nodes : null);
     upgradeRequired.value = !!data.upgrade_required;
-    samples.value = target === "page" ? [data.entry] : data.samples ?? [];
-    const requested = target === "page" ? data.entry.id : typeof route.query.entry === "string" ? route.query.entry : "";
-    sampleId.value = samples.value.some((sample) => sample.id === requested)
-      ? requested
+    samples.value = data.samples ?? [];
+    const requested = typeof route.query.entry === "string" ? route.query.entry : "";
+    sampleId.value = target === "page" ? data.entry.id
+      : samples.value.some((sample) => sample.id === requested) ? requested
       : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
@@ -850,7 +853,7 @@ async function save() {
     if (saveContent) {
       const entries = await entryFields.save();
       for (const entry of entries) {
-        const sample = samples.value.find((item) => item.id === entry.id);
+        const sample = samples.value.find((item) => item.id === entry.id || item.id === entry.slug);
         if (sample) sample.title = entry.title;
         // The page content is saved on top of the version the fields just saved.
         if (target === "page" && entry.id === sampleId.value) {
@@ -992,6 +995,26 @@ async function convertField(label) {
   }
 }
 
+/** Entry selection changes the content context without leaving a shared template. */
+function selectEntry(entry) {
+  if (saving.value || loading.value) return;
+  if (target !== "page") {
+    sampleId.value = entry;
+    return;
+  }
+  if (entry === pageSlug.value) return;
+  goToView({
+    key: `entry:${entry}`,
+    to: {
+      path: `/page-builder/builder/page/${name}/${entry}`,
+      query: {
+        ...(pageField.value ? { field: pageField.value } : {}),
+        ...(typeof route.query.back === "string" ? { back: route.query.back } : {}),
+      },
+    },
+  });
+}
+
 function goToView(view) {
   if (view.key === currentView.value) return;
   if (builder.isDirty.value || entryFields.isDirty.value) {
@@ -1107,17 +1130,17 @@ onBeforeUnmount(() => {
 .builder-topbar :deep(.topbar-devices) {
   background: rgb(0 0 0 / 0.12);
 }
-.topbar-variants button,
+.topbar-variants .topbar-view,
 .builder-topbar :deep(.topbar-devices button) {
   background: transparent;
   color: rgb(var(--builder-toolbar-text) / 0.8);
 }
-.topbar-variants button:hover,
+.topbar-variants .topbar-view:hover,
 .builder-topbar :deep(.topbar-devices button:hover) {
   background: var(--builder-toolbar-hover);
   color: rgb(var(--builder-toolbar-text));
 }
-.topbar-variants button[aria-pressed="true"],
+.topbar-variants .topbar-view[aria-pressed="true"],
 .builder-topbar :deep(.topbar-devices button[aria-pressed="true"]) {
   background: var(--builder-toolbar-selected);
   color: var(--builder-toolbar-selected-text);
@@ -1170,30 +1193,6 @@ onBeforeUnmount(() => {
 }
 .topbar-group > * + * {
   border-left: 1px solid rgb(var(--builder-toolbar-text) / 0.25);
-}
-.topbar-select {
-  min-width: 0;
-  border: 0;
-  background-color: transparent;
-  padding: 0.25rem 1.75rem 0.25rem 0.375rem;
-  background-position: right 0.375rem center;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: rgb(var(--builder-toolbar-text));
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
-  cursor: pointer;
-}
-.topbar-select:focus {
-  box-shadow: none;
-  outline: none;
-}
-.topbar-group label:focus-within {
-  border-radius: 0.375rem;
-  box-shadow: inset 0 0 0 2px rgb(var(--builder-toolbar-text) / 0.8);
-}
-.topbar-select option {
-  background: rgb(var(--color-surface));
-  color: rgb(var(--color-slate-800));
 }
 .builder-stage {
   background-color: rgb(var(--color-slate-100));

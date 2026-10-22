@@ -36,6 +36,25 @@ function comet_page_test_heading(string $id, string $text): array
     return ['id' => $id, 'kind' => 'heading', 'props' => ['text' => $text, 'level' => 'h2']];
 }
 
+test('page content editor offers other entries using the same slugs as template navigation', function (): void {
+    $seed = <<<'PHP'
+$types = new \CometCMS\Content\ContentTypeRepository();
+$types->save(['name' => 'pages', 'fields' => ['design' => ['type' => 'page']]]);
+$content = \CometCMS\Content\ContentRepository::make();
+$current = $content->save('pages', ['title' => 'Home', 'slug' => 'home', 'status' => 'published'], ['id' => 'admin']);
+$content->save('pages', ['title' => 'About', 'slug' => 'about', 'status' => 'draft'], ['id' => 'admin']);
+(new \CometCMS\Site\SiteRepository())->saveSettings(['routes' => ['pages' => ['enabled' => true]]]);
+PHP;
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/pages/pages/home',
+        '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->page("pages", $current["uid"]);');
+
+    assert_same(200, $status);
+    assert_same('home', $body['data']['entry']['slug']);
+    $entries = array_column($body['data']['samples'], null, 'id');
+    assert_same(['id' => 'home', 'title' => 'Home', 'status' => 'published'], $entries['home']);
+    assert_same(['id' => 'about', 'title' => 'About', 'status' => 'draft'], $entries['about']);
+});
+
 /** A detail layout: a frame heading, then the page content place with a default section. */
 function comet_page_test_layout(): array
 {
