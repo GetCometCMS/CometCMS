@@ -14,7 +14,7 @@
         {{
           isNew
             ? t("contentTypeEdit.newTitle")
-            : t("contentTypeEdit.editTitle", { name: form.name })
+            : t("contentTypeEdit.editTitle", { name: form.label || form.name })
         }}
       </h1>
       </div>
