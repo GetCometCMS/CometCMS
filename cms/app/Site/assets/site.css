@@ -467,7 +467,11 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 .c-card { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 /* A card is a column; pages cached before that show a section instead. */
 .c-card > .c-col, .c-card > .c-section { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-.c-card > .c-col > .c-row:last-child, .c-card > .c-section > .c-row:last-child { flex: 1; }
+/* The card's own column always fills it; its vertical alignment places the content instead. */
+.c-card > .c-col.c-self-center, .c-card > .c-col.c-self-end { align-self: stretch; }
+.c-card > .c-col.c-self-center { justify-content: center; }
+.c-card > .c-col.c-self-end { justify-content: flex-end; }
+.c-card > .c-col:not(.c-self-center, .c-self-end) > .c-row:last-child, .c-card > .c-section > .c-row:last-child { flex: 1; }
 .c-card .c-heading a { color: inherit; }
 
 /* Pagination */

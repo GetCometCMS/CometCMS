@@ -634,7 +634,7 @@ async function onSaveMenuSelect(item) {
   }
 }
 const previewHint = computed(() => (target.value === "component" ? t("site.builder.componentNoPage") : t("site.builder.noEntry")));
-// Both actions are always offered, so the menu looks the same everywhere; unavailable ones say why.
+// Preview and live actions are always offered; unavailable ones say why.
 const saveMenuItems = computed(() => [
   ...(target.value === "page" ? [
     {
@@ -667,6 +667,12 @@ const saveMenuItems = computed(() => [
     target: "_blank",
     disabled: !liveUrl.value,
     title: liveUrl.value || liveHint.value,
+  },
+  {
+    key: "exit",
+    label: t("site.builder.exit"),
+    icon: "mdi:exit-to-app",
+    separatorBefore: true,
   },
 ]);
 watch([previewEntry, locale], async ([entry]) => {
@@ -717,6 +723,12 @@ const backTo = computed(() => {
   if (target.value === "component") return COMPONENTS_PATH;
   if (target.value === "page") return `/content/${name.value}/${pageEntry.value}`;
   return target.value === "region" ? "/page-builder/design" : `/content-types/${name.value}/edit#website`;
+});
+/** Leave the builder for the current entry, even after switching builder views. */
+const exitTo = computed(() => {
+  const type = builder.type.value?.name;
+  const entry = target.value === "page" ? pageEntryId.value : previewEntry.value;
+  return type && entry ? `/content/${type}/${entry}` : backTo.value;
 });
 const heading = computed(() => {
   if (target.value === "component") return component.value?.name ?? "";
@@ -1024,6 +1036,7 @@ function resetToDefault() {
 }
 
 function onSaveMenu(item) {
+  if (item.key === "exit") return router.push(exitTo.value);
   if (item.key === "preview") return onSaveMenuSelect(item);
   if (item.key === "reset-page" || item.key === "reset-layout") resetToDefault();
 }

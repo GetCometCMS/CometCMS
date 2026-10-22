@@ -1581,6 +1581,7 @@ const messages = {
     'site.link.chooseEntry': 'Choose an entry',
     'site.link.newTab': 'Open in a new tab',
     'site.builder.back': 'Back to website settings',
+    'site.builder.exit': 'Exit Page Builder',
     'site.builder.variants': 'Layout',
     'site.builder.sampleEntry': 'Preview with entry',
     'site.builder.language': 'Preview language',
