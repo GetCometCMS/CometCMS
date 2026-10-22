@@ -657,6 +657,7 @@ import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
+import { hasEntryDraftChanges } from "../composables/entryDraftChanges.js";
 import { languageTabItem } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import TranslationInfo from "../components/TranslationInfo.vue";
@@ -820,38 +821,31 @@ function selectLocaleTab(tab) {
   }
 }
 
-function populateFormFromLocale(entry, loc) {
-  const source = entryForLocale(entry, loc, defaultLocale.value);
-  form.value = { author_id: entry.author_id, title: source.title ?? '', slug: source.slug ?? '', status: source.status, published_at: source.published_at ? toDatetimeLocal(source.published_at) : '', locale: loc };
-  for (const [name, config] of Object.entries(customSchema.value)) form.value[name] = fieldValueForForm(source[name] ?? null, config);
-  resetFields.value = [];
+function formFromEntry(entry, loc = "") {
+  const source = contentTypeLocales.value.length > 0 && loc
+    ? entryForLocale(entry, loc, defaultLocale.value)
+    : { ...revisionFieldSource(entry), status: entry.status, slug: entry.slug, published_at: entry.published_at };
+  const values = {
+    status: source.status ?? "draft",
+    slug: source.slug ?? "",
+    published_at: source.published_at ? toDatetimeLocal(source.published_at) : "",
+    author_id: entry.author_id ?? null,
+    locale: loc,
+    title: source.title ?? "",
+  };
+  for (const [name, config] of Object.entries(customSchema.value)) {
+    values[name] = fieldValueForForm(source[name] ?? null, config);
+  }
+  return applyFieldDefaults(values);
+}
 
+function populateFormFromLocale(entry, loc) {
+  form.value = formFromEntry(entry, loc);
+  resetFields.value = [];
 }
 
 function populateFormFromEntry(entry, loc = "") {
-  form.value = {
-    status: entry.status ?? "draft",
-    slug: entry.slug ?? "",
-    published_at: entry.published_at ? toDatetimeLocal(entry.published_at) : "",
-    author_id: entry.author_id ?? form.value.author_id,
-    locale: loc,
-    title: "",
-  };
-
-  if (contentTypeLocales.value.length > 0 && loc) {
-    populateFormFromLocale(entry, loc);
-  } else {
-    const source = revisionFieldSource(entry);
-    form.value.title = source.title ?? "";
-    for (const name of Object.keys(customSchema.value)) {
-      form.value[name] = fieldValueForForm(
-        source[name] ?? null,
-        customSchema.value[name],
-      );
-    }
-  }
-
-  form.value = applyFieldDefaults(form.value);
+  populateFormFromLocale(entry, loc);
 }
 
 function switchLocale(loc) {
@@ -993,23 +987,29 @@ async function confirmDeleteTranslation() {
     pendingDeleteLocale.value = "";
   }
 }
-const isDirty = ref(false);
+const formLoaded = ref(false);
+const newEntryBaseline = ref(null);
+const isDirty = computed(() => {
+  if (!formLoaded.value) return false;
+  const base = liveEntryBeforeRestore.value ?? fullEntry.value;
+  const drafts = {
+    ...localeDrafts.value,
+    [currentLocale.value]: { form: form.value, resets: resetFields.value },
+  };
+  return hasEntryDraftChanges(
+    drafts,
+    (language) => base ? formFromEntry(base, language) : newEntryBaseline.value,
+    (language) => !isNew.value && contentTypeLocales.value.length > 0 && !base?.publication?.[language],
+  );
+});
 const {
   leavePromptOpen,
   confirmLeave,
   bypass: bypassLeaveGuard,
 } = useUnsavedChangesGuard(isDirty);
-let _formLoaded = false;
 const entryMeta = ref({ created_at: null, updated_at: null, id: null });
 const contentTypeSchema = ref(null);
 
-watch(
-  form,
-  () => {
-    if (_formLoaded) isDirty.value = true;
-  },
-  { deep: true },
-);
 const customSchema = ref({});
 const fieldErrors = ref({});
 const loadError = ref("");
@@ -1143,37 +1143,15 @@ onMounted(async () => {
         contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
-      form.value = {
-        status: entry.status ?? "draft",
-        slug: entry.slug ?? "",
-        published_at: entry.published_at
-          ? toDatetimeLocal(entry.published_at)
-          : "",
-        author_id: entry.author_id ?? null,
-        locale: initLocale,
-        title: "",
-      };
-
-      if (contentTypeLocales.value.length > 0 && initLocale) {
-        populateFormFromLocale(entry, initLocale, defaultLocale.value);
-      } else {
-        form.value.title = entry.title ?? "";
-        for (const name of Object.keys(customSchema.value)) {
-          form.value[name] = fieldValueForForm(
-            entry[name] ?? null,
-            customSchema.value[name],
-          );
-        }
-      }
-
-      form.value = applyFieldDefaults(form.value);
+      form.value = formFromEntry(entry, initLocale);
     } catch (err) {
       loadError.value = err.message;
     }
   }
 
   await nextTick();
-  _formLoaded = true;
+  newEntryBaseline.value = cloneLocaleValue(form.value);
+  formLoaded.value = true;
 });
 
 onBeforeUnmount(() => {
@@ -1210,7 +1188,7 @@ async function handleSave() {
     if (isNew.value) {
       const res = await api.content.create(collection, payloadForSave());
       toast.success(t("contentEdit.entryCreated"));
-      isDirty.value = false;
+      newEntryBaseline.value = cloneLocaleValue(form.value);
       router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
     } else {
       const drafts = { ...localeDrafts.value, [currentLocale.value]: { form: cloneLocaleValue(form.value), resets: [...resetFields.value] } };
@@ -1231,12 +1209,12 @@ async function handleSave() {
       const res = { data: latest };
       localeDrafts.value = {};
       toast.success(t("contentEdit.entrySaved"));
-      isDirty.value = false;
       fullEntry.value = res.data;
       delete localeDrafts.value[currentLocale.value];
       resetFields.value = [];
       liveEntryBeforeRestore.value = null;
       previewingRevision.value = null;
+      populateFormFromEntry(res.data, currentLocale.value);
       entryMeta.value = {
         created_at: res.data.created_at ?? null,
         updated_at: res.data.updated_at ?? null,
@@ -1362,10 +1340,10 @@ async function cancelRestore() {
     populateFormFromEntry(currentEntry, restoreLocale);
   }
 
+  localeDrafts.value = {};
+  resetFields.value = [];
   liveEntryBeforeRestore.value = null;
   previewingRevision.value = null;
-  await nextTick();
-  isDirty.value = false;
 }
 
 function applyFieldDefaults(source) {

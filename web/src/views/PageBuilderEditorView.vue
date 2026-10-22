@@ -597,7 +597,6 @@ const saveMenuItems = computed(() => [
       disabled: saving.value || (!pageCustomized.value && !builder.isDirty.value),
       title: pageCustomized.value || builder.isDirty.value ? t("site.page.resetHint") : t("site.page.usesDefault"),
     },
-    { key: "edit-layout", label: t("site.page.editLayout"), icon: "mdi:page-layout-body", title: t("site.page.editLayoutHint") },
   ] : []),
   ...(["layout", "region"].includes(target) ? [{
     key: "reset-layout",
@@ -954,7 +953,6 @@ function resetToDefault() {
 
 function onSaveMenu(item) {
   if (item.key === "reset-page" || item.key === "reset-layout") resetToDefault();
-  else if (item.key === "edit-layout") router.push(layoutLink.value);
 }
 
 /** Turn the node waiting in the name dialog into a component instance. */
