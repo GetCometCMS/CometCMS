@@ -1,6 +1,7 @@
 import { resolveLocalized, setLocalized, removeLocalized, localizedState, resolveLocalizedTree } from './localizedValues.js'
 import { hasInvalidValues, isSmartValue, reference, referenceConfig, smartSummary } from './smartValues.js'
 import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
+import { useBuilderClipboard } from './builderClipboard.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
@@ -66,7 +67,7 @@ const MAX_FALLBACK = 2000
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
  */
-export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null }) {
+export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null, clipboardStorage }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
@@ -98,9 +99,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const selectedId = ref(null)
   const hoverId = ref(null)
   const drag = shallowRef(null)
-  /** Copied node and copied style, for paste. */
-  const clipboard = shallowRef(null)
-  const styleClipboard = shallowRef(null)
+  /** Copied node and copied style, for paste; shared by the workspace's builders (see useBuilderClipboard()). */
+  const sharedClipboard = useBuilderClipboard({ storage: clipboardStorage })
+  const clipboard = sharedClipboard.node
+  const styleClipboard = sharedClipboard.style
   /** Open context menu: { id, x, y } in viewport coordinates. */
   const contextMenu = ref(null)
   const savedSnapshot = ref('[]')
@@ -470,9 +472,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return true
   }
 
-  /** Give a newly placed page content element its field (see assignPageField()). */
+  /** Give newly placed page content elements their fields (see assignPageField()). */
   function placed(node) {
-    if (node.kind === PAGE_CONTENT) assignPageField(node.id).catch((error) => pageFieldError.value = error.message)
+    walk([node], (item) => {
+      if (item.kind === PAGE_CONTENT) assignPageField(item.id).catch((error) => pageFieldError.value = error.message)
+    })
   }
 
   /** Complete a drag: insert a palette node or move an existing one. */
@@ -601,8 +605,15 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Paste the copied node after `id` (or inside it when it is a container). */
   function paste(id = selectedId.value) {
+    sharedClipboard.refresh()
     if (!clipboard.value) return false
-    return insert(cloneWithNewIds(clipboard.value), id)
+    const node = cloneWithNewIds(clipboard.value)
+    // A copy from another page type shows none of this type's page fields; it gets one of its own once placed.
+    const fields = new Set(pageFields().map((field) => field.key))
+    walk([node], (item) => {
+      if (item.kind === PAGE_CONTENT && !fields.has(item.props?.field)) item.props = { ...item.props, field: '' }
+    })
+    return insert(node, id)
   }
 
   function copyStyle(id = selectedId.value) {
@@ -613,6 +624,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** Apply the copied style, keeping only what the target kind supports. */
   function pasteStyle(id = selectedId.value) {
     if (translating.value) return false
+    sharedClipboard.refresh()
     if (!styleClipboard.value || !id) return
     mutate((tree) => {
       const node = findNode(tree, id)
@@ -623,6 +635,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function openContextMenu(id, x, y) {
+    sharedClipboard.refresh()
     if (id) selectedId.value = id
     contextMenu.value = { id: id ?? selectedId.value, x, y }
   }

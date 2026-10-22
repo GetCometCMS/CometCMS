@@ -573,9 +573,9 @@ describe('builder localization', () => {
 })
 
 describe('builder page content', () => {
-  async function pageFixture({ fields = { design: { type: 'page', label: 'Design' } }, fieldApi = {} } = {}) {
+  async function pageFixture({ fields = { design: { type: 'page', label: 'Design' } }, fieldApi = {}, clipboardStorage } = {}) {
     let builder
-    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi }); return () => null } }))
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi, clipboardStorage }); return () => null } }))
     builder.spec.value = { root: ['section', 'page_content'], kinds: {
       section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] },
       column: { props: {}, children: ['text', 'page_content'] }, text: { props: { html: { default: '' } }, children: [] },
@@ -608,6 +608,26 @@ describe('builder page content', () => {
     expect(builder.holdsPageContent(place)).toBe(true)
     expect(builder.holdsPageContent(builder.nodes.value[0])).toBe(false)
     expect(builder.isDropContainer(place)).toBe(true)
+  })
+
+  it('pastes copies from other builders and gives page content from another page type a field of its own', async () => {
+    const items = new Map()
+    const clipboardStorage = { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, value), removeItem: (key) => items.delete(key) }
+    const source = await pageFixture({ clipboardStorage })
+    const place = source.make('page_content')
+    expect(source.insert(place, null)).toBe(true)
+    await Promise.resolve()
+    source.copy(place.id)
+    source.copyStyle(source.nodes.value[0].id)
+
+    const target = await pageFixture({ fields: { layout: { type: 'page', label: 'Layout' } }, clipboardStorage })
+    expect(target.clipboard.value.kind).toBe('page_content')
+    expect(target.paste(null)).toBe(true)
+    await Promise.resolve()
+    const pasted = target.selected.value
+    expect(pasted.id).not.toBe(place.id)
+    expect(pasted.props.field).toBe('layout')
+    expect(target.styleClipboard.value).toEqual({})
   })
 
   it('wraps an element dropped into page content in a section', async () => {
