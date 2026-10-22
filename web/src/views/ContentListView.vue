@@ -261,11 +261,8 @@
                             class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset">
                             <span v-if="localeFlagCountry(loc)"
                               :class="['fi', `fi-${localeFlagCountry(loc)}`, 'shrink-0 rounded-sm']"
-                              aria-hidden="true" />
-                            <span>({{ loc }})</span>
-                            <Icon v-if="loc === contentTypeSchema?.default_locale" icon="mdi:home"
-                              class="h-3 w-3 shrink-0 text-slate-400" :aria-label="t('contentEdit.default')"
-                              :title="t('contentEdit.default')" />
+                              aria-hidden="true"
+                              :title="localeName(loc)" />
                           </span>
                         </div>
                         <span v-else class="text-slate-400">—</span>
@@ -457,6 +454,7 @@ import { resolveLocalizedTree } from "../composables/localizedValues.js";
 import { useI18n } from "../i18n/index.js";
 import {
   localeFlagCountry,
+  localeName,
 } from "../composables/localeOptions.js";
 import {
   apiSortKey,
