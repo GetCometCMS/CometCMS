@@ -35,6 +35,21 @@ The small font fixtures and their licences under `tests/fixtures/fonts/` are use
 
 ## Testing
 
+The builder guide includes four short recordings of the real editor. To regenerate
+the MP4 videos and WebP posters in `web/src/assets/builder-guide/`, install PHP,
+FFmpeg and the Playwright browser dependencies, then run:
+
+```bash
+npx playwright install chromium ffmpeg
+npm run record:builder-guide
+```
+
+Set `CHROME_BIN=/path/to/chrome` to use an existing Chrome installation. The
+recorder builds and sets up a temporary CMS, demonstrates adding elements,
+inline editing, device previews, and saving with history, then removes the
+temporary installation. The videos are silent and use the English interface;
+the guide provides translated descriptions and playback controls.
+
 Run the full local test suite before shipping:
 
 ```bash
