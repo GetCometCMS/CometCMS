@@ -505,13 +505,30 @@ try {
   // Storage may be unavailable (private mode); the guide stays one click away.
 }
 
-const target = route.params.target;
-const name = String(route.params.name);
-/** The page builder of one entry edits its page content inside the type's detail layout. */
-const pageEntry = target === "page" ? String(route.params.variant ?? "") : "";
-const variant = target === "page" ? "detail" : String(route.params.variant || "detail");
+/** What a builder route asks to edit. */
+function contextFor(to) {
+  const target = String(to.params.target);
+  const page = target === "page";
+  return {
+    target,
+    name: String(to.params.name),
+    /** The page builder of one entry edits its page content inside the type's detail layout. */
+    pageEntry: page ? String(to.params.variant ?? "") : "",
+    variant: page ? "detail" : String(to.params.variant || "detail"),
+    field: page && typeof to.query.field === "string" ? to.query.field : "",
+  };
+}
+const sameContext = (a, b) => ["target", "name", "pageEntry", "variant", "field"].every((key) => a[key] === b[key]);
+/** What the builder shows. Moving to another builder page keeps this one until the next one's content arrives. */
+const shown = ref(contextFor(route));
+/** What the builder shows or is loading: the latest request wins. */
+let requested = shown.value;
+const target = computed(() => shown.value.target);
+const name = computed(() => shown.value.name);
+const pageEntry = computed(() => shown.value.pageEntry);
+const variant = computed(() => shown.value.variant);
 /** The page field being edited; the type's first until the page loads. */
-const pageField = ref(typeof route.query.field === "string" ? route.query.field : "");
+const pageField = ref(shown.value.field);
 /** The entry has page content of its own (not the layout's default content). */
 const pageCustomized = ref(false);
 /** The detail layout has a place for the page field. */
@@ -522,11 +539,11 @@ const defaultNodes = ref(null);
 /** A layout, header or footer has a saved design of its own (not the generated default). */
 const layoutCustomized = ref(false);
 /** The entry's stable ID: builders name entries by it, as slugs differ between languages. */
-const pageEntryId = ref(pageEntry);
-const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name}/detail`, query: { entry: pageEntryId.value, back: route.fullPath } }));
+const pageEntryId = ref(pageEntry.value);
+const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name.value}/detail`, query: { entry: pageEntryId.value, back: route.fullPath } }));
 const historyScopeKey = computed(() => {
-  if (target === "page") return "site.history.scope.page";
-  return target === "component" ? "site.history.scope.component" : "site.history.scope.layout";
+  if (target.value === "page") return "site.history.scope.page";
+  return target.value === "component" ? "site.history.scope.component" : "site.history.scope.layout";
 });
 
 /** Nothing to show yet: the first load. */
@@ -543,8 +560,6 @@ watch(switching, (value) => {
 });
 /** Only the latest load applies; slower earlier ones are dropped. */
 let loadSequence = 0;
-/** The page area being loaded or shown, so a quick second pick is compared with the latest. */
-let requestedField = pageField.value;
 const upgradeRequired = ref(false);
 const layoutRevision = ref(null);
 const loadError = ref("");
@@ -570,8 +585,8 @@ const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.v
 /** The entry the preview shows: the chosen sample. */
 const previewEntry = computed(() => sampleId.value);
 /** Layouts of single entries and components of a content type preview an entry. */
-const showsSamples = computed(() => (target === "layout" && variant !== "index") || (target === "component" && !!builder.type.value));
-const hasEntryFields = computed(() => (showsSamples.value || target === "page") && !!previewEntry.value);
+const showsSamples = computed(() => (target.value === "layout" && variant.value !== "index") || (target.value === "component" && !!builder.type.value));
+const hasEntryFields = computed(() => (showsSamples.value || target.value === "page") && !!previewEntry.value);
 watch([hasEntryFields, loading], ([available, pending]) => {
   if (!available && !pending) panelLayout.close("fields");
 });
@@ -585,23 +600,23 @@ const entryFields = useBuilderEntry({
 
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
-  if (target === "component") return null;
+  if (target.value === "component") return null;
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
-  if (target === "region") return root + prefix || homeUrl.value;
-  if (variant === "index") {
+  if (target.value === "region") return root + prefix || homeUrl.value;
+  if (variant.value === "index") {
     const home = settings?.homepage;
-    const path = home?.type === name && !home.entry ? '/' : resolveLocalized(settings?.routes?.[name]?.index_path, locale.value, settings?.default_locale);
+    const path = home?.type === name.value && !home.entry ? '/' : resolveLocalized(settings?.routes?.[name.value]?.index_path, locale.value, settings?.default_locale);
     return path ? root + prefix + (path === '/' && prefix ? '' : path) : indexUrl.value;
   }
   return entryUrl.value;
 });
 /** Why the live page cannot be opened, shown on the disabled menu item. */
 const liveHint = computed(() => {
-  if (target === "component") return t("site.builder.componentNoPage");
-  if (target === "region") return t("site.builder.siteOff");
-  if (variant === "index") return t("site.builder.noLiveIndex");
+  if (target.value === "component") return t("site.builder.componentNoPage");
+  if (target.value === "region") return t("site.builder.siteOff");
+  if (variant.value === "index") return t("site.builder.noLiveIndex");
   return previewEntry.value ? t("site.builder.notLive") : t("site.builder.noEntry");
 });
 /**
@@ -609,16 +624,16 @@ const liveHint = computed(() => {
  * the homepage for the header and footer. Components have no page of their own.
  */
 const previewUrl = computed(() => {
-  if (target === "region") return api.site.homePreviewUrl(locale.value);
-  if (target === "page") return api.site.entryPreviewUrl(name, pageEntry, locale.value);
-  if (target !== "layout") return null;
-  if (variant === "index") return api.site.indexPreviewUrl(name, locale.value);
-  return previewEntry.value ? api.site.entryPreviewUrl(name, previewEntry.value, locale.value) : null;
+  if (target.value === "region") return api.site.homePreviewUrl(locale.value);
+  if (target.value === "page") return api.site.entryPreviewUrl(name.value, pageEntry.value, locale.value);
+  if (target.value !== "layout") return null;
+  if (variant.value === "index") return api.site.indexPreviewUrl(name.value, locale.value);
+  return previewEntry.value ? api.site.entryPreviewUrl(name.value, previewEntry.value, locale.value) : null;
 });
-const previewHint = computed(() => (target === "component" ? t("site.builder.componentNoPage") : t("site.builder.noEntry")));
+const previewHint = computed(() => (target.value === "component" ? t("site.builder.componentNoPage") : t("site.builder.noEntry")));
 // Both actions are always offered, so the menu looks the same everywhere; unavailable ones say why.
 const saveMenuItems = computed(() => [
-  ...(target === "page" ? [
+  ...(target.value === "page" ? [
     {
       key: "reset-page",
       label: t("site.page.reset"),
@@ -627,7 +642,7 @@ const saveMenuItems = computed(() => [
       title: pageCustomized.value || builder.isDirty.value ? t("site.page.resetHint") : t("site.page.usesDefault"),
     },
   ] : []),
-  ...(["layout", "region"].includes(target) ? [{
+  ...(["layout", "region"].includes(target.value) ? [{
     key: "reset-layout",
     label: t("site.builder.resetDefault"),
     icon: "mdi:restore",
@@ -656,9 +671,9 @@ const saveMenuItems = computed(() => [
 ]);
 watch([previewEntry, locale], async ([entry]) => {
   entryUrl.value = null;
-  if (!["layout", "page"].includes(target) || !entry) return;
+  if (!["layout", "page"].includes(target.value) || !entry) return;
   try {
-    entryUrl.value = (await api.site.links(name, entry, { locale: locale.value })).data?.url ?? null;
+    entryUrl.value = (await api.site.links(name.value, entry, { locale: locale.value })).data?.url ?? null;
   } catch {
     entryUrl.value = null;
   }
@@ -671,10 +686,10 @@ watch([previewEntry, locale], async ([entry]) => {
  */
 const views = computed(() => {
   const type = builder.type.value;
-  if (!["layout", "page"].includes(target) || !type) return [];
+  if (!["layout", "page"].includes(target.value) || !type) return [];
   const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
-  const entry = target === "page" ? pageEntryId.value : sampleId.value;
-  const entryTitle = target === "page" ? pageTitle.value : samples.value.find((sample) => sample.id === entry)?.title ?? "";
+  const entry = target.value === "page" ? pageEntryId.value : sampleId.value;
+  const entryTitle = target.value === "page" ? pageTitle.value : samples.value.find((sample) => sample.id === entry)?.title ?? "";
   const hasPage = Object.values(type.fields ?? {}).some((config) => config?.type === "page");
   return [
     ...(hasPage && entry ? [{
@@ -682,44 +697,44 @@ const views = computed(() => {
       label: t("site.view.page", { title: entryTitle || entry }),
       title: t("site.view.pageHint", { title: entryTitle || entry }),
       icon: "mdi:file-document-edit-outline",
-      to: { path: `/page-builder/builder/page/${name}/${entry}`, query: { ...(target === "page" && pageField.value ? { field: pageField.value } : {}), ...back } },
+      to: { path: `/page-builder/builder/page/${name.value}/${entry}`, query: { ...(target.value === "page" && pageField.value ? { field: pageField.value } : {}), ...back } },
     }] : []),
     {
       key: "detail",
       label: t("site.variant.detail"),
       title: hasPage ? t("site.view.detailHint") : undefined,
       icon: "mdi:file-document-outline",
-      to: { path: `/page-builder/builder/layout/${name}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
+      to: { path: `/page-builder/builder/layout/${name.value}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
     },
-    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name}/index`, query: { ...(entry ? { entry } : {}), ...back } } },
+    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name.value}/index`, query: { ...(entry ? { entry } : {}), ...back } } },
   ];
 });
-const currentView = computed(() => (target === "page" ? "page" : variant));
+const currentView = computed(() => (target.value === "page" ? "page" : variant.value));
 // Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
   if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
-  if (target === "component") return COMPONENTS_PATH;
-  if (target === "page") return `/content/${name}/${pageEntry}`;
-  return target === "region" ? "/page-builder/design" : `/content-types/${name}/edit#website`;
+  if (target.value === "component") return COMPONENTS_PATH;
+  if (target.value === "page") return `/content/${name.value}/${pageEntry.value}`;
+  return target.value === "region" ? "/page-builder/design" : `/content-types/${name.value}/edit#website`;
 });
 const heading = computed(() => {
-  if (target === "component") return component.value?.name ?? "";
-  if (target === "page") return pageTitle.value || pageEntry;
-  return target === "region" ? t(`site.region.${name}`) : builder.type.value?.label ?? name;
+  if (target.value === "component") return component.value?.name ?? "";
+  if (target.value === "page") return pageTitle.value || pageEntry.value;
+  return target.value === "region" ? t(`site.region.${name.value}`) : builder.type.value?.label ?? name.value;
 });
 const subheading = computed(() => {
-  if (target === "component") {
+  if (target.value === "component") {
     const kind = t("site.component.instanceOf", { kind: builder.kindLabel(component.value?.root ?? "section") });
     const type = builder.type.value ? ` · ${builder.type.value.label ?? builder.type.value.name}` : "";
     return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
   }
-  if (target === "page") {
+  if (target.value === "page") {
     const fields = builder.pageFields();
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
-    return `${builder.type.value?.label ?? name}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
+    return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
-  return target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`);
+  return target.value === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant.value}`);
 });
 
 const saveStatus = computed(() => {
@@ -729,32 +744,32 @@ const saveStatus = computed(() => {
 
 /** What the inspector shows while nothing is selected. */
 const overview = computed(() => {
-  if (target === "component") {
+  if (target.value === "component") {
     return {
       title: heading.value,
       description: t("site.builder.overview.component", { count: usages.value.length }),
       icon: "mdi:puzzle-outline",
     };
   }
-  if (target === "page") {
+  if (target.value === "page") {
     return {
       title: heading.value,
-      description: t("site.builder.overview.page", { type: builder.type.value?.label ?? name }),
+      description: t("site.builder.overview.page", { type: builder.type.value?.label ?? name.value }),
       icon: "mdi:file-document-edit-outline",
     };
   }
-  if (target === "region") {
+  if (target.value === "region") {
     return {
       title: heading.value,
-      description: t(`site.region.${name}Hint`),
-      icon: name === "footer" ? "mdi:page-layout-footer" : "mdi:page-layout-header",
+      description: t(`site.region.${name.value}Hint`),
+      icon: name.value === "footer" ? "mdi:page-layout-footer" : "mdi:page-layout-header",
     };
   }
-  const type = builder.type.value?.label ?? name;
+  const type = builder.type.value?.label ?? name.value;
   return {
-    title: `${type} · ${t(`site.variant.${variant}`)}`,
-    description: t(variant === "index" ? "site.builder.overview.index" : "site.builder.overview.detail", { type }),
-    icon: builder.type.value?.icon || (variant === "index" ? "mdi:view-grid-outline" : "mdi:file-document-outline"),
+    title: `${type} · ${t(`site.variant.${variant.value}`)}`,
+    description: t(variant.value === "index" ? "site.builder.overview.index" : "site.builder.overview.detail", { type }),
+    icon: builder.type.value?.icon || (variant.value === "index" ? "mdi:view-grid-outline" : "mdi:file-document-outline"),
   };
 });
 
@@ -762,15 +777,15 @@ const previewBody = computed(() => {
   if (loading.value) return null;
   // The canvas always shows the draft design: unsaved edits, and a restored version as soon as it arrives.
   const theme = site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {};
-  if (target === "component") {
-    return { target: "component", component: name, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+  if (target.value === "component") {
+    return { target: "component", component: name.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }
-  if (target === "page") {
-    return { target: "entry_page", type: name, entry: pageEntry, field: pageField.value, nodes: builder.nodes.value, locale: locale.value, ...theme };
+  if (target.value === "page") {
+    return { target: "entry_page", type: name.value, entry: pageEntry.value, field: pageField.value, nodes: builder.nodes.value, locale: locale.value, ...theme };
   }
-  return target === "region"
-    ? { target: "region", region: name, nodes: builder.nodes.value, locale: locale.value, ...theme }
-    : { target: "layout", type: name, variant, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+  return target.value === "region"
+    ? { target: "region", region: name.value, nodes: builder.nodes.value, locale: locale.value, ...theme }
+    : { target: "layout", type: name.value, variant: variant.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
 });
 
 function isBuilderPath(path) {
@@ -813,13 +828,14 @@ function editEntryField({ fields, text }) {
 
 watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; });
 
-async function load(field = pageField.value) {
+async function load(next = requested) {
   const current = ++loadSequence;
   // Once the builder shows, later loads keep it on screen until their content arrives.
   if (loading.value || loadError.value) loading.value = true;
   else switching.value = true;
   loadError.value = "";
-  requestedField = field;
+  requested = next;
+  const { target, name, pageEntry, variant, field } = next;
 
   try {
     const entry = typeof route.query.entry === "string" ? route.query.entry : "";
@@ -829,6 +845,8 @@ async function load(field = pageField.value) {
     else res = target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
     if (current !== loadSequence) return;
     const data = res.data;
+    const moved = !sameContext(next, shown.value);
+    shown.value = next;
     loadedRevisions.value.layout = null;
     layoutRevision.value = data.revision;
     builder.types.value = data.types ?? [];
@@ -848,10 +866,13 @@ async function load(field = pageField.value) {
     } else {
       builder.spec.value = data.spec;
       builder.currentAvailable.value = ["layout", "page"].includes(target) && variant !== "index";
+      builder.componentId.value = null;
+      builder.rootKind.value = null;
     }
     if (target === "page") {
       pageField.value = data.field;
-      requestedField = data.field;
+      // The server picks the first area when none was asked for.
+      requested = shown.value = { ...next, field: data.field };
       pageCustomized.value = !!data.customized;
       pagePlaced.value = data.placed !== false;
       pageTitle.value = data.entry?.title ?? "";
@@ -862,17 +883,23 @@ async function load(field = pageField.value) {
     upgradeRequired.value = !!data.upgrade_required;
     samples.value = data.samples ?? [];
     // The server names the requested entry by its stable ID, whatever the link used.
-    const requested = data.sample || (typeof route.query.entry === "string" ? route.query.entry : "");
+    const wanted = data.sample || (typeof route.query.entry === "string" ? route.query.entry : "");
     sampleId.value = target === "page" ? data.entry.id
-      : samples.value.some((sample) => sample.id === requested) ? requested
+      : samples.value.some((sample) => sample.id === wanted) ? wanted
       : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
     locale.value = locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
+    if (moved) leftView();
   } catch (err) {
-    if (current === loadSequence) loadError.value = err.message;
+    if (current !== loadSequence) return;
+    loadError.value = err.message;
+    // The error stands for the requested page: nothing of the previous one may be saved there.
+    shown.value = next;
+    leftView();
+    builder.load([]);
   } finally {
     if (current === loadSequence) {
       loading.value = false;
@@ -896,7 +923,7 @@ async function save() {
         const sample = samples.value.find((item) => item.id === (entry.uid || entry.id));
         if (sample) sample.title = entry.title;
         // The page content is saved on top of the version the fields just saved.
-        if (target === "page" && (entry.uid || entry.id) === sampleId.value) {
+        if (target.value === "page" && (entry.uid || entry.id) === sampleId.value) {
           layoutRevision.value = entry.revision;
           pageTitle.value = entry.title;
         }
@@ -907,27 +934,27 @@ async function save() {
       const pending = loadedRevisions.value.layout;
       const restoreDefault = pending?.customized === false && JSON.stringify(nodes) === pending.nodes;
       let res;
-      if (target === "page") {
+      if (target.value === "page") {
         res = restoreDefault
-          ? await api.site.resetPage(name, pageEntry, pageField.value, layoutRevision.value)
-          : await api.site.savePage(name, pageEntry, pageField.value, nodes, layoutRevision.value);
+          ? await api.site.resetPage(name.value, pageEntry.value, pageField.value, layoutRevision.value)
+          : await api.site.savePage(name.value, pageEntry.value, pageField.value, nodes, layoutRevision.value);
       } else if (restoreDefault) {
-        res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
-      } else if (target === "region") {
-        res = await api.site.saveRegion(name, nodes, layoutRevision.value);
-      } else if (target === "component") {
-        res = await api.site.saveComponent(name, nodes, layoutRevision.value);
+        res = target.value === "region" ? await api.site.resetRegion(name.value) : await api.site.resetLayout(name.value, variant.value);
+      } else if (target.value === "region") {
+        res = await api.site.saveRegion(name.value, nodes, layoutRevision.value);
+      } else if (target.value === "component") {
+        res = await api.site.saveComponent(name.value, nodes, layoutRevision.value);
       } else {
-        res = await api.site.saveLayout(name, variant, nodes, layoutRevision.value);
+        res = await api.site.saveLayout(name.value, variant.value, nodes, layoutRevision.value);
       }
       builder.markSaved(res.data.nodes);
       layoutRevision.value = res.data.revision;
       upgradeRequired.value = false;
       loadedRevisions.value.layout = null;
-      if (target === "component") component.value = res.data.component;
-      else if (target === "page") savedPage(res.data);
+      if (target.value === "component") component.value = res.data.component;
+      else if (target.value === "page") savedPage(res.data);
       else {
-        site.markCustomized(target, name, variant, res.data.customized);
+        site.markCustomized(target.value, name.value, variant.value, res.data.customized);
         layoutCustomized.value = res.data.customized;
       }
     }
@@ -939,7 +966,7 @@ async function save() {
     if (!themeDirty.value) loadedRevisions.value.theme = null;
     historyVersion.value++;
     const message = saveContent ? "site.builder.changesSaved" : !saveLayout ? "site.builder.designSaved"
-      : target === "component" ? "site.component.saved" : target === "page" ? "site.page.saved" : "site.builder.saved";
+      : target.value === "component" ? "site.component.saved" : target.value === "page" ? "site.page.saved" : "site.builder.saved";
     toast.success(t(message));
   } catch (err) {
     if (err.entryId) {
@@ -955,15 +982,15 @@ async function save() {
 }
 
 function fetchRevisions() {
-  if (target === "page") return api.site.pageRevisions(name, pageEntry, pageField.value);
-  if (target === "component") return api.site.componentRevisions(name);
-  return target === "region" ? api.site.regionRevisions(name) : api.site.layoutRevisions(name, variant);
+  if (target.value === "page") return api.site.pageRevisions(name.value, pageEntry.value, pageField.value);
+  if (target.value === "component") return api.site.componentRevisions(name.value);
+  return target.value === "region" ? api.site.regionRevisions(name.value) : api.site.layoutRevisions(name.value, variant.value);
 }
 
 function fetchRevision(id) {
-  if (target === "page") return api.site.pageRevision(name, pageEntry, pageField.value, id);
-  if (target === "component") return api.site.componentRevision(name, id);
-  return target === "region" ? api.site.regionRevision(name, id) : api.site.layoutRevision(name, variant, id);
+  if (target.value === "page") return api.site.pageRevision(name.value, pageEntry.value, pageField.value, id);
+  if (target.value === "component") return api.site.componentRevision(name.value, id);
+  return target.value === "region" ? api.site.regionRevision(name.value, id) : api.site.layoutRevision(name.value, variant.value, id);
 }
 
 function onRevisionLoaded(data, revision) {
@@ -1037,7 +1064,7 @@ async function convertField(label) {
 /** Entry selection changes the content context without leaving a shared template. */
 function selectEntry(entry) {
   if (saving.value || loading.value) return;
-  if (target !== "page") {
+  if (target.value !== "page") {
     sampleId.value = entry;
     return;
   }
@@ -1045,7 +1072,7 @@ function selectEntry(entry) {
   goToView({
     key: `entry:${entry}`,
     to: {
-      path: `/page-builder/builder/page/${name}/${entry}`,
+      path: `/page-builder/builder/page/${name.value}/${entry}`,
       query: {
         ...(pageField.value ? { field: pageField.value } : {}),
         ...(typeof route.query.back === "string" ? { back: route.query.back } : {}),
@@ -1056,7 +1083,7 @@ function selectEntry(entry) {
 
 /** Edit another page content area of the entry, in place. */
 function selectPageArea(field) {
-  if (target !== "page" || saving.value || loading.value || field === requestedField) return;
+  if (target.value !== "page" || saving.value || loading.value || field === requested.field) return;
   goToView({ key: `field:${field}`, field, to: { path: route.path, query: { ...route.query, field } } });
 }
 
@@ -1071,16 +1098,46 @@ function goToView(view) {
 
 function switchView(view) {
   pendingView.value = null;
-  // Another area stays in this view: only its content loads.
-  // The preview keeps the current area until the new one's content arrives.
+  // Another area of the same entry replaces the URL; the route watcher loads it.
   if (view.field) {
     router.replace(view.to);
-    load(view.field);
     return;
   }
   bypass();
   router.push(view.to);
 }
+
+/**
+ * Reset what belongs to the page that was left: the builder stays mounted
+ * between builder pages, so nothing of it is recreated. Pending design edits,
+ * open panels, the device and the language carry over.
+ */
+function leftView() {
+  builder.select(null);
+  builder.closeContextMenu();
+  builder.componentDialog.value = null;
+  builder.fieldDialog.value = null;
+  selectedTemplatePart.value = null;
+  revealedField.value = null;
+  pendingView.value = null;
+  component.value = null;
+  usages.value = [];
+  entryFields.discard();
+  // The history list belongs to the page that was left.
+  historyVersion.value++;
+}
+
+// Moving between builder pages (header to footer, layout to page content, back and forward) loads in place.
+watch(() => route.fullPath, () => {
+  if (!isBuilderPath(route.path)) return;
+  const next = contextFor(route);
+  if (!sameContext(next, requested)) {
+    load(next);
+  } else if (typeof route.query.entry === "string" && route.query.entry !== sampleId.value && samples.value.some((sample) => sample.id === route.query.entry)) {
+    sampleId.value = route.query.entry;
+  }
+  if (["design", "css"].includes(route.query.settings)) panelLayout.open(route.query.settings);
+});
 
 function onKeydown(event) {
   if (event.target?.closest?.('[role="dialog"], [role="alertdialog"]')) return;

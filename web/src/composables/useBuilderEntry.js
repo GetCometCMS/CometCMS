@@ -123,6 +123,12 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     }
   }
 
+  /** Drop unsaved edits and loaded entries, e.g. when the builder moves to another page. */
+  function discard() {
+    records.value = {}
+    load()
+  }
+
   watch([key, activeLocale, fields], () => {
     if (record.value?.entry) ensureDraft(record.value, activeLocale.value)
     else load()
@@ -186,5 +192,5 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     draft.value.values[name] = formValue(resolveLocalized(record.value.entry.values?.[name], defaultLocale.value, defaultLocale.value), fields.value[name])
   }
 
-  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision }
+  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard }
 }

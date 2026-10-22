@@ -327,38 +327,71 @@
       <!-- Entries with page content design their own page; the layout around it is shared. -->
       <section
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageAreas.length"
-        class="card page-builder-cta p-6 space-y-4"
-        :aria-label="t('site.page.title')"
+        class="card page-builder-cta page-builder-overview"
+        :aria-label="t('site.page.layoutAndContent')"
       >
-        <div v-for="field in pageAreas" :key="field.key" class="flex flex-wrap items-center justify-between gap-4">
-          <div class="min-w-0">
-            <h2 class="card-title">{{ field.label }}</h2>
-            <p class="page-builder-cta-description mt-1 flex items-center gap-1.5 text-sm text-slate-500">
-              <Icon :icon="field.customized ? 'mdi:file-document-edit-outline' : 'mdi:file-document-outline'" class="h-4 w-4 shrink-0" aria-hidden="true" />
-              {{ t(field.customized ? "site.page.ownHint" : "site.page.defaultHint") }}
-            </p>
+        <div class="page-builder-overview-main">
+          <div class="page-builder-overview-content">
+            <h2 class="page-builder-overview-heading">{{ t('site.page.layoutAndContent') }}</h2>
+            <div class="page-builder-overview-areas">
+              <button
+                v-for="field in pageAreas"
+                :key="field.key"
+                type="button"
+                class="page-builder-overview-area"
+                :aria-pressed="activePageArea?.key === field.key"
+                @click="selectedPageArea = field.key"
+              >
+                <span class="page-builder-overview-icon" aria-hidden="true">
+                  <Icon icon="mdi:file-document-outline" class="h-7 w-7" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-slate-900">{{ field.label }}</span>
+                  <span class="page-builder-cta-description mt-1 block text-sm text-slate-500">
+                    {{ t(field.customized ? 'site.page.ownHint' : 'site.page.defaultHint') }}
+                  </span>
+                </span>
+              </button>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button
-              v-if="field.customized && !isReadOnly"
-              type="button"
-              class="btn-secondary"
-              :disabled="resettingPage"
-              @click="pendingPageReset = field.key"
-            >
-              <Icon icon="mdi:restore" class="h-4 w-4" aria-hidden="true" />
-              {{ t("site.page.reset") }}
-            </button>
-            <router-link v-if="!isReadOnly" :to="pageLink(field.key)" class="btn-primary">
-              {{ t("site.page.design") }}
-              <Icon icon="mdi:arrow-right" class="h-4 w-4 shrink-0" aria-hidden="true" />
-            </router-link>
+          <div class="page-builder-overview-actions">
+            <div class="page-builder-overview-illustration" aria-hidden="true">
+              <span class="page-builder-overview-pencil"><Icon icon="mdi:pencil-outline" class="h-7 w-7" /></span>
+            </div>
+            <template v-if="!isReadOnly && activePageArea">
+              <router-link
+                :to="pageLink(activePageArea.key)"
+                class="btn-primary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.editInBuilder', { label: activePageArea.label })"
+              >
+                <Icon icon="mdi:square-edit-outline" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.design') }}
+                <Icon icon="mdi:arrow-right" class="ml-auto h-5 w-5 shrink-0" aria-hidden="true" />
+              </router-link>
+              <button
+                v-if="activePageArea.customized"
+                type="button"
+                class="btn-secondary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.resetArea', { label: activePageArea.label })"
+                :disabled="resettingPage"
+                @click="pendingPageReset = activePageArea.key"
+              >
+                <Icon icon="mdi:restore" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.reset') }}
+              </button>
+            </template>
           </div>
         </div>
-        <p class="page-builder-cta-description border-t border-slate-100 pt-3 text-xs text-slate-500">
-          {{ t("site.page.layoutHint") }}
-          <router-link :to="designLink" class="font-medium text-theme-700 hover:underline">{{ t("site.page.editLayout") }}</router-link>
-        </p>
+        <div class="page-builder-overview-footer">
+          <span class="page-builder-overview-icon" aria-hidden="true"><Icon icon="mdi:layers-triple-outline" class="h-6 w-6" /></span>
+          <p class="page-builder-cta-description text-sm text-slate-500">
+            {{ t('site.page.layoutHint') }}
+            <router-link :to="designLink" class="inline-flex items-center gap-1.5 font-semibold text-theme-700 hover:underline">
+              {{ t('site.page.editLayout') }}
+              <Icon icon="mdi:open-in-new" class="h-4 w-4 shrink-0" aria-hidden="true" />
+            </router-link>
+          </p>
+        </div>
       </section>
       <!-- Pages and collection entries keep their design action alongside their content. -->
       <PageBuilderCta
@@ -1059,6 +1092,10 @@ const pageAreas = computed(() => {
   if (!placed?.length) return pageFields.value;
   return pageFields.value.filter((field) => placed.includes(field.key) || field.customized);
 });
+
+// A single action panel follows the selected content area.
+const selectedPageArea = ref("");
+const activePageArea = computed(() => pageAreas.value.find((field) => field.key === selectedPageArea.value) ?? pageAreas.value[0]);
 
 function pageLink(field) {
   return {

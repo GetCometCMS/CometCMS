@@ -121,7 +121,8 @@ const routes = [
     // or one entry's page content (/page/:type/:entry, ?field= picks the page field).
     path: '/page-builder/builder/:target(layout|region|component|page)/:name/:variant?',
     component: () => import('../views/PageBuilderEditorView.vue'),
-    meta: { requiresAuth: true, bare: true },
+    // One editor for all builder pages: it loads the next page in place instead of remounting.
+    meta: { requiresAuth: true, bare: true, viewKey: 'page-builder-editor' },
   },
   {
     path: '/website/:tab(general|seo|workspaces)?',

@@ -7,12 +7,13 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
  * In-app navigation waits for the returned `leavePromptOpen` confirm dialog;
  * closing or reloading the tab triggers the browser's own prompt. Call
  * `bypass()` right before navigating away programmatically after a successful
- * save or delete, when the changes are no longer at risk.
+ * save or delete, when the changes are no longer at risk; it lets the next
+ * guarded navigation through, so a view that stays mounted is guarded again after.
  *
  * `isDirty` is a ref, or a function of the destination route (undefined when
  * the tab closes) for changes that survive some in-app navigation.
  * `guardUpdates` also guards path changes within the same route record, for
- * editors whose keyed view remounts when a different document is selected.
+ * editors that load a different document when the path changes.
  */
 export function useUnsavedChangesGuard(isDirty, { guardUpdates = false } = {}) {
   const dirtyFor = typeof isDirty === 'function' ? isDirty : () => isDirty.value
@@ -27,7 +28,11 @@ export function useUnsavedChangesGuard(isDirty, { guardUpdates = false } = {}) {
   }
 
   function guard(to) {
-    if (bypassed || !dirtyFor(to)) return true
+    if (bypassed) {
+      bypassed = false
+      return true
+    }
+    if (!dirtyFor(to)) return true
     leavePromptOpen.value = true
     return new Promise((resolve) => {
       resolveLeave = resolve
