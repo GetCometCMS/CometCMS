@@ -275,6 +275,27 @@
           </div>
         </div>
 
+        <dl v-if="!isNew && (siteLinks?.url || contentTypeSchema?.api_enabled)" class="space-y-3 border-t border-slate-100 pt-4 text-xs">
+          <div v-if="siteLinks?.url" class="space-y-1">
+            <dt class="font-medium text-slate-500">{{ t("contentEdit.websiteUrl") }}</dt>
+            <dd>
+              <a :href="siteLinks.url" target="_blank" rel="noopener" class="inline-flex max-w-full items-start gap-1.5 text-theme-700 hover:underline">
+                <span class="min-w-0 break-all">{{ siteLinks.url }}</span>
+                <Icon icon="mdi:open-in-new" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </a>
+            </dd>
+          </div>
+          <div v-if="contentTypeSchema?.api_enabled" class="space-y-1">
+            <dt class="font-medium text-slate-500">{{ t("contentEdit.apiUrl") }}</dt>
+            <dd>
+              <a :href="apiEndpointUrl" target="_blank" rel="noopener" class="inline-flex max-w-full items-start gap-1.5 text-theme-700 hover:underline">
+                <span class="min-w-0 break-all">{{ apiEndpointUrl }}</span>
+                <Icon icon="mdi:open-in-new" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </a>
+            </dd>
+          </div>
+        </dl>
+
         <!-- Entry metadata (read-only) -->
         <div
           v-if="!isNew"

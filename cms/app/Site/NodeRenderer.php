@@ -792,6 +792,10 @@ final class NodeRenderer
             . ($hasPanel && $props['panel'] === 'drawer' ? ' c-menu-drawer-' . $props['panel_side'] : '');
         $toggle = $close = '';
         $panelStyle = [];
+        if (!empty($node['style']['text_color'])) {
+            $color = $node['style']['text_color'] === 'inverse' ? 'background' : $node['style']['text_color'];
+            $panelStyle[] = '--c-menu-color:var(--c-' . $color . ')';
+        }
         if ($hasPanel) {
             foreach (['panel_background' => '--c-menu-background', 'panel_text_color' => '--c-menu-text'] as $key => $variable) {
                 if ($props[$key] !== '') {

@@ -693,6 +693,8 @@ const messages = {
     'contentEdit.remove': 'Remove',
     'contentEdit.unsupportedLocales': 'Saved translations for unsupported locales are hidden: {locales}.',
     'contentEdit.core': 'Core',
+    'contentEdit.websiteUrl': 'Website URL',
+    'contentEdit.apiUrl': 'API URL',
     'contentEdit.editContentType': 'Edit content type',
     'contentEdit.status': 'Status',
     'contentEdit.locale': 'Locale',

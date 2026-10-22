@@ -87,6 +87,25 @@ test('menu panels render a close control only when a button opens them', functio
     }
 });
 
+test('menu element text colors reach links in dropdowns and panels', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+
+    foreach (['primary' => 'primary', 'inverse' => 'background', 'custom-brand' => 'custom-brand'] as $choice => $token) {
+        foreach (['dropdown', 'fullscreen', 'drawer'] as $panel) {
+            $menu = LayoutSchema::node('menu', ['menu' => 'main', 'panel' => $panel, 'always_button' => true, 'panel_text_color' => 'accent'], ['text_color' => $choice]);
+            $layout = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [$menu])], 'column');
+            foreach ([false, true] as $annotate) {
+                $context = comet_site_test_context($site);
+                $context->annotate = $annotate;
+                $html = (new NodeRenderer($context))->render($layout);
+                assert_true(str_contains($html, '--c-menu-color:var(--c-' . $token . ')'));
+                assert_same($panel !== 'dropdown', str_contains($html, '--c-menu-text:var(--c-accent)'));
+            }
+        }
+    }
+});
+
 test('menu panel position and palette persist and render in public and builder views', function (): void {
     $site = comet_site_test_setup();
     $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);

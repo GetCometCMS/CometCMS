@@ -694,6 +694,8 @@ const messages = {
   'contentEdit.remove': 'Entfernen',
   'contentEdit.unsupportedLocales': 'Gespeicherte Übersetzungen für nicht unterstützte Locales sind ausgeblendet: {locales}.',
   'contentEdit.core': 'Basis',
+  'contentEdit.websiteUrl': 'Website-URL',
+  'contentEdit.apiUrl': 'API-URL',
   'contentEdit.editContentType': 'Inhaltstyp bearbeiten',
   'contentEdit.status': 'Status',
   'contentEdit.locale': 'Locale',
