@@ -108,7 +108,7 @@
           {{ fieldWarning }}
         </div>
         <BuilderControl
-          v-for="key in visibleProps"
+          v-for="key in contentProps"
           :key="`${node.id}-p-${key}`"
           :node="node"
           :name="key"
@@ -116,6 +116,23 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
+        <BuilderGroup
+          v-if="scrollProps.length"
+          v-model:open="scrollingOpen"
+          heading-tag="h4"
+          :title="t('site.builder.scrolling')"
+          content-class="mt-3 space-y-3"
+        >
+          <BuilderControl
+            v-for="key in scrollProps"
+            :key="`${node.id}-p-${key}`"
+            :node="node"
+            :name="key"
+            :def="propSpec[key]"
+            :value="node.props[key]"
+            @update="(value) => updateProp(key, value)"
+          />
+        </BuilderGroup>
         <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
         <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
         <div v-if="node.kind === 'page_content' && pageFieldLabel !== null">
@@ -413,8 +430,12 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "section") {
-    // Scroll effects show on a section that stays in view while scrolling.
-    return keys.filter((key) => key !== "scroll_effect" || (props.sticky ?? "none") !== "none" || props.overlap);
+    // Scroll effects show on a section that stays in view while scrolling; only a floating one can start transparent.
+    const rules = {
+      scroll_effect: (props.sticky ?? "none") !== "none" || !!props.overlap,
+      overlap_background: !!props.overlap,
+    };
+    return keys.filter((key) => rules[key] !== false);
   }
 
   if (current.kind === "menu") {
@@ -432,6 +453,12 @@ const visibleProps = computed(() => {
 
   return keys;
 });
+
+/** How a section behaves while the page scrolls, set up in one group of its own. */
+const SCROLL_PROPS = ["sticky", "overlap", "overlap_background", "scroll_effect"];
+const scrollingOpen = ref(true);
+const scrollProps = computed(() => (node.value?.kind === "section" ? visibleProps.value.filter((key) => SCROLL_PROPS.includes(key)) : []));
+const contentProps = computed(() => visibleProps.value.filter((key) => !scrollProps.value.includes(key)));
 
 function updateProp(key, value) {
   if (key !== "source") {

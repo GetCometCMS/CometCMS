@@ -991,6 +991,9 @@ test('section scroll behavior accepts only current sticky modes and only adds ef
         [['sticky' => 'sideways'], 'none', []],
         [['sticky' => 'reveal', 'scroll_effect' => ['shadow', 'glass', 'bogus']], 'reveal', ['c-sticky', 'c-sticky-reveal', 'c-scroll-shadow', 'c-scroll-glass']],
         [['overlap' => true, 'scroll_effect' => ['compact']], 'none', ['c-overlap', 'c-scroll-compact']],
+        // A floating section can keep its background instead of starting transparent.
+        [['sticky' => 'always', 'overlap' => true, 'overlap_background' => 'background'], 'always', ['c-sticky', 'c-overlap', 'c-overlap-opaque']],
+        [['overlap' => true, 'overlap_background' => 'bogus'], 'none', ['c-overlap']],
         // A section that scrolls away has nothing to show its effects on.
         [['scroll_effect' => ['shadow']], 'none', []],
     ] as [$props, $sticky, $classes]) {

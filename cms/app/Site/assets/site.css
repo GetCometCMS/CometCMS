@@ -90,7 +90,7 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
   .c-sticky-reveal:not(:focus-within, :has(.c-menu-toggle:checked)) { translate: 0 calc(-100% - 2rem); }
 }
 @container not scroll-state(scrollable: top) {
-  .c-site .c-section.c-overlap { background-color: transparent; --c-bd-c: transparent; box-shadow: none; }
+  .c-site .c-section.c-overlap:not(.c-overlap-opaque) { background-color: transparent; --c-bd-c: transparent; box-shadow: none; }
 }
 @container scroll-state(scrollable: top) {
   .c-site .c-section.c-scroll-shadow { box-shadow: 0 10px 30px -14px rgb(0 0 0 / 0.35); }

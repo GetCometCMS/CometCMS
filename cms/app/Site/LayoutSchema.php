@@ -208,6 +208,8 @@ final class LayoutSchema
                 'sticky' => ['type' => 'enum', 'options' => ['none', 'always', 'reveal'], 'default' => 'none'],
                 // Takes no room: the content below starts underneath, as behind a transparent header.
                 'overlap' => ['type' => 'bool', 'default' => false],
+                // A floating section is transparent at the top of the page, or keeps its background throughout.
+                'overlap_background' => ['type' => 'enum', 'options' => ['transparent', 'background'], 'default' => 'transparent'],
                 // How a sticky or floating section changes once the page is scrolled.
                 'scroll_effect' => ['type' => 'set', 'options' => ['shadow', 'glass', 'compact'], 'default' => []],
             ],

@@ -335,6 +335,7 @@ const hint = computed(() => {
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
   if (props.node.kind === "section" && props.name === "sticky" && value.value !== "none") return t("site.builder.stickyHint");
   if (props.node.kind === "section" && props.name === "overlap" && value.value) return t("site.builder.overlapHint");
+  if (props.node.kind === "section" && props.name === "overlap_background") return t(value.value === "background" ? "site.builder.overlapBackgroundHint" : "site.builder.overlapTransparentHint");
   if (isKeyList.value && !listValue.value.length) return t(props.def.type === "content_types" ? "site.search.allTypes" : "site.search.allFields");
   return "";
 });

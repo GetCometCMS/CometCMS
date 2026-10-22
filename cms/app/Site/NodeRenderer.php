@@ -222,6 +222,9 @@ final class NodeRenderer
         }
         if ($props['overlap']) {
             $classes[] = 'c-overlap';
+            if ($props['overlap_background'] === 'background') {
+                $classes[] = 'c-overlap-opaque';
+            }
         }
         // Scroll effects only show on a section that is still in view once the page scrolls.
         if ($props['sticky'] !== 'none' || $props['overlap']) {
