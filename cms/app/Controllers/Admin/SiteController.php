@@ -142,6 +142,7 @@ final class SiteController extends BaseController
             'enabled' => $settings['enabled'],
             'routed' => $routed,
             'url' => $url,
+            'url_conflict' => $this->liveUrlConflict($url),
             'previewable' => $entry !== null && $context->isPublicType($type),
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
             // Page fields with an area in the entry page layout.
@@ -1053,6 +1054,21 @@ final class SiteController extends BaseController
         }
 
         return $this->siteUrl() . substr($path, strlen($context->basePath));
+    }
+
+    /** Check the public router without changing the editor's active workspace. */
+    private function liveUrlConflict(?string $url): bool
+    {
+        if ($url === null) {
+            return false;
+        }
+
+        $active = WorkspaceContext::active()->slug();
+        try {
+            return SiteService::workspaceForHost((string) parse_url($url, PHP_URL_HOST))?->slug() !== $this->site->workspace()->slug();
+        } finally {
+            WorkspaceContext::setActive($active);
+        }
     }
 
     /** Public address of the website: its first domain, or this server. */

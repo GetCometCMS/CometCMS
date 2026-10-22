@@ -302,6 +302,14 @@
                 <span class="min-w-0 break-all">{{ siteLinks.url }}</span>
                 <Icon icon="mdi:open-in-new" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </a>
+              <div v-if="siteLinks.url_conflict" role="status" class="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-amber-900">
+                <Icon icon="mdi:alert-outline" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div class="space-y-1">
+                  <p>{{ t("contentEdit.websiteUrlConflict") }}</p>
+                  <router-link v-if="siteLinks.can_manage" to="/page-builder/overview" class="inline-block font-medium underline hover:no-underline">{{ t("contentEdit.websiteUrlDomains") }}</router-link>
+                  <p v-else>{{ t("contentEdit.websiteUrlAskAdmin") }}</p>
+                </div>
+              </div>
             </dd>
           </div>
           <div v-if="contentTypeSchema?.api_enabled" class="space-y-1">

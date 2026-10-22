@@ -2,6 +2,39 @@
 
 declare(strict_types=1);
 
+test('website links flag hosts that serve another workspace and clear after domain assignment', function (): void {
+    $seed = <<<'PHP'
+$_SERVER['HTTP_HOST'] = 'localhost:8000';
+$_SERVER['SCRIPT_NAME'] = '/index.php';
+$_GET['workspace'] = 'portfolio';
+$registry = new \CometCMS\Workspaces\WorkspaceRepository();
+$registry->save(['slug' => 'default', 'label' => 'Default']);
+$registry->save(['slug' => 'portfolio', 'label' => 'Portfolio']);
+$registry->setDefault('default');
+\CometCMS\Workspaces\WorkspaceContext::setActive('portfolio');
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+\CometCMS\Content\ContentRepository::make()->save('posts', ['title' => 'Live post', 'slug' => 'live', 'status' => 'published'], ['id' => 'admin']);
+$site = new \CometCMS\Site\SiteRepository();
+$settings = ['routes' => ['posts' => ['enabled' => true, 'pattern' => '/posts/{slug}']]];
+PHP;
+    $cases = [
+        // The default workspace owns an unassigned host, even if it has no matching page.
+        ['$registry->setDefault("portfolio");', false],
+        ['$otherContext = new \CometCMS\Workspaces\WorkspaceContext("default"); (new \CometCMS\Content\ContentTypeRepository($otherContext))->save(["name" => "posts"]); $other = new \CometCMS\Site\SiteRepository($otherContext); $other->saveSettings(["homepage" => ["type" => "posts"]]);', true],
+        // No website answers the host either: the generated URL still cannot reach this workspace.
+        ['', true],
+        ['$settings["domains"] = ["portfolio.test"];', false],
+    ];
+    foreach ($cases as [$configure, $conflict]) {
+        [$status, $json] = comet_admin_request('admin', $seed . "\n" . $configure . "\n" . '$site->saveSettings($settings); \CometCMS\Workspaces\WorkspaceContext::setActive("portfolio");', 'GET', '/admin/api/site/links/posts/live',
+            '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->links("posts", "live");');
+        assert_same(200, $status, json_encode($json));
+        assert_true(is_string($json['data']['url'] ?? null));
+        assert_same($conflict, $json['data']['url_conflict'] ?? null, $configure . json_encode($json));
+        assert_true($json['data']['previewable']);
+    }
+});
+
 test('entry previews and website links enforce entry read restrictions for slugs and stable IDs', function (): void {
     $seed = <<<'PHP'
 $roles->create(['label' => 'Restricted', 'permissions' => [
