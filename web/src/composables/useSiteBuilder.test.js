@@ -610,6 +610,20 @@ describe('builder page content', () => {
     expect(builder.isDropContainer(place)).toBe(true)
   })
 
+  it('wraps an element dropped into page content in a section', async () => {
+    const builder = await pageFixture()
+    const column = builder.nodes.value[0].children[0].children[0]
+    const place = builder.make('page_content')
+    expect(builder.insert(place, column.id)).toBe(true)
+
+    const text = builder.make('text')
+    builder.drag.value = { source: 'palette', create: () => text }
+    expect(builder.dropAt(place.id, 'inside')).toBe(true)
+    const section = findNode(builder.nodes.value, place.id).children[0]
+    expect(section.kind).toBe('section')
+    expect(section.children[0].children[0].children[0].id).toBe(text.id)
+  })
+
   it('gives a type without a page field one when the page content element is placed', async () => {
     const created = []
     const builder = await pageFixture({

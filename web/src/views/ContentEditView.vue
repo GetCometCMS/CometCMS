@@ -327,13 +327,13 @@
       <!-- Entries with page content design their own page; the layout around it is shared. -->
       <section
         v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageFields.length"
-        class="card p-6 space-y-4"
+        class="card page-builder-cta p-6 space-y-4"
         :aria-label="t('site.page.title')"
       >
         <div v-for="field in pageFields" :key="field.key" class="flex flex-wrap items-center justify-between gap-4">
           <div class="min-w-0">
             <h2 class="card-title">{{ field.label }}</h2>
-            <p class="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+            <p class="page-builder-cta-description mt-1 flex items-center gap-1.5 text-sm text-slate-500">
               <Icon :icon="field.customized ? 'mdi:file-document-edit-outline' : 'mdi:file-document-outline'" class="h-4 w-4 shrink-0" aria-hidden="true" />
               {{ t(field.customized ? "site.page.ownHint" : "site.page.defaultHint") }}
             </p>
@@ -355,7 +355,7 @@
             </router-link>
           </div>
         </div>
-        <p class="border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <p class="page-builder-cta-description border-t border-slate-100 pt-3 text-xs text-slate-500">
           {{ t("site.page.layoutHint") }}
           <router-link :to="designLink" class="font-medium text-theme-700 hover:underline">{{ t("site.page.editLayout") }}</router-link>
         </p>
@@ -1046,7 +1046,9 @@ const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields
   .filter(([, config]) => config?.type === "page")
   .map(([key, config]) => ({
     key,
-    label: resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
+    label: !config.label || config.label === "Page content" || config.label === "site.page.fieldLabel"
+      ? t("site.page.fieldLabel")
+      : resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
     customized: (fullEntry.value?.values?.[key]?.nodes?.length ?? 0) > 0,
   })));
 
@@ -1499,3 +1501,5 @@ function formatDateTime(iso) {
   });
 }
 </script>
+
+<style scoped src="../components/site/pageBuilderCta.css"></style>
