@@ -21,6 +21,7 @@ export const KIND_ICONS = {
   search: 'mdi:magnify',
   site_title: 'mdi:home-variant-outline',
   language_switcher: 'mdi:translate',
+  theme_toggle: 'mdi:theme-light-dark',
   component: 'mdi:puzzle-outline',
 }
 

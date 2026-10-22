@@ -118,7 +118,7 @@
         />
         <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
         <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
-        <div v-if="node.kind === 'collection' && node.props.display === 'cards'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
+        <div v-if="node.kind === 'collection'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
           <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
@@ -324,7 +324,7 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "collection") {
-    return keys.filter((key) => (key !== "filter_value" || props.filter_field) && (key !== "columns" || props.display === "cards"));
+    return keys.filter((key) => key !== "filter_value" || props.filter_field);
   }
 
   if (["image", "gallery"].includes(current.kind)) {

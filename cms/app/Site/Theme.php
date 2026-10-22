@@ -214,6 +214,10 @@ final class Theme
             $css .= '@media (prefers-color-scheme: dark){:root{color-scheme:dark;' . self::declarations($dark) . '}}';
         }
 
+        // A visitor's choice from a theme toggle (see ThemeToggle) wins over the mode.
+        $css .= ':root[data-theme="light"]{color-scheme:light;' . self::declarations($light) . '}'
+            . ':root[data-theme="dark"]{color-scheme:dark;' . self::declarations($dark) . '}';
+
         $css .= "\n" . self::baseStylesheet();
         $css .= self::headingStyles($theme['headings'], $stacks) . $fonts->css($basePath);
 

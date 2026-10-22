@@ -71,7 +71,6 @@ const QUICK = {
   [COMPONENT]: [["props", "span"]],
   heading: [["props", "level"], ["style", "align"]],
   button: [["props", "variant"], ["style", "align"]],
-  collection: [["props", "display"]],
   menu: [["props", "orientation"]],
 };
 

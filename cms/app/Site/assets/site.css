@@ -369,10 +369,9 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 @media (min-width: 1024px) {
   .c-gallery-masonry:not(.c-cols-1) { column-count: var(--c-gallery-columns); }
 }
-.c-files, .c-links, .c-entry-list { list-style: none; padding: 0; margin: 0; }
-.c-files li, .c-links li, .c-entry-list li { padding: 0.4em 0; border-bottom: 1px solid var(--c-border); }
-.c-files li:last-child, .c-links li:last-child, .c-entry-list li:last-child { border-bottom: 0; }
-.c-entry-list time { margin-left: 0.5em; font-size: var(--fs-sm); }
+.c-files, .c-links { list-style: none; padding: 0; margin: 0; }
+.c-files li, .c-links li { padding: 0.4em 0; border-bottom: 1px solid var(--c-border); }
+.c-files li:last-child, .c-links li:last-child { border-bottom: 0; }
 
 /* Badges, colors, meters */
 .c-badges { display: flex; flex-wrap: wrap; gap: 0.4em; }
@@ -866,11 +865,25 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-builder [data-node] { cursor: default; }
 .c-builder a, .c-builder label { cursor: default; }
 
+/* Theme toggle: shows the icon of the mode that is on */
+.c-theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; margin: 0; padding: 0.45em; font: inherit; line-height: 1; color: inherit;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; transition: background-color .15s, border-color .15s;
+}
+.c-theme-toggle:has(> span) { padding-inline: 0.75em; }
+.c-theme-toggle:hover { background: var(--c-surface); }
+.c-theme-toggle-outline { border-color: var(--c-border); }
+.c-theme-toggle-filled { background: var(--c-surface); }
+.c-theme-toggle-filled:hover { border-color: var(--c-border); }
+.c-theme-icon { flex: none; }
+.c-theme-toggle[aria-pressed="true"] .c-theme-icon-light, .c-theme-toggle[aria-pressed="false"] .c-theme-icon-dark { display: none; }
+.c-el-theme_toggle:is(.c-r-none, .c-r-theme, .c-r-sm, .c-r-md, .c-r-lg, .c-r-full) .c-theme-toggle { border-radius: inherit; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 
 @media print {
-  .c-header, .c-footer, .c-menu, .c-skip-link, .c-pagination, .c-el-search { display: none !important; }
+  .c-header, .c-footer, .c-menu, .c-skip-link, .c-pagination, .c-el-search, .c-el-theme_toggle { display: none !important; }
   body { background: #fff; color: #000; }
 }

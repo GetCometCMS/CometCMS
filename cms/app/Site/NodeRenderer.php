@@ -129,6 +129,7 @@ final class NodeRenderer
             'search' => $this->search($node),
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
+            'theme_toggle' => $this->themeToggle($node),
             default => '',
         };
         if ($warnings && $this->annotating()) {
@@ -608,6 +609,31 @@ final class NodeRenderer
     }
 
     /**
+     * A light/dark switch. It shows the icon of the mode that is on and is
+     * pressed while dark; the head script (ThemeToggle) keeps both in sync.
+     */
+    private function themeToggle(array $node): string
+    {
+        $props = $node['props'];
+        $catalog = Icons::catalog();
+        $size = (int) $props['size'];
+        $svg = static fn(?array $icon, string $mode): string => $icon !== null
+            ? '<svg class="c-theme-icon c-theme-icon-' . $mode . '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . $size . '" height="' . $size
+                . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+        $label = $props['label'] !== '' ? $props['label'] : Messages::get('dark_mode', $this->ctx->htmlLang());
+        $text = $props['show_label'] ? '<span>' . Security::e($label) . '</span>' : '';
+
+        return $this->element($node, '<button type="button" class="c-theme-toggle c-theme-toggle-' . $props['variant'] . '" data-theme-toggle'
+            . ' aria-pressed="' . (($this->ctx->theme()['mode'] ?? '') === 'dark' ? 'true' : 'false') . '"'
+            . ($text === '' ? ' aria-label="' . Security::e($label) . '" title="' . Security::e($label) . '"' : '')
+            // In the builder the button is part of the canvas, not something to press.
+            . ($this->annotating() ? ' tabindex="-1"' : '') . '>'
+            . $svg($catalog[$props['light_icon']] ?? null, 'light') . $svg($catalog[$props['dark_icon']] ?? null, 'dark') . $text
+            . '</button>');
+    }
+
+    /**
      * A website form. It posts to SiteController::submitForm(), which sends
      * the visitor back to #{anchor}-sent or #{anchor}-error; the matching
      * message is shown with :target, so this works without scripts and the
@@ -914,9 +940,7 @@ final class NodeRenderer
             return $empty === '' ? '' : $this->element($node, $empty);
         }
 
-        $html = $props['display'] === 'list'
-            ? $this->entryList($type, $result['data'], $state)
-            : $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
+        $html = $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
 
         if ($props['paginate'] && $result['total'] > $props['limit']) {
             $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), $state);
@@ -950,21 +974,6 @@ final class NodeRenderer
         }
 
         return '<div class="c-grid c-cols-' . max(1, min(6, $columns)) . '">' . $items . '</div>';
-    }
-
-    private function entryList(string $type, array $entries, array $state): string
-    {
-        $items = '';
-
-        foreach ($entries as $entry) {
-            $entry = $this->ctx->localize($type, $entry);
-            $url = $this->ctx->entryUrl($type, $entry);
-            $title = Security::e((string) ($entry['title'] ?? ''));
-            $date = !empty($entry['published_at']) ? ' <time class="c-muted" datetime="' . Security::e((string) $entry['published_at']) . '">' . Security::e($this->formatDate((string) $entry['published_at'], 'date')) . '</time>' : '';
-            $items .= '<li>' . ($url !== null ? '<a href="' . Security::e($url) . '">' . $title . '</a>' : $title) . $date . '</li>';
-        }
-
-        return '<ul class="c-entry-list">' . $items . '</ul>';
     }
 
     private function pagination(int $page, int $pages, array $state): string

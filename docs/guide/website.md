@@ -101,7 +101,7 @@ Layouts saved before background images became a style keep their section images;
 
 ### Entry cards
 
-An **Entry list** shown as cards repeats one card for each entry. At first that is the content type's **standard card**, generated from its fields. Choose **Customize card** in the inspector to give the list a card of its own: the first card in the preview becomes editable and every other entry follows it. A card is a column, so it can have a background, border, corners, shadow and padding, and it can hold elements and column sets. Inside a card, **Entry of this card** (`current`) is the entry the card shows, and the **Add** panel offers that content type's fields. **Use standard card** goes back to the standard card.
+An **Entry list** repeats one card for each entry. For a list look, set **Columns** to 1 and design the card as a row (for example, a title and date without an image); lists saved with the former **List** display open with one column. At first that is the content type's **standard card**, generated from its fields. Choose **Customize card** in the inspector to give the list a card of its own: the first card in the preview becomes editable and every other entry follows it. A card is a column, so it can have a background, border, corners, shadow and padding, and it can hold elements and column sets. Inside a card, **Entry of this card** (`current`) is the entry the card shows, and the **Add** panel offers that content type's fields. **Use standard card** goes back to the standard card.
 
 To use the same card in several lists, right-click it and choose **Save as component…**, then place that component in another list. Related-entry fields shown as cards use the standard card of the related type. Card layouts from earlier versions keep showing as the standard card of their type.
 
@@ -160,6 +160,12 @@ In the inspector:
 Hits are ranked by where the text matches: titles that start with it first, then titles with a word that starts with it, then other title and field matches, newest first within each group. Only published entries of public content types are found, in the page's language, and a hit carries nothing but its title, URL and content type, so search reveals nothing the website itself does not show.
 
 The dropdown needs JavaScript; without it, the field is shown but does nothing. Requests go to `/_site/search/{workspace}`, are cached by browsers for a minute, and are limited to 120 per visitor and minute (`site.search.rate_limit_per_minute` in the configuration).
+
+### Theme toggle
+
+Add **Theme toggle** from **Add → Elements**, e.g. to the header, to let visitors switch between light and dark mode. It shows the icon of the mode that is on (**Light mode icon** and **Dark mode icon**); **Size**, **Style** (plain, outline or filled) and **Show text** change how it looks. The **Text** is shown next to the icons or, when hidden, read out by screen readers; empty, it is “Dark mode” in the page's language.
+
+The choice is remembered in the visitor's browser and applies on every page that has a toggle, before the page is drawn. Until a visitor chooses, the theme's mode applies (with **Auto**, the system setting). The dark colors come from the **Theme** tab, so set them even for a light-only theme. The toggle needs JavaScript; without it, the button does nothing.
 
 ### AI and MCP access
 
@@ -261,7 +267,7 @@ The default workspace's website answers on the server's own address. To serve an
 - Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
 - Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
-- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery, Tabs and Search modules when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
+- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery, Tabs, Search and theme toggle scripts when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.

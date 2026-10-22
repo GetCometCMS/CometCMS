@@ -275,6 +275,11 @@ final class PageRenderer
             ? '<div class="c-preview-bar" role="status">Preview – this is how the page will look once it is published.</div>'
             : '';
 
+        // The theme toggle's script runs before the body, so a saved choice never flashes.
+        if (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-theme-toggle')) {
+            $head .= '<script>' . ThemeToggle::script() . '</script>';
+        }
+
         return '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
             . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">'
             . $banner

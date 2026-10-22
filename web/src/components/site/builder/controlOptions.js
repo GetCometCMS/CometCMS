@@ -18,7 +18,6 @@ const ICONS = {
   'style.max_width': { narrow: 'mdi:arrow-collapse-horizontal', prose: 'mdi:text-long' },
   'props.orientation': { horizontal: 'mdi:dots-horizontal', vertical: 'mdi:dots-vertical' },
   'props.sort_order': { desc: 'mdi:sort-descending', asc: 'mdi:sort-ascending' },
-  'props.display': { cards: 'mdi:view-grid-outline', list: 'mdi:format-list-bulleted' },
   'props.fit': { cover: 'mdi:crop', contain: 'mdi:fit-to-screen-outline' },
   'style.animation': {
     none: DEFAULT_ICON,

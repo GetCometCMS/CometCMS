@@ -19,6 +19,7 @@ use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteSearch;
 use CometCMS\Site\SiteService;
 use CometCMS\Site\Theme;
+use CometCMS\Site\ThemeToggle;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
@@ -245,8 +246,8 @@ final class SiteController
 
         if (str_starts_with($response['content_type'], 'text/html')) {
             $sources = [];
-            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class] as $module) {
-                if (str_contains($response['body'], '<script type="module">' . $module::script() . '</script>')) {
+            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class, ThemeToggle::class] as $module) {
+                if (str_contains($response['body'], '>' . $module::script() . '</script>')) {
                     $sources[] = $module::cspSource();
                 }
             }

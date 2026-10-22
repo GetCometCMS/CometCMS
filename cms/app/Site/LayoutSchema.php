@@ -57,6 +57,7 @@ final class LayoutSchema
         'search',
         'site_title',
         'language_switcher',
+        'theme_toggle',
     ];
 
     /** Elements allowed inside a repeater field's item template. */
@@ -122,6 +123,7 @@ final class LayoutSchema
         'tabs' => ['title'], 'tab' => ['title'], 'icon' => ['label', 'link'],
         'collection' => ['empty_text'], 'field' => ['prefix', 'suffix', 'true_text', 'false_text', 'link'],
         'search' => ['placeholder', 'no_results_text'],
+        'theme_toggle' => ['label'],
     ];
 
     public static function styleSpec(): array
@@ -308,7 +310,6 @@ final class LayoutSchema
             'divider' => [],
             'collection' => [
                 'type' => ['type' => 'content_type', 'default' => ''],
-                'display' => ['type' => 'enum', 'options' => ['cards', 'list'], 'default' => 'cards'],
                 'columns' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 3],
                 'limit' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 6],
                 'sort_field' => ['type' => 'sort_field', 'default' => 'published_at'],
@@ -360,6 +361,15 @@ final class LayoutSchema
                 // Flags beside the text, or instead of it.
                 'flag' => ['type' => 'enum', 'options' => ['none', 'with_text', 'only'], 'default' => 'none'],
                 'format' => ['type' => 'enum', 'options' => ['codes', 'names'], 'default' => 'codes'],
+            ],
+            // Each icon shows while its mode is on; an empty label uses the visitor's language.
+            'theme_toggle' => [
+                'light_icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:white-balance-sunny'],
+                'dark_icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:weather-night'],
+                'size' => ['type' => 'int', 'min' => 12, 'max' => 96, 'unit' => 'px', 'default' => 20],
+                'variant' => ['type' => 'enum', 'options' => ['plain', 'outline', 'filled'], 'default' => 'plain'],
+                'show_label' => ['type' => 'bool', 'default' => false],
+                'label' => ['type' => 'string', 'max' => 120, 'default' => ''],
             ],
             default => [],
         };
@@ -835,6 +845,10 @@ final class LayoutSchema
             // Promote saved gallery displays while preserving identity and styling.
             if (($node['kind'] ?? '') === 'field' && ($node['props']['display'] ?? '') === 'gallery') {
                 $node = self::galleryFromField($node);
+            }
+            // Entry lists used to offer a plain list; it became cards in a single column.
+            if (($node['kind'] ?? '') === 'collection' && ($node['props']['display'] ?? '') === 'list') {
+                $node['props']['columns'] = 1;
             }
             $kind = (string) ($node['kind'] ?? '');
             $placed = self::placementKind($node);

@@ -324,12 +324,14 @@ const label = computed(() => {
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
+  if (props.name === "label" && props.node.kind === "theme_toggle") return t("site.prop.toggleLabel");
   if (props.name === "media" && props.node.kind === "gallery") return t("site.prop.galleryImages");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 
 const hint = computed(() => {
   if (props.name === "class") return t("site.builder.classHint");
+  if (props.node.kind === "theme_toggle" && props.name === "label" && !value.value) return t("site.themeToggle.labelHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
   if (props.node.kind === "section" && props.name === "sticky" && value.value !== "none") return t("site.builder.stickyHint");
   if (props.node.kind === "section" && props.name === "overlap" && value.value) return t("site.builder.overlapHint");

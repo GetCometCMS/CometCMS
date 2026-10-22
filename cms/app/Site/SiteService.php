@@ -30,7 +30,7 @@ final class SiteService
         // used by links and canonical URLs, even for subdirectory installs.
         // File edits also need to refresh the versioned stylesheet links.
         $key = $cache->key('site|' . json_encode([
-            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(),
+            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(), ThemeToggle::cspSource(),
         ]), $page > 1 ? 'page=' . $page : '');
         $cached = $this->ctx->preview ? null : $cache->get($key);
 
