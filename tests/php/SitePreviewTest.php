@@ -88,7 +88,7 @@ PHP;
         assert_false(str_contains($html, 'Create new'));
         assert_false(str_contains($html, 'Edit page'));
         assert_false(str_contains($html, 'Edit layout'));
-        assert_true(str_contains($html, 'Back to backend'));
+        assert_true(str_contains($html, 'Back to admin'));
         if ($path !== '/posts/locked') {
             assert_true(str_contains($html, 'Allowed draft'));
         }
@@ -357,7 +357,7 @@ PHP .
             assert_same('private, no-store', $headers['cache-control'] ?? null);
             assert_same('noindex, nofollow', $headers['x-robots-tag'] ?? null);
 
-            assert_true(str_contains($html, 'Back to backend'));
+            assert_true(str_contains($html, 'Back to admin'));
             assert_true(str_contains($html, 'Edit entry'));
             assert_true(str_contains($html, 'Create new'));
             assert_matches('#href="' . preg_quote($base, '#') . '/admin/content/startseite/[A-Za-z0-9_-]+\?workspace=preview-site&amp;locale=de"#', $html);
@@ -369,13 +369,13 @@ PHP .
             [$status, $home] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site', $cookie);
             assert_same(200, $status);
             assert_true(str_contains($home, 'preview-site English draft'), 'The logo destination previews the draft homepage.');
-            assert_true(str_contains($home, 'Back to backend'));
+            assert_true(str_contains($home, 'Back to admin'));
             [$status, $translatedHome] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&locale=de', $cookie);
             assert_same(200, $status);
             assert_true(str_contains($translatedHome, 'preview-site Deutscher Entwurf'));
             [$status, $legacyIndex] = comet_site_preview_test_request($port, $base . '/admin/site-preview/posts?workspace=preview-site', $cookie);
             assert_same(200, $status);
-            assert_true(str_contains($legacyIndex, 'Back to backend'));
+            assert_true(str_contains($legacyIndex, 'Back to admin'));
             assert_true(str_contains($legacyIndex, 'Create new'));
 
             [$status, $index] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&path=/posts', $cookie);
@@ -562,7 +562,7 @@ PHP .
     }
 });
 
-test('preview admin bar returns to the viewed page builder and keeps entry editing separate', function (): void {
+test('preview admin bar returns to admin and keeps current page editing separate', function (): void {
     (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     $types = new \CometCMS\Content\ContentTypeRepository();
     $types->save(['name' => 'posts']);
@@ -579,14 +579,14 @@ test('preview admin bar returns to the viewed page builder and keeps entry editi
         $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
         return new \DOMXPath($document);
     };
-    $builderUrl = '/cms/admin/page-builder/builder/layout/posts/detail?workspace=default&locale=de&entry=renamed';
+    $builderUrl = '/cms/admin/page-builder/builder/layout/posts/detail?workspace=default&locale=de&entry=' . $entry['uid'];
     $entryUrl = '/cms/admin/content/posts/' . $entry['uid'] . '?workspace=default&locale=de';
-    foreach (['en' => ['Edit page', 'Edit entry', 'Back to page builder'], 'de' => ['Seite bearbeiten', 'Eintrag bearbeiten', 'Zurück zum Page Builder']] as $language => [$editPage, $editEntry, $back]) {
+    foreach (['en' => ['Edit page', 'Edit entry', 'Back to admin'], 'de' => ['Seite bearbeiten', 'Eintrag bearbeiten', 'Zurück zur Verwaltung']] as $language => [$editPage, $editEntry, $back]) {
         $context->adminUser = ['username' => 'admin', 'language' => $language];
         $xpath = $links($bar->render(['type' => $type, 'entry' => $entry]));
         $brand = $xpath->query('//a[@class="c-admin-brand"]')->item(0);
         $primary = $xpath->query('//a[contains(@class,"c-admin-action-primary")]')->item(0);
-        assert_same($builderUrl, $brand->getAttribute('href'));
+        assert_same('/cms/admin/dashboard?workspace=default&locale=de', $brand->getAttribute('href'));
         assert_same($back, $brand->getAttribute('title'));
         assert_same($builderUrl, $primary->getAttribute('href'));
         assert_same($editPage, $primary->textContent);
@@ -596,7 +596,7 @@ test('preview admin bar returns to the viewed page builder and keeps entry editi
 
     $xpath = $links($bar->render(['type' => $type, 'entry' => null]));
     $indexBuilder = '/cms/admin/page-builder/builder/layout/posts/index?workspace=default&locale=de';
-    assert_same($indexBuilder, $xpath->query('//a[@class="c-admin-brand"]')->item(0)->getAttribute('href'));
+    assert_same('/cms/admin/dashboard?workspace=default&locale=de', $xpath->query('//a[@class="c-admin-brand"]')->item(0)->getAttribute('href'));
     assert_same($indexBuilder, $xpath->query('//a[contains(@class,"c-admin-action-primary")]')->item(0)->getAttribute('href'));
 
     $context->adminCan = static fn(string $action): bool => $action === 'content.update';
@@ -756,4 +756,100 @@ test('preview status follows rendered changes in the current page locale and sha
     $collection['props'] += ['filter_field' => 'slug', 'filter_value' => 'second'];
     $site->saveLayout('about', 'detail', $nodes([$collection]));
     $assertState($ctx, 'about', 'about', 'published');
+});
+
+
+test('preview return navigation preserves its source through browsing languages and search', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $types = new \CometCMS\Content\ContentTypeRepository();
+    $types->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
+    $context->browsePreview = true;
+    $context->locale = 'de';
+    $context->previewToken = 'private-snapshot';
+    $context->adminCan = static fn(): bool => true;
+    $entry = $context->content->save('posts', ['title' => 'Example', 'slug' => 'example'], ['id' => 'admin']);
+    $bar = new \CometCMS\Site\PreviewAdminBar($context);
+    foreach ([
+        '/cms/admin/content/posts/' . $entry['uid'] . '?locale=en&workspace=default#fields',
+        '/cms/admin/page-builder/builder/layout/posts/detail?entry=example&workspace=default',
+        '/cms/admin/media?folder=photos&page=2&workspace=default',
+    ] as $source) {
+        $context->setPreviewReturnUrl($source);
+        assert_same($source, $context->previewReturnUrl());
+        assert_same($source, $context->withoutOverrides()->previewReturnUrl());
+        $html = $bar->render(['type' => $types->find('posts'), 'entry' => $entry]);
+        $document = new \DOMDocument();
+        $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        assert_same($source, $xpath->query('//a[@class="c-admin-brand"]')->item(0)->getAttribute('href'));
+        $languageUrl = $xpath->query('//details[contains(@class,"c-admin-languages")]//a')->item(0)->getAttribute('href');
+        foreach ([$context->path('/posts?sort=title#results'), $context->searchUrl(), $languageUrl] as $url) {
+            parse_str(parse_url($url, PHP_URL_QUERY), $query);
+            assert_same($source, $query['returnTo']);
+            assert_same('private-snapshot', $query['snapshot']);
+            $next = \CometCMS\Site\SiteContext::make($context->site, '/cms');
+            $next->setPreviewReturnUrl($query['returnTo']);
+            assert_same($source, $next->previewReturnUrl());
+        }
+    }
+    $context->setPreviewReturnUrl('/cms/admin/media?workspace=other');
+    assert_same('/cms/admin/media?workspace=default', $context->previewReturnUrl());
+});
+
+test('preview return navigation rejects external paths traversal and preview loops', function (): void {
+    foreach (['', '/cms'] as $base) {
+        $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), $base);
+        foreach ([null, [], '', 'https://evil.example/admin/media', '//evil.example/admin/media',
+            '/elsewhere/admin/media', $base . '/admin/site-preview?path=/posts', $base . '/admin/api/site/preview-search',
+            $base . '/admin/../media', $base . '/admin/%2e%2e/media', $base . '/admin/%252e%252e/media',
+            $base . '/admin/%2f%2fevil.example', $base . '/admin/media%5c..%5c..',
+            $base . "/admin/media\n", $base . '/admin/login', $base . '/admin/logout',
+        ] as $unsafe) {
+            $context->setPreviewReturnUrl($base . '/admin/media');
+            $context->setPreviewReturnUrl($unsafe);
+            assert_same($base . '/admin/dashboard?workspace=default&locale=', $context->previewReturnUrl());
+            assert_same([], $context->previewNavigationQuery());
+        }
+    }
+});
+
+
+test('preview edit page opens the entry page tab by stable ID with locale and field permissions', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $types = new \CometCMS\Content\ContentTypeRepository();
+    $types->save(['name' => 'pages', 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => [
+        'design' => ['type' => 'page'], 'aside' => ['type' => 'page'],
+    ]]);
+    $type = $types->find('pages');
+    $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
+    $entry = $context->content->save('pages', ['title' => 'English', 'slug' => 'original', 'locale' => 'en'], ['id' => 'admin']);
+    $context->content->save('pages', ['slug' => 'renamed', 'locale' => 'en'], ['id' => 'admin'], $entry['id']);
+    $entry = $context->content->save('pages', ['title' => 'Deutsch', 'slug' => 'deutsch', 'locale' => 'de'], ['id' => 'admin'], $entry['id']);
+    $context->locale = 'de';
+    $context->setPreviewReturnUrl('/cms/admin/media?workspace=default');
+    $bar = new \CometCMS\Site\PreviewAdminBar($context);
+    $primaryUrl = static function (string $html): string {
+        $document = new \DOMDocument();
+        $document->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        return (new \DOMXPath($document))->query('//a[contains(@class,"c-admin-action-primary")]')->item(0)->getAttribute('href');
+    };
+    $pageUrl = '/cms/admin/page-builder/builder/page/pages/' . $entry['uid'] . '?workspace=default&locale=de&field=';
+    $layoutUrl = '/cms/admin/page-builder/builder/layout/pages/detail?workspace=default&locale=de&entry=' . $entry['uid'];
+    $state = ['type' => $type, 'entry' => $entry];
+    $context->adminCan = static fn(): bool => true;
+    foreach (['en', 'de'] as $language) {
+        $context->adminUser = ['language' => $language];
+        assert_same($pageUrl . 'design', $primaryUrl($bar->render($state)), 'Page content need not be customized to open its entry tab.');
+    }
+    $context->adminCan = static fn(string $action, array $scope): bool => $action === 'site.manage'
+        || ($action === 'content.update' && ($scope['fields'] ?? []) === ['aside']);
+    assert_same($pageUrl . 'aside', $primaryUrl($bar->render($state)), 'Select a page field the user can edit.');
+    $context->adminCan = static fn(string $action): bool => $action === 'site.manage';
+    assert_same($layoutUrl, $primaryUrl($bar->render($state)), 'Layout-only access must not open a forbidden entry page.');
+    $context->adminCan = static fn(): bool => true;
+    assert_same('/cms/admin/page-builder/builder/layout/pages/index?workspace=default&locale=de', $primaryUrl($bar->render(['type' => $type, 'entry' => null])));
+    $context->adminCan = static fn(string $action): bool => $action === 'content.update';
+    assert_same('/cms/admin/content/pages/' . $entry['uid'] . '?workspace=default&locale=de', $primaryUrl($bar->render($state)));
+    assert_same('/cms/admin/media?workspace=default', $context->previewReturnUrl(), 'Editing the viewed entry does not change the return destination.');
 });

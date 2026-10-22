@@ -11,6 +11,7 @@ use CometCMS\Localization\LocalizedValue;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SmartValue;
+use CometCMS\Site\StyleVariants;
 use CometCMS\Workspaces\WorkspaceContext;
 
 /** Shared-layout tools; transport and authorization belong to McpServer. */
@@ -25,12 +26,13 @@ final class PageBuilderTools
         $target = ['collection' => $string, 'variant' => ['type' => 'string', 'enum' => LayoutSchema::VARIANTS]];
         $revision = ['revision' => $string + ['description' => 'Required revision from the latest layout/section/element read. A stale revision fails with 409.']];
         $nodes = ['type' => 'array', 'maxItems' => LayoutSchema::MAX_NODES, 'items' => ['$ref' => '#/$defs/node']];
-        $patch = self::object(['name' => ['type' => 'string'], 'props' => $map, 'style' => $map, 'children' => $nodes]);
+        $overrides = ['responsive' => $map + ['description' => '{tablet?, mobile?: {props?, style?}}: values that differ on smaller screens; mobile follows tablet. Replaces the whole map.'], 'states' => $map + ['description' => '{hover?, focus?: {props?, style?}}: values while hovered or focused. Replaces the whole map.']];
+        $patch = self::object(['name' => ['type' => 'string'], 'props' => $map, 'style' => $map, ...$overrides, 'children' => $nodes]);
         $definitions = ['node' => self::object([
             'id' => $string + ['pattern' => '^[A-Za-z0-9_-]+$'],
             'kind' => ['type' => 'string', 'enum' => array_keys(LayoutSchema::spec(true)['kinds'])],
             'name' => ['type' => 'string', 'maxLength' => LayoutSchema::MAX_NODE_NAME_LENGTH],
-            'props' => $map, 'style' => $map, 'children' => $nodes,
+            'props' => $map, 'style' => $map, ...$overrides, 'children' => $nodes,
         ], ['kind'])];
         $contracts = [
             'get_builder_schema' => ['Discover builder vocabulary', 'Read allowed kinds/children and limits, or pass kind for its props/style defaults and bindings. Start here before creating layouts.', ['kind' => $string], []],
@@ -39,7 +41,7 @@ final class PageBuilderTools
             'get_element' => ['Read one element', 'Read a node by ID, its props/style and immediate child summaries, enclosing section and layout revision.', $target + ['element_id' => $string], ['collection', 'variant', 'element_id']],
             'set_layout' => ['Replace layout', 'Replace all sections, including empty layouts. Requires revision. Changes affect published pages immediately. Discover valid props with get_builder_schema.', $target + $revision + ['sections' => $nodes], ['collection', 'variant', 'revision', 'sections']],
             'update_section' => ['Patch one section', 'Merge supplied props/style keys and name into one top-level section; children explicitly replaces its subtree. Omitted keys and other sections are preserved. Requires revision; saves live.', $target + $revision + ['section_id' => $string, 'patch' => $patch], ['collection', 'variant', 'revision', 'section_id', 'patch']],
-            'update_element_props' => ['Patch element properties', 'Merge props/style keys on any node by ID; preserve children. Object-valued properties (including localized maps) replace the whole property. Requires revision; saves live.', $target + $revision + ['element_id' => $string, 'props' => $map, 'style' => $map], ['collection', 'variant', 'revision', 'element_id', 'props']],
+            'update_element_props' => ['Patch element properties', 'Merge props/style keys on any node by ID; preserve children. Object-valued properties (including localized maps) replace the whole property; responsive and states replace their whole maps. Requires revision; saves live.', $target + $revision + ['element_id' => $string, 'props' => $map, 'style' => $map, ...$overrides], ['collection', 'variant', 'revision', 'element_id', 'props']],
         ];
         $result = [];
         foreach ($contracts as $name => [$title, $description, $properties, $required]) {
@@ -101,7 +103,7 @@ final class PageBuilderTools
         } else {
             $id = $this->identifier($args['element_id'], 'element_id');
             $this->element($nodes, $id); // Fail before mutation if the ID does not exist.
-            $candidate = $this->patchElement($nodes, $id, ['props' => $args['props']] + (array_key_exists('style', $args) ? ['style' => $args['style']] : []));
+            $candidate = $this->patchElement($nodes, $id, ['props' => $args['props']] + array_intersect_key($args, array_flip(['style', 'responsive', 'states'])));
         }
         $seen = [];
         $count = 0;
@@ -131,7 +133,7 @@ final class PageBuilderTools
             $kind = $this->identifier($args['kind'], 'kind');
             if (!isset($spec['kinds'][$kind])) $this->invalid('kind', 'Unknown kind. Call get_builder_schema without kind to list available kinds.');
             $node = $spec['kinds'][$kind];
-            return ['kind' => $kind, 'props' => $node['props'], 'style' => array_intersect_key($spec['style'], array_flip($node['style'])), 'children' => $node['children'], 'bindings' => array_intersect_key($spec['bindings'], array_flip(['sources', 'date_formats'])), 'localized_values' => 'Use {type: localized, values: {locale: value}}. Patches replace the entire property, so preserve other locales.'];
+            return ['kind' => $kind, 'props' => $node['props'], 'style' => array_intersect_key($spec['style'], array_flip($node['style'])), 'children' => $node['children'], 'responsive' => ['devices' => $spec['devices']] + $node['responsive'], 'states' => ['states' => $spec['states']] + $node['states'], 'bindings' => array_intersect_key($spec['bindings'], array_flip(['sources', 'date_formats'])), 'localized_values' => 'Use {type: localized, values: {locale: value}}. Patches replace the entire property, so preserve other locales.'];
         }
         return [
             'format_version' => $spec['format_version'], 'variants' => $spec['variants'], 'root' => $spec['root'],
@@ -170,6 +172,7 @@ final class PageBuilderTools
         $props = array_filter($node['props'] ?? [], static fn(mixed $value, string $key): bool => $value !== ($defaults[$key] ?? null), ARRAY_FILTER_USE_BOTH);
         if ($props !== []) $result['props'] = $props;
         if (($node['style'] ?? []) !== []) $result['style'] = $node['style'];
+        foreach (['responsive', 'states'] as $key) if (($node[$key] ?? []) !== []) $result[$key] = $node[$key];
         if (($node['children'] ?? []) !== []) $result['children'] = array_map($this->compact(...), $node['children']);
         return $result;
     }
@@ -209,15 +212,15 @@ final class PageBuilderTools
     private function patch(array $node, mixed $patch, bool $section = false): array
     {
         $this->map($patch, 'patch');
-        $this->keys($patch, $section ? ['name', 'props', 'style', 'children'] : ['props', 'style'], 'patch');
-        if ($patch === []) $this->invalid('patch', 'Supply props, style, name or children to change.');
+        $this->keys($patch, $section ? ['name', 'props', 'style', 'responsive', 'states', 'children'] : ['props', 'style', 'responsive', 'states'], 'patch');
+        if ($patch === []) $this->invalid('patch', 'Supply props, style, responsive, states, name or children to change.');
         foreach (['props', 'style'] as $key) {
             if (array_key_exists($key, $patch)) {
                 $this->map($patch[$key], 'patch.' . $key);
                 $node[$key] = array_replace($node[$key] ?? [], $patch[$key]);
             }
         }
-        foreach (['name', 'children'] as $key) if (array_key_exists($key, $patch)) $node[$key] = $patch[$key];
+        foreach (['name', 'responsive', 'states', 'children'] as $key) if (array_key_exists($key, $patch)) $node[$key] = $patch[$key];
         return $node;
     }
 
@@ -239,7 +242,7 @@ final class PageBuilderTools
             $nodePath = $path . '.' . $index;
             if (++$count > LayoutSchema::MAX_NODES) $this->invalid($nodePath, 'Layout exceeds the ' . LayoutSchema::MAX_NODES . ' node limit.');
             $this->map($node, $nodePath);
-            $this->keys($node, ['id', 'kind', 'name', 'props', 'style', 'children'], $nodePath);
+            $this->keys($node, ['id', 'kind', 'name', 'props', 'style', 'responsive', 'states', 'children'], $nodePath);
             if (!is_string($node['kind'] ?? null) || !in_array($node['kind'], [...LayoutSchema::STRUCTURE, ...LayoutSchema::ELEMENTS, 'tab', LayoutSchema::COMPONENT, LayoutSchema::PAGE_CONTENT], true)) $this->invalid($nodePath . '.kind', 'Unknown or missing kind.');
             if (!array_key_exists('id', $node)) $node['id'] = LayoutSchema::newId();
             $id = $this->identifier($node['id'], $nodePath . '.id');
@@ -258,6 +261,16 @@ final class PageBuilderTools
                     $this->valueShape($value, $specs[$property]['type'], $valuePath, $localized, $binding !== null);
                 }
             }
+            foreach (['responsive' => array_keys(StyleVariants::DEVICES), 'states' => StyleVariants::STATES] as $group => $variants) {
+                if (!array_key_exists($group, $node)) continue;
+                $this->map($node[$group], $nodePath . '.' . $group);
+                $this->keys($node[$group], $variants, $nodePath . '.' . $group);
+                foreach ($node[$group] as $variant => $values) {
+                    $this->map($values, $nodePath . '.' . $group . '.' . $variant);
+                    $this->keys($values, ['props', 'style'], $nodePath . '.' . $group . '.' . $variant);
+                    foreach ($values as $part => $items) $this->map($items, $nodePath . '.' . $group . '.' . $variant . '.' . $part);
+                }
+            }
             $node['children'] = $this->prepare($node['children'] ?? [], $nodePath . '.children', $seen, $count, $depth + 1);
         }
         return $nodes;
@@ -272,9 +285,19 @@ final class PageBuilderTools
             return;
         }
         if ($binding && SmartValue::isDynamic($value)) return; // SmartValue validates its own structure.
-        if (in_array($type, ['set', 'media_list', 'content_types', 'search_fields'], true)) {
+        if (in_array($type, ['set', 'media_list', 'content_types', 'search_fields', 'sort_fields'], true)) {
             if (!is_array($value) || !array_is_list($value)) $this->invalid($path, 'Expected an array of strings.');
             foreach ($value as $index => $item) if (!is_string($item)) $this->invalid($path . '.' . $index, 'Expected a string.');
+            return;
+        }
+        if ($type === 'list_filters') {
+            if (!is_array($value) || !array_is_list($value)) $this->invalid($path, 'Expected an array of {field, label?, multiple?} objects.');
+            foreach ($value as $index => $row) {
+                $this->map($row, $path . '.' . $index);
+                if (!is_string($row['field'] ?? null)) $this->invalid($path . '.' . $index . '.field', 'Expected a field name.');
+                if (array_key_exists('label', $row) && !is_string($row['label'])) $this->invalid($path . '.' . $index . '.label', 'Expected a string.');
+                if (array_key_exists('multiple', $row) && !is_bool($row['multiple'])) $this->invalid($path . '.' . $index . '.multiple', 'Expected a boolean.');
+            }
             return;
         }
         if (in_array($type, ['link', 'gradient', 'spans'], true)) {
@@ -312,6 +335,9 @@ final class PageBuilderTools
             foreach ($node['style'] ?? [] as $key => $value) {
                 if (!isset($allowedStyle[$key])) $this->invalid($nodePath . '.style.' . $key, 'Unknown style for ' . $node['kind'] . '.');
                 $this->compareValue($value, $actual['style'][$key] ?? $styles[$key]['default'], $nodePath . '.style.' . $key);
+            }
+            foreach (['responsive', 'states'] as $group) {
+                if (array_key_exists($group, $node)) $this->compareValue($node[$group], $actual[$group] ?? [], $nodePath . '.' . $group);
             }
             $this->compareNodes($node['children'], $actual['children'], $nodePath . '.children');
         }

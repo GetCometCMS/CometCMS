@@ -268,6 +268,52 @@ describe('builder components', () => {
     expect(stored.nodes[0].id).toBe('root')
   })
 
+  it('marks props editable only while editing a component', async () => {
+    const { builder, column } = await componentFixture({})
+    const text = column.children[0]
+    builder.toggleEditable(text.id, 'html')
+    expect(findNode(builder.nodes.value, text.id).editable).toBeUndefined()
+
+    builder.componentId.value = 'cabc'
+    builder.toggleEditable(text.id, 'html')
+    expect(builder.isEditable(findNode(builder.nodes.value, text.id), 'html')).toBe(true)
+    builder.toggleEditable(text.id, 'html')
+    expect(findNode(builder.nodes.value, text.id).editable).toBeUndefined()
+  })
+
+  it('sets, translates and resets an instance\'s own values, and keeps them when detaching', async () => {
+    const stored = { id: 'cabc', root: 'column', nodes: [{ id: 'root', kind: 'column', props: { span: { mobile: 12, tablet: 0, desktop: 0 } }, style: {}, children: [
+      { id: 'own', kind: 'text', props: { html: 'Shared' }, style: {}, editable: ['html'], children: [] },
+      { id: 'fixed', kind: 'text', props: { html: 'Fixed' }, style: {}, children: [] },
+    ] }] }
+    const { builder } = await componentFixture({ load: async () => stored })
+    builder.spec.value.kinds.text.props.html.localized = true
+    builder.components.value = [{ id: 'cabc', name: 'Promo', root: 'column' }]
+    const instance = builder.make('component', { component: 'cabc', root: 'column' })
+    builder.insert(instance, builder.nodes.value[0].children[0].children[1].id)
+
+    await builder.loadComponentTree('cabc')
+    const current = () => findNode(builder.nodes.value, instance.id)
+    expect(builder.instanceFields(current()).map((item) => [item.node.id, item.keys])).toEqual([['own', ['html']]])
+
+    builder.setInstanceValue(instance.id, 'own', 'html', 'Mine')
+    builder.setInstanceValue(instance.id, 'fixed', 'html', 'Ignored')
+    expect(builder.instanceFields(current())[0].node.props.html).toEqual({ type: 'localized', values: { en: 'Mine' } })
+    builder.locale.value = 'de'
+    builder.setInstanceValue(instance.id, 'own', 'html', 'Meins')
+    expect(current().overrides.own.html.values).toMatchObject({ en: 'Mine', de: 'Meins' })
+    builder.resetInstanceValue(instance.id, 'own', 'html', { translation: true })
+    expect(current().overrides.own.html.values).toEqual({ en: 'Mine' })
+    builder.locale.value = 'en'
+
+    expect(await builder.detach(instance.id)).toBe(true)
+    const copy = builder.selected.value
+    expect(copy.children.map((item) => item.props.html?.values?.en ?? item.props.html)).toEqual(['Mine', 'Fixed'])
+    builder.undo()
+    builder.resetInstanceValue(instance.id, 'own', 'html')
+    expect(current().overrides).toBeUndefined()
+  })
+
   it('keeps the single root of a component in place', async () => {
     const { builder } = await componentFixture({ create: async () => ({}) })
     builder.rootKind.value = 'section'
@@ -702,5 +748,45 @@ describe('builder page content', () => {
     await builder.setUpPageArea(fourth.id)
     expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_2')
     expect(created).toHaveLength(3)
+  })
+})
+
+describe('builder device and state overrides', () => {
+  it('routes edits by the previewed device and state, follows larger screens and resets', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.style = { padding_top: { default: '' }, background: { default: '' } }
+    builder.spec.value.kinds.heading.style = ['padding_top', 'background']
+    builder.spec.value.kinds.heading.responsive = { props: [], style: ['padding_top', 'background'] }
+    builder.spec.value.kinds.heading.states = { props: [], style: ['background'] }
+    const heading = builder.make('heading')
+    builder.insert(heading, builder.nodes.value[0].children[0].children[0].id)
+    const node = () => findNode(builder.nodes.value, heading.id)
+
+    builder.editValue(heading.id, 'style', 'padding_top', 'lg')
+    expect(node().style.padding_top).toBe('lg')
+    builder.device.value = 'tablet'
+    expect(builder.viewValue(node(), 'style', 'padding_top')).toBe('lg')
+    builder.editValue(heading.id, 'style', 'padding_top', 'sm')
+    expect(node().style.padding_top).toBe('lg')
+    expect(node().responsive).toEqual({ tablet: { style: { padding_top: 'sm' } } })
+    builder.device.value = 'mobile'
+    // Mobile follows tablet until it has a value of its own.
+    expect(builder.viewValue(node(), 'style', 'padding_top')).toBe('sm')
+    expect(builder.overridesOf(node(), 'style', 'padding_top')).toEqual({ devices: ['tablet'], states: [] })
+
+    builder.device.value = 'desktop'
+    builder.styleState.value = 'hover'
+    expect(builder.editableInState(node(), 'style', 'padding_top')).toBe(false)
+    expect(builder.viewValue(node(), 'style', 'background')).toBe('')
+    builder.editValue(heading.id, 'style', 'background', 'accent')
+    expect(node().states).toEqual({ hover: { style: { background: 'accent' } } })
+    expect(node().style.background).toBeUndefined()
+
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'background')
+    expect(node().states).toBeUndefined()
+    builder.resetOverride(heading.id, 'responsive', 'tablet', 'style', 'padding_top')
+    expect(node().responsive).toBeUndefined()
+    builder.undo()
+    expect(node().responsive.tablet.style.padding_top).toBe('sm')
   })
 })

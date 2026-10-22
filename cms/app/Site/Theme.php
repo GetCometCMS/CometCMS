@@ -223,7 +223,14 @@ final class Theme
             $css .= '.c-bd.c-bdc-' . $key . '{--c-bd-c:var(--c-' . $key . ');}';
             $css .= '.c-bg-' . $key . ' a:not(.c-button){color:inherit;}';
             $css .= '.c-bg-' . $key . '{--c-menu-accent:currentColor;}';
+            $css .= '.c-lc-' . $key . ' a:not(.c-button){color:var(--c-' . $key . ');}';
+            $css .= '.c-button.c-btn-bg-' . $key . '{background:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
+            $css .= '.c-button.c-btn-fg-' . $key . '{color:var(--c-' . $key . ');}';
+            $css .= '.c-button.c-btn-bdc-' . $key . '{border-color:var(--c-' . $key . ');}';
         }
+
+        // Custom CSS comes last, so it can still change any override.
+        $css .= StyleVariants::css($css);
 
         if ($theme['custom_css'] !== '') {
             $css .= "\n/* Custom CSS */\n" . $theme['custom_css'] . "\n";

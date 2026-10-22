@@ -10,6 +10,7 @@ import {
   applyColumnPreset,
   clone,
   cloneWithNewIds,
+  editableNodes,
   columnLayoutOf,
   contains,
   createNode,
@@ -29,6 +30,7 @@ import {
   templateCollection,
   usesCurrentEntry,
   walk,
+  withOverrides,
 } from './layoutTree.js'
 
 const KEY = Symbol('site-builder')
@@ -98,6 +100,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
   const hoverId = ref(null)
+  /** Previewed device; on tablet and mobile, edits of options that allow it only apply there (node.responsive). */
+  const device = ref('desktop')
+  /** Edited state: normal, or hover/focus values of the options that allow them (node.states). */
+  const styleState = ref('normal')
   const drag = shallowRef(null)
   /** Copied node and copied style, for paste; shared by the workspace's builders (see useBuilderClipboard()). */
   const sharedClipboard = useBuilderClipboard({ storage: clipboardStorage })
@@ -432,6 +438,80 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     }, { coalesce: `${id}:${group}:${key}` })
   }
 
+  // ─── Device and state overrides ──────────────────────────────────────
+
+  /** Where an edit of the key goes in the current view: { group: 'responsive'|'states', variant } or null for the normal value. */
+  function overrideTarget(node, group, key) {
+    const kind = spec.value?.kinds?.[node?.kind]
+    if (!kind) return null
+    if (styleState.value !== 'normal') {
+      return kind.states?.[group]?.includes(key) ? { group: 'states', variant: styleState.value } : null
+    }
+    if (device.value !== 'desktop' && kind.responsive?.[group]?.includes(key)) return { group: 'responsive', variant: device.value }
+    return null
+  }
+
+  /** Whether the key has a value of its own in the current state (hover/focus edits only show those keys). */
+  function editableInState(node, group, key) {
+    return styleState.value === 'normal' || !!overrideTarget(node, group, key)
+  }
+
+  /** The value the current device or state shows: mobile follows tablet, which follows the normal value. */
+  function viewValue(node, group, key) {
+    const target = overrideTarget(node, group, key)
+    if (target?.group === 'states') return node.states?.[target.variant]?.[group]?.[key] ?? ''
+    if (target?.group === 'responsive') {
+      const devices = target.variant === 'mobile' ? ['mobile', 'tablet'] : ['tablet']
+      for (const name of devices) {
+        const value = node.responsive?.[name]?.[group]?.[key]
+        if (value !== undefined) return value
+      }
+    }
+    return node[group]?.[key]
+  }
+
+  /** Devices and states where the key differs from its normal value, e.g. { devices: ['mobile'], states: [] }. */
+  function overridesOf(node, group, key) {
+    const has = (map, variant) => map?.[variant]?.[group]?.[key] !== undefined
+    return {
+      devices: ['tablet', 'mobile'].filter((name) => has(node?.responsive, name)),
+      states: ['hover', 'focus'].filter((name) => has(node?.states, name)),
+    }
+  }
+
+  /** Edit as the inspector does: on tablet/mobile or in a state, overridable keys change only there. */
+  function editValue(id, group, key, value) {
+    const node = findNode(nodes.value, id)
+    const target = node ? overrideTarget(node, group, key) : null
+    if (!target) return updateValue(id, group, key, value)
+    if (translating.value) return
+    mutate((tree) => {
+      const current = findNode(tree, id)
+      if (current) setOverride(current, target.group, target.variant, group, key, value)
+    }, { coalesce: `${id}:${target.group}:${target.variant}:${group}:${key}` })
+  }
+
+  function resetOverride(id, overrideGroup, variant, group, key) {
+    if (translating.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (node) setOverride(node, overrideGroup, variant, group, key, '')
+    })
+  }
+
+  /** An empty value removes the override, like the server keeps only set values. */
+  function setOverride(node, overrideGroup, variant, group, key, value) {
+    const overrides = clone(node[overrideGroup] ?? {})
+    const values = { ...(overrides[variant]?.[group] ?? {}) }
+    if (value === '' || value === null || value === undefined) delete values[key]
+    else values[key] = value
+    overrides[variant] = { ...(overrides[variant] ?? {}), [group]: values }
+    if (!Object.keys(values).length) delete overrides[variant][group]
+    if (!Object.keys(overrides[variant]).length) delete overrides[variant]
+    if (Object.keys(overrides).length) node[overrideGroup] = overrides
+    else delete node[overrideGroup]
+  }
+
   /** Editor-only name; clearing it restores the automatic label. */
   function resetTranslation(id, group, key) {
     if (locale.value === defaultLocale.value) return
@@ -679,8 +759,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     function detachInstances(tree) {
       return tree.map((node) => {
         if (node.kind === COMPONENT && node.props?.component === id) {
-          if (!copies.has(node.id)) copies.set(node.id, cloneWithNewIds(component.nodes[0]))
-          const copy = clone(copies.get(node.id))
+          const key = `${node.id}:${JSON.stringify(node.overrides ?? {})}`
+          if (!copies.has(key)) copies.set(key, cloneWithNewIds(withOverrides(component.nodes[0], node.overrides)))
+          const copy = clone(copies.get(key))
           copy.id = node.id
           if (node.name) copy.name = node.name
           if (copy.kind === 'column') copy.props.span = clone(node.props.span ?? copy.props.span)
@@ -826,6 +907,79 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return !!node && locate(nodes.value, node.id)?.parent?.kind === 'collection'
   }
 
+  // ─── Editable props ──────────────────────────────────────────────────────
+
+  /** Saved trees of the components whose instances were selected: id => root node. */
+  const componentTrees = ref({})
+
+  async function loadComponentTree(id) {
+    if (!id || componentTrees.value[id] !== undefined || !componentApi.load) return
+    componentTrees.value = { ...componentTrees.value, [id]: null }
+    const component = await componentApi.load(id)
+    componentTrees.value = { ...componentTrees.value, [id]: component?.nodes?.[0] ?? null }
+  }
+
+  /** Whether a prop of the edited component's node may be set by each placement. */
+  function isEditable(node, key) {
+    return !!node?.editable?.includes(key)
+  }
+
+  /** Let each placement set the prop, or fix it again (editing a component only). */
+  function toggleEditable(id, key) {
+    if (translating.value || !componentId.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node || node.kind === COMPONENT) return
+      const editable = node.editable?.includes(key) ? node.editable.filter((item) => item !== key) : [...(node.editable ?? []), key]
+      if (editable.length) node.editable = editable
+      else delete node.editable
+    })
+  }
+
+  /** The component's nodes an instance may set props of, as the instance shows them: [{ node, keys }]. */
+  function instanceFields(instance) {
+    const root = componentTrees.value[instance?.props?.component]
+    if (!root) return []
+    return editableNodes([withOverrides(root, instance.overrides)])
+      .map((node) => ({ node, keys: node.editable.filter((key) => spec.value?.kinds?.[node.kind]?.props?.[key]) }))
+      .filter((item) => item.keys.length)
+  }
+
+  function hasInstanceValue(instance, nodeId, key) {
+    return instance?.overrides?.[nodeId]?.[key] !== undefined
+  }
+
+  /** Set the instance's own value; a translation starts from the component's texts. */
+  function setInstanceValue(instanceId, nodeId, key, value) {
+    mutate((tree) => {
+      const instance = findNode(tree, instanceId)
+      const root = componentTrees.value[instance?.props?.component]
+      const inner = root ? findNode([root], nodeId) : null
+      if (instance?.kind !== COMPONENT || !inner?.editable?.includes(key)) return
+      const def = spec.value?.kinds?.[inner.kind]?.props?.[key]
+      if (translating.value && !def?.localized) return
+      const overrides = clone(instance.overrides ?? {})
+      const current = overrides[nodeId]?.[key] ?? inner.props?.[key]
+      const next = def?.localized ? setLocalized(clone(current), locale.value || defaultLocale.value, value, defaultLocale.value) : value
+      overrides[nodeId] = { ...(overrides[nodeId] ?? {}), [key]: next }
+      instance.overrides = overrides
+    }, { coalesce: `${instanceId}:${nodeId}:${key}` })
+  }
+
+  /** Go back to the component's value: in a translation only that language, otherwise in every language. */
+  function resetInstanceValue(instanceId, nodeId, key, { translation = false } = {}) {
+    mutate((tree) => {
+      const instance = findNode(tree, instanceId)
+      if (!hasInstanceValue(instance, nodeId, key)) return
+      const overrides = clone(instance.overrides)
+      if (translation) overrides[nodeId][key] = removeLocalized(overrides[nodeId][key], locale.value)
+      else delete overrides[nodeId][key]
+      if (!Object.keys(overrides[nodeId]).length) delete overrides[nodeId]
+      if (Object.keys(overrides).length) instance.overrides = overrides
+      else delete instance.overrides
+    })
+  }
+
   /** Open a component in its own builder (the view decides how). */
   function editComponent(id) {
     componentApi.edit?.(id)
@@ -839,7 +993,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const component = await componentApi.load(node.props.component)
     const root = component?.nodes?.[0]
     if (!root) return false
-    const copy = cloneWithNewIds(root)
+    const copy = cloneWithNewIds(withOverrides(root, node.overrides))
     if (node.name) copy.name = node.name
     if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(node.props.span ?? copy.props.span) }
     let replaced = false
@@ -944,12 +1098,14 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
-    updateValue, renameNode, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
+    updateValue, renameNode, insert,
+    device, styleState, overrideTarget, editableInState, viewValue, overridesOf, editValue, resetOverride, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
+    componentTrees, loadComponentTree, isEditable, toggleEditable, instanceFields, hasInstanceValue, setInstanceValue, resetInstanceValue,
     fieldDialog, canMakeField, convertToField,
     pageFields, freePageFields, canAddPageField, setUpPageArea, renamePageField, pageFieldError, holdsPageContent,
   }

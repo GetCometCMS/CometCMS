@@ -21,7 +21,7 @@
         ]"
       >
         <div class="sidebar-header flex h-16 shrink-0 items-center justify-between gap-2 px-3">
-          <a v-if="site.homepagePreview" :href="site.homepagePreview" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
+          <a v-if="site.homepagePreview" :href="homepagePreviewUrl" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
             <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto max-w-full object-contain" />
           </a>
           <router-link v-else to="/dashboard" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
@@ -391,6 +391,7 @@ import {
   setActiveWorkspace,
   setDefaultWorkspace,
 } from "../api/index.js";
+import { withPreviewReturn } from "../previewNavigation.js";
 import { logoForTheme } from "../theme.js";
 import { useI18n } from "../i18n/index.js";
 import ApiEndpointFooter from "./ApiEndpointFooter.vue";
@@ -402,6 +403,7 @@ import { useNavigationSections } from "../composables/useNavigationSections.js";
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const homepagePreviewUrl = computed(() => withPreviewReturn(site.homepagePreview, router.resolve(route.fullPath).href));
 const { groups: navGroups, allTypes, isActive } = useNavigation();
 const paletteOpen = ref(false);
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

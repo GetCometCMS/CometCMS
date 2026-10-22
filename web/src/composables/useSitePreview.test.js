@@ -34,6 +34,20 @@ describe('unsaved website previews', () => {
     expect(preview.opening.value).toBe(false)
   })
 
+  it('remembers the editor at click time even if navigation changes while preparing the snapshot', async () => {
+    const { tab } = windowFixture()
+    window.location = { href: 'https://example.test/admin/page-builder/builder/layout/posts/detail?entry=first' }
+    let finish
+    api.site.createPreview.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const pending = useSitePreview().open({ target: 'layout' })
+    window.location.href = 'https://example.test/admin/media'
+    finish({ data: { url: '/admin/site-preview?workspace=default&snapshot=private' } })
+    await pending
+    const url = new URL(tab.location.replace.mock.calls[0][0], 'https://example.test')
+    expect(url.searchParams.get('snapshot')).toBe('private')
+    expect(url.searchParams.get('returnTo')).toBe('/admin/page-builder/builder/layout/posts/detail?entry=first&workspace=default')
+  })
+
   it('closes the pending tab and reports a rejected snapshot without saving', async () => {
     const { tab } = windowFixture()
     api.site.createPreview.mockRejectedValue(new Error('Permission denied'))

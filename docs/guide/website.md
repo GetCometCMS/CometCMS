@@ -8,7 +8,7 @@ The website is data-driven. You design a **layout per content type** once, and e
 
 There is no separate on/off switch. A workspace's website is online while it has something to show: a **homepage**, or at least one content type with the **Page Builder enabled**. With neither, the workspace stays fully headless and the root URL shows a CometCMS placeholder with a quiet space scene.
 
-Expand **Website settings** under **Website** in the admin sidebar (permission `site.manage`) to choose **General** or **SEO & sharing**. General contains the homepage, site title, tagline, logo, favicon, workspace languages, domains and the 404 page. The header shows whether the website is online. SEO & sharing holds the title template, meta description, share image and **Hide from search engines**. **Administration → Workspaces** (permission `workspaces.manage`) creates, renames and archives workspaces. **Website → Design & layout** (shown once a content type has the Page Builder enabled or the website is online) has direct submenu links to global design, menus, components and fonts. Under **Developer → Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
+Expand **Website settings** under **Website** in the admin sidebar (permission `site.manage`) to choose **General** or **SEO & sharing**. General contains the homepage, site title, tagline, logo, favicon, workspace languages, domains and the 404 page. The header shows whether the website is online. SEO & sharing holds the title template, meta description, share image and **Hide from search engines**. **Administration → Workspaces** (permission `workspaces.manage`) creates, renames and archives workspaces. **Website → Design & layout** (shown once a content type has the Page Builder enabled or the website is online) has direct submenu links to the website design, menus, components and fonts. Under **Developer → Content types → edit**, turn on **Enable Page Builder** in the base settings card. Published entries get their own publicly accessible page, with layouts designed in the Page Builder. The **Page Builder** card then appears with URL, search engine and layout settings:
 
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
@@ -27,7 +27,7 @@ The homepage can be one entry, a collection's list page, or **None**. Without a 
 
 The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to two layouts:
 
-- **Entry page** — a single entry.
+- **Entry design** — a single entry.
 - **List page** — the page at the list URL.
 
 How entries look inside an entry list is designed in that list itself (see [Entry cards](#entry-cards)).
@@ -83,6 +83,18 @@ Under **Style → Animation**, choose an effect and when it plays. **When scroll
 
 Scroll inside the preview to test entry animations. Each preview update creates a new page and restores its scroll position, so elements already in view can play immediately. In browsers without [CSS scroll-triggered animations](https://developer.chrome.com/blog/scroll-triggered-animations), entrances progress with scrolling instead; an element already fully in view then looks finished when the effect is enabled. Browsers without view timelines play entrances on page load.
 
+### Tablet and mobile values
+
+Switch the top bar's device to **Tablet** or **Mobile** to change how a page looks on smaller screens. Options with a tablet or phone icon beside their name then change only that device: spacing, colors, link color, alignment, font size, weight and family, text shadow, corners, shadow and maximum width, plus a few layout options (row gap and alignment, column alignment and spacing, section vertical alignment, button size and full width, spacer size). A highlighted icon means the device has its own value; click the reset button beside it to follow the larger screen again. Tablet values also apply to phones unless mobile has its own. On desktop, a small grey icon beside an option shows that it differs on another device. Options without an icon apply to every device.
+
+### Hover and focus
+
+Elements whose look can react to the visitor have **Normal**, **Hover** and **Focus** at the top of the **Style** tab. Hover applies while the pointer is over the element; focus while it, or a link in it, has keyboard focus. These states can change the background, text, link and border colors and the shadow; a button can also change its own **Button color**, **Label color** and **Border color**. **Default** keeps the normal value. While a state is selected, the preview shows it on the selected element.
+
+### Button icons
+
+A button can show an icon from the bundled set before or after its label. Choose it under **Icon** in the content inspector, then set **Icon position** and **Icon spacing**. The icon takes the label's size and color. Remove it with the × beside the picker.
+
 ### Responsive column order
 
 Select a **row** and enable **Reverse columns on mobile** and/or **Reverse columns on tablet** in the content inspector. Each setting applies independently: mobile is below 768 px, tablet is 768–1023 px, and desktop keeps the original order. All columns are reversed, including rows with more than two columns or columns that wrap onto multiple lines. This changes the visual order; keyboard and screen-reader order still follows the layout tree.
@@ -111,6 +123,8 @@ A section, column set or column can be saved as a **component**, which reuses it
 
 A component is edited in one place. Choose **Edit component** in the inspector or the context menu, or open it from the **Components** tab of the website settings. Saving it updates every page that uses it. A placed component is one unit in the builder: its contents cannot be selected there. A column component placed in a column set keeps its own width. **Detach** replaces a placed component with an ordinary copy that you can change on its own, while the other places keep following the component.
 
+To let each placement change some content, for example a card's title, image and link, edit the component and click the pencil next to an option's name in the **Content** tab. A filled pencil marks the option as **editable per placement**. Select a placed component to see its editable options in the inspector, grouped by element. A value set there applies to that placement only; the arrow beside it goes back to the component's value. Everything else, including the structure and the style, stays the same everywhere. Texts can be translated per placement like any other text. Detaching keeps the placement's own values.
+
 **Copy** and **Paste** in the context menu (or Ctrl+C and Ctrl+V) copy an element with everything inside it. A container such as a section or column takes the copy inside; any other element gets it right after itself. The copy is kept in the browser for the current workspace, so it survives a reload and can be pasted in another tab, in a component, or on another page's layout. **Copy style** and **Paste style** work the same way. Page content copied from another page type gets a page field of its own when pasted.
 
 Components may show fields of the entry a page displays (for example its title or author). Such a component belongs to the content type it was created in, and can only be added where an entry of that type is shown: that type's page layout and the cards of lists of that type. The Components panel lists it everywhere, with insertion disabled where it does not fit. Its builder previews a sample entry of that type. Components can contain other components, but never themselves.
@@ -121,7 +135,7 @@ Deleting a component turns all its instances into independent, editable copies, 
 
 Entries of the same type can look different. Add the **Page content** element to a type's entry page layout, between sections or inside a column (for example the main column next to a sidebar). Everything around it (header, footer, sidebars, call-to-action sections) stays shared by all entries; the inside belongs to each entry. Sections you place inside the element are the **default content**, which every entry shows until it has a design of its own. If the content type has no page content field yet, placing the element adds one; it appears as the field type `page`.
 
-In the entry editor, **Design in page builder** opens the builder for just that entry. It starts from a copy of the default content and offers everything the builder has: sections, columns, drag and drop, fields of the entry, components and **Detach** for an editable copy. The surrounding layout is shown but cannot be selected. The tabs at the top move between the entry's page content, the **Entry page** layout and the **List page** while keeping the entry; unsaved changes are asked about first. **Reset to layout default** in the menu beside **Save** shows the default content again as an edit you can undo, and saving removes the entry's own design. The same action in the entry editor applies right away after confirming. Earlier designs stay in **History**.
+In the entry editor, **Design in page builder** opens the builder for just that entry. It starts from a copy of the default content and offers everything the builder has: sections, columns, drag and drop, fields of the entry, components and **Detach** for an editable copy. The surrounding layout is shown but cannot be selected. The tabs at the top move between the entry's page content, the **Entry design** layout and the **List page** while keeping the entry; unsaved changes are asked about first. **Reset to layout default** in the menu beside **Save** shows the default content again as an edit you can undo, and saving removes the entry's own design. The same action in the entry editor applies right away after confirming. Earlier designs stay in **History**.
 
 The page content is one design for all languages. Like layouts, its texts are translated by choosing a language in the builder. Site search and the page's meta description read its texts. Page content is stored in the entry, together with the layout format it was saved in, and is kept as it is if that format changes.
 

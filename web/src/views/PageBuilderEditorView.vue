@@ -571,6 +571,8 @@ const sampleId = ref("");
 const locales = ref([]);
 const locale = ref("");
 const device = ref("desktop");
+// The inspector edits overrides of the previewed device; full width shows the desktop layout.
+watch(device, (value) => { builder.device.value = value === "full" ? "desktop" : value; }, { immediate: true });
 /** A layer to switch to once unsaved changes may be left behind. */
 const pendingView = ref(null);
 const canvasRef = ref(null);

@@ -19,15 +19,13 @@ final class PreviewAdminBar
         }
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $text = $de ? [
-            'backend' => 'Zum Backend', 'adminBar' => 'Website-Verwaltung', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
+            'backend' => 'Zurück zur Verwaltung', 'adminBar' => 'Website-Verwaltung', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
             'edit' => 'Seite bearbeiten', 'create' => 'Neu erstellen', 'entries' => 'Einträge', 'editEntry' => 'Eintrag bearbeiten',
-            'backToBuilder' => 'Zurück zum Page Builder',
             'profile' => 'Mein Profil', 'language' => 'Vorschausprache',
             'draft' => 'Entwurf', 'protected' => 'Geschützt', 'published' => 'Veröffentlicht', 'scheduled' => 'Geplant', 'archived' => 'Archiviert',
         ] : [
-            'backend' => 'Back to backend', 'adminBar' => 'Site administration', 'preview' => 'Preview', 'notice' => 'You are administering this website. Preview shows saved content, including drafts.',
+            'backend' => 'Back to admin', 'adminBar' => 'Site administration', 'preview' => 'Preview', 'notice' => 'You are administering this website. Preview shows saved content, including drafts.',
             'edit' => 'Edit page', 'create' => 'Create new', 'entries' => 'Entries', 'editEntry' => 'Edit entry',
-            'backToBuilder' => 'Back to page builder',
             'profile' => 'My profile', 'language' => 'Preview language',
             'draft' => 'Draft', 'protected' => 'Protected', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived',
         ];
@@ -43,13 +41,20 @@ final class PreviewAdminBar
         if ($type !== null && $this->ctx->isPublicType($name)
             && in_array($variant, $this->ctx->site->variantsFor($type), true)
             && $this->ctx->adminAllows('site.manage') && ($entry === null || $savedEntry !== null)) {
-            // The builder selects samples by their default-language slug.
-            $sample = $savedEntry !== null ? $this->ctx->content->resolveLocaleFields($savedEntry, $this->ctx->defaultLocale()) : null;
+            $entryId = $savedEntry !== null ? (string) ($savedEntry['uid'] ?? $savedEntry['id']) : '';
             $builderUrl = $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($name) . '/' . $variant,
-                $sample !== null ? ['entry' => $sample['slug'] ?? $sample['id']] : []);
+                $entryId !== '' ? ['entry' => $entryId] : []);
+            if ($savedEntry !== null) {
+                foreach ($type['fields'] ?? [] as $field => $config) {
+                    if (($config['type'] ?? '') === 'page' && $this->ctx->adminAllows('content.update', $name, $savedEntry, [$field])) {
+                        $builderUrl = $this->ctx->adminUrl('/page-builder/builder/page/' . rawurlencode($name) . '/' . rawurlencode($entryId), ['field' => $field]);
+                        break;
+                    }
+                }
+            }
         }
-        $backUrl = $builderUrl ?? $this->ctx->adminUrl('/dashboard');
-        $backLabel = $builderUrl !== null ? $text['backToBuilder'] : $text['backend'];
+        $backUrl = $this->ctx->previewReturnUrl();
+        $backLabel = $text['backend'];
         // Labels may collapse to icons on narrow screens; the title keeps them discoverable.
         $link = fn(string $url, string $label, string $icon, string $class = ''): string => '<a class="c-admin-action ' . $class . '" href="' . Security::e($url) . '" title="' . Security::e($label) . '">'
             . $this->icon($icon) . '<span class="c-admin-label">' . Security::e($label) . '</span></a>';
@@ -129,7 +134,7 @@ final class PreviewAdminBar
                 // Entry previews also support drafts without a live route.
                 $url = $this->ctx->adminUrl('/site-preview/' . rawurlencode($type['name']) . '/' . rawurlencode((string) ($entry['uid'] ?? $entry['id'])), [
                     'locale' => $locale,
-                    ...($this->ctx->previewToken !== '' ? ['snapshot' => $this->ctx->previewToken] : []),
+                    ...$this->ctx->previewNavigationQuery(),
                 ]);
             } else {
                 $url = $type !== null ? $this->ctx->indexUrl($type['name'], $locale) : null;

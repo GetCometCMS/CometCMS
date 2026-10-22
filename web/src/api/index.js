@@ -1,5 +1,6 @@
 import { ADMIN_API_BASE, ADMIN_BASE } from '../basePath.js'
 import { t } from '../i18n/index.js'
+import { withPreviewReturn } from '../previewNavigation.js'
 
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
 // then kept up-to-date from the X-CSRF-Token response header.
@@ -23,7 +24,7 @@ export function getActiveWorkspace() {
 function sitePreviewUrl(path, locale = '') {
   const params = new URLSearchParams({ workspace: getActiveWorkspace() })
   if (locale) params.set('locale', locale)
-  return `${ADMIN_BASE}/site-preview${path}?${params}`
+  return withPreviewReturn(`${ADMIN_BASE}/site-preview${path}?${params}`)
 }
 
 export function setActiveWorkspace(workspace) {

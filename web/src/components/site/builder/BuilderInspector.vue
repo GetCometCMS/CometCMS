@@ -79,6 +79,10 @@
     </div>
 
     <div class="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-3 pb-32">
+      <p v-if="!isInstance && builder.device.value !== 'desktop'" class="flex items-start gap-2 rounded-lg bg-theme-50 px-3 py-2 text-xs text-theme-800 ring-1 ring-theme-100">
+        <Icon :icon="DEVICE_ICONS[builder.device.value]" class="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>{{ t(`site.override.deviceHint.${builder.device.value}`) }}</span>
+      </p>
       <template v-if="isInstance">
         <div class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p v-if="!component" class="text-amber-800">{{ t("site.component.missingHint") }}</p>
@@ -100,6 +104,35 @@
           :value="node.props[key]"
           @update="(value) => updateProp(key, value)"
         />
+        <template v-if="component">
+          <div v-for="item in instanceFields" :key="item.node.id" class="space-y-3">
+            <h4 class="truncate border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700" :title="builder.nodeLabel(item.node)">{{ builder.nodeLabel(item.node) }}</h4>
+            <BuilderControl
+              v-for="key in item.keys"
+              :key="`${node.id}-${item.node.id}-${key}`"
+              :node="item.node"
+              :name="key"
+              :def="builder.spec.value.kinds[item.node.kind].props[key]"
+              :value="item.node.props[key]"
+              :variants="false"
+              :on-reset-translation="() => builder.resetInstanceValue(node.id, item.node.id, key, { translation: true })"
+              @update="(value) => builder.setInstanceValue(node.id, item.node.id, key, value)"
+            >
+              <template v-if="builder.hasInstanceValue(node, item.node.id, key) && !builder.translating.value" #status>
+                <button
+                  type="button"
+                  class="inline-flex rounded-sm text-slate-400 hover:text-theme-600"
+                  :title="t('site.component.resetValue')"
+                  :aria-label="t('site.component.resetValue')"
+                  @click="builder.resetInstanceValue(node.id, item.node.id, key)"
+                >
+                  <Icon icon="mdi:restore" class="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </template>
+            </BuilderControl>
+          </div>
+          <p v-if="builder.componentTrees.value[component.id] && !instanceFields.length" class="text-xs text-slate-500">{{ t("site.component.noEditable") }}</p>
+        </template>
       </template>
 
       <template v-else-if="tab === 'content'">
@@ -113,9 +146,24 @@
           :node="node"
           :name="key"
           :def="propSpec[key]"
-          :value="node.props[key]"
+          :value="builder.viewValue(node, 'props', key)"
           @update="(value) => updateProp(key, value)"
-        />
+        >
+          <template v-if="canMarkEditable" #status>
+            <button
+              type="button"
+              class="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme-500"
+              :class="builder.isEditable(node, key) ? 'text-theme-600 hover:text-theme-800' : 'text-slate-300 hover:text-slate-500'"
+              :aria-pressed="builder.isEditable(node, key)"
+              :title="t(builder.isEditable(node, key) ? 'site.component.editableOn' : 'site.component.editableOff')"
+              :aria-label="t(builder.isEditable(node, key) ? 'site.component.editableOn' : 'site.component.editableOff')"
+              :disabled="builder.translating.value"
+              @click="builder.toggleEditable(node.id, key)"
+            >
+              <Icon :icon="builder.isEditable(node, key) ? 'mdi:pencil-circle' : 'mdi:pencil-circle-outline'" class="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </template>
+        </BuilderControl>
         <BuilderGroup
           v-if="scrollProps.length"
           v-model:open="scrollingOpen"
@@ -182,6 +230,10 @@
       </template>
 
       <template v-else>
+        <div v-if="hasStates" class="space-y-1.5">
+          <SegmentedControl :model-value="builder.styleState.value" :options="stateOptions" @update:model-value="(value) => (builder.styleState.value = value)" />
+          <p v-if="builder.styleState.value !== 'normal'" class="text-[11px] text-slate-500">{{ t(`site.override.stateHint.${builder.styleState.value}`) }}</p>
+        </div>
         <BuilderGroup
           v-for="group in styleGroups"
           :key="group.key"
@@ -195,21 +247,24 @@
             :node="node"
             :spec="styleSpec"
             :keys="group.keys"
-            @update="(key, value) => builder.updateValue(node.id, 'style', key, value)"
+            :value-for="(key) => builder.viewValue(node, 'style', key)"
+            :overridden="(key) => ownOverride('style', key)"
+            @update="(key, value) => builder.editValue(node.id, 'style', key, value)"
           />
           <template v-else>
             <BuilderControl
               v-for="key in group.keys"
-              :key="`${node.id}-s-${key}`"
+              :key="`${node.id}-${group.part}-${key}`"
               :node="node"
               :name="key"
-              group="style"
-              :def="styleSpec[key]"
-              :value="node.style?.[key] ?? styleSpec[key].default"
-              @update="(value) => builder.updateValue(node.id, 'style', key, value)"
+              :group="group.part"
+              :def="group.part === 'props' ? propSpec[key] : styleSpec[key]"
+              :value="builder.viewValue(node, group.part, key) ?? (group.part === 'props' ? propSpec[key] : styleSpec[key]).default"
+              @update="(value) => builder.editValue(node.id, group.part, key, value)"
             />
           </template>
         </BuilderGroup>
+        <p v-if="!styleGroups.length" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
       </template>
     </div>
   </div>
@@ -226,7 +281,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import SpacingControl from "./SpacingControl.vue";
@@ -234,6 +289,8 @@ import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import BuilderTabs from "./BuilderTabs.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
+import SegmentedControl from "../SegmentedControl.vue";
+import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
 import { nodeIcon } from "./kindIcons.js";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
 import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumbs.js";
@@ -245,10 +302,14 @@ defineProps({
 });
 defineEmits(["edit-template-part"]);
 
+/** A button's own colors sit with its style, though they are props. */
+const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color"];
+
 const STYLE_GROUPS = [
+  { key: "button", part: "props", keys: BUTTON_COLORS },
   { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
-  { key: "text", keys: ["text_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
+  { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
@@ -262,10 +323,27 @@ const inspectorTabs = computed(() => [
   { value: "style", label: t("site.builder.style"), icon: "mdi:palette-swatch-outline" },
 ]);
 /** Only the most used groups start open. */
-const OPEN_STYLE_GROUPS = ["spacing", "text"];
+const OPEN_STYLE_GROUPS = ["button", "spacing", "text"];
 const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
 
 const node = computed(() => builder.selected.value);
+const kindSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind] ?? {});
+/** Hover and focus edit only their own values, so each element starts in its normal state. */
+const hasStates = computed(() => !isInstance.value && ["props", "style"].some((part) => kindSpec.value.states?.[part]?.length));
+watch(() => node.value?.id, () => { builder.styleState.value = "normal"; });
+const stateOptions = computed(() => ["normal", "hover", "focus"].map((value) => ({
+  value,
+  label: t(`site.state.${value}`),
+  icon: STATE_ICONS[value],
+  showLabel: true,
+})));
+
+/** Whether the key has its own value on the previewed device or in the edited state. */
+function ownOverride(part, key) {
+  const target = builder.overrideTarget(node.value, part, key);
+  if (!target) return false;
+  return builder.overridesOf(node.value, part, key)[target.group === "states" ? "states" : "devices"].includes(target.variant);
+}
 /** One sentence on what the selected kind of element is for. */
 const kindHint = computed(() => {
   if (!node.value) return "";
@@ -286,6 +364,11 @@ const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.p
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
 const component = computed(() => builder.componentOf(node.value));
+watch(() => component.value?.id, (id) => builder.loadComponentTree(id), { immediate: true });
+/** What the component lets this placement set. */
+const instanceFields = computed(() => (isInstance.value ? builder.instanceFields(node.value) : []));
+/** In a component, each content prop can be left for every placement to set. */
+const canMarkEditable = computed(() => !!builder.componentId.value && !!node.value && ![COMPONENT, "page_content"].includes(node.value.kind));
 const locked = computed(() => builder.translating?.value || (!!node.value && builder.isLockedRoot(node.value.id)));
 const nodePath = useBuilderBreadcrumbs(builder);
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
@@ -354,9 +437,13 @@ function styleVisible(key) {
 }
 
 const styleGroups = computed(() => {
-  const allowed = builder.spec.value?.kinds?.[node.value?.kind]?.style ?? [];
+  const allowed = { props: Object.keys(propSpec.value), style: kindSpec.value.style ?? [] };
   return STYLE_GROUPS
-    .map((group) => ({ ...group, keys: group.keys.filter((key) => allowed.includes(key) && styleVisible(key)) }))
+    .map((group) => {
+      const part = group.part ?? "style";
+      const keys = group.keys.filter((key) => allowed[part].includes(key) && (part === "props" || styleVisible(key)) && builder.editableInState(node.value, part, key));
+      return { ...group, part, keys };
+    })
     .filter((group) => group.keys.length > 0);
 });
 
@@ -400,7 +487,8 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "collection") {
-    return keys.filter((key) => key !== "filter_value" || props.filter_field);
+    // Visitor filters and sorting need the list's fields.
+    return keys.filter((key) => (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
   }
 
   if (["image", "gallery"].includes(current.kind)) {
@@ -422,6 +510,11 @@ const visibleProps = computed(() => {
   if (current.kind === "language_switcher") {
     // Flags on their own leave no text to format.
     return keys.filter((key) => key !== "format" || props.flag !== "only");
+  }
+
+  if (current.kind === "button") {
+    // Colors are set with the style; spacing and position only matter with an icon.
+    return keys.filter((key) => !BUTTON_COLORS.includes(key) && (!["icon_position", "icon_gap"].includes(key) || !!props.icon));
   }
 
   if (current.kind === "search") {
@@ -462,7 +555,7 @@ const contentProps = computed(() => visibleProps.value.filter((key) => !scrollPr
 
 function updateProp(key, value) {
   if (key !== "source") {
-    builder.updateValue(node.value.id, "props", key, value);
+    builder.editValue(node.value.id, "props", key, value);
     return;
   }
 

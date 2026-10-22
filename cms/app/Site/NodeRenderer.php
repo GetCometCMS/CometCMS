@@ -37,6 +37,43 @@ final class NodeRenderer
 
     private const MAX_COMPONENT_DEPTH = 5;
 
+    /** Utility class of each style value, without its `c-` (see styleClasses). */
+    private const STYLE_TOKENS = [
+        'padding_y' => 'py-',
+        'padding_x' => 'px-',
+        'padding_top' => 'pt-',
+        'padding_right' => 'pr-',
+        'padding_bottom' => 'pb-',
+        'padding_left' => 'pl-',
+        'margin_top' => 'mt-',
+        'margin_right' => 'mr-',
+        'margin_left' => 'ml-',
+        'margin_bottom' => 'mb-',
+        'background' => 'bg-',
+        'text_color' => 'fg-',
+        'link_color' => 'lc-',
+        'align' => 'ta-',
+        'font_size' => 'fs-',
+        'font_weight' => 'fw-',
+        'font_family' => 'ff-',
+        'text_shadow' => 'ts-',
+        'radius' => 'r-',
+        'shadow' => 'sh-',
+        'max_width' => 'mw-',
+        'border_color' => 'bdc-',
+    ];
+
+    /** Utility class of each prop a device may change on the node's own element. */
+    private const PROP_TOKENS = [
+        'section' => ['vertical_align' => 'v-'],
+        'row' => ['gap' => 'gap-', 'align' => 'items-'],
+        'column' => ['vertical_align' => 'self-', 'spacing' => 'stack-', 'content_justify' => 'flow-justify-', 'content_align' => 'flow-align-'],
+        'spacer' => ['size' => 'spacer-'],
+    ];
+
+    /** Button color props and their classes on the button itself. */
+    private const BUTTON_COLOR_TOKENS = ['button_color' => 'btn-bg-', 'button_text_color' => 'btn-fg-', 'button_border_color' => 'btn-bdc-'];
+
     private int $annotationsSuspended = 0;
 
     private int $menuSequence = 0;
@@ -270,7 +307,9 @@ final class NodeRenderer
             $order = $reverse ? -$index : null;
             $inner .= $this->node($column, $columnState, $order);
         }
-        if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
+        // Spacers contribute height without text or media, including inside nested rows.
+        $hasSpacer = preg_match('/class="[^"]*\bc-spacer\b/', $inner) === 1;
+        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
             // The entry builder renders shared rows without annotations. Keep
             // rows around empty page areas so their drop targets and area
             // switchers survive, including all enclosing rows and sections.
@@ -339,6 +378,7 @@ final class NodeRenderer
             return $tree === null ? $this->componentPlaceholder($node, 'missingComponent', 'Missing component') : $this->componentPlaceholder($node, 'componentLoop', 'A component cannot contain itself');
         }
 
+        $tree = LayoutSchema::applyOverrides([$tree], $node['overrides'] ?? [])[0];
         if ($root === 'column') {
             $tree['props']['span'] = $node['props']['span'];
         }
@@ -601,8 +641,40 @@ final class NodeRenderer
     {
         $props = $node['props'];
         $link = $this->resolveLink($props['link'], $state);
-        $classes = 'c-button c-button-' . $props['variant'] . ' c-button-' . $props['size'] . ($props['full_width'] ? ' c-button-block' : '');
-        $label = Security::e($props['label']);
+        $classes = ['c-button', 'c-button-' . $props['variant'], 'c-button-' . $props['size']];
+        if ($props['full_width']) {
+            $classes[] = 'c-button-block';
+        }
+        foreach (array_keys(StyleVariants::DEVICES) as $device) {
+            $override = $node['responsive'][$device]['props'] ?? [];
+            if (isset($override['size'])) {
+                $classes[] = StyleVariants::PREFIXES[$device] . 'button-' . $override['size'];
+            }
+            if (isset($override['full_width'])) {
+                $classes[] = StyleVariants::PREFIXES[$device] . 'button-' . ($override['full_width'] ? 'block' : 'inline');
+            }
+        }
+        foreach (self::BUTTON_COLOR_TOKENS as $key => $token) {
+            if (($props[$key] ?? '') !== '') {
+                $classes[] = 'c-' . $token . $props[$key];
+            }
+            foreach (StyleVariants::STATES as $variant) {
+                if (($node['states'][$variant]['props'][$key] ?? '') !== '') {
+                    $classes[] = StyleVariants::PREFIXES[$variant] . $token . $node['states'][$variant]['props'][$key];
+                }
+            }
+        }
+        if ($props['icon'] !== '' && ($props['icon_gap'] ?? 'sm') !== 'sm') {
+            $classes[] = 'c-button-gap-' . $props['icon_gap'];
+        }
+        $classes = implode(' ', $classes);
+        // The label has an element of its own, so the builder edits it apart from the icon.
+        $label = '<span class="c-button-label">' . Security::e($props['label']) . '</span>';
+        $icon = $props['icon'] !== '' ? (Icons::catalog()[$props['icon']] ?? null) : null;
+        if ($icon !== null) {
+            $svg = '<svg class="c-button-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>';
+            $label = $props['icon_position'] === 'end' ? $label . $svg : $svg . $label;
+        }
 
         if ($link === null) {
             return $this->annotating() ? $this->element($node, '<span class="' . $classes . '">' . $label . '</span>') : '';
@@ -991,15 +1063,21 @@ final class NodeRenderer
         }
 
         $schema = $this->ctx->type($type);
+        $filters = new ListFilters($this->ctx, $node, $schema ?? []);
         $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
         $params = [
-            'sort' => ($props['sort_order'] === 'desc' ? '-' : '') . $props['sort_field'],
+            'sort' => $filters->sort() ?? ($props['sort_order'] === 'desc' ? '-' : '') . $props['sort_field'],
             'limit' => $props['limit'],
             'offset' => ($page - 1) * $props['limit'],
         ];
 
         if ($props['filter_field'] !== '' && $props['filter_value'] !== '') {
-            $params['filter'] = [$props['filter_field'] => $props['filter_value']];
+            $params['filter'] = [$props['filter_field'] => ['eq' => $props['filter_value']]];
+        }
+
+        // Visitor filters narrow the editor's own filter further.
+        foreach ($filters->conditions() as $field => $condition) {
+            $params['filter'][$field] = ($params['filter'][$field] ?? []) + $condition;
         }
 
         $current = $state['entry'] ?? null;
@@ -1008,20 +1086,25 @@ final class NodeRenderer
         }
 
         $result = $this->ctx->query($type, $params);
+        $bar = $filters->html((string) ($state['path'] ?? ''));
 
         if ($result['data'] === []) {
             $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';
+            if ($empty === '' && $filters->chosen() !== []) {
+                $empty = '<p class="c-empty">' . Security::e(Messages::get('no_results', $this->ctx->htmlLang())) . '</p>';
+            }
             if ($empty === '' && $this->annotating()) {
                 $empty = '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => (string) ($schema['label'] ?? $type)]) . '>No published ' . Security::e((string) ($schema['label'] ?? $type)) . ' yet</div>';
             }
 
-            return $empty === '' ? '' : $this->element($node, $empty);
+            // A filter that matches nothing keeps its bar, so it can be changed again.
+            return $empty === '' && $bar === '' ? '' : $this->element($node, $bar . $empty);
         }
 
-        $html = $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
+        $html = $bar . $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
 
         if ($props['paginate'] && $result['total'] > $props['limit']) {
-            $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), $state);
+            $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), ['path' => $filters->url((string) ($state['path'] ?? ''), $filters->chosen())] + $state);
         }
 
         return $this->element($node, $html);
@@ -1557,6 +1640,7 @@ final class NodeRenderer
 
     private function attributes(array $node, array $classes, string $style = ''): string
     {
+        $classes = [...$classes, ...$this->overrideClasses($node)];
         $attributes = ' class="' . Security::e(implode(' ', array_unique(array_filter($classes)))) . '"';
 
         if (($node['style']['anchor'] ?? '') !== '') {
@@ -1574,35 +1658,40 @@ final class NodeRenderer
         return $attributes;
     }
 
+    /**
+     * Classes of a node's tablet, mobile, hover and focus values (see
+     * StyleVariants). Button props go on the button itself (see button()).
+     */
+    private function overrideClasses(array $node): array
+    {
+        $classes = [];
+        $tokens = ['props' => self::PROP_TOKENS[$node['kind']] ?? [], 'style' => self::STYLE_TOKENS];
+
+        foreach (['responsive', 'states'] as $group) {
+            foreach ($node[$group] ?? [] as $variant => $values) {
+                foreach (['props', 'style'] as $part) {
+                    foreach ($values[$part] ?? [] as $key => $value) {
+                        if (isset($tokens[$part][$key]) && is_string($value) && $value !== '') {
+                            $classes[] = StyleVariants::PREFIXES[$variant] . $tokens[$part][$key] . $value;
+                        }
+                    }
+                }
+            }
+        }
+        if (($node['states'] ?? []) !== []) {
+            $classes[] = 'c-stateful';
+        }
+
+        return $classes;
+    }
+
     private function styleClasses(array $style): array
     {
         $classes = [];
-        $prefixes = [
-            'padding_y' => 'c-py-',
-            'padding_x' => 'c-px-',
-            'padding_top' => 'c-pt-',
-            'padding_right' => 'c-pr-',
-            'padding_bottom' => 'c-pb-',
-            'padding_left' => 'c-pl-',
-            'margin_top' => 'c-mt-',
-            'margin_right' => 'c-mr-',
-            'margin_left' => 'c-ml-',
-            'margin_bottom' => 'c-mb-',
-            'background' => 'c-bg-',
-            'text_color' => 'c-fg-',
-            'align' => 'c-ta-',
-            'font_size' => 'c-fs-',
-            'font_weight' => 'c-fw-',
-            'font_family' => 'c-ff-',
-            'text_shadow' => 'c-ts-',
-            'radius' => 'c-r-',
-            'shadow' => 'c-sh-',
-            'max_width' => 'c-mw-',
-        ];
 
-        foreach ($prefixes as $key => $prefix) {
-            if (($style[$key] ?? '') !== '') {
-                $classes[] = $prefix . $style[$key];
+        foreach (self::STYLE_TOKENS as $key => $token) {
+            if ($key !== 'border_color' && ($style[$key] ?? '') !== '') {
+                $classes[] = 'c-' . $token . $style[$key];
             }
         }
 

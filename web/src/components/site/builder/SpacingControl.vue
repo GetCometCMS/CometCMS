@@ -17,8 +17,8 @@
       :aria-controls="activeKey === control.key ? listId : undefined"
       :aria-activedescendant="activeKey === control.key ? `${listId}-${activeIndex}` : undefined"
       class="absolute flex h-7 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[5px] text-[11px] font-semibold hover:bg-theme-50 hover:text-theme-700 hover:ring-1 hover:ring-theme-300 focus-visible:bg-theme-50 focus-visible:text-theme-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-theme-300 aria-expanded:bg-theme-50 aria-expanded:text-theme-700 aria-expanded:outline-none aria-expanded:ring-1 aria-expanded:ring-theme-300"
-      :class="[positionClasses[control.key], control.value !== '' ? 'text-slate-700' : 'text-slate-400']"
-      :title="`${control.label}: ${optionLabel(control.value)}`"
+      :class="[positionClasses[control.key], control.own ? 'text-theme-700 underline decoration-dotted underline-offset-2' : control.value !== '' ? 'text-slate-700' : 'text-slate-400']"
+      :title="`${control.label}: ${optionLabel(control.value)}${control.own ? ` (${t(`site.device.${builder?.device.value}`)})` : ''}`"
       @click="toggle(control, $event.currentTarget)"
       @keydown="onKeydown($event, control)"
       @blur="close()"
@@ -58,16 +58,22 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useSiteStore } from "../../../stores/site.js";
+import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
 const props = defineProps({
   node: { type: Object, required: true },
   spec: { type: Object, required: true },
   keys: { type: Array, required: true },
+  /** The value shown for a key, e.g. on the previewed device; defaults to the node's own. */
+  valueFor: { type: Function, default: null },
+  /** Whether a key has its own value on the previewed device. */
+  overridden: { type: Function, default: () => false },
 });
 const emit = defineEmits(["update"]);
 const { t } = useI18n();
 const site = useSiteStore();
+const builder = useSiteBuilder();
 const theme = computed(() => site.draft?.theme ?? site.data?.theme);
 const labels = { '': '–', none: '0', xs: 'XS', sm: 'S', md: 'M', lg: 'L', xl: 'XL', '2xl': '2XL' };
 const shortLabel = (value) => labels[value] ?? value;
@@ -97,8 +103,8 @@ const controls = computed(() => ["margin", "padding"].flatMap((group) =>
     const pair = group === "padding" ? `padding_${['top', 'bottom'].includes(side) ? 'y' : 'x'}` : null;
     // Older pages keep their paired padding; a side overrides only that edge.
     const inherited = pair ? props.node.style?.[pair] : '';
-    const value = props.node.style?.[key] || inherited || '';
-    return [{ key, group, side, value, options: props.spec[key].options ?? [], label: t(`site.style.${key}`) }];
+    const value = (props.valueFor ? props.valueFor(key) : props.node.style?.[key]) || inherited || '';
+    return [{ key, group, side, value, own: props.overridden(key), options: props.spec[key].options ?? [], label: t(`site.style.${key}`) }];
   }),
 ));
 

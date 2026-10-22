@@ -10,13 +10,14 @@
     >
       <Icon
         :icon="modelValue || placeholder"
-        class="w-5 h-5 text-slate-600 shrink-0"
+        class="w-5 h-5 shrink-0"
+        :class="modelValue ? 'text-slate-600' : 'text-slate-300'"
       />
       <span
         class="flex-1 truncate"
         :class="modelValue ? 'text-slate-700' : 'text-slate-400'"
       >
-        {{ modelValue || placeholder }}
+        {{ modelValue || emptyLabel || placeholder }}
       </span>
       <Icon
         icon="mdi:chevron-down"
@@ -100,6 +101,8 @@ const props = defineProps({
   placeholder: { type: String, default: "mdi:file-document-outline" },
   icons: { type: Array, default: null },
   allowCustom: { type: Boolean, default: true },
+  /** Shown instead of the placeholder's name while no icon is chosen. */
+  emptyLabel: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue"]);

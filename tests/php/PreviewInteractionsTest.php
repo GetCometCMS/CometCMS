@@ -56,7 +56,11 @@ SEED . 'foreach (["admin", "reader"] as $role) { session_id(' . var_export($pref
         usleep(300000);
         foreach (['', '/cms'] as $base) {
             $cookie = 'cometcms_admin=' . $prefix . '-admin';
-            [$status, $html, $headers] = comet_site_preview_test_request($port, $base . '/admin/site-preview/posts/open?workspace=default', $cookie);
+            $source = $base . '/admin/media?folder=photos&workspace=default#selection';
+            $returnQuery = '&returnTo=' . rawurlencode($source);
+            [$status, $html, $headers] = comet_site_preview_test_request($port, $base . '/admin/site-preview/posts/open?workspace=default' . $returnQuery, $cookie);
+            assert_true(str_contains($html, 'class="c-admin-brand" href="' . htmlspecialchars($source, ENT_QUOTES) . '"'));
+            assert_true(str_contains($html, 'returnTo=' . urlencode($source)));
             assert_same(200, $status);
             assert_true(str_contains($html, 'data-admin-theme="orange"'));
             foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class, ThemeToggle::class] as $module) {
@@ -68,12 +72,14 @@ SEED . 'foreach (["admin", "reader"] as $role) { session_id(' . var_export($pref
             assert_true(str_contains($headers['content-security-policy'], "form-action 'none'"));
             assert_true(str_contains($html, 'data-search="' . $base . '/admin/api/site/preview-search?workspace=default'));
             $readerCookie = 'cometcms_admin=' . $prefix . '-reader';
-            [$status, $json, $headers] = comet_site_preview_test_request($port, $base . '/admin/api/site/preview-search?workspace=default&q=draft', $readerCookie);
+            [$status, $json, $headers] = comet_site_preview_test_request($port, $base . '/admin/api/site/preview-search?workspace=default&q=draft' . $returnQuery, $readerCookie);
             assert_same(200, $status);
             assert_same('private, no-store', $headers['cache-control']);
             $hits = json_decode($json, true)['data'];
             assert_same(['Visible draft'], array_column($hits, 'title'));
             assert_true(str_starts_with($hits[0]['url'], $base . '/admin/site-preview?workspace=default&path='));
+            parse_str(parse_url($hits[0]['url'], PHP_URL_QUERY), $navigation);
+            assert_same($source, $navigation['returnTo']);
             assert_same(401, comet_site_preview_test_request($port, $base . '/admin/api/site/preview-search?q=draft')[0]);
             [$status, $json] = comet_site_preview_test_request($port, $base . '/admin/api/site/preview-snapshots?workspace=default', $cookie, 'POST', [
                 'target' => 'entry', 'type' => 'posts', 'entry' => 'open',

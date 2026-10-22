@@ -37,9 +37,13 @@ final class SiteContext
      */
     public ?array $pageDraft = null;
 
+    /** Visitor filters of entry lists, by list (see ListFilters::fromQuery). */
+    public array $listParams = [];
+
     /** Signed-in full-page previews keep navigation and admin actions together. */
     public bool $browsePreview = false;
     public string $previewToken = '';
+    private string $previewReturnUrl = '';
     public ?string $previewTime = null;
     private array $previewEntries = [];
     public ?array $adminUser = null;
@@ -78,6 +82,7 @@ final class SiteContext
         $saved->annotate = $this->annotate;
         $saved->browsePreview = $this->browsePreview;
         $saved->previewToken = $this->previewToken;
+        $saved->previewReturnUrl = $this->previewReturnUrl;
         $saved->previewTime = $this->previewTime;
         $saved->adminUser = $this->adminUser;
         $saved->adminCan = $this->adminCan;
@@ -196,7 +201,7 @@ final class SiteContext
     public function searchUrl(): string
     {
         if ($this->browsePreview) {
-            return $this->adminUrl('/api/site/preview-search', $this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []);
+            return $this->adminUrl('/api/site/preview-search', $this->previewNavigationQuery());
         }
         return $this->basePath . '/_site/search/' . rawurlencode($this->site->workspace()->slug());
     }
@@ -262,7 +267,7 @@ final class SiteContext
             return $this->basePath . '/admin/site-preview?' . http_build_query(array_merge($query, [
                 'workspace' => $this->site->workspace()->slug(),
                 'path' => $parts['path'] ?? '/',
-                ...($this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []),
+                ...$this->previewNavigationQuery(),
             ])) . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
         }
 
@@ -407,11 +412,46 @@ final class SiteContext
         $this->entries = [];
     }
 
-    public function adminAllows(string $action, string $type = '', array $entry = []): bool
+    public function adminAllows(string $action, string $type = '', array $entry = [], array $fields = []): bool
     {
         return $this->adminCan !== null && ($this->adminCan)($action, [
             'type' => 'content', 'collection' => $type, 'entry' => $entry, 'locale' => $this->locale,
+            ...($fields !== [] ? ['fields' => $fields] : []),
         ]);
+    }
+
+    /** Accept only local admin UI paths; preview URLs must never become return loops. */
+    public function setPreviewReturnUrl(mixed $url): void
+    {
+        $this->previewReturnUrl = '';
+        if (!is_string($url) || strlen($url) > 8192 || preg_match('/[\x00-\x20\x7f\\\\]/', $url)) return;
+        $prefix = $this->basePath . '/admin/';
+        if (!str_starts_with($url, $prefix)) return;
+        $parts = parse_url($url);
+        if ($parts === false || isset($parts['host']) || isset($parts['scheme'])) return;
+        $path = rawurldecode($parts['path'] ?? '');
+        if (!str_starts_with($path, $prefix)) return;
+        $route = substr($path, strlen($prefix));
+        if (!preg_match('~^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/?$~D', $route)
+            || in_array(explode('/', $route)[0], ['api', 'site-preview', 'login', 'logout', 'setup'], true)) return;
+        parse_str($parts['query'] ?? '', $query);
+        // Returning to this workspace must not depend on another tab's stored selection.
+        $query['workspace'] = $this->site->workspace()->slug();
+        $this->previewReturnUrl = $parts['path'] . '?' . http_build_query($query)
+            . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
+    }
+
+    public function previewReturnUrl(): string
+    {
+        return $this->previewReturnUrl !== '' ? $this->previewReturnUrl : $this->adminUrl('/dashboard');
+    }
+
+    public function previewNavigationQuery(): array
+    {
+        return [
+            ...($this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []),
+            ...($this->previewReturnUrl !== '' ? ['returnTo' => $this->previewReturnUrl] : []),
+        ];
     }
 
     public function adminUrl(string $path, array $query = []): string

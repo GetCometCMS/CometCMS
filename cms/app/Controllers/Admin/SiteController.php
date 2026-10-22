@@ -906,6 +906,7 @@ final class SiteController extends BaseController
         $context->previewBanner = true;
         $context->browsePreview = true;
         $context->adminUser = $user;
+        $context->setPreviewReturnUrl($_GET['returnTo'] ?? null);
         $context->adminCan = fn(string $action, array $scope): bool => $this->can($user, $action,
             $action === 'site.manage' ? ['resource' => 'site:*'] : $scope);
         return $context;

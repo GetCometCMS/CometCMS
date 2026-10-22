@@ -70,8 +70,49 @@ async function canvas(props = {}) {
     doc.dispatch('click', event)
     return event
   }
-  return { doc, parts, highlight, hover, click, selectTemplatePart, editField, builder }
+  const badge = overlays.find((element) => element.className === 'cometcms-badge')
+  return { doc, parts, highlight, badge, hover, click, selectTemplatePart, editField, builder }
 }
+
+describe('builder canvas dragging', () => {
+  it.each(['section', 'row', 'column', 'heading'])('moves the selected %s from its label', async (kind) => {
+    const { doc, badge, builder } = await canvas()
+    const id = `${kind}1`
+    const node = { dataset: { node: id } }
+    builder.selectedId.value = id
+    vi.spyOn(doc, 'querySelector').mockImplementation((selector) => selector === `[data-node="${id}"]` ? node : null)
+    const label = badge.children[0]
+    label.closest = (selector) => selector === '.cometcms-badge-label' ? label : null
+    const dataTransfer = { setData: vi.fn() }
+    vi.stubGlobal('CSS', { escape: (value) => value })
+    try {
+      expect(label.attributes.draggable).toBe('true')
+      doc.dispatch('dragstart', { target: label, dataTransfer })
+      expect(builder.drag.value).toEqual({ source: 'move', id })
+      expect(dataTransfer.effectAllowed).toBe('move')
+      expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', id)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('keeps the menu out of dragging and still supports dragging nodes directly', async () => {
+    const { doc, badge, builder } = await canvas()
+    const menu = badge.children[1]
+    menu.closest = () => null
+    const dataTransfer = { setData: vi.fn() }
+    expect(menu.attributes.draggable).toBe('false')
+    doc.dispatch('dragstart', { target: menu, dataTransfer })
+    expect(builder.drag.value).toBeNull()
+    expect(dataTransfer.setData).not.toHaveBeenCalled()
+
+    const node = { dataset: { node: 'heading1' } }
+    node.closest = (selector) => selector === '[data-node]' ? node : null
+    doc.dispatch('dragstart', { target: node, dataTransfer })
+    expect(builder.drag.value).toEqual({ source: 'move', id: 'heading1' })
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'heading1')
+  })
+})
 
 describe('builder shared template hover', () => {
   it('shows a labeled overlay for header and footer descendants, then clears it over page content', async () => {

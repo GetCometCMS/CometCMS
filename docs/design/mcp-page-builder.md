@@ -41,10 +41,14 @@ Every layout response identifies collection, variant and whole-layout revision.
 | `get_element` | target + `element_id` | One node's props/style/name plus child ID/kind summaries, enclosing section ID, revision. Can also inspect structural nodes. |
 | `set_layout` | target + `revision`, `sections` | Explicit full replacement, including empty list. Compact resulting layout overview and new revision. |
 | `update_section` | target + `revision`, `section_id`, `patch` | Partial patch of `name`, `props`, `style`, or explicit replacement `children`. Other sections and omitted keys preserved. Returns compact overview and new revision. |
-| `update_element_props` | target + `revision`, `element_id`, `props`, optional `style` | Partial property/style update of any node by ID, preserving children. Returns changed node (no descendant trees) and new revision. |
+| `update_element_props` | target + `revision`, `element_id`, `props`, optional `style`, `responsive`, `states` | Partial property/style update of any node by ID, preserving children. Returns changed node (no descendant trees) and new revision. |
 
 `target` is `collection`, `variant`. Nodes use the existing
-`{id?, kind, name?, props?, style?, children?}` vocabulary. Omitted IDs are
+`{id?, kind, name?, props?, style?, responsive?, states?, children?}` vocabulary.
+`responsive` (`{tablet?, mobile?: {props?, style?}}`) and `states`
+(`{hover?, focus?: {props?, style?}}`) hold values that differ on smaller
+screens or while hovered or focused; `get_builder_schema(kind)` lists the keys
+each accepts, and a patch replaces the whole map. Omitted IDs are
 server-generated; supplied IDs must be unique and valid. Property/style maps
 merge at the property-key level: supplying an object-valued property replaces
 that property, including localized maps. Read it first to preserve translations.

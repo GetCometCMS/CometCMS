@@ -187,3 +187,23 @@ test('icon validation restricts identifiers to bundled assets and clamps size', 
     assert_same(12, $nodes[1]['props']['size']);
     assert_same('', $nodes[1]['props']['link']['url']);
 });
+
+test('section minimum heights survive saving and render viewport presets including existing values', function (): void {
+    comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context());
+    foreach (['', 'quarter', 'half', 'three-quarter', 'screen'] as $height) {
+        $nodes = LayoutSchema::normalize([LayoutSchema::node('section', ['min_height' => $height, 'vertical_align' => 'center'], [], [
+            LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Section content'])])]),
+        ])]);
+        assert_same($height, $nodes[0]['props']['min_height']);
+        $html = $renderer->render($nodes);
+        assert_true(str_contains($html, 'c-v-center'));
+        if ($height === '') {
+            assert_false(str_contains($html, 'c-min-h-'));
+        } else {
+            assert_true(str_contains($html, 'c-min-h-' . $height));
+        }
+    }
+    $invalid = LayoutSchema::normalize([LayoutSchema::node('section', ['min_height' => 'invalid'])]);
+    assert_same('', $invalid[0]['props']['min_height']);
+});

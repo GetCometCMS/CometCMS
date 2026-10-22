@@ -135,3 +135,61 @@ describe('builder search targets', () => {
     expect(blogOnly).toMatch(/checked[^>]*>\s*<span[^>]*>Body</)
   })
 })
+
+describe('builder section minimum height', () => {
+  const def = { type: 'enum', options: ['', 'quarter', 'half', 'three-quarter', 'screen'], default: '' }
+
+  it('shows five labeled radio presets and preserves the saved selection', async () => {
+    for (const value of def.options) {
+      const html = await renderControl('min_height', def, value, {
+        node: { id: 'section1', kind: 'section', props: {}, style: {} },
+      })
+      expect(html.match(/type="radio"/g)).toHaveLength(5)
+      expect(html.match(/ checked/g)).toHaveLength(1)
+      expect(html).toContain(`value="${value}" checked`)
+      for (const label of ['Auto', '25%', '50%', '75%', '100%']) expect(html).toContain(`>${label}</span>`)
+      expect(html).toContain('Percentage of screen height. Content can make the section taller.')
+      expect(html).not.toContain('<select')
+    }
+  })
+})
+
+describe('builder list filters', () => {
+  const blog = { name: 'blog', label: 'Blog', fields: {
+    category: { type: 'select', label: 'Category' },
+    featured: { type: 'boolean', label: 'Featured' },
+    price: { type: 'number', label: 'Price' },
+    cover: { type: 'media', label: 'Cover' },
+  } }
+
+  async function renderListControl(name, type, value) {
+    const app = createSSRApp({ setup() {
+      const builder = createSiteBuilder({ t })
+      builder.types.value = [blog]
+      return () => h(BuilderControl, { node: { id: 'list1', kind: 'collection', props: { type: 'blog' }, style: {} }, name, def: { type, default: [] }, value })
+    } })
+    app.use(createPinia())
+    return renderToString(app)
+  }
+
+  it('shows each filter with the control its field type gives visitors and offers the remaining fields', async () => {
+    const html = await renderListControl('filters', 'list_filters', [{ field: 'category', label: '', multiple: true }, { field: 'gone' }])
+    expect(html).toContain('Filters for visitors')
+    expect(html).toContain('Category')
+    expect(html).toContain('Choices')
+    expect(html).toContain('Several')
+    expect(html).toContain('field missing')
+    expect(html).toContain('Featured · Switch')
+    expect(html).toContain('Price · From–to')
+    expect(html).toContain('Title · Search')
+    expect(html).not.toContain('Cover')
+  })
+
+  it('lists sortable fields and says when visitors get no sorting', async () => {
+    const html = await renderListControl('sort_choices', 'sort_fields', [])
+    expect(html).toContain('None: the list keeps its order')
+    expect(html).toContain('Published')
+    expect(html).toContain('Price')
+    expect(html).not.toContain('Cover')
+  })
+})

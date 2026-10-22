@@ -241,6 +241,39 @@ test('empty page content in nested rows keeps its editing area and styled parent
     assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'c-page-content'), 'The live page still omits the empty area.');
 });
 
+test('spacer-only rows survive in the entry builder and published page', function (): void {
+    $site = comet_page_test_setup();
+    $layout = [
+        comet_page_test_section('spacer', [
+            ['id' => 'nested-row', 'kind' => 'row', 'children' => [
+                ['id' => 'nested-column', 'kind' => 'column', 'children' => [
+                    ['id' => 'space', 'kind' => 'spacer', 'props' => ['size' => 'xl']],
+                ]],
+            ]],
+        ]),
+        comet_page_test_section('empty', []),
+        ['id' => 'place', 'kind' => 'page_content', 'props' => ['field' => 'design']],
+    ];
+    $layout[0]['style'] = ['background' => 'primary'];
+    $site->saveLayout('blog', 'detail', $layout);
+
+    $context = comet_site_test_context($site);
+    $context->preview = true;
+    $context->annotate = true;
+    $context->pageDraft = ['field' => 'design', 'nodes' => []];
+    $preview = (new PageRenderer($context))->pagePreview($site->types()['blog'], $context->findEntry('blog', 'hello', true), 'design');
+    $published = comet_site_test_get('/blog/hello')['body'];
+
+    foreach ([$preview, $published] as $html) {
+        preg_match('/<main\b[^>]*>(.*?)<\/main>/s', $html, $main);
+        $html = $main[1] ?? '';
+        assert_true(str_contains($html, 'c-spacer c-spacer-xl'), 'The spacer must retain its configured height.');
+        assert_same(2, substr_count($html, 'class="c-row '), 'Both spacer ancestors survive; the truly empty row stays hidden.');
+        assert_matches('/<section[^>]*class="[^"]*c-bg-primary/', $html, 'The spacer keeps its styled section.');
+    }
+    assert_false(str_contains($preview, 'data-node="space"'), 'The shared spacer stays outside the editable draft.');
+});
+
 test('the page builder marks the entry\'s other page content areas', function (): void {
     $site = comet_page_test_setup();
     $types = new \CometCMS\Content\ContentTypeRepository();

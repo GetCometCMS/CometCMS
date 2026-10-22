@@ -618,9 +618,10 @@
     @input="$emit('update:modelValue', $event.target.value)"
   />
 
+  <Teleport to="body">
   <div
     v-if="mediaPreviewFile"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/70 px-4 py-6"
+    class="fixed inset-0 z-[310] flex items-center justify-center bg-ink-950/70 px-4 py-6"
     @click.self="closeMediaPreview"
   >
     <div
@@ -668,6 +669,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>

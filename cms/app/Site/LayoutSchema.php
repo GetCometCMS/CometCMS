@@ -15,7 +15,9 @@ use CometCMS\Localization\LanguageSettings;
  * may hold rows of their own (up to MAX_ROW_DEPTH deep), and a collection
  * holds one column as the card it repeats for each entry. Every node
  * has the same shape ({id, kind, props, style, children}) and an optional
- * editor-only name. Props and style values are checked against this schema
+ * editor-only name. Optional `responsive` ({tablet, mobile}) and `states`
+ * ({hover, focus}) hold {props, style} values that differ on smaller screens
+ * or while hovered or focused (see StyleVariants). Props and style values are checked against this schema
  * whenever a layout is saved or
  * previewed, so the renderer only ever sees known keys and values. The admin
  * builder reads the same schema (see spec()) to draw its inspector.
@@ -122,6 +124,26 @@ final class LayoutSchema
     /** Entrance animation and its timing; the timing only applies to an animation. */
     private const ANIMATION_KEYS = ['animation', 'animation_trigger', 'animation_duration', 'animation_delay'];
 
+    /** Style a tablet or mobile override may change: values that render as a class. */
+    public const RESPONSIVE_STYLE = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left', 'background', 'text_color', 'link_color', 'align', 'font_size', 'font_weight', 'font_family', 'text_shadow', 'radius', 'shadow', 'max_width'];
+
+    /** Props a tablet or mobile override may change, per kind. */
+    public const RESPONSIVE_PROPS = [
+        'section' => ['vertical_align'],
+        'row' => ['gap', 'align'],
+        'column' => ['vertical_align', 'spacing', 'content_justify', 'content_align'],
+        'button' => ['size', 'full_width'],
+        'spacer' => ['size'],
+    ];
+
+    /** Style a hover or focus state may change. */
+    public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow'];
+
+    /** Props a hover or focus state may change, per kind. */
+    public const STATE_PROPS = [
+        'button' => ['button_color', 'button_text_color', 'button_border_color'],
+    ];
+
     public const LOCALIZED_PROPS = [
         'heading' => ['text', 'link'], 'text' => ['html'],
         'image' => ['media', 'link', 'alt', 'caption'], 'gallery' => ['media', 'link'],
@@ -156,6 +178,8 @@ final class LayoutSchema
             'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
             'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
             'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+            // Links inside the node; buttons keep their own colors.
+            'link_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
             'text_gradient' => ['type' => 'gradient', 'options' => Theme::COLOR_KEYS, 'default' => []],
             'align' => ['type' => 'enum', 'options' => ['', 'left', 'center', 'right'], 'default' => ''],
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'], 'default' => ''],
@@ -185,11 +209,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             self::COMPONENT, self::PAGE_CONTENT => [],
-            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
+            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 
@@ -202,7 +226,7 @@ final class LayoutSchema
         return match ($kind) {
             'section' => [
                 'width' => ['type' => 'enum', 'options' => ['contained', 'narrow', 'full'], 'default' => 'contained'],
-                'min_height' => ['type' => 'enum', 'options' => ['', 'half', 'screen'], 'default' => ''],
+                'min_height' => ['type' => 'enum', 'options' => ['', 'quarter', 'half', 'three-quarter', 'screen'], 'default' => ''],
                 'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
                 // Always stays at the top; reveal hides it while scrolling down and brings it back on the way up.
                 'sticky' => ['type' => 'enum', 'options' => ['none', 'always', 'reveal'], 'default' => 'none'],
@@ -296,6 +320,14 @@ final class LayoutSchema
                 'variant' => ['type' => 'enum', 'options' => ['primary', 'secondary', 'outline', 'link'], 'default' => 'primary'],
                 'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg'], 'default' => 'md'],
                 'full_width' => ['type' => 'bool', 'default' => false],
+                // Colors of the button itself, in place of its variant's.
+                'button_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+                'button_text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+                'button_border_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
+                // An icon before or after the label, sized with its text.
+                'icon' => ['type' => 'icon', 'options' => ['', ...Icons::names()], 'default' => ''],
+                'icon_position' => ['type' => 'enum', 'options' => ['start', 'end'], 'default' => 'start'],
+                'icon_gap' => ['type' => 'enum', 'options' => ['xs', 'sm', 'md', 'lg'], 'default' => 'sm'],
             ],
             'accordion' => [
                 'title' => ['type' => 'string', 'max' => 300, 'default' => 'Accordion title'],
@@ -328,6 +360,9 @@ final class LayoutSchema
                 'filter_field' => ['type' => 'key', 'default' => ''],
                 'filter_value' => ['type' => 'string', 'max' => 200, 'default' => ''],
                 'exclude_current' => ['type' => 'bool', 'default' => true],
+                // Controls visitors filter and sort the list with (see ListFilters).
+                'filters' => ['type' => 'list_filters', 'default' => []],
+                'sort_choices' => ['type' => 'sort_fields', 'default' => []],
                 'paginate' => ['type' => 'bool', 'default' => false],
                 'empty_text' => ['type' => 'string', 'max' => 300, 'default' => ''],
             ],
@@ -425,6 +460,8 @@ final class LayoutSchema
                 'props' => $props,
                 'style' => self::styleKeys($kind),
                 'children' => self::childrenFor($kind, $pageContent),
+                'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
+                'states' => ['props' => self::STATE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::STATE_STYLE, self::styleKeys($kind)))],
             ];
         }
 
@@ -448,6 +485,8 @@ final class LayoutSchema
             'max_node_name_length' => self::MAX_NODE_NAME_LENGTH,
             'regions' => self::REGIONS,
             'link_types' => self::LINK_TYPES,
+            'devices' => array_keys(StyleVariants::DEVICES),
+            'states' => StyleVariants::STATES,
         ];
     }
 
@@ -609,6 +648,53 @@ final class LayoutSchema
         $first = array_values(array_filter(is_array($nodes) ? $nodes : [], static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === $root));
 
         return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false);
+    }
+
+    /**
+     * An instance's own values for props its component marks editable:
+     * {inner node id: {prop: value}}. Only their shape is checked here; the
+     * values are checked against the inner node when they are applied, as
+     * the component may have changed since.
+     */
+    private static function instanceOverrides(mixed $value): array
+    {
+        $normalized = [];
+        foreach (array_slice(is_array($value) ? $value : [], 0, self::MAX_NODES, true) as $id => $props) {
+            $id = self::key($id);
+            if ($id === '' || !is_array($props)) {
+                continue;
+            }
+            foreach (array_slice($props, 0, 50, true) as $key => $item) {
+                $key = self::key($key);
+                if ($key !== '' && $item !== null) {
+                    $normalized[$id][$key] = $item;
+                }
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * A component's tree as one instance shows it: each of its own values
+     * replaces the value of a prop the component marks editable. Values for
+     * props that are no longer editable are kept on the instance but ignored.
+     */
+    public static function applyOverrides(array $nodes, array $overrides): array
+    {
+        if ($overrides === []) {
+            return $nodes;
+        }
+
+        foreach ($nodes as &$node) {
+            $own = array_intersect_key($overrides[$node['id'] ?? ''] ?? [], array_flip($node['editable'] ?? []));
+            if ($own !== [] && ($node['kind'] ?? '') !== self::COMPONENT) {
+                $node['props'] = self::normalizeProps((string) $node['kind'], array_replace($node['props'] ?? [], $own));
+            }
+            $node['children'] = self::applyOverrides($node['children'] ?? [], $overrides);
+        }
+
+        return $nodes;
     }
 
     /** A copy of $nodes with fresh ids throughout. */
@@ -992,11 +1078,26 @@ final class LayoutSchema
                 'style' => self::normalizeStyle($kind, $style),
                 'children' => $children,
             ];
+            foreach (['responsive' => array_keys(StyleVariants::DEVICES), 'states' => StyleVariants::STATES] as $group => $variants) {
+                $overrides = self::normalizeOverrides($kind, $node[$group] ?? null, $group, $variants);
+                if ($overrides !== []) {
+                    $entry[$group] = $overrides;
+                }
+            }
             $name = is_string($node['name'] ?? null)
                 ? trim(Text::limit(str_replace(["\r", "\n"], ' ', $node['name']), self::MAX_NODE_NAME_LENGTH))
                 : '';
             if ($name !== '') {
                 $entry['name'] = $name;
+            }
+            // Inside a component: props each placement may set (see applyOverrides()).
+            $editable = $kind === self::COMPONENT ? [] : array_values(array_intersect(self::keyList($node['editable'] ?? null), array_keys(self::propSpec($kind))));
+            if ($editable !== []) {
+                $entry['editable'] = $editable;
+            }
+            $overrides = $kind === self::COMPONENT ? self::instanceOverrides($node['overrides'] ?? null) : [];
+            if ($overrides !== []) {
+                $entry['overrides'] = $overrides;
             }
             $normalized[] = $entry;
         }
@@ -1066,6 +1167,44 @@ final class LayoutSchema
         return $normalized;
     }
 
+    /**
+     * Tablet and mobile, or hover and focus values of a node: only keys the
+     * kind offers for them, and only set values. An empty value follows the
+     * normal one (or the larger screen), so it is not kept.
+     */
+    private static function normalizeOverrides(string $kind, mixed $value, string $group, array $variants): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $keys = $group === 'responsive'
+            ? ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => self::RESPONSIVE_STYLE]
+            : ['props' => self::STATE_PROPS[$kind] ?? [], 'style' => self::STATE_STYLE];
+        $specs = ['props' => self::propSpec($kind), 'style' => self::styleSpec()];
+        $styleKeys = self::styleKeys($kind);
+        $normalized = [];
+
+        foreach ($variants as $variant) {
+            foreach (['props', 'style'] as $part) {
+                $values = $value[$variant][$part] ?? null;
+                if (!is_array($values)) {
+                    continue;
+                }
+                foreach ($keys[$part] as $key) {
+                    if (!array_key_exists($key, $values) || ($part === 'style' && !in_array($key, $styleKeys, true))) {
+                        continue;
+                    }
+                    $item = self::normalizeValue($specs[$part][$key], $values[$key]);
+                    if ($item !== '') {
+                        $normalized[$variant][$part][$key] = $item;
+                    }
+                }
+            }
+        }
+
+        return $normalized;
+    }
+
     private static function normalizeValue(array $spec, mixed $value): mixed
     {
         $default = $spec['default'];
@@ -1089,6 +1228,8 @@ final class LayoutSchema
             'sort_field' => self::key($value) !== '' ? self::key($value) : $default,
             'field', 'display', 'content_type', 'menu', 'form', 'key', 'page_field' => self::key($value),
             'content_types', 'search_fields' => self::keyList($value),
+            'sort_fields' => array_slice(self::keyList($value), 0, ListFilters::MAX_SORTS),
+            'list_filters' => ListFilters::normalize($value),
             default => $default,
         };
     }

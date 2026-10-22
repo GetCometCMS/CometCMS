@@ -58,6 +58,7 @@ function tokenHint(key, value, kind, theme) {
 }
 
 export const DEVICE_ICONS = { mobile: 'mdi:cellphone', tablet: 'mdi:tablet', desktop: 'mdi:monitor' }
+export const STATE_ICONS = { hover: 'mdi:cursor-default-click-outline', focus: 'mdi:keyboard-outline' }
 
 /**
  * Bar options for an enum, or null when a bar would not fit.

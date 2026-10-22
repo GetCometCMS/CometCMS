@@ -97,14 +97,14 @@ const BUILDER_CSS = `
 
 /* Each entry replaces this area with its own content, so it stays marked. */
 [data-kind="page_content"]{
-  --builder-color:#c08a1e;
+  --builder-color:#69bfce;
   outline:2px dashed color-mix(in srgb,var(--builder-color) 55%,transparent);
   outline-offset:-2px;
 }
 
 /* The page builder of one entry: everything around its page content belongs to the layout. */
 .c-view-page-edit .c-page-content[data-drop-root]{
-  outline:2px dashed color-mix(in srgb,#c08a1e 55%,transparent);
+  outline:2px dashed color-mix(in srgb,#69bfce 55%,transparent);
   outline-offset:-2px;
 }
 
@@ -113,7 +113,7 @@ const BUILDER_CSS = `
   position:relative;
   min-height:64px;
   cursor:pointer;
-  outline:2px dashed color-mix(in srgb,#c08a1e 30%,transparent);
+  outline:2px dashed color-mix(in srgb,#69bfce 30%,transparent);
   outline-offset:-2px;
 }
 
@@ -130,7 +130,7 @@ const BUILDER_CSS = `
   justify-content:center;
   padding:12px;
   background:rgba(255,255,255,.72);
-  color:#7a5410;
+  color:#286575;
   font:600 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
   text-align:center;
   opacity:0;
@@ -255,6 +255,8 @@ const BUILDER_CSS = `
 
 .cometcms-badge-label{
   padding:calc(6px * var(--s)) calc(8px * var(--s));
+  cursor:grab;
+  user-select:none;
 }
 
 .cometcms-badge-menu{
@@ -358,7 +360,7 @@ const RESIZE_EDGE = 8;
 const INLINE_TEXT = {
   heading: { key: "text", selector: ".c-heading" },
   text: { key: "html", selector: ".c-prose", rich: true },
-  button: { key: "label", selector: ".c-button" },
+  button: { key: "label", selector: ".c-button-label" },
 };
 
 
@@ -375,8 +377,10 @@ function attach(document) {
   badge.hidden = true;
   badgeLabel = doc.createElement("span");
   badgeLabel.className = "cometcms-badge-label";
+  badgeLabel.setAttribute("draggable", "true");
   const badgeMenu = doc.createElement("span");
   badgeMenu.className = "cometcms-badge-menu";
+  badgeMenu.setAttribute("draggable", "false");
   badgeMenu.setAttribute("aria-hidden", "true");
   badgeMenu.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
   badge.append(badgeLabel);
@@ -477,11 +481,22 @@ function prepare(document) {
   applySelection(false);
   applyHover();
   applyTemplatePartHover();
+  applyStatePreview();
   if (!resizing) {
     const edge = resizeEdge;
     resizeEdge = null;
     showResizeEdge(edge?.el.isConnected ? edge : null);
   }
+}
+
+/** Shows the hover or focus state being edited on the selected element and its button (see StyleVariants). */
+function applyStatePreview() {
+  if (!doc) return;
+  doc.querySelectorAll(".c-preview-hover, .c-preview-focus").forEach((el) => el.classList.remove("c-preview-hover", "c-preview-focus"));
+  const state = builder.styleState.value;
+  const el = state !== "normal" ? element(builder.selectedId.value) : null;
+  if (!el) return;
+  [el, ...el.querySelectorAll(":scope > .c-button")].forEach((target) => target.classList.add(`c-preview-${state}`));
 }
 
 function element(id) {
@@ -737,7 +752,9 @@ function onMouseOver(event) {
 }
 
 function onDragStart(event) {
-  const el = event.target.closest?.("[data-node]");
+  const el = event.target.closest?.(".cometcms-badge-label")
+    ? element(builder.selectedId.value)
+    : event.target.closest?.("[data-node]");
   if (!el) return;
   showResizeEdge(null);
   builder.drag.value = { source: "move", id: el.dataset.node };
@@ -966,6 +983,7 @@ watch(
   },
 );
 watch(() => builder.hoverId.value, applyHover);
+watch([() => builder.styleState.value, () => builder.selectedId.value], applyStatePreview);
 watch(() => props.selectedTemplatePart, applyTemplatePartHover);
 // Labels follow the arrangement (Column ↔ Row) before the preview re-renders.
 watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));

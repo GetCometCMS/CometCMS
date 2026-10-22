@@ -69,6 +69,31 @@ export function instanceNode(spec, component, props = {}) {
   return createNode(spec, COMPONENT, { ...props, component: component.id, root: component.root })
 }
 
+/**
+ * A copy of a component's tree as an instance shows it: the instance's own
+ * values replace those of the props the component marks editable (see
+ * LayoutSchema::applyOverrides).
+ */
+export function withOverrides(node, overrides) {
+  const copy = clone(node)
+  if (!overrides) return copy
+  walk([copy], (item) => {
+    for (const key of item.kind === COMPONENT ? [] : item.editable ?? []) {
+      if (overrides[item.id]?.[key] !== undefined) item.props = { ...item.props, [key]: clone(overrides[item.id][key]) }
+    }
+  })
+  return copy
+}
+
+/** Nodes of a component's tree with props each placement may set, in order. */
+export function editableNodes(nodes) {
+  const list = []
+  walk(nodes, (node) => {
+    if (node.kind !== COMPONENT && node.editable?.length) list.push(node)
+  })
+  return list
+}
+
 /** Whether a tree binds values of the entry the page shows ("current" references). */
 export function usesCurrentEntry(nodes) {
   const scan = (value) => {
