@@ -241,9 +241,15 @@ Each placed block is wrapped in an element with the class `c-block-<vendor>__<bl
 .c-block-cometcms__callout .cometcms-callout {
   padding: var(--space-lg, 1.5rem);
   border-inline-start: 4px solid var(--c-primary, #2563eb);
-  color: var(--c-text, #0f172a);
+}
+
+/* The builder's background controls override this default on the wrapper. */
+:where(.c-block-cometcms__callout) {
+  background-color: var(--c-background, #fff);
 }
 ```
+
+The **Style** controls already apply to the generated wrapper, including device and hover/focus overrides; no binding API is needed. Let text inherit its color, and keep the main content surface transparent so the wrapper's background colors, gradients and images stay visible. Put default backgrounds on the wrapper using `:where()` so the builder's utility classes take precedence. Setting `color: var(--c-text)` or an opaque background on an inner element hides those choices. For a default link color, use `.c-block-cometcms__callout :where(.cometcms-callout__link) { color: var(--c-primary); }` so the **Link color** control can override it. Internal accents, buttons and map viewports can still have their own colors.
 
 A page includes the CSS of the packages and blocks it renders, once each, in a `<style data-comet-blocks>` element after the theme. The package-level `style.css` comes first; use it for shared custom properties or `@font-face`. CSS cannot contain `<`; write `\3C` inside strings.
 

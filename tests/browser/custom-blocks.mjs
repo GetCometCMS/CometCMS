@@ -82,6 +82,37 @@ async function field(selector, value) {
 async function click(text, selector = 'button') {
   await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find((el) => el.textContent.trim() === ${JSON.stringify(text)}); if (!button) throw new Error('Missing button: ' + ${JSON.stringify(text)}); button.click(); })()`);
 }
+// Check the real cascade in both the builder iframe and the published document.
+async function checkBlockColors(documentExpression) {
+  await waitFor(`(() => { const doc = ${documentExpression}; return !!doc.defaultView.getComputedStyle(doc.documentElement).getPropertyValue('--c-primary').trim(); })()`, 'theme stylesheet loaded');
+  const result = await evaluate(`(() => {
+    const doc = ${documentExpression};
+    const surface = doc.querySelector('.cometcms-callout');
+    const wrapper = surface.closest('.c-block-cometcms__callout');
+    const original = wrapper.className;
+    const css = (el) => doc.defaultView.getComputedStyle(el);
+    const colors = doc.createElement('span');
+    colors.style.cssText = 'color:var(--c-accent);background-color:var(--c-primary)';
+    wrapper.append(colors);
+    try {
+      wrapper.classList.add('c-bg-primary', 'c-fg-accent', 'c-lc-accent');
+      const normal = css(wrapper).backgroundColor === css(colors).backgroundColor
+        && css(surface).backgroundColor === 'rgba(0, 0, 0, 0)'
+        && css(surface.querySelector('h3')).color === css(colors).color
+        && css(surface.querySelector('p')).color === css(colors).color
+        && css(surface.querySelector('a')).color === css(colors).color;
+      wrapper.classList.add('c-h-bg-accent', 'c-h-fg-primary', 'c-h-lc-primary', 'c-preview-hover');
+      const hover = css(wrapper).backgroundColor === css(colors).color
+        && css(surface.querySelector('p')).color === css(colors).backgroundColor
+        && css(surface.querySelector('a')).color === css(colors).backgroundColor;
+      return { normal, hover };
+    } finally {
+      wrapper.className = original;
+      colors.remove();
+    }
+  })()`);
+  assert(result.normal && result.hover, 'Block surface, text and links honor Style colors and hover overrides: ' + JSON.stringify(result));
+}
 /** Packages with JavaScript ask before installing. */
 async function allowScripts() {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("Allow JavaScript?")', 'script consent');
@@ -149,6 +180,7 @@ try {
   await waitFor(`(${previewDocument})?.querySelector('.cometcms-callout p')?.textContent === 'Custom blocks work'`, 'live custom block preview');
   const preview = await evaluate(`(() => { const doc = ${previewDocument}; const el = doc.querySelector('.cometcms-callout'); const copy = el.cloneNode(true); copy.querySelectorAll('[draggable]').forEach((node) => node.removeAttribute('draggable')); return { html: copy.outerHTML, border: doc.defaultView.getComputedStyle(el).borderInlineStartWidth, annotated: !!el.closest('[data-kind="block:cometcms/callout"]'), cssCount: doc.querySelectorAll('style[data-comet-blocks]').length }; })()`);
   assert(preview.border === '4px', 'Preview loads block CSS');
+  await checkBlockColors(`(${previewDocument})`);
   assert(preview.annotated && preview.cssCount === 1, 'Builder annotations and one block stylesheet');
   assert(await evaluate('!document.querySelector("style[data-comet-blocks]")'), 'Package CSS stays out of admin parent');
   const icons = await evaluate(`(() => { const item = (label) => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === label); return { feature: !!item("Feature")?.querySelector('span[style*="mask"]'), card: !!item("Card")?.querySelector("svg") }; })()`);
@@ -195,6 +227,7 @@ try {
   await waitFor('document.body.innerText.includes("Layout saved.") || [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Save" && el.disabled)', 'layout saved');
   await command('Page.navigate', { url: `${origin}/` });
   await waitFor('!!document.querySelector(".cometcms-callout")', 'published custom block');
+  await checkBlockColors('document');
   const published = await evaluate(`({ html: document.querySelector('.cometcms-callout').outerHTML, border: getComputedStyle(document.querySelector('.cometcms-callout')).borderInlineStartWidth, annotated: !!document.querySelector('[data-node]') })`);
   assert(published.html === preview.html, 'Preview and published custom markup match: ' + JSON.stringify({ preview: preview.html, published: published.html }));
   assert(published.border === preview.border, 'Published CSS matches preview');

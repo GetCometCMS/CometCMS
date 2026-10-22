@@ -32,7 +32,7 @@
   text-decoration: line-through;
   background: none;
 }
-.c-block-cometcms__pricing .cometcms-plan__cta {
+.c-block-cometcms__pricing :where(.cometcms-plan__cta) {
   padding: 0.6rem 1rem;
   border-radius: var(--radius-button, 0.5rem);
   background: var(--cometcms-accent);

@@ -1,9 +1,13 @@
+/* Surface defaults belong to the styled wrapper; content inherits its text color. */
+:where(.c-block-cometcms__card) {
+  border-radius: var(--cometcms-radius);
+  background-color: var(--c-surface, #fff);
+}
 .c-block-cometcms__card .cometcms-card {
   overflow: hidden;
   border: 1px solid var(--c-border, #e2e8f0);
   border-top: 4px solid var(--cometcms-card-accent, var(--cometcms-accent));
-  border-radius: var(--cometcms-radius);
-  background: var(--c-surface, #fff);
+  border-radius: inherit;
 }
 .c-block-cometcms__card .cometcms-card__image {
   display: block;
@@ -21,7 +25,7 @@
   margin: 0;
   font-size: 1.25rem;
 }
-.c-block-cometcms__card .cometcms-card__link {
+.c-block-cometcms__card :where(.cometcms-card__link) {
   color: var(--cometcms-card-accent, var(--cometcms-accent));
   font-weight: 600;
 }

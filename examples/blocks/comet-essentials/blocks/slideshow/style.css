@@ -1,9 +1,12 @@
+/* Surface defaults belong to the styled wrapper; content inherits its text color. */
+:where(.c-block-cometcms__slideshow) {
+  border-radius: 1rem;
+  background-color: var(--c-surface, #fff);
+}
 .c-block-cometcms__slideshow .cometcms-slideshow {
   overflow: hidden;
   border: 1px solid var(--c-border, #e2e8f0);
-  border-radius: 1rem;
-  background: var(--c-surface, #fff);
-  color: var(--c-text, #0f172a);
+  border-radius: inherit;
 }
 .c-block-cometcms__slideshow .cometcms-slideshow__track {
   display: flex;
@@ -32,7 +35,7 @@
 .c-block-cometcms__slideshow .cometcms-slideshow__text {
   margin: 0.75rem 0 0;
 }
-.c-block-cometcms__slideshow .cometcms-slideshow__link {
+.c-block-cometcms__slideshow :where(.cometcms-slideshow__link) {
   display: inline-block;
   margin-top: 1rem;
   color: var(--cometcms-accent);
