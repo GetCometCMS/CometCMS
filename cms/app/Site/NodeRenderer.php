@@ -23,6 +23,7 @@ use CometCMS\Localization\Messages;
  *   row_fields subfield configs of that repeater, keyed by subfield key
  *   depth      nesting of card renders, to stop relation cycles
  *   nested     inside a column: rows here size their columns by the column's width
+ *   embedded   sections of page content placed in a column: they fill the column
  *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
  *   page       current page number for paginated collections
@@ -111,6 +112,7 @@ final class NodeRenderer
             'row' => $this->row($node, $state),
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
+            LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -133,7 +135,7 @@ final class NodeRenderer
             default => '',
         };
         if ($warnings && $this->annotating()) {
-            $warning = '<div class="c-placeholder c-placeholder-warning" role="status">Unresolved content reference (using fallback if configured)</div>';
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('unresolvedFallback') . '>Unresolved content reference (using fallback if configured)</div>';
             // Keep the warning inside the annotated root so hover, selection and
             // the node badge use its full bounds even when the content is empty.
             $html = $html === ''
@@ -230,7 +232,8 @@ final class NodeRenderer
 
         $background = $this->background($node['style']);
 
-        $inner = $this->render($node['children'], ['nested' => false] + $state);
+        $embedded = ($state['embedded'] ?? false) === true;
+        $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false] + $state);
         if ($inner === '' && !$this->annotating()) {
             return '';
         }
@@ -300,7 +303,7 @@ final class NodeRenderer
 
         $inner = $this->render($node['children'], ['nested' => true, 'nested_cols' => false] + $state);
         if ($inner === '' && $this->annotating()) {
-            $inner = '<div class="c-placeholder c-placeholder-drop">Empty column</div>';
+            $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('emptyColumn') . '>Empty column</div>';
         }
 
         $background = $this->background($node['style']);
@@ -323,7 +326,7 @@ final class NodeRenderer
         $tree = $component['nodes'][0] ?? null;
 
         if ($tree === null || $tree['kind'] !== $root || in_array($id, $stack, true) || count($stack) >= self::MAX_COMPONENT_DEPTH) {
-            return $this->componentPlaceholder($node, $tree === null ? 'Missing component' : 'A component cannot contain itself');
+            return $tree === null ? $this->componentPlaceholder($node, 'missingComponent', 'Missing component') : $this->componentPlaceholder($node, 'componentLoop', 'A component cannot contain itself');
         }
 
         if ($root === 'column') {
@@ -343,20 +346,67 @@ final class NodeRenderer
             return $html;
         }
         if ($html === '') {
-            return $this->componentPlaceholder($node, 'Empty component');
+            return $this->componentPlaceholder($node, 'emptyComponent', 'Empty component');
         }
 
         return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
     }
 
-    private function componentPlaceholder(array $node, string $message): string
+    /**
+     * The page's own content: the sections the entry designed in its page
+     * field, or the layout's default content (the node's children) while it
+     * has none. The layout builder always shows the default content, which
+     * it edits; the page builder of one entry shows that entry's draft.
+     */
+    private function pageContent(array $node, array $state): string
+    {
+        $field = (string) $node['props']['field'];
+        $draft = $this->ctx->pageDraft !== null && $this->ctx->pageDraft['field'] === $field ? $this->ctx->pageDraft['nodes'] : null;
+        $value = ($state['type']['fields'][$field]['type'] ?? '') === 'page' ? ($state['entry'][$field] ?? null) : null;
+        $nodes = $draft ?? (!$this->annotating() && LayoutSchema::hasPageContent($value) ? LayoutSchema::pageNodes($value) : $node['children']);
+        // In a column, the sections fill the column instead of the page.
+        $embedded = ($state['nested'] ?? false) === true;
+        $classes = ['c-page-content', ...($embedded ? ['c-page-content-embedded'] : [])];
+        $state = ['embedded' => $embedded] + $state;
+
+        if ($draft !== null) {
+            // Only the draft is edited: it carries annotations inside an otherwise plain page.
+            $suspended = $this->annotationsSuspended;
+            $this->annotationsSuspended = 0;
+            try {
+                $inner = $this->render($nodes, $state);
+            } finally {
+                $this->annotationsSuspended = $suspended;
+            }
+
+            return '<div class="' . implode(' ', $classes) . '" data-drop-root>' . $inner . '</div>';
+        }
+
+        $inner = $this->render($nodes, $state);
+        if ($this->annotating()) {
+            if ($inner === '') {
+                $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('pageContent') . '>Page content: each entry designs this area. Add sections here as the default content.</div>';
+            }
+
+            return '<div' . $this->attributes($node, $classes) . '>' . $inner . '</div>';
+        }
+
+        if ($this->ctx->pageDraft !== null) {
+            // Another area of the entry being edited: the builder switches to it on click.
+            return '<div class="' . implode(' ', [...$classes, 'c-page-area']) . '" data-page-area="' . Security::e($field) . '">' . $inner . '</div>';
+        }
+
+        return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
+    }
+
+    private function componentPlaceholder(array $node, string $key, string $message): string
     {
         if (!$this->annotating()) {
             return '';
         }
         $classes = $node['props']['root'] === 'column' ? 'c-col c-col-12 ' : '';
 
-        return '<div class="' . $classes . 'c-placeholder c-placeholder-warning" role="status"' . $this->componentAttributes($node) . '>' . $message . '</div>';
+        return '<div class="' . $classes . 'c-placeholder c-placeholder-warning" role="status"' . $this->placeholder($key) . $this->componentAttributes($node) . '>' . $message . '</div>';
     }
 
     private function componentAttributes(array $node): string
@@ -393,7 +443,7 @@ final class NodeRenderer
     {
         $tabs = $node['children'];
         if ($tabs === []) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Add a tab</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('addTab') . '>Add a tab</div>') : '';
         }
         // A layout can repeat in cards and components, so node IDs alone are not unique here.
         $id = 'tabs-' . $node['id'] . '-' . ++$this->tabsSequence;
@@ -451,7 +501,7 @@ final class NodeRenderer
         $item = $props['media'] !== '' ? $this->ctx->mediaItem($props['media']) : null;
 
         if ($item === null) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose an image</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseImage') . '>Choose an image</div>') : '';
         }
 
         if (isset($node['_localized']['alt']) || ($props['alt'] ?? '') !== '') $item['alt'] = $props['alt'];
@@ -502,7 +552,7 @@ final class NodeRenderer
             if ($item !== null) $items[] = $item;
         }
         if ($items === []) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose gallery images</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseGallery') . '>Choose gallery images</div>') : '';
         }
 
         $columns = $props['columns'];
@@ -582,7 +632,7 @@ final class NodeRenderer
         $locales = $this->ctx->locales();
 
         if (count($locales) < 2) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Add website languages to show the switcher</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noLanguages') . '>Add website languages to show the switcher</div>') : '';
         }
 
         $alternates = is_array($state['alternates'] ?? null) ? $state['alternates'] : [];
@@ -604,7 +654,7 @@ final class NodeRenderer
                 . ($current ? ' aria-current="true"' : '') . '>' . $image . ($named ? '' : '<span>' . Security::e($label) . '</span>') . '</a></li>';
         }
 
-        if ($items === '') return $this->annotating() ? $this->element($node, '<div class="c-placeholder">No published translations for this page</div>') : '';
+        if ($items === '') return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noTranslations') . '>No published translations for this page</div>') : '';
         return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="' . Security::e(Messages::get('language', $this->ctx->htmlLang())) . '"><ul>' . $items . '</ul></nav>');
     }
 
@@ -647,7 +697,8 @@ final class NodeRenderer
 
         if ($inputs === []) {
             $message = $form === null ? 'Choose a content type' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">' . $message . '</div>') : '';
+            $key = $form === null ? $this->placeholder('chooseFormType') : $this->placeholder('formEmpty', ['name' => (string) $form['name']]);
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $key . '>' . $message . '</div>') : '';
         }
 
         $anchor = 'form-' . $node['id'] . (++$this->formSequence > 1 ? '-' . $this->formSequence : '');
@@ -780,7 +831,7 @@ final class NodeRenderer
         $menu = $this->ctx->menu($props['menu']);
 
         if ($menu === null || $menu['items'] === []) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Menu “' . Security::e($props['menu']) . '” has no items</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('menuEmpty', ['name' => (string) $props['menu']]) . '>Menu “' . Security::e($props['menu']) . '” has no items</div>') : '';
         }
 
         // A component or card can render the same menu node several times.
@@ -898,7 +949,7 @@ final class NodeRenderer
 
         $warning = '';
         if ($this->annotating() && (new SiteSearch($this->ctx))->targets($props['collections'], $props['fields']) === []) {
-            $warning = '<div class="c-placeholder c-placeholder-warning" role="status">Nothing to search: choose content types with website pages and fields they have</div>';
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('searchNothing') . '>Nothing to search: choose content types with website pages and fields they have</div>';
         }
         $svg = $icon !== null
             ? '<svg class="c-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
@@ -926,7 +977,7 @@ final class NodeRenderer
         $type = $props['type'];
 
         if ($type === '' || !$this->ctx->isPublicType($type) || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose a public content type</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseType') . '>Choose a public content type</div>') : '';
         }
 
         $schema = $this->ctx->type($type);
@@ -951,7 +1002,7 @@ final class NodeRenderer
         if ($result['data'] === []) {
             $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';
             if ($empty === '' && $this->annotating()) {
-                $empty = '<div class="c-placeholder">No published ' . Security::e((string) ($schema['label'] ?? $type)) . ' yet</div>';
+                $empty = '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => (string) ($schema['label'] ?? $type)]) . '>No published ' . Security::e((string) ($schema['label'] ?? $type)) . ' yet</div>';
             }
 
             return $empty === '' ? '' : $this->element($node, $empty);
@@ -1036,7 +1087,7 @@ final class NodeRenderer
 
         if ($config === null) {
             return $this->annotating()
-                ? $this->element($node, '<div class="c-placeholder c-placeholder-warning">' . ($name === '' ? 'Choose a field' : 'Missing field “' . Security::e($name) . '”') . '</div>')
+                ? $this->element($node, '<div class="c-placeholder c-placeholder-warning"' . ($name === '' ? $this->placeholder('chooseField') : $this->placeholder('missingField', ['name' => $name])) . '>' . ($name === '' ? 'Choose a field' : 'Missing field “' . Security::e($name) . '”') . '</div>')
                 : '';
         }
 
@@ -1048,7 +1099,7 @@ final class NodeRenderer
 
         if ($html === '') {
             return $this->annotating()
-                ? $this->element($node, '<div class="c-placeholder">' . Security::e($this->fieldLabel($name, $config)) . ' (empty)</div>')
+                ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('fieldEmpty', ['name' => $this->fieldLabel($name, $config)]) . '>' . Security::e($this->fieldLabel($name, $config)) . ' (empty)</div>')
                 : '';
         }
 
@@ -1056,7 +1107,7 @@ final class NodeRenderer
             $html = '<div class="c-field-label">' . Security::e($this->fieldLabel($name, $config)) . '</div>' . $html;
         }
 
-        if (!empty($resolved['missing']) && $this->annotating()) $html = '<div class="c-placeholder c-placeholder-warning">Unresolved content reference</div>' . $html;
+        if (!empty($resolved['missing']) && $this->annotating()) $html = '<div class="c-placeholder c-placeholder-warning"' . $this->placeholder('unresolved') . '>Unresolved content reference</div>' . $html;
         return $this->element($node, $html, ['c-field', 'c-field-' . $fieldType]);
     }
 
@@ -1585,6 +1636,16 @@ final class NodeRenderer
         }
 
         return $classes;
+    }
+
+    /**
+     * Marks a builder placeholder so the admin shows it in its own language
+     * (see BuilderCanvas); the English text stays as the fallback.
+     */
+    private function placeholder(string $key, array $params = []): string
+    {
+        return ' data-placeholder="' . Security::e($key) . '"'
+            . ($params !== [] ? ' data-placeholder-params="' . Security::e((string) json_encode($params, JSON_UNESCAPED_UNICODE)) . '"' : '');
     }
 
     private function annotating(): bool

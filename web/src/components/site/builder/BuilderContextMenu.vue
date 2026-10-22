@@ -117,7 +117,7 @@ const actions = computed(() => {
       parent && { key: "parent", icon: "mdi:arrow-up-left", label: t("site.menu.selectParent", { name: builder.nodeLabel(parent) }), action: () => builder.select(parent.id) },
     ],
     [
-      !locked && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
+      !locked && !builder.holdsPageContent(current) && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
       { key: "copy", icon: "mdi:clipboard-outline", label: t("site.menu.copy"), shortcut: "Ctrl+C", action: () => builder.copy(current.id) },
       !instance && { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
       !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },

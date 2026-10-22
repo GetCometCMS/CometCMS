@@ -23,8 +23,8 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
   const records = ref({})
   const saving = ref(false)
   const fields = computed(() => Object.fromEntries(Object.entries(type.value?.fields ?? {})
-    // Routing stays in the entry editor; this panel owns title and content fields.
-    .filter(([name]) => name !== 'slug' && name !== (type.value?.slug_field ?? 'slug'))))
+    // Routing stays in the entry editor and page content on the canvas; this panel owns title and content fields.
+    .filter(([name, config]) => name !== 'slug' && name !== (type.value?.slug_field ?? 'slug') && config?.type !== 'page')))
   const defaultLocale = computed(() => type.value?.default_locale || type.value?.locales?.[0] || '')
   const activeLocale = computed(() => type.value?.locales?.length ? locale.value || defaultLocale.value : '')
   const key = computed(() => type.value?.name && entryId.value ? `${type.value.name}:${entryId.value}` : '')
@@ -123,6 +123,12 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     }
   }
 
+  /** Drop unsaved edits and loaded entries, e.g. when the builder moves to another page. */
+  function discard() {
+    records.value = {}
+    load()
+  }
+
   watch([key, activeLocale, fields], () => {
     if (record.value?.entry) ensureDraft(record.value, activeLocale.value)
     else load()
@@ -175,11 +181,16 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     }
   }
 
+  /** The shown entry was saved elsewhere (its page content): the next save builds on that version. */
+  function setRevision(revision) {
+    if (record.value?.entry) record.value.entry.revision = revision
+  }
+
   function reset(name) {
     if (!draft.value || fieldReadonly(name) || activeLocale.value === defaultLocale.value) return
     draft.value.resets.push(name)
     draft.value.values[name] = formValue(resolveLocalized(record.value.entry.values?.[name], defaultLocale.value, defaultLocale.value), fields.value[name])
   }
 
-  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save }
+  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard }
 }

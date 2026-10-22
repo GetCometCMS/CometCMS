@@ -35,7 +35,7 @@
       role="menu"
       tabindex="-1"
       :aria-label="menuLabel"
-      class="absolute right-0 top-full z-50 mt-1 min-w-[10rem] rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg"
+      class="absolute right-0 top-full z-50 mt-1 min-w-[16rem] rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg"
       @keydown="onMenuKeydown"
     >
       <component

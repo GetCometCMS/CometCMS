@@ -2,11 +2,11 @@
   <section class="card page-builder-cta p-6 space-y-4" :aria-labelledby="headingId">
     <h2 :id="headingId" class="card-title">{{ title }}</h2>
 
-    <div class="flex flex-col items-center gap-4 py-2 text-center">
+    <div class="flex flex-col items-start gap-4">
       <p v-if="description" :id="hintId" class="page-builder-cta-description max-w-2xl text-sm text-slate-500">{{ description }}</p>
       <router-link
         :to="to"
-        class="btn-primary justify-center"
+        class="btn-primary justify-center !whitespace-normal"
         :aria-describedby="description ? hintId : undefined"
       >
         {{ actionLabel }}
@@ -31,31 +31,4 @@ const headingId = `builder-cta-${useId()}`;
 const hintId = `${headingId}-hint`;
 </script>
 
-<style scoped>
-.page-builder-cta {
-  background-color: #fff;
-  background-image:
-    linear-gradient(90deg, #ffffff 0%, #ffffffed 35%, #ffffffa6 60%, #ffffff26 100%),
-    url("../../assets/page-builder-background.svg");
-  background-position: center, right center;
-  background-repeat: no-repeat;
-  background-size: cover, auto 100%;
-}
-
-:root[data-theme="dark"] .page-builder-cta {
-  background-color: rgb(var(--color-surface));
-  background-image:
-    linear-gradient(
-      90deg,
-      rgb(var(--color-surface)) 0%,
-      rgb(var(--color-surface) / 0.94) 35%,
-      rgb(var(--color-surface) / 0.55) 60%,
-      rgb(var(--color-surface) / 0.15) 100%
-    ),
-    url("../../assets/page-builder-background-dark.svg");
-}
-
-:root[data-theme="dark"] .page-builder-cta-description {
-  color: rgb(var(--color-slate-700));
-}
-</style>
+<style scoped src="./pageBuilderCta.css"></style>

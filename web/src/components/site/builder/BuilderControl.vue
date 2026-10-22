@@ -465,6 +465,12 @@ const selectOptions = computed(() => {
         { value: "created_at", label: t("site.systemField.created_at") },
         ...fieldsOfCollection((config) => SORTABLE_TYPES.includes(config.type)),
       ];
+    case "page_field":
+      return [
+        { value: "", label: t("site.page.chooseField") },
+        // A field another element already shows would take this element out of the layout.
+        ...builder.freePageFields(props.node.id).map((field) => ({ value: field.key, label: field.label })),
+      ];
     case "key":
       return keyOptions.value ?? [];
     default:
@@ -472,7 +478,7 @@ const selectOptions = computed(() => {
   }
 });
 
-const SEARCHABLE_TYPES = ["text", "slug", "textarea", "markdown", "html", "select"];
+const SEARCHABLE_TYPES = ["text", "slug", "textarea", "markdown", "html", "select", "page"];
 const isKeyList = computed(() => ["content_types", "search_fields"].includes(props.def.type));
 const listValue = computed(() => (Array.isArray(value.value) ? value.value : []));
 

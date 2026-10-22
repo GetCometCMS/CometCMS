@@ -53,6 +53,16 @@ describe('builder entry content', () => {
     expect(state.isDirty.value).toBe(false)
   })
 
+  it('discards unsaved drafts and reloads the shown entry', async () => {
+    const { state, contentApi, stored } = await fixture()
+    state.update('intro', 'Left behind')
+    stored.first.intro = 'Changed elsewhere'
+    state.discard()
+    await vi.waitFor(() => expect(state.valueFor('intro')).toBe('Changed elsewhere'))
+    expect(state.isDirty.value).toBe(false)
+    expect(contentApi.get).toHaveBeenCalledTimes(2)
+  })
+
   it('retains separate drafts when switching preview entries and saves both', async () => {
     const { state, entryId, contentApi } = await fixture()
     state.update('intro', 'First draft')

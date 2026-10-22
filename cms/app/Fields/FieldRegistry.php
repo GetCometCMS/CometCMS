@@ -43,6 +43,7 @@ final class FieldRegistry
         $registry->register('relation', new RelationFieldType());
         $registry->register('repeater', new RepeaterFieldType());
         $registry->register('color', new ColorFieldType());
+        $registry->register('page', new PageFieldType());
 
         return $registry;
     }

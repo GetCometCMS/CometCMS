@@ -19,8 +19,11 @@ final class SiteSearch
 
     public const MAX_QUERY_LENGTH = 100;
 
-    /** Field types whose text can be searched; select fields match their keys and labels. */
-    public const FIELD_TYPES = ['text', 'slug', 'textarea', 'markdown', 'html', 'select'];
+    /**
+     * Field types whose text can be searched; select fields match their keys
+     * and labels, page content the texts written into it.
+     */
+    public const FIELD_TYPES = ['text', 'slug', 'textarea', 'markdown', 'html', 'select', 'page'];
 
     public function __construct(private readonly SiteContext $ctx) {}
 
@@ -144,6 +147,9 @@ final class SiteSearch
     /** The lower-case text of a field value as visitors read it. */
     private function text(mixed $value, array $config): string
     {
+        if (($config['type'] ?? '') === 'page') {
+            return self::lower(LayoutSchema::text(LayoutSchema::pageNodes($value), $this->ctx->htmlLang(), $this->ctx->defaultLocale()));
+        }
         $values = is_array($value) ? $value : [$value];
         $options = is_array($config['options'] ?? null) ? $config['options'] : [];
         $parts = [];

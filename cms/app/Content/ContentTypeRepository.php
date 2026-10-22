@@ -251,6 +251,13 @@ final class ContentTypeRepository
             unset($label);
         }
         foreach ($config['subfields'] ?? [] as $index => $subfield) $config['subfields'][$index] = $this->fieldMetadata($subfield, $locales);
+        // Page content is one design for all languages; its texts are translated inside it.
+        if (($config['type'] ?? '') === 'page') {
+            // Fields added by an early builder stored this untranslated key as their label.
+            if (($config['label'] ?? null) === 'site.page.fieldLabel') $config['label'] = 'Page content';
+            $config['localized'] = false;
+            unset($config['required'], $config['default'], $config['unique']);
+        }
         return $config;
     }
 

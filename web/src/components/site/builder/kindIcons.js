@@ -23,6 +23,7 @@ export const KIND_ICONS = {
   language_switcher: 'mdi:translate',
   theme_toggle: 'mdi:theme-light-dark',
   component: 'mdi:puzzle-outline',
+  page_content: 'mdi:file-document-edit-outline',
 }
 
 /** Column sets arranged underneath each other read as rows. */
