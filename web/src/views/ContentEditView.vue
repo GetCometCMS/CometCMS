@@ -316,9 +316,45 @@
         </div>
       </div>
 
+      <!-- Entries with page content design their own page; the layout around it is shared. -->
+      <section
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageFields.length"
+        class="card p-6 space-y-4"
+        :aria-label="t('site.page.title')"
+      >
+        <div v-for="field in pageFields" :key="field.key" class="flex flex-wrap items-center justify-between gap-4">
+          <div class="min-w-0">
+            <h2 class="card-title">{{ field.label }}</h2>
+            <p class="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+              <Icon :icon="field.customized ? 'mdi:file-document-edit-outline' : 'mdi:file-document-outline'" class="h-4 w-4 shrink-0" aria-hidden="true" />
+              {{ t(field.customized ? "site.page.ownHint" : "site.page.defaultHint") }}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-if="field.customized && !isReadOnly"
+              type="button"
+              class="btn-secondary"
+              :disabled="resettingPage"
+              @click="pendingPageReset = field.key"
+            >
+              <Icon icon="mdi:restore" class="h-4 w-4" aria-hidden="true" />
+              {{ t("site.page.reset") }}
+            </button>
+            <router-link v-if="!isReadOnly" :to="pageLink(field.key)" class="btn-primary">
+              {{ t("site.page.design") }}
+              <Icon icon="mdi:arrow-right" class="h-4 w-4 shrink-0" aria-hidden="true" />
+            </router-link>
+          </div>
+        </div>
+        <p class="border-t border-slate-100 pt-3 text-xs text-slate-500">
+          {{ t("site.page.layoutHint") }}
+          <router-link :to="designLink" class="font-medium text-theme-700 hover:underline">{{ t("site.page.editLayout") }}</router-link>
+        </p>
+      </section>
       <!-- Pages and collection entries keep their design action alongside their content. -->
       <PageBuilderCta
-        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        v-else-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
         :title="t('site.builderCta.title')"
         :description="t('site.entry.editDesignHint')"
         :to="designLink"
@@ -394,6 +430,16 @@
       :cancel-label="t('unsaved.stay')"
       variant="warning"
       @confirm="confirmLeave"
+    />
+    <ConfirmModal
+      :model-value="pendingPageReset !== ''"
+      :title="t('site.page.resetTitle')"
+      :message="t('site.page.resetEntryMessage')"
+      :confirm-label="t('site.page.reset')"
+      :loading="resettingPage"
+      variant="warning"
+      @update:model-value="(open) => { if (!open) pendingPageReset = '' }"
+      @confirm="resetPage"
     />
     <ConfirmModal
       v-model="showDeleteModal"
@@ -606,7 +652,7 @@ import { fieldDefaultValue } from "../composables/fieldDefaults.js";
 import { languageTabItem } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import TranslationInfo from "../components/TranslationInfo.vue";
-import { entryForLocale } from "../composables/localizedValues.js";
+import { entryForLocale, resolveLocalized } from "../composables/localizedValues.js";
 import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -986,6 +1032,44 @@ const designLink = computed(() => ({
   query: { entry: entryId.value, back: route.fullPath },
 }));
 
+/** The type's page fields and whether this entry has page content of its own in each. */
+const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields ?? {})
+  .filter(([, config]) => config?.type === "page")
+  .map(([key, config]) => ({
+    key,
+    label: resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
+    customized: (fullEntry.value?.values?.[key]?.nodes?.length ?? 0) > 0,
+  })));
+
+function pageLink(field) {
+  return {
+    path: `/page-builder/builder/page/${collection}/${entryMeta.value.id || entryId.value}`,
+    query: { field, back: route.fullPath },
+  };
+}
+
+const pendingPageReset = ref("");
+const resettingPage = ref(false);
+
+/** Back to the layout's default content; the entry's other unsaved edits stay in the form. */
+async function resetPage() {
+  const field = pendingPageReset.value;
+  if (!field || resettingPage.value || !fullEntry.value) return;
+  resettingPage.value = true;
+  try {
+    const res = await api.site.resetPage(collection, entryMeta.value.id || entryId.value, field, fullEntry.value.revision);
+    fullEntry.value = { ...fullEntry.value, revision: res.data.revision, values: { ...fullEntry.value.values, [field]: null } };
+    // Saving the form while a restored version is shown builds on the live entry.
+    if (liveEntryBeforeRestore.value) liveEntryBeforeRestore.value = { ...liveEntryBeforeRestore.value, revision: res.data.revision };
+    pendingPageReset.value = "";
+    toast.success(t("site.page.resetDone"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    resettingPage.value = false;
+  }
+}
+
 async function loadSiteLinks() {
   if (isNew.value || !entryId.value) {
     siteLinks.value = null;
@@ -1015,9 +1099,10 @@ onMounted(async () => {
     const typeRes = await api.contentTypes.get(collection);
     contentTypeSchema.value = typeRes.data;
     const builtins = new Set(["title", "slug"]);
+    // Page content is designed in the page builder, not edited as a form field.
     customSchema.value = Object.fromEntries(
       Object.entries(typeRes.data.fields ?? {}).filter(
-        ([k]) => !builtins.has(k),
+        ([k, config]) => !builtins.has(k) && config?.type !== "page",
       ),
     );
     contentTypeLocales.value = typeRes.data.locales ?? [];
@@ -1311,6 +1396,8 @@ const currentVsFirstDiff = computed(() => {
   const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
   const changes = [];
   for (const key of allKeys) {
+    // The form never holds page content; it is saved from the page builder.
+    if (pageFields.value.some((field) => field.key === key)) continue;
     if (
       JSON.stringify(normDiffVal(current[key])) !==
       JSON.stringify(normDiffVal(previous[key]))
@@ -1365,6 +1452,7 @@ function formatRevVal(v) {
   if (typeof v === "boolean") return v ? "true" : "false";
   if (Array.isArray(v))
     return `[${t("contentEdit.items", { count: v.length })}]`;
+  if (Array.isArray(v.nodes)) return t("site.page.own");
   if (typeof v === "object") return "{…}";
   const s = String(v);
   return s.length > 35 ? s.slice(0, 35) + "…" : s;

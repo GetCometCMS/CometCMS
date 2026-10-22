@@ -95,6 +95,19 @@ const BUILDER_CSS = `
   --builder-color:#e07868;
 }
 
+/* Each entry replaces this area with its own content, so it stays marked. */
+[data-kind="page_content"]{
+  --builder-color:#c08a1e;
+  outline:2px dashed color-mix(in srgb,var(--builder-color) 55%,transparent);
+  outline-offset:-2px;
+}
+
+/* The page builder of one entry: everything around its page content belongs to the layout. */
+.c-view-page-edit .c-page-content[data-drop-root]{
+  outline:2px dashed color-mix(in srgb,#c08a1e 55%,transparent);
+  outline-offset:-2px;
+}
+
 /* Hover and selection */
 [data-builder-hover]{
   outline:calc(1px * var(--cometcms-ui-scale,1)) dashed var(--builder-color)!important;

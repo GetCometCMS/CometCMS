@@ -115,6 +115,14 @@ Components may show fields of the entry a page displays (for example its title o
 
 Deleting a component turns all its instances into independent, editable copies, preserving their content, styling and column widths. This applies to layouts, headers, footers and instances inside other components, as well as the open builder draft. Older revisions also restore detached copies. The component and its own version history are permanently removed. Deletion is available in both the builder's **Components** panel and the **Components** tab of the website settings.
 
+### Page content of single entries
+
+Entries of the same type can look different. Add the **Page content** element to a type's entry page layout, between sections or inside a column (for example the main column next to a sidebar). Everything around it (header, footer, sidebars, call-to-action sections) stays shared by all entries; the inside belongs to each entry. Sections you place inside the element are the **default content**, which every entry shows until it has a design of its own. If the content type has no page content field yet, placing the element adds one; it appears as the field type `page`.
+
+In the entry editor, **Design in page builder** opens the builder for just that entry. It starts from a copy of the default content and offers everything the builder has: sections, columns, drag and drop, fields of the entry, components and **Detach** for an editable copy. The surrounding layout is shown but cannot be selected; **Edit shared layout** in the menu beside **Save** opens it. **Reset to layout default**, in that menu or in the entry editor, removes the entry's own design so it shows the default content again; earlier designs stay in **History**.
+
+The page content is one design for all languages. Like layouts, its texts are translated by choosing a language in the builder. Site search and the page's meta description read its texts. Page content is stored in the entry, together with the layout format it was saved in, and is kept as it is if that format changes.
+
 ### Tabs
 
 Add **Tabs** from **Add → Elements** to organize content into switchable panels. A new Tabs element starts with two tabs. In the inspector, rename tabs, change their order, add or remove tabs, and choose the **Default tab** shown when the page opens. **Title** provides the tab group's accessible name.

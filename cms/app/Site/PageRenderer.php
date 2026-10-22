@@ -122,6 +122,30 @@ final class PageRenderer
         ], $main, $state, true, true);
     }
 
+    /**
+     * Builder preview of one entry's page content (see SiteContext::$pageDraft)
+     * in its type's detail layout. Only the page content is annotated; the
+     * rest of the page is shown for context. A layout without a place for the
+     * page field shows the content below it, so it can still be edited.
+     */
+    public function pagePreview(array $type, array $entry, string $field): string
+    {
+        $name = (string) $type['name'];
+        $layout = $this->ctx->layout($name, 'detail');
+        if (!isset(LayoutSchema::pagePlaces($layout)[$field])) {
+            $layout[] = LayoutSchema::node(LayoutSchema::PAGE_CONTENT, ['field' => $field]);
+        }
+        $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
+        $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
+        $main = $this->nodes->renderPlain($layout, $state);
+
+        return $this->document([
+            'title' => $this->pageTitle((string) ($entry['title'] ?? '')),
+            'noindex' => true,
+            'body_class' => 'c-type-' . $name . ' c-view-detail c-view-page-edit',
+        ], $main, $state, true, true, 'page');
+    }
+
     public function regionPreview(string $region): string
     {
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
@@ -360,15 +384,23 @@ final class PageRenderer
 
         if ($field === '' || !isset($fields[$field])) {
             $field = '';
-            foreach ($fields as $name => $config) {
-                if (is_array($config) && in_array($config['type'] ?? '', ['textarea', 'markdown', 'html'], true) && !empty($entry[$name])) {
-                    $field = (string) $name;
-                    break;
+            // Text fields first; page content describes an entry that has no such text.
+            foreach ([['textarea', 'markdown', 'html'], ['page']] as $types) {
+                foreach ($fields as $name => $config) {
+                    if (is_array($config) && in_array($config['type'] ?? '', $types, true) && !empty($entry[$name])) {
+                        $field = (string) $name;
+                        break 2;
+                    }
                 }
             }
         }
 
-        if ($field !== '' && is_scalar($entry[$field] ?? null) && (string) $entry[$field] !== '') {
+        if ($field !== '' && ($fields[$field]['type'] ?? '') === 'page') {
+            $text = LayoutSchema::text(LayoutSchema::pageNodes($entry[$field] ?? null), $this->ctx->htmlLang(), $this->ctx->defaultLocale());
+            if ($text !== '') {
+                return Text::summary($text);
+            }
+        } elseif ($field !== '' && is_scalar($entry[$field] ?? null) && (string) $entry[$field] !== '') {
             $type = (string) ($fields[$field]['type'] ?? 'text');
             $value = (string) $entry[$field];
             $text = match ($type) {

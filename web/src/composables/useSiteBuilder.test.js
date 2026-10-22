@@ -571,3 +571,62 @@ describe('builder localization', () => {
     expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Changed source')
   })
 })
+
+describe('builder page content', () => {
+  async function pageFixture({ fields = { design: { type: 'page', label: 'Design' } }, fieldApi = {} } = {}) {
+    let builder
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi }); return () => null } }))
+    builder.spec.value = { root: ['section', 'page_content'], kinds: {
+      section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] },
+      column: { props: {}, children: ['text', 'page_content'] }, text: { props: { html: { default: '' } }, children: [] },
+      page_content: { props: { field: { default: '' } }, children: ['section'] },
+    } }
+    builder.type.value = { name: 'pages', fields: { intro: { type: 'text' }, ...fields } }
+    builder.types.value = [builder.type.value]
+    builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])])
+    return builder
+  }
+
+  it('places page content once per field, never inside itself, and keeps it out of copies and components', async () => {
+    const builder = await pageFixture()
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await Promise.resolve()
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('design')
+    expect(builder.typeFields().map((field) => field.key)).not.toContain('design')
+
+    const column = builder.nodes.value[0].children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'design' }), column.id)).toBe(false)
+    const inner = builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])
+    expect(builder.insert(inner, place.id)).toBe(true)
+    const innerColumn = inner.children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'other' }), innerColumn.id)).toBe(false)
+
+    builder.select(place.id)
+    builder.duplicate()
+    expect(builder.nodes.value.filter((node) => node.kind === 'page_content')).toHaveLength(1)
+    expect(builder.holdsPageContent(place)).toBe(true)
+    expect(builder.holdsPageContent(builder.nodes.value[0])).toBe(false)
+    expect(builder.isDropContainer(place)).toBe(true)
+  })
+
+  it('gives a type without a page field one when the page content element is placed', async () => {
+    const created = []
+    const builder = await pageFixture({
+      fields: {},
+      fieldApi: {
+        can: () => true,
+        create: async ({ type, key, config }) => {
+          created.push({ type, key, config })
+          return { fields: { intro: { type: 'text' }, [key]: config } }
+        },
+      },
+    })
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created).toEqual([{ type: 'pages', key: 'page_content', config: { type: 'page', label: 'site.page.fieldLabel' } }])
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('page_content')
+    expect(builder.pageFields().map((field) => field.key)).toEqual(['page_content'])
+  })
+})

@@ -289,7 +289,8 @@
               />
             </div>
 
-            <div>
+            <!-- Page content is optional: without it an entry shows its layout's default content. -->
+            <div v-if="field.type !== 'page'">
               <span class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.required") }}</span>
               <button
                 type="button"
@@ -345,7 +346,8 @@
           <div class="mt-4 rounded-lg border border-slate-200">
             <div class="grid gap-0 lg:grid-cols-[26rem_1fr]">
               <div class="space-y-5 border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
-                <label class="flex items-start gap-3">
+                <p v-if="field.type === 'page'" class="text-sm text-slate-500">{{ t("fieldBuilder.pageHint") }}</p>
+                <label v-else class="flex items-start gap-3">
                   <input
                     type="checkbox"
                     :checked="field.localized === false"

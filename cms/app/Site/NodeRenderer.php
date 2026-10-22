@@ -23,6 +23,7 @@ use CometCMS\Localization\Messages;
  *   row_fields subfield configs of that repeater, keyed by subfield key
  *   depth      nesting of card renders, to stop relation cycles
  *   nested     inside a column: rows here size their columns by the column's width
+ *   embedded   sections of page content placed in a column: they fill the column
  *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
  *   page       current page number for paginated collections
@@ -111,6 +112,7 @@ final class NodeRenderer
             'row' => $this->row($node, $state),
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
+            LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -230,7 +232,8 @@ final class NodeRenderer
 
         $background = $this->background($node['style']);
 
-        $inner = $this->render($node['children'], ['nested' => false] + $state);
+        $embedded = ($state['embedded'] ?? false) === true;
+        $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false] + $state);
         if ($inner === '' && !$this->annotating()) {
             return '';
         }
@@ -347,6 +350,48 @@ final class NodeRenderer
         }
 
         return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
+    }
+
+    /**
+     * The page's own content: the sections the entry designed in its page
+     * field, or the layout's default content (the node's children) while it
+     * has none. The layout builder always shows the default content, which
+     * it edits; the page builder of one entry shows that entry's draft.
+     */
+    private function pageContent(array $node, array $state): string
+    {
+        $field = (string) $node['props']['field'];
+        $draft = $this->ctx->pageDraft !== null && $this->ctx->pageDraft['field'] === $field ? $this->ctx->pageDraft['nodes'] : null;
+        $value = ($state['type']['fields'][$field]['type'] ?? '') === 'page' ? ($state['entry'][$field] ?? null) : null;
+        $nodes = $draft ?? (!$this->annotating() && LayoutSchema::hasPageContent($value) ? LayoutSchema::pageNodes($value) : $node['children']);
+        // In a column, the sections fill the column instead of the page.
+        $embedded = ($state['nested'] ?? false) === true;
+        $classes = ['c-page-content', ...($embedded ? ['c-page-content-embedded'] : [])];
+        $state = ['embedded' => $embedded] + $state;
+
+        if ($draft !== null) {
+            // Only the draft is edited: it carries annotations inside an otherwise plain page.
+            $suspended = $this->annotationsSuspended;
+            $this->annotationsSuspended = 0;
+            try {
+                $inner = $this->render($nodes, $state);
+            } finally {
+                $this->annotationsSuspended = $suspended;
+            }
+
+            return '<div class="' . implode(' ', $classes) . '" data-drop-root>' . $inner . '</div>';
+        }
+
+        $inner = $this->render($nodes, $state);
+        if ($this->annotating()) {
+            if ($inner === '') {
+                $inner = '<div class="c-placeholder c-placeholder-drop">Page content: each entry designs this area. Add sections here as the default content.</div>';
+            }
+
+            return '<div' . $this->attributes($node, $classes) . '>' . $inner . '</div>';
+        }
+
+        return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
     }
 
     private function componentPlaceholder(array $node, string $message): string

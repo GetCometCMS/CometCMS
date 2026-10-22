@@ -338,7 +338,7 @@ final class SiteRepository
         $this->assertVariant($schema, $variant);
         $stored = $this->themeStore->read('layouts', $type, $variant);
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultLayout($schema, $variant);
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? [], $variant === 'detail') : LayoutSchema::defaultLayout($schema, $variant);
     }
 
     public function layoutCustomized(string $type, string $variant): bool
@@ -361,7 +361,7 @@ final class SiteRepository
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
-        $nodes = LayoutSchema::normalize($nodes);
+        $nodes = LayoutSchema::normalize($nodes, $variant === 'detail');
         $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'layouts', $type, $variant);
         $this->clearCache();
@@ -510,8 +510,9 @@ final class SiteRepository
     }
 
     /**
-     * Where a component is placed directly: stored layouts, regions and other
-     * components. Generated default layouts never contain components.
+     * Where a component is placed directly: stored layouts, regions, other
+     * components and entries' page content. Generated default layouts never
+     * contain components.
      *
      * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
      */
@@ -540,11 +541,40 @@ final class SiteRepository
             }
         }
 
+        return [...$usages, ...$this->pageUsages($uses)];
+    }
+
+    /**
+     * Entries whose own page content passes $uses (a stored {format_version,
+     * nodes} value => bool), one usage per entry.
+     *
+     * @return list<array{target: string, type: string, id: string, name: string}>
+     */
+    private function pageUsages(callable $uses): array
+    {
+        $usages = [];
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach ($this->types() as $name => $type) {
+            $fields = array_keys(array_filter($type['fields'] ?? [], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+            if ($fields === []) {
+                continue;
+            }
+            foreach ($content->all((string) $name) as $entry) {
+                foreach ($fields as $field) {
+                    if (LayoutSchema::hasPageContent($entry[$field] ?? null) && $uses($entry[$field])) {
+                        $usages[] = ['target' => 'entry', 'type' => (string) $name, 'id' => (string) $entry['id'], 'name' => (string) ($entry['title'] ?? $entry['id'])];
+                        break;
+                    }
+                }
+            }
+        }
+
         return $usages;
     }
 
     /**
-     * Where a website form is placed: stored layouts, regions and components.
+     * Where a website form is placed: stored layouts, regions, components and
+     * entries' page content.
      *
      * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
      */
@@ -587,7 +617,7 @@ final class SiteRepository
             }
         }
 
-        return $usages;
+        return [...$usages, ...$this->pageUsages($uses)];
     }
 
     /** Delete a component and its history, keeping all placements as detached copies. */
@@ -621,6 +651,14 @@ final class SiteRepository
                     $this->revisions->write($revision, ...[...$path, $revision['id']]);
                 }
             }
+        }
+
+        // Entries keep their page content, too, and so do their older versions.
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach (array_keys($this->types()) as $name) {
+            $content->rewritePages((string) $name, fn(array $value): array => $this->hasComponentInstance($value, $id)
+                ? ['nodes' => $this->detachComponentInstances($value['nodes'], $component)] + $value
+                : $value);
         }
 
         $this->themeStore->delete('components', $id);

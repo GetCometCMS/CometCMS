@@ -61,6 +61,11 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 .c-container-contained { max-width: calc(var(--container) + 2 * var(--gutter)); }
 .c-container-narrow { max-width: calc(var(--narrow) + 2 * var(--gutter)); }
 .c-section-full { width: 100%; }
+/* An entry's page content takes no room of its own, so sticky sections stay sticky; the builder needs its box. */
+.c-page-content { display: contents; }
+.c-builder .c-page-content { display: block; }
+/* Page content in a column: its sections fill the column instead of the page. */
+.c-page-content-embedded > .c-section > .c-container { max-width: none; padding-left: 0; padding-right: 0; }
 .c-min-h-half { min-height: 50vh; display: flex; flex-direction: column; }
 .c-min-h-screen { min-height: 100vh; display: flex; flex-direction: column; }
 .c-min-h-half > .c-container, .c-min-h-screen > .c-container { flex: 1; display: flex; flex-direction: column; }

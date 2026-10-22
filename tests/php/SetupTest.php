@@ -192,7 +192,7 @@ test('website starter renders all pages with working navigation and remains edit
 
     $types = new ContentTypeRepository($workspace);
     assert_same(['pages', 'events'], array_column($types->all(), 'name'));
-    assert_same(['title', 'slug', 'intro', 'body'], array_keys($types->find('pages')['fields']));
+    assert_same(['title', 'slug', 'intro', 'body', 'page_content'], array_keys($types->find('pages')['fields']));
     assert_same([], (new ContentTypeRepository(new WorkspaceContext('default')))->all());
 
     $site = new SiteRepository($workspace);

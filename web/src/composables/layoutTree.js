@@ -50,6 +50,9 @@ export function isStructure(kind) {
 
 export const COMPONENT = 'component'
 
+/** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
+export const PAGE_CONTENT = 'page_content'
+
 /** The kind a node is placed as: a component instance counts as its root kind. */
 export function placementKind(node) {
   if (node?.kind !== COMPONENT) return node?.kind
