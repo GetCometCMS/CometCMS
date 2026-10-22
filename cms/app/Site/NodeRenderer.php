@@ -268,7 +268,14 @@ final class NodeRenderer
             $inner .= $this->node($column, $columnState, $order);
         }
         if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
-            return '';
+            // The entry builder renders shared rows without annotations. Keep
+            // rows around empty page areas so their drop targets and area
+            // switchers survive, including all enclosing rows and sections.
+            $hasPageAreas = $this->ctx->annotate && $this->ctx->pageDraft !== null
+                && LayoutSchema::pagePlaces($node['children']) !== [];
+            if (!$hasPageAreas) {
+                return '';
+            }
         }
 
         $background = $this->background($node['style']);

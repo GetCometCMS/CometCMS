@@ -212,6 +212,35 @@ test('page content in a column fills the column and the builder previews only th
     assert_matches('/<main id="main" class="c-main">/', $preview);
 });
 
+test('empty page content in nested rows keeps its editing area and styled parents', function (): void {
+    $site = comet_page_test_setup();
+    $layout = [comet_page_test_section('frame', [
+        ['id' => 'nested-row', 'kind' => 'row', 'children' => [
+            ['id' => 'nested-column', 'kind' => 'column', 'children' => [
+                ['id' => 'place', 'kind' => 'page_content', 'props' => ['field' => 'design']],
+            ]],
+        ]],
+    ])];
+    $layout[0]['style'] = ['background' => 'primary'];
+    $site->saveLayout('blog', 'detail', $layout);
+
+    $context = comet_site_test_context($site);
+    $context->preview = true;
+    $context->annotate = true;
+    $schema = $site->types()['blog'];
+    $entry = $context->findEntry('blog', 'hello', true);
+    foreach ([[], [comet_page_test_section('empty', [])]] as $draft) {
+        $context->pageDraft = ['field' => 'design', 'nodes' => LayoutSchema::normalize($draft)];
+        $preview = (new PageRenderer($context))->pagePreview($schema, $entry, 'design');
+        assert_true(str_contains($preview, 'c-page-content c-page-content-embedded" data-drop-root'), 'An empty nested area must remain editable.');
+        assert_matches('/<section[^>]*class="[^"]*c-bg-primary/', $preview, 'The styled parent section must remain visible.');
+        assert_true(substr_count($preview, 'class="c-row ') >= 2, 'Both parent rows must remain visible.');
+        assert_false(str_contains($preview, 'data-node="frames"'), 'Shared parents remain outside the editable content.');
+    }
+
+    assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'c-page-content'), 'The live page still omits the empty area.');
+});
+
 test('the page builder marks the entry\'s other page content areas', function (): void {
     $site = comet_page_test_setup();
     $types = new \CometCMS\Content\ContentTypeRepository();
@@ -220,7 +249,9 @@ test('the page builder marks the entry\'s other page content areas', function ()
     $types->save($blog);
     $site->saveLayout('blog', 'detail', [
         ['id' => 'main', 'kind' => 'page_content', 'props' => ['field' => 'design']],
-        ['id' => 'side', 'kind' => 'page_content', 'props' => ['field' => 'aside']],
+        comet_page_test_section('side-frame', [
+            ['id' => 'side', 'kind' => 'page_content', 'props' => ['field' => 'aside']],
+        ]),
     ]);
 
     $context = comet_site_test_context($site);
