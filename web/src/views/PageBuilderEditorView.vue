@@ -1,7 +1,7 @@
 <template>
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
-    <header class="builder-topbar flex h-12 shrink-0 items-center gap-2 border-b px-2">
+    <header class="builder-topbar relative flex h-12 shrink-0 items-center gap-2 border-b px-2">
       <router-link :to="backTo" class="topbar-action" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
@@ -95,7 +95,7 @@
 
         <SplitButton
           variant="inverse"
-          :primary-disabled="saving || loading || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
+          :primary-disabled="saving || loading || switching || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
@@ -107,6 +107,7 @@
           </template>
         </SplitButton>
       </div>
+      <div v-if="switchingSlow" class="builder-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden" role="progressbar" :aria-label="t('site.builder.switching')"></div>
     </header>
 
     <div v-for="scope in ['layout', 'theme'].filter((scope) => loadedRevisions[scope])" :key="scope" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
@@ -124,7 +125,15 @@
 
     <div v-else-if="loading" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
-    <div v-else ref="builderAreaRef" class="relative isolate flex min-h-0 flex-1 overflow-hidden">
+    <!-- Another view keeps this one on screen, untouchable, until its content arrives. -->
+    <div
+      v-else
+      ref="builderAreaRef"
+      class="relative isolate flex min-h-0 flex-1 overflow-hidden transition-opacity duration-150"
+      :class="{ 'opacity-60': switchingSlow }"
+      :inert="switching || null"
+      :aria-busy="switching"
+    >
 
       <!-- Panel rail -->
       <nav
@@ -520,7 +529,22 @@ const historyScopeKey = computed(() => {
   return target === "component" ? "site.history.scope.component" : "site.history.scope.layout";
 });
 
+/** Nothing to show yet: the first load. */
 const loading = ref(true);
+/** Another view of this builder loads while the current one stays on screen. */
+const switching = ref(false);
+/** The switch takes long enough to say so; quick ones show nothing. */
+const switchingSlow = ref(false);
+let switchingTimer = null;
+watch(switching, (value) => {
+  clearTimeout(switchingTimer);
+  if (value) switchingTimer = setTimeout(() => { switchingSlow.value = true; }, 150);
+  else switchingSlow.value = false;
+});
+/** Only the latest load applies; slower earlier ones are dropped. */
+let loadSequence = 0;
+/** The page area being loaded or shown, so a quick second pick is compared with the latest. */
+let requestedField = pageField.value;
 const upgradeRequired = ref(false);
 const layoutRevision = ref(null);
 const loadError = ref("");
@@ -789,18 +813,23 @@ function editEntryField({ fields, text }) {
 
 watch(locale, (value) => { editorLanguages.activeLocale.value = value; builder.locale.value = value; });
 
-async function load() {
-  loading.value = true;
+async function load(field = pageField.value) {
+  const current = ++loadSequence;
+  // Once the builder shows, later loads keep it on screen until their content arrives.
+  if (loading.value || loadError.value) loading.value = true;
+  else switching.value = true;
   loadError.value = "";
-  loadedRevisions.value.layout = null;
+  requestedField = field;
 
   try {
     const entry = typeof route.query.entry === "string" ? route.query.entry : "";
     let res;
-    if (target === "page") res = await api.site.page(name, pageEntry, pageField.value);
+    if (target === "page") res = await api.site.page(name, pageEntry, field);
     else if (target === "region") res = await api.site.region(name);
     else res = target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
+    if (current !== loadSequence) return;
     const data = res.data;
+    loadedRevisions.value.layout = null;
     layoutRevision.value = data.revision;
     builder.types.value = data.types ?? [];
     builder.menus.value = data.menus ?? [];
@@ -822,6 +851,7 @@ async function load() {
     }
     if (target === "page") {
       pageField.value = data.field;
+      requestedField = data.field;
       pageCustomized.value = !!data.customized;
       pagePlaced.value = data.placed !== false;
       pageTitle.value = data.entry?.title ?? "";
@@ -842,9 +872,12 @@ async function load() {
     locale.value = locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
   } catch (err) {
-    loadError.value = err.message;
+    if (current === loadSequence) loadError.value = err.message;
   } finally {
-    loading.value = false;
+    if (current === loadSequence) {
+      loading.value = false;
+      switching.value = false;
+    }
   }
 }
 
@@ -853,7 +886,7 @@ async function save() {
   const saveLayout = layoutSavable.value;
   const saveTheme = themeDirty.value;
   const saveContent = entryFields.isDirty.value;
-  if (saving.value || (!saveLayout && !saveTheme && !saveContent)) return;
+  if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveContent)) return;
   saving.value = true;
 
   try {
@@ -1023,13 +1056,13 @@ function selectEntry(entry) {
 
 /** Edit another page content area of the entry, in place. */
 function selectPageArea(field) {
-  if (target !== "page" || saving.value || loading.value || field === pageField.value) return;
+  if (target !== "page" || saving.value || loading.value || field === requestedField) return;
   goToView({ key: `field:${field}`, field, to: { path: route.path, query: { ...route.query, field } } });
 }
 
 function goToView(view) {
   if (view.key === currentView.value) return;
-  if (builder.isDirty.value || entryFields.isDirty.value) {
+  if (!switching.value && (builder.isDirty.value || entryFields.isDirty.value)) {
     pendingView.value = view;
     return;
   }
@@ -1039,10 +1072,10 @@ function goToView(view) {
 function switchView(view) {
   pendingView.value = null;
   // Another area stays in this view: only its content loads.
+  // The preview keeps the current area until the new one's content arrives.
   if (view.field) {
-    pageField.value = view.field;
     router.replace(view.to);
-    load();
+    load(view.field);
     return;
   }
   bypass();
@@ -1061,6 +1094,9 @@ function onKeydown(event) {
     save();
     return;
   }
+
+  // Edits to a view on its way out would be lost.
+  if (switching.value) return;
 
   if (editing) return;
 
@@ -1118,6 +1154,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(switchingTimer);
   window.removeEventListener("keydown", onKeydown);
   // Design edits the user chose to leave behind must not resurface elsewhere.
   if (!isBuilderPath(router.currentRoute.value.path)) site.discardTheme();
@@ -1213,6 +1250,28 @@ onBeforeUnmount(() => {
 .topbar-group > * + * {
   border-left: 1px solid rgb(var(--builder-toolbar-text) / 0.25);
 }
+.builder-progress::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 30%;
+  background: rgb(var(--builder-toolbar-text) / 0.85);
+  animation: builder-progress 1s ease-in-out infinite;
+}
+
+@keyframes builder-progress {
+  from { left: -30%; }
+  to { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .builder-progress::before {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
 .builder-stage {
   background-color: rgb(var(--color-slate-100));
   background-image: radial-gradient(rgb(var(--color-slate-300) / 0.7) 1px, transparent 1px);

@@ -2205,6 +2205,7 @@ const messages = {
   'site.kindHint.search': 'Ein Suchfeld, das schon beim Tippen passende Seiten in einer Liste darunter zeigt.',
   'site.kindHint.component': 'Eine Platzierung eines wiederverwendbaren Bausteins. Bearbeite den Baustein, um alle Platzierungen zu ändern.',
   'site.builder.previewUnsaved': 'Öffnet die zuletzt gespeicherte Version. Speichere zuerst, um deine letzten Änderungen einzubeziehen.',
+  'site.builder.switching': 'Nächste Ansicht wird geladen…',
   'site.typeCard.private': 'Für private Inhaltstypen ist der Page Builder nicht verfügbar. Ihre Inhalte sind nur über die API erreichbar.',
   'site.typeCard.siteOff': 'Die Website ist noch nicht veröffentlicht. Wenn du mit aktiviertem Page Builder speicherst, geht sie online.',
   'site.typeCard.openWebsite': 'Website-Einstellungen',

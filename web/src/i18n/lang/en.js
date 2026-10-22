@@ -2200,6 +2200,7 @@ const messages = {
     'site.kindHint.search': 'A search field that shows matching pages in a dropdown as visitors type.',
     'site.kindHint.component': 'A placement of a reusable component. Edit the component to change all placements.',
     'site.builder.previewUnsaved': 'Opens the last saved version. Save first to include your latest changes.',
+    'site.builder.switching': 'Loading the next view…',
     'site.typeCard.private': 'The Page Builder is unavailable for private content types. Their content is only accessible through the API.',
     'site.typeCard.siteOff': 'The website is not published yet. Saving with the Page Builder enabled puts it online.',
     'site.typeCard.openWebsite': 'Website settings',
