@@ -729,7 +729,7 @@ test('installing block scripts needs explicit consent and is reported in the inv
     assert_same('text/javascript', BlockRegistry::active()->asset($file)['type']);
 });
 
-test('published pages mount block scripts through exact CSP sources, previews never run them', function (): void {
+test('published pages and previews mount block scripts through exact CSP sources', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
     $stats = LayoutSchema::node('block:cometcms/stats', ['duration' => 800]);
@@ -752,11 +752,19 @@ test('published pages mount block scripts through exact CSP sources, previews ne
 
     $ctx->preview = true;
     $preview = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
-    assert_false(str_contains($preview, 'data-comet-block='));
-    assert_false(str_contains($preview, 'import mount from'));
+    assert_true(str_contains($preview, 'data-comet-block='));
+    assert_true(str_contains($preview, 'import mount from'));
     $builder = comet_site_test_context($site);
     $builder->annotate = true;
-    assert_false(str_contains((new NodeRenderer($builder))->render([$stats]), 'data-comet-block='));
+    assert_true(str_contains((new NodeRenderer($builder))->render([$stats]), 'data-comet-block='));
+    $builder->preview = true;
+    $annotated = (new PageRenderer($builder))->entryPage($site->types()['about'], $entry);
+    assert_true(str_contains($annotated, 'data-node='));
+    assert_same(1, substr_count($annotated, '<script type="module">' . $loader . '</script>'));
+    foreach (\CometCMS\Site\Blocks\BlockScripts::cspSources($annotated, $builder) as $source) {
+        assert_true(str_contains($annotated, $source));
+    }
+    assert_true(str_contains($preview, \CometCMS\Site\SiteScripts::cspDirective($preview, $ctx)));
 });
 
 test('block package uploads with scripts ask for consent before installing', function (): void {
@@ -769,7 +777,7 @@ test('block package uploads with scripts ask for consent before installing', fun
     assert_same(['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['scripts']);
 });
 
-test('example slideshows render translated media slides and only load their script on published pages', function (): void {
+test('example slideshows render translated media slides and load their script in previews', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
     comet_media_test_file('slide.jpg', 'jpeg');
@@ -797,8 +805,8 @@ test('example slideshows render translated media slides and only load their scri
     $ctx->preview = true;
     $preview = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     assert_true(str_contains($preview, 'Our &lt;story&gt;'));
-    assert_false(str_contains($preview, 'import mount'));
-    assert_false(str_contains($preview, 'data-comet-block='));
+    assert_true(str_contains($preview, 'import mount'));
+    assert_true(str_contains($preview, 'data-comet-block='));
     $ctx->locale = 'de';
     $translated = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     assert_true(str_contains($translated, 'Unsere Geschichte'));
@@ -826,7 +834,7 @@ test('integer block controls expose sliders and preserve bounded values', functi
     assert_same('slider', $package['blocks']['block:cometcms/stats']['props']['items']['fields']['value']['control']);
 });
 
-test('maps render escaped location labels and keep editor previews free of scripts and tiles', function (): void {
+test('maps render escaped location labels and include their script in editor previews', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
     $node = LayoutSchema::node('block:cometcms/maps', ['label' => 'Our <office>', 'location' => '0, 0', 'zoom' => 7]);
@@ -843,7 +851,7 @@ test('maps render escaped location labels and keep editor previews free of scrip
     $context->preview = true;
     $preview = (new PageRenderer($context))->entryPage($type, $entry);
     assert_true(str_contains($preview, 'The interactive map loads on the published website.'));
-    assert_false(str_contains($preview, 'import mount'));
+    assert_true(str_contains($preview, 'import mount'));
     assert_false(str_contains($preview, 'tile.openstreetmap.org'));
 });
 
@@ -889,7 +897,7 @@ test('example comparison and testimonial blocks render safe translated content a
     $ctx->preview = true;
     $preview = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     assert_true(str_contains($preview, 'Before &lt;work&gt;'));
-    assert_false(str_contains($preview, 'import mount'));
+    assert_true(str_contains($preview, 'import mount'));
     assert_false(str_contains($preview, ' data-ready='));
     $ctx->locale = 'de';
     $translated = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);

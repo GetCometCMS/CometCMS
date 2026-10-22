@@ -7,7 +7,7 @@ namespace CometCMS\Site\Blocks;
 use CometCMS\Site\SiteContext;
 
 /**
- * Block scripts on the published website. A block's view.js is served as a
+ * Block scripts on the website and in previews. A block's view.js is served as a
  * content-hashed module; a small loader per block on the page imports it and mounts
  * it on every instance. The Content-Security-Policy allows exactly these loaders by
  * hash and exactly these module URLs, never the whole origin.

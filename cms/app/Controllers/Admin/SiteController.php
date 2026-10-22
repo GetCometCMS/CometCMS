@@ -989,7 +989,7 @@ final class SiteController extends BaseController
         header('Cache-Control: private, no-store');
         header('X-Robots-Tag: noindex, nofollow');
         header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; "
-            . SiteScripts::cspDirective($html) . "; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'");
+            . SiteScripts::cspDirective($html, $this->context()) . "; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'");
         echo $html;
         exit;
     }

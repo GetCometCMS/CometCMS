@@ -2,7 +2,7 @@
 
 <div v-pre>
 
-**Block packages** add your own elements to the page builder. A package is a ZIP of plain files: a manifest, one folder per block with an HTML template and CSS, optional assets, and optional JavaScript. CometCMS validates and compiles packages at installation, and every block then renders on the server, identically in the builder preview and on the published website. A block's script adds behavior on the published website only.
+**Block packages** add your own elements to the page builder. A package is a ZIP of plain files: a manifest, one folder per block with an HTML template and CSS, optional assets, and optional JavaScript. CometCMS validates and compiles packages at installation, and every block then renders on the server, identically in the builder preview and on the published website. A block's script adds behavior on the website and in previews.
 
 Blocks behave like built-in elements. They appear in the elements palette with their own icon, get an inspector generated from their props, accept the standard element styles, and work in columns, tabs, reusable components, collection cards and header/footer layouts. Their content is translatable, text, rich text, images and links can be bound to entry fields, and a block can hold other elements in a slot.
 
@@ -34,7 +34,7 @@ comet-essentials/
     slideshow/…             # image slides, captions, links and optional autoplay
     testimonial/…           # quote, attribution, portrait and optional star rating
     stats/
-      view.js               # optional: JavaScript for the published website
+      view.js               # optional: JavaScript for the website and previews
 ```
 
 1. Check the package: `npm run blocks -- validate examples/blocks/comet-essentials`
@@ -42,13 +42,13 @@ comet-essentials/
 3. As an administrator, open **Page Builder → Custom blocks** and drop the ZIP on the upload area.
 4. Open a layout. **Before / after**, **Callout**, **Card**, **FAQ**, **Feature**, **Pricing plan**, **Maps**, **Slideshow**, **Stats** and **Testimonial** are in the elements palette.
 
-**Before / after** compares two media images with editable labels, an initial split from 0 to 100%, an optional caption and landscape (4:3), wide (16:9), square or portrait (3:4) crops. Use similarly framed images for the closest match. The published comparison supports dragging with a mouse or touch and keyboard navigation with arrow keys and Home/End after tabbing to the divider. A visually hidden, labeled native range control provides keyboard and screen-reader support, with a visible focus ring on the divider. Images use media-library alt text. Previews and pages without JavaScript show both images side by side; missing or failed images do not enable the slider.
+**Before / after** compares two media images with editable labels, an initial split from 0 to 100%, an optional caption and landscape (4:3), wide (16:9), square or portrait (3:4) crops. Use similarly framed images for the closest match. The published comparison supports dragging with a mouse or touch and keyboard navigation with arrow keys and Home/End after tabbing to the divider. A visually hidden, labeled native range control provides keyboard and screen-reader support, with a visible focus ring on the divider. Images use media-library alt text. Pages without JavaScript show both images side by side; missing or failed images do not enable the slider.
 
 **Testimonial** displays a translatable quote and attribution (name, role and company), an optional media portrait and an optional one-to-five-star rating. Choose left or centered alignment. The rating has a translatable accessible label; main text and surface styling respect the standard Style controls. It needs no JavaScript.
 
-**Maps** takes coordinates in `latitude, longitude` order, such as `52.520008, 13.404954`, and an initial zoom level from 1 (world) to 19 (street). The name or address is a display label; it is not geocoded. Use decimal degrees with a dot as the decimal separator. Latitude is limited to ±85.05112878 (the Web Mercator map extent), longitude to ±180. The published map shows a pin, zoom buttons and a link to the full map. It loads visible [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) when scrolled into view, with browser caching and attribution; it needs no API key or external JavaScript library. Previews and pages without JavaScript show the name, coordinates and a placeholder. Invalid coordinates and tile failures show an editable message. For high-traffic deployments, use a suitable tile provider under its terms.
+**Maps** takes coordinates in `latitude, longitude` order, such as `52.520008, 13.404954`, and an initial zoom level from 1 (world) to 19 (street). The name or address is a display label; it is not geocoded. Use decimal degrees with a dot as the decimal separator. Latitude is limited to ±85.05112878 (the Web Mercator map extent), longitude to ±180. The published map shows a pin, zoom buttons and a link to the full map. It loads visible [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) when scrolled into view, with browser caching and attribution; it needs no API key or external JavaScript library. Pages without JavaScript show the name, coordinates and a placeholder. Invalid coordinates and tile failures show an editable message. For high-traffic deployments, use a suitable tile provider under its terms.
 
-**Slideshow** accepts up to 12 slides with a media image, title, caption and optional link. Edit the slides in the inspector; image alt text comes from the media library. On the published website, use the arrows, numbered selectors or Left/Right and Home/End keys to change slides. Optional autoplay uses a configurable interval and a play/pause button, pauses while hovered or the page is hidden, and stops after focus or manual navigation. Reduced motion disables automatic playback. All button labels and slide content are translatable. In previews and without JavaScript, the slides stay readable in a horizontally scrollable list.
+**Slideshow** accepts up to 12 slides with a media image, title, caption and optional link. Edit the slides in the inspector; image alt text comes from the media library. On the published website, use the arrows, numbered selectors or Left/Right and Home/End keys to change slides. Optional autoplay uses a configurable interval and a play/pause button, pauses while hovered or the page is hidden, and stops after focus or manual navigation. Reduced motion disables automatic playback. All button labels and slide content are translatable. Without JavaScript, the slides stay readable in a horizontally scrollable list.
 
 Zipping the folder yourself works too. A single top-level folder inside the ZIP is unwrapped, and `.DS_Store`, `__MACOSX/` and other dotfiles are ignored. The CLI runs the same validation as the installer, without a running CMS. It needs only PHP with the zip extension.
 
@@ -218,7 +218,7 @@ Use a prop for `id` values, or include one in the template, when a block can app
 
 ## JavaScript
 
-A block can have a `view.js`: one ES module whose default export runs for every instance of the block on a published page.
+A block can have a `view.js`: one ES module whose default export runs for every instance of the block on the website and in previews.
 
 ```js
 // blocks/stats/view.js
@@ -233,7 +233,7 @@ export default function mount(element, props) {
 ```
 
 - **Values.** `props` holds each prop by name: text as strings, `int` as numbers, `bool` as booleans, lists as arrays of item objects, and media, links and colors as objects whose `_` is the URL, the address or the color key (media also have `alt`, links `new_tab`, colors `css`). Bound and translated props are already resolved.
-- **Published website only.** Scripts never run in the builder or in draft previews, so a block must look complete without its script and add behavior on top (progressive enhancement). The inspector reminds editors of this.
+- **Website and previews.** Scripts run in the builder iframe and in full-page draft previews with the resolved block props. After edits, previews containing scripted blocks reload to reset generated markup, listeners and timers while preserving scroll position. Blocks should still provide readable HTML when JavaScript is unavailable (progressive enhancement).
 - **Self-contained.** `view.js` must `export default` its mount function and cannot `import` anything. Bundle dependencies into the file, for example `esbuild src/stats.js --bundle --format=esm --outfile=blocks/stats/view.js`. It is limited to 128 KiB and cannot contain `</script`.
 - **Errors.** An exception in one instance is logged to the console and does not stop the others.
 
@@ -293,13 +293,13 @@ Installing, updating and deleting packages requires an administrator with the wo
 | Capability | Policy |
 | --- | --- |
 | Data | Blocks see only their own validated props. No content queries, media library, sessions or environment. |
-| JavaScript | **Trusted, and confirmed separately.** A `view.js` runs on the published website with the website's origin. Because the admin shares that origin, a script runs with the permissions of any administrator or editor who is signed in while visiting the site. Installing or updating a package with scripts therefore needs an explicit confirmation, and such packages are marked "JavaScript" in **Custom blocks**. Packages copied into the folder directly are trusted like the rest of the server's files. |
+| JavaScript | **Trusted, and confirmed separately.** A `view.js` runs on the website and in previews with the website's origin. Because the admin shares that origin, a script runs with the permissions of any administrator or editor who is signed in while visiting the site. Installing or updating a package with scripts therefore needs an explicit confirmation, and such packages are marked "JavaScript" in **Custom blocks**. Packages copied into the folder directly are trusted like the rest of the server's files. |
 | Server code | None. No PHP, build steps, hooks or package managers. Other JavaScript files are rejected. |
 | Markup | Allow-listed at installation; values are escaped, and rich text is sanitized with the CMS's HTML allow-list. |
 | CSS | **Trusted, like custom theme CSS.** It is not sandboxed or scoped, so it can restyle the whole website and load external fonts and images. Prefixing selectors is a convention, not a security boundary. Only install packages from authors you trust. |
 | Assets | Served with `Content-Security-Policy: sandbox` and `nosniff`, so an SVG opened directly cannot run scripts. |
 
-The builder preview keeps its script prohibition, and package CSS and scripts never enter the admin interface itself.
+Package CSS and scripts load in the preview document, including the builder iframe. Installed scripts are trusted code: the iframe shares the admin origin and is not a security boundary. Preview policies allow only the installed block loaders and their exact module URLs.
 
 ## API
 
@@ -313,7 +313,6 @@ The workspace header and CSRF handling are those of the other admin endpoints.
 
 ## Not yet supported
 
-- **Scripts in the builder preview**, for blocks whose editing view needs them, which would require running package code isolated from the admin.
 - **Shared modules** between the scripts of several blocks; bundle shared code into each `view.js`.
 - **Nested lists**, binding a whole list to a repeater field, and several named slots.
 

@@ -230,9 +230,9 @@ final class NodeRenderer
         // Compiled templates are well-formed allow-listed HTML; render only escapes values.
         $html = BlockTemplate::render($block['template'], $values, $this->ctx->blockAssetUrl(...), $slot);
         $this->blockStyles[$block['package']][$node['kind']] = true;
-        // Scripts only run on the published website; the builder and previews show the plain block.
+        // Installed block scripts also mount in previews, using the same resolved props.
         $attributes = '';
-        if ($block['script'] !== '' && !$this->ctx->preview && !$this->annotating()) {
+        if ($block['script'] !== '') {
             $this->blockScripts[$node['kind']] = true;
             $attributes = ' data-comet-block="' . Security::e($block['name']) . '" data-comet-props="'
                 . Security::e(json_encode($values, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)) . '"';

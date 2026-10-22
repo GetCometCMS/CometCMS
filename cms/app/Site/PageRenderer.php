@@ -277,13 +277,14 @@ final class PageRenderer
             }
         }
 
+        $blockScripts = implode('', BlockScripts::elements($this->nodes->blockScripts(), $this->ctx->site->blocks(), $this->ctx));
         $title = Security::e((string) ($meta['title'] ?? $this->ctx->siteTitle()));
         $description = trim((string) ($meta['description'] ?? ''));
         $canonical = (string) ($meta['canonical'] ?? '');
         $noindex = ($meta['noindex'] ?? false) || $this->ctx->preview || !empty($settings['noindex']);
         $head = '<meta charset="utf-8">'
             . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="'
-                . SiteScripts::cspDirective($headScript . $bodyScripts)
+                . SiteScripts::cspDirective($headScript . $bodyScripts . $blockScripts, $this->ctx)
                 . '; object-src \'none\'; base-uri \'none\'; form-action \'none\'">' : '')
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . $title . '</title>'
@@ -363,7 +364,7 @@ final class PageRenderer
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
             . $bodyScripts
-            . (!$this->ctx->preview ? implode('', BlockScripts::elements($this->nodes->blockScripts(), $this->ctx->site->blocks(), $this->ctx)) : '')
+            . $blockScripts
             . '</body></html>';
         $banner = '';
         if ($this->ctx->previewBanner) {
