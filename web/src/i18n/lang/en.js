@@ -986,6 +986,7 @@ const messages = {
     'workspaces.updated': 'Workspace updated.',
     'workspaces.archived': 'Workspace archived.',
     'workspaces.createFailed': 'Could not create workspace.',
+    'workspaces.slugArchived': 'An archived workspace already uses this slug. Choose a different slug.',
     'workspaces.updateFailed': 'Could not update workspace.',
     'workspaces.archiveFailed': 'Could not archive workspace.',
     'workspaces.manageCta': 'Manage workspaces',

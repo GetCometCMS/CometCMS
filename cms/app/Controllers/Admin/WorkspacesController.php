@@ -50,8 +50,15 @@ final class WorkspacesController extends BaseController
         }
 
         $slug = Security::slug((string) ($body['slug'] ?? $body['label'] ?? ''));
-        if ($slug === '' || $this->workspaces->exists($slug, true)) {
-            $this->json(['error' => ['code' => 'validation_failed', 'message' => $slug === '' ? 'Choose a workspace slug.' : 'Workspace already exists.']], 422);
+        $existing = $this->workspaces->find($slug, true);
+        if ($slug === '' || $existing !== null) {
+            $message = $slug === '' ? 'Choose a workspace slug.' : (
+                !empty($existing['archived'])
+                    ? 'An archived workspace already uses this slug. Choose a different slug.'
+                    : 'Workspace already exists.'
+            );
+            $code = !empty($existing['archived']) ? 'workspace_archived' : 'validation_failed';
+            $this->json(['error' => ['code' => $code, 'message' => $message]], 422);
         }
 
         try {

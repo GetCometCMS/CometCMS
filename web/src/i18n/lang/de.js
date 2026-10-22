@@ -991,6 +991,7 @@ const messages = {
   'workspaces.updated': 'Arbeitsbereich aktualisiert.',
   'workspaces.archived': 'Arbeitsbereich archiviert.',
   'workspaces.createFailed': 'Arbeitsbereich konnte nicht erstellt werden.',
+  'workspaces.slugArchived': 'Ein archivierter Arbeitsbereich verwendet diesen Slug bereits. Wähle einen anderen Slug.',
   'workspaces.updateFailed': 'Arbeitsbereich konnte nicht aktualisiert werden.',
   'workspaces.archiveFailed': 'Arbeitsbereich konnte nicht archiviert werden.',
   'workspaces.manageCta': 'Arbeitsbereiche verwalten',

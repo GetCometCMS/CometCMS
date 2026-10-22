@@ -131,3 +131,18 @@ PHP;
     assert_same(['custom'], array_column($state['types'], 'name'));
     assert_same([], $state['pages']);
 });
+
+test('new workspace creation explains when an archived workspace reserves the slug', function (): void {
+    $seed = <<<'PHP'
+$registry = new \CometCMS\Workspaces\WorkspaceRepository();
+$registry->save(['slug' => 'new-site', 'label' => 'Archived site']);
+$registry->archive('new-site');
+PHP;
+    [$status, $json, $state] = comet_workspace_creation_request(['starter_template' => 'website'], $seed);
+    assert_same(422, $status);
+    assert_same('workspace_archived', $json['error']['code']);
+    assert_same('An archived workspace already uses this slug. Choose a different slug.', $json['error']['message']);
+    assert_true($state['workspace']['archived']);
+    assert_same('Archived site', $state['workspace']['label']);
+    assert_same([], $state['pages']);
+});

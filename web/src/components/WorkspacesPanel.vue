@@ -80,7 +80,7 @@
           </button>
         </div>
       </form>
-      <p v-if="createError" class="mt-3 text-sm text-red-600">
+      <p v-if="createError" class="mt-3 text-sm text-red-600" role="alert">
         {{ createError }}
       </p>
     </div>
@@ -350,7 +350,9 @@ async function handleCreate() {
     window.dispatchEvent(new CustomEvent(workspaceSyncEvent));
   } catch (err) {
     createError.value =
-      err?.data?.error?.message ?? t("workspaces.createFailed");
+      err?.code === "workspace_archived"
+        ? t("workspaces.slugArchived")
+        : err?.message || t("workspaces.createFailed");
   } finally {
     installingFonts.value = false;
     creating.value = false;
