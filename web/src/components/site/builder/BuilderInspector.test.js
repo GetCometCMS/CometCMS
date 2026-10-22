@@ -71,11 +71,18 @@ describe('menu panel controls', () => {
     expect(fullscreen).not.toContain('collapse_mobile')
   })
 
-  it('hides panel settings for dropdowns and menus without a button', async () => {
+  it('offers dropdown colors wherever a menu opens a dropdown', async () => {
     const dropdown = await menuControls({})
-    expect(dropdown).toContain('panel')
-    for (const key of ['panel_side', 'panel_background', 'panel_text_color']) expect(dropdown).not.toContain(key)
+    expect(dropdown).toEqual(expect.arrayContaining(['panel', 'panel_background', 'panel_text_color']))
+    expect(dropdown).not.toContain('panel_side')
+    // Horizontal submenus still drop down without a menu button.
     const inline = await menuControls({ panel: 'drawer', collapse_mobile: false })
-    for (const key of ['panel', 'panel_side', 'panel_background', 'panel_text_color']) expect(inline).not.toContain(key)
+    expect(inline).toEqual(expect.arrayContaining(['panel_background', 'panel_text_color']))
+    for (const key of ['panel', 'panel_side']) expect(inline).not.toContain(key)
+  })
+
+  it('hides panel settings for vertical menus without a button', async () => {
+    const vertical = await menuControls({ orientation: 'vertical', collapse_mobile: false })
+    for (const key of ['panel', 'panel_side', 'panel_background', 'panel_text_color']) expect(vertical).not.toContain(key)
   })
 })

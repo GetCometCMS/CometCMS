@@ -226,6 +226,7 @@ final class Theme
             $css .= '.c-fg-' . $key . '{color:var(--c-' . $key . ');}';
             $css .= '.c-bd.c-bdc-' . $key . '{--c-bd-c:var(--c-' . $key . ');}';
             $css .= '.c-bg-' . $key . ' a:not(.c-button){color:inherit;}';
+            $css .= '.c-bg-' . $key . '{--c-menu-accent:currentColor;}';
         }
 
         if ($theme['custom_css'] !== '') {

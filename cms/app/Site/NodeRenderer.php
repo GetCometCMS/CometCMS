@@ -796,13 +796,15 @@ final class NodeRenderer
             $color = $node['style']['text_color'] === 'inverse' ? 'background' : $node['style']['text_color'];
             $panelStyle[] = '--c-menu-color:var(--c-' . $color . ')';
         }
-        if ($hasPanel) {
-            foreach (['panel_background' => '--c-menu-background', 'panel_text_color' => '--c-menu-text'] as $key => $variable) {
-                if ($props[$key] !== '') {
-                    $color = $props[$key] === 'inverse' ? 'background' : $props[$key];
-                    $panelStyle[] = $variable . ':var(--c-' . $color . ')';
-                }
-            }
+        // Submenu dropdowns and the button's panel share one palette.
+        if ($props['panel_background'] !== '') {
+            $panelStyle[] = '--c-menu-background:var(--c-' . $props['panel_background'] . ')';
+        }
+        if ($props['panel_text_color'] !== '') {
+            $panelStyle[] = '--c-menu-text:var(--c-' . ($props['panel_text_color'] === 'inverse' ? 'background' : $props['panel_text_color']) . ')';
+        } elseif ($props['panel_background'] !== '') {
+            // Without a text color of its own, a panel reads like a section with that fill.
+            $panelStyle[] = '--c-menu-text:var(--c-' . (in_array($props['panel_background'], ['background', 'surface'], true) ? 'text' : 'on-' . $props['panel_background']) . ')';
         }
 
         if ($collapsible) {

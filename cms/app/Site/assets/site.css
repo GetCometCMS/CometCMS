@@ -462,8 +462,13 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 .c-ta-right .c-menu, .c-ta-right .c-languages { display: inline-flex; justify-content: flex-end; }
 .c-menu ul { list-style: none; margin: 0; padding: 0; }
 .c-menu a, .c-menu-label > span { display: block; padding: 0.4em 0.75em; color: inherit; text-decoration: none; border-radius: calc(var(--radius) * 0.75); overflow-wrap: anywhere; }
-.c-menu a:hover { color: var(--c-menu-color, var(--c-primary)); background: rgb(var(--c-primary-rgb) / 0.07); }
-.c-menu a[aria-current="page"] { color: var(--c-menu-color, var(--c-primary)); font-weight: 600; }
+/* The current and hovered links take the menu's text color, else the section's highlight color (see .c-bg-*). */
+.c-menu a:hover { color: var(--c-menu-color, var(--c-menu-accent, var(--c-primary))); background: color-mix(in srgb, currentColor 10%, transparent); }
+.c-menu a[aria-current="page"] { color: var(--c-menu-color, var(--c-menu-accent, var(--c-primary))); font-weight: 600; }
+/* Dropdowns and panels sit on a palette of their own, never the bar's text color. */
+.c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu, .c-menu-always-button .c-menu-list, .c-menu-collapsible > .c-menu-toggle:checked ~ .c-menu-list {
+  --c-menu-color: var(--c-menu-text, var(--c-primary));
+}
 .c-menu-horizontal .c-menu-list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15em; }
 .c-menu-vertical .c-menu-list { display: flex; flex-direction: column; }
 .c-menu .c-submenu { padding-left: 1em; }
@@ -475,7 +480,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 .c-menu-disclosure[open] > summary > span { transform: rotate(180deg); }
 .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu {
   position: absolute; top: 100%; left: 0; width: max-content; min-width: min(12em, calc(100vw - 2rem)); max-width: min(22rem, calc(100vw - 2rem)); max-height: min(70vh, 32rem); overflow: auto; z-index: 50; text-align: left;
-  background: var(--c-background); border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.35em; box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.25);
+  background: var(--c-menu-background, var(--c-background)); color: var(--c-menu-text, var(--c-text)); border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.35em; box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.25);
 }
 .c-ta-right .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu { left: auto; right: 0; }
 .c-menu-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
@@ -492,7 +497,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 .c-menu-always-button .c-menu-button { display: inline-flex; }
 .c-menu-always-button .c-menu-list {
   display: none !important; position: absolute; left: 0; top: calc(100% + 0.5em); z-index: 60; width: max-content; min-width: min(14em, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); text-align: left;
-  flex-direction: column; align-items: stretch; background: var(--c-background); color: var(--c-menu-color, var(--c-text));
+  flex-direction: column; align-items: stretch; background: var(--c-menu-background, var(--c-background)); color: var(--c-menu-text, var(--c-text));
   border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.4em; box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.3);
 }
 .c-ta-right .c-menu-always-button .c-menu-list { left: auto; right: 0; }
@@ -501,7 +506,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
   .c-menu-collapsible .c-menu-button { display: inline-flex; }
   .c-menu-collapsible .c-menu-list {
     display: none !important; position: absolute; left: 0; top: calc(100% + 0.5em); z-index: 60; width: max-content; min-width: min(14em, calc(100vw - 2rem)); max-width: calc(100vw - 2rem); text-align: left;
-    flex-direction: column; align-items: stretch; background: var(--c-background); color: var(--c-menu-color, var(--c-text));
+    flex-direction: column; align-items: stretch; background: var(--c-menu-background, var(--c-background)); color: var(--c-menu-text, var(--c-text));
     border: 1px solid var(--c-border); border-radius: var(--radius-box); padding: 0.4em; box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.3);
   }
   .c-ta-right .c-menu-collapsible .c-menu-list { left: auto; right: 0; }
@@ -518,7 +523,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 .c-menu-drawer > .c-menu-toggle:checked ~ .c-menu-list {
   display: flex !important; position: fixed; z-index: 1000; flex-direction: column; flex-wrap: nowrap; gap: 0.2em;
   width: auto; min-width: 0; max-width: none; margin: 0; overflow-y: auto; overscroll-behavior: contain;
-  background: var(--c-menu-background, var(--c-background)); color: var(--c-menu-text, var(--c-menu-color, var(--c-text))); border: 0; border-radius: 0; box-shadow: none;
+  background: var(--c-menu-background, var(--c-background)); color: var(--c-menu-text, var(--c-text)); border: 0; border-radius: 0; box-shadow: none;
   transition: opacity .25s ease, translate .3s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .c-menu-fullscreen > .c-menu-toggle:checked ~ .c-menu-list {
@@ -536,7 +541,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 }
 /* Nested lists and the close control share the panel's palette. */
 :is(.c-menu-fullscreen, .c-menu-drawer) > .c-menu-toggle:checked ~ .c-menu-list .c-submenu { background: inherit; }
-:is(.c-menu-fullscreen, .c-menu-drawer) > .c-menu-toggle:checked ~ .c-menu-list a:is(:hover, [aria-current="page"]) { color: var(--c-menu-text, var(--c-menu-color, var(--c-primary))); }
+:is(.c-menu-fullscreen, .c-menu-drawer) > .c-menu-toggle:checked ~ .c-menu-list a:is(:hover, [aria-current="page"]) { color: var(--c-menu-text, var(--c-primary)); }
 @starting-style {
   .c-menu-fullscreen > .c-menu-toggle:checked ~ .c-menu-list { opacity: 0; }
   .c-menu-drawer > .c-menu-toggle:checked ~ .c-menu-list { translate: var(--c-menu-drawer-enter, 100%) 0; }
@@ -544,7 +549,7 @@ html:has(.c-lightbox[open]) { overflow: hidden; }
 }
 .c-menu-toggle:checked ~ .c-menu-close {
   display: block; position: fixed; top: 1rem; right: 1rem; z-index: 1001; width: 2.6em; height: 2.6em;
-  border-radius: var(--radius); cursor: pointer; color: var(--c-menu-text, var(--c-menu-color, var(--c-text)));
+  border-radius: var(--radius); cursor: pointer; color: var(--c-menu-text, var(--c-text));
 }
 .c-menu-drawer-left > .c-menu-toggle:checked ~ .c-menu-close { left: 1rem; right: auto; }
 .c-menu-close::before, .c-menu-close::after { content: ""; position: absolute; top: 50%; left: 25%; right: 25%; height: 2px; margin-top: -1px; background: currentColor; border-radius: 2px; rotate: 45deg; }
@@ -694,6 +699,9 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-bg-muted { --c-fill: var(--c-muted); background-color: var(--c-muted); color: var(--c-on-muted); }
 .c-bg-border { --c-fill: var(--c-border); background-color: var(--c-border); color: var(--c-on-border); }
 .c-bg-primary a:not(.c-button), .c-bg-secondary a:not(.c-button), .c-bg-accent a:not(.c-button) { color: inherit; }
+/* The primary color would clash with a fill, so highlighted links there keep the fill's text color. */
+.c-bg-background, .c-bg-surface { --c-menu-accent: var(--c-primary); }
+.c-bg-primary, .c-bg-secondary, .c-bg-accent, .c-bg-text, .c-bg-muted, .c-bg-border { --c-menu-accent: currentColor; }
 .c-bg-primary .c-button-primary { background: var(--c-on-primary); color: var(--c-primary); }
 .c-bg-primary .c-button-outline, .c-bg-secondary .c-button-outline { color: inherit; }
 .c-bg-primary .c-muted, .c-bg-secondary .c-muted, .c-bg-accent .c-muted, .c-bg-primary .c-field-label, .c-bg-secondary .c-field-label { color: inherit; opacity: 0.75; }

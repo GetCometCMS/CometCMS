@@ -359,13 +359,14 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "menu") {
-    // The panel style only matters once there is a menu button.
+    // The panel style only matters once there is a menu button; its colors also dress horizontal submenus.
     const hasButton = props.always_button || props.collapse_mobile;
+    const hasPopover = hasButton || props.orientation !== "vertical";
     const rules = {
       panel: hasButton,
       panel_side: hasButton && props.panel === "drawer",
-      panel_background: hasButton && ["fullscreen", "drawer"].includes(props.panel),
-      panel_text_color: hasButton && ["fullscreen", "drawer"].includes(props.panel),
+      panel_background: hasPopover,
+      panel_text_color: hasPopover,
     };
     return keys.filter((key) => rules[key] !== false && (!props.always_button || !["orientation", "collapse_mobile"].includes(key)));
   }

@@ -87,7 +87,7 @@ test('menu panels render a close control only when a button opens them', functio
     }
 });
 
-test('menu element text colors reach links in dropdowns and panels', function (): void {
+test('menu element text colors tint bar links while dropdowns and panels keep their own palette', function (): void {
     $site = comet_site_test_setup();
     $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
 
@@ -100,7 +100,7 @@ test('menu element text colors reach links in dropdowns and panels', function ()
                 $context->annotate = $annotate;
                 $html = (new NodeRenderer($context))->render($layout);
                 assert_true(str_contains($html, '--c-menu-color:var(--c-' . $token . ')'));
-                assert_same($panel !== 'dropdown', str_contains($html, '--c-menu-text:var(--c-accent)'));
+                assert_true(str_contains($html, '--c-menu-text:var(--c-accent)'));
             }
         }
     }
@@ -138,7 +138,7 @@ test('menu panel position and palette persist and render in public and builder v
     }
 });
 
-test('menu panel options default safely and do not style dropdowns or menus without a button', function (): void {
+test('menu panel options default safely and dress dropdowns as well as panels', function (): void {
     $site = comet_site_test_setup();
     $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
     foreach ([[], ['panel_side' => 'top', 'panel_background' => 'custom-evil; color:red', 'panel_text_color' => ['primary']]] as $props) {
@@ -154,10 +154,21 @@ test('menu panel options default safely and do not style dropdowns or menus with
         $menu = LayoutSchema::node('menu', $props + ['panel_side' => 'left', 'panel_background' => 'primary', 'panel_text_color' => 'inverse']);
         $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
         $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
-        assert_false(str_contains($html, '--c-menu-background'));
-        assert_false(str_contains($html, '--c-menu-text'));
+        assert_true(str_contains($html, '--c-menu-background:var(--c-primary)'));
+        assert_true(str_contains($html, '--c-menu-text:var(--c-background)'));
         assert_false(str_contains($html, ' c-menu-drawer-left'));
     }
+
+    // A background alone brings its contrasting text color, as a section fill does.
+    foreach (['primary' => 'on-primary', 'surface' => 'text', 'custom-brand' => 'on-custom-brand'] as $background => $textToken) {
+        $menu = LayoutSchema::node('menu', ['panel_background' => $background]);
+        $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+        assert_true(str_contains($html, '--c-menu-text:var(--c-' . $textToken . ')'));
+    }
+    $html = comet_menu_test_render(comet_site_test_context($site));
+    assert_false(str_contains($html, '--c-menu-background'));
+    assert_false(str_contains($html, '--c-menu-text'));
 });
 
 test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
