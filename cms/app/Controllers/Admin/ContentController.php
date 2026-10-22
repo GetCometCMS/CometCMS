@@ -252,7 +252,33 @@ final class ContentController extends BaseController
 
         $user = $this->requirePermission('content.revisions.restore', ['type' => 'content', 'collection' => $collection, 'entry' => $current]);
         $this->verifyCsrf();
-        $entry = $this->content->restoreRevision($collection, (string) $current['id'], $revisionId, $user);
+        $entry = $this->content->restoreRevision($collection, (string) $current['id'], $revisionId, $user, function (array $current, array $restored, array $changes) use ($collection, $user): void {
+            $this->requirePermission('content.revisions.restore', ['type' => 'content', 'collection' => $collection, 'entry' => $current]);
+            foreach ($changes as $locale => $fields) {
+                $context = ['type' => 'content', 'collection' => $collection, 'entry' => $current, 'locale' => $locale, 'fields' => array_values(array_unique($fields))];
+                $this->requirePermission('content.update', $context);
+                // Publishing changed values into an already published locale is
+                // also a publication operation, including shared field changes.
+                foreach ($locale === '' ? array_keys($restored['publication']) : [$locale] as $affectedLocale) {
+                    if (($restored['publication'][$affectedLocale]['status'] ?? '') === 'published') {
+                        $this->requirePublishPermission($user, $collection, $current, ['status' => 'published', 'locale' => $affectedLocale]);
+                    }
+                }
+            }
+            // A default-language value may also change an inherited published
+            // translation. Authorize that effective publication separately.
+            foreach ($restored['publication'] as $locale => $publication) {
+                if (($publication['status'] ?? '') !== 'published') continue;
+                $before = $this->content->resolveLocaleFields($current, $locale, true);
+                $after = $this->content->resolveLocaleFields($restored, $locale, true);
+                foreach (array_unique(array_merge(array_keys($current['values']), array_keys($restored['values']))) as $field) {
+                    if (($before[$field] ?? null) !== ($after[$field] ?? null)) {
+                        $this->requirePublishPermission($user, $collection, $current, ['status' => 'published', 'locale' => $locale]);
+                        break;
+                    }
+                }
+            }
+        });
 
         if ($entry === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
@@ -299,7 +325,7 @@ final class ContentController extends BaseController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'locale' => $payload['locale'] ?? $this->content->locale()])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => \CometCMS\Workspaces\WorkspaceContext::active()->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

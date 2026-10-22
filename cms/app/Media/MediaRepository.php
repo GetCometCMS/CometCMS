@@ -429,6 +429,7 @@ final class MediaRepository
         }
 
         $newName = $this->normalizeFilename($newName, $file);
+        MimeDetector::assertRename($file, $newName);
         $target = $this->path($newName);
 
         if ($newName === $file) {

@@ -23,6 +23,8 @@ final class MimeDetector
         'mpeg' => 'video/mpeg',
         'mpg'  => 'video/mpeg',
         'ogv'  => 'video/ogg',
+        '3gp'  => 'video/3gpp',
+        '3g2'  => 'video/3gpp2',
         'pdf'  => 'application/pdf',
         'txt'  => 'text/plain',
         'csv'  => 'text/csv',
@@ -49,6 +51,39 @@ final class MimeDetector
         'aac'  => 'audio/aac',
         'flac' => 'audio/flac',
     ];
+
+    /** Return an allow-listed extension for a detected MIME/name pair. */
+    public static function validatedExtension(string $mime, string $name): string
+    {
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $expected = self::EXTENSION_MAP[$extension] ?? null;
+        $mime = match ($mime) {
+            'application/x-zip-compressed' => 'application/zip',
+            'application/vnd.rar' => 'application/x-rar-compressed',
+            'audio/x-wav' => 'audio/wav',
+            'audio/mp4' => 'audio/x-m4a',
+            'audio/x-flac' => 'audio/flac',
+            'text/rtf' => 'application/rtf',
+            default => $mime,
+        };
+        // Text formats and ZIP-based office documents can have generic MIME
+        // detections. Every accepted suffix still comes from the safe map.
+        $compatible = $expected !== null && ($mime === $expected
+            || ($mime === 'text/plain' && in_array($extension, ['txt', 'csv', 'md'], true))
+            || ($mime === 'application/zip' && in_array($extension, ['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp'], true)));
+        if (!$compatible) throw new \InvalidArgumentException('File extension does not match an allowed file type.');
+        return $extension === 'jpeg' ? 'jpg' : $extension;
+    }
+
+    public static function assertRename(string $current, string $name): void
+    {
+        $extension = strtolower(pathinfo($current, PATHINFO_EXTENSION));
+        // Some hosts select handlers from any suffix, e.g. file.php.gif.
+        if (str_contains(pathinfo($name, PATHINFO_FILENAME), '.')
+            || !isset(self::EXTENSION_MAP[$extension]) || strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== $extension) {
+            throw new \InvalidArgumentException('Renaming cannot change the file type.');
+        }
+    }
 
     public static function detect(string $path, ?string $originalName = null): string
     {
