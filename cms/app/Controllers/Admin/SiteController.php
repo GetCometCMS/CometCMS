@@ -865,25 +865,25 @@ final class SiteController extends BaseController
         $user = $this->requireUser();
         $context = $this->adminPreviewContext($user);
         $this->snapshot($context, $user);
-        $entry = $context->content->findByIdentifier($type, $id) ?? $context->findEntry($type, $id, true);
+        $locale = $context->content->locale((string) ($_GET['locale'] ?? $context->locale));
+        $context->locale = $locale;
+        $entry = $context->content->findByIdentifier($type, $id, false, $locale) ?? $context->findEntry($type, $id, true);
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
-        $this->sendPreview((new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? '')), 'This entry cannot be previewed on the website.');
+        $this->sendPreview((new SiteService($context))->previewEntry($type, $id, $locale), 'This entry cannot be previewed on the website.');
     }
 
     /** A type's index page with its saved layout, for the builder's Preview action. */
     public function previewIndex(string $type): never
     {
-        $this->requireUser();
-        $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
-        $this->sendPreview((new SiteService($this->context()))->previewIndex($type, (string) ($_GET['locale'] ?? '')), 'This content type cannot be previewed on the website.');
+        $user = $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type]);
+        $this->sendPreview((new SiteService($this->adminPreviewContext($user)))->previewIndex($type, (string) ($_GET['locale'] ?? '')), 'This content type cannot be previewed on the website.');
     }
 
     /** The homepage with the saved header and footer, for the builder's Preview action. */
     public function previewHome(): never
     {
-        $this->requireUser();
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
-        $this->sendPreview((new SiteService($this->context()))->previewHome((string) ($_GET['locale'] ?? '')), '');
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->sendPreview((new SiteService($this->adminPreviewContext($user)))->previewHome((string) ($_GET['locale'] ?? '')), '');
     }
 
     private function sendPreview(?string $html, string $missing): never
@@ -907,7 +907,9 @@ final class SiteController extends BaseController
         if ($snapshot !== null && !isset($_GET['path'])) {
             $this->sendFullPreview($this->initialSnapshot($context, $snapshot));
         }
-        $path = is_string($_GET['path'] ?? null) ? $_GET['path'] : '/';
+        $locale = $context->content->locale((string) ($_GET['locale'] ?? ''));
+        $path = is_string($_GET['path'] ?? null) ? $_GET['path']
+            : ($locale === $context->defaultLocale() ? '/' : '/' . $locale);
         $response = (new SiteService($context))->respond($path, $_GET);
         $this->sendFullPreview($response['body'], $response['status']);
     }

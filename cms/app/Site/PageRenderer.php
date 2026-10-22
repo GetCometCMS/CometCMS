@@ -357,10 +357,11 @@ final class PageRenderer
         $banner = '';
         if ($this->ctx->previewBanner) {
             // Compare the page that was actually rendered, including shared regions,
-            // embedded entries, locale and theme. A token alone does not imply changes.
-            $saved = $this->ctx->previewToken !== '' && $this->savedRender !== null
-                ? ($this->savedRender)($this->ctx->withoutOverrides()) : null;
-            $unsaved = $this->ctx->previewToken !== '' && ($saved === null
+            // embedded entries, locale and theme. A token alone does not imply changes,
+            // and a page that read no override is the saved page: skip the second render.
+            $compare = $this->ctx->previewToken !== '' && $this->ctx->readsOverrides();
+            $saved = $compare && $this->savedRender !== null ? ($this->savedRender)($this->ctx->withoutOverrides()) : null;
+            $unsaved = $compare && ($saved === null
                 || $this->comparisonHtml($saved) !== $this->comparisonHtml($opening . $content));
             $banner = (new PreviewAdminBar($this->ctx))->render($state, $unsaved);
         }

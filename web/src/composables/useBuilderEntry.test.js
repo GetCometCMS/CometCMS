@@ -243,3 +243,21 @@ it('updates inherited previews from the default draft without materializing tran
   expect(contentApi.update.mock.calls[0][2]).toMatchObject({ locale: 'en', intro: 'Unsaved English' })
   expect(state.valueFor('intro')).toBe('Unsaved English')
 })
+
+it('exports translation resets without materializing inherited fields in preview snapshots', async () => {
+  const { state, locale, contentApi } = await fixture({
+    schema: { locales: ['en', 'de'], default_locale: 'en', fields: { title: { type: 'text' }, intro: { type: 'text' } } },
+    entries: { home: { id: 'home', revision: 'r1', values: {
+      title: { type: 'localized', values: { en: 'Home' } },
+      intro: { type: 'localized', values: { en: 'English intro', de: 'Deutscher Text' } },
+    } } },
+  })
+  locale.value = 'de'
+  await nextTick()
+  state.reset('intro')
+  expect(state.previewEntries()).toEqual([
+    { type: 'posts', id: 'home', values: { locale: 'de', reset_fields: ['intro'] } },
+  ])
+  expect(contentApi.update).not.toHaveBeenCalled()
+  expect(state.isDirty.value).toBe(true)
+})

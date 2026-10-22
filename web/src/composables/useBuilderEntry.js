@@ -141,8 +141,11 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
       const languages = Object.keys(item.drafts).sort((a, b) => Number(b === defaultLocale.value) - Number(a === defaultLocale.value))
       for (const language of languages) {
         if (!dirty(item, language)) continue
-        const values = Object.fromEntries(Object.entries(editableValues(item.drafts[language].values, language))
+        const form = item.drafts[language]
+        const values = Object.fromEntries(Object.entries(editableValues(form.values, language))
+          .filter(([name, value]) => !form.resets.includes(name) && JSON.stringify(value) !== JSON.stringify(form.baseline[name]))
           .map(([name, value]) => [name, savedValue(value, fields.value[name])]))
+        if (form.resets.length) values.reset_fields = [...form.resets]
         if (language) values.locale = language
         entries.push({ type: item.collection, id: item.entry.uid || item.identifier, values })
       }

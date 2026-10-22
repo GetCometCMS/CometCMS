@@ -327,7 +327,7 @@ foreach (['default', 'preview-site'] as $slug) {
     $content = \CometCMS\Content\ContentRepository::make($workspace);
     $content->save('posts', ['title' => 'Collection draft', 'slug' => 'draft-post'], ['id' => 'preview-editor']);
     $entry = $content->save('startseite', ['title' => $slug . ' English draft', 'slug' => 'startseite', 'locale' => 'en'], ['id' => 'preview-editor']);
-    $content->save('startseite', ['title' => $slug . ' Deutscher Entwurf', 'slug' => 'startseite', 'locale' => 'de'], ['id' => 'preview-editor'], $entry['id']);
+    $content->save('startseite', ['title' => $slug . ' Deutscher Entwurf', 'slug' => 'startseite-de', 'locale' => 'de'], ['id' => 'preview-editor'], $entry['id']);
     (new \CometCMS\Site\SiteRepository($workspace))->saveSettings([
         'enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en',
         'homepage' => ['type' => 'startseite', 'entry' => 'startseite'],
@@ -345,9 +345,9 @@ PHP .
         usleep(300000);
         foreach (['', '/cms'] as $base) {
             $query = '?workspace=preview-site&locale=de';
-            [$status, , $headers] = comet_site_preview_test_request($port, $base . '/site-preview/startseite/startseite' . $query, $cookie);
+            [$status, , $headers] = comet_site_preview_test_request($port, $base . '/site-preview/startseite/startseite-de' . $query, $cookie);
             assert_same(302, $status);
-            assert_same($base . '/admin/site-preview/startseite/startseite' . $query, $headers['location'] ?? null);
+            assert_same($base . '/admin/site-preview/startseite/startseite-de' . $query, $headers['location'] ?? null);
 
             [$status, $html, $headers] = comet_site_preview_test_request($port, $headers['location'], $cookie);
             assert_same(200, $status);
@@ -360,12 +360,23 @@ PHP .
             assert_true(str_contains($html, 'Back to backend'));
             assert_true(str_contains($html, 'Edit page'));
             assert_true(str_contains($html, 'Create new'));
-            assert_true(str_contains($html, $base . '/admin/content/startseite/startseite?workspace=preview-site&amp;locale=de'));
+            assert_matches('#href="' . preg_quote($base, '#') . '/admin/content/startseite/[A-Za-z0-9_-]+\?workspace=preview-site&amp;locale=de"#', $html);
+            assert_same(1, preg_match('/href="([^"]+)" lang="en"/', $html, $languageLink));
+            [$status, $english] = comet_site_preview_test_request($port, html_entity_decode($languageLink[1]), $cookie);
+            assert_same(200, $status, 'Language links resolve stable IDs across different localized slugs.');
+            assert_true(str_contains($english, 'preview-site English draft'));
 
             [$status, $home] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site', $cookie);
             assert_same(200, $status);
             assert_true(str_contains($home, 'preview-site English draft'), 'The logo destination previews the draft homepage.');
             assert_true(str_contains($home, 'Back to backend'));
+            [$status, $translatedHome] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&locale=de', $cookie);
+            assert_same(200, $status);
+            assert_true(str_contains($translatedHome, 'preview-site Deutscher Entwurf'));
+            [$status, $legacyIndex] = comet_site_preview_test_request($port, $base . '/admin/site-preview/posts?workspace=preview-site', $cookie);
+            assert_same(200, $status);
+            assert_true(str_contains($legacyIndex, 'Back to backend'));
+            assert_true(str_contains($legacyIndex, 'Create new'));
 
             [$status, $index] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&path=/posts', $cookie);
             assert_same(200, $status);
@@ -383,7 +394,7 @@ PHP .
             assert_same($base . '/admin/site-preview?workspace=preview-site', json_decode($json, true)['data']['homepage_preview']);
             assert_same(401, comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site')[0]);
 
-            [$status] = comet_site_preview_test_request($port, $base . '/admin/site-preview/startseite/startseite' . $query);
+            [$status] = comet_site_preview_test_request($port, $base . '/admin/site-preview/startseite/startseite-de' . $query);
             assert_same(401, $status, 'An editor session is required to preview a draft.');
         }
 
@@ -406,6 +417,7 @@ $registry = new \CometCMS\Workspaces\WorkspaceRepository();
 $registry->all();
 (new \CometCMS\Workspaces\WorkspaceContext('default'))->ensure();
 $registry->save(['slug' => 'other-site', 'label' => 'Other site']);
+(new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
 (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
 $content = \CometCMS\Content\ContentRepository::make();
 $entry = $content->save('posts', ['title' => 'Saved English', 'slug' => 'first', 'status' => 'published', 'locale' => 'en'], ['id' => 'snapshot-admin']);
@@ -477,7 +489,7 @@ PHP .
         assert_same(200, $status);
         $saved = json_decode($saved, true)['data'];
         assert_same('Saved English', $saved['title']);
-        assert_same('Gespeichertes Deutsch', $saved['translations']['de']['title']);
+        assert_same('Gespeichertes Deutsch', $saved['values']['title']['values']['de']);
         [$status, $live] = $request('/', 'GET', [], '');
         assert_same(200, $status);
         assert_true(str_contains($live, 'Saved English'));
@@ -572,13 +584,14 @@ test('the admin bar shows one localized state for the displayed content', functi
 });
 
 test('preview status follows rendered changes in the current page locale and shared design', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
     $types = new \CometCMS\Content\ContentTypeRepository();
     $types->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
-    $types->save(['name' => 'about', 'singleton' => true]);
+    $types->save(['name' => 'about']);
     $site = new \CometCMS\Site\SiteRepository();
     $site->saveSettings(['locales' => ['en', 'de'], 'default_locale' => 'en', 'routes' => [
         'posts' => ['enabled' => true, 'pattern' => '/posts/{slug}', 'index_path' => '/posts'],
-        'about' => ['enabled' => true, 'pattern' => '/about'],
+        'about' => ['enabled' => true, 'pattern' => '/about/{slug}'],
     ]]);
     $nodes = static fn(array $children): array => \CometCMS\Site\LayoutSchema::normalize([
         ['id' => 'section', 'kind' => 'section', 'children' => [
@@ -595,9 +608,9 @@ test('preview status follows rendered changes in the current page locale and sha
     $content = \CometCMS\Content\ContentRepository::make();
     $user = ['id' => 'admin'];
     $content->save('posts', ['title' => 'First', 'slug' => 'first', 'locale' => 'en', 'status' => 'published'], $user);
-    $first = $content->save('posts', ['title' => 'Erste', 'locale' => 'de'], $user, 'first');
+    $first = $content->save('posts', ['title' => 'Erste', 'slug' => 'erste', 'locale' => 'de', 'status' => 'published'], $user, 'first');
     $content->save('posts', ['title' => 'Second', 'slug' => 'second', 'locale' => 'en', 'status' => 'published'], $user);
-    $content->save('about', ['title' => 'About', 'status' => 'published'], $user);
+    $content->save('about', ['title' => 'About', 'slug' => 'about', 'status' => 'published'], $user);
     $context = static function () use ($site): \CometCMS\Site\SiteContext {
         $ctx = \CometCMS\Site\SiteContext::make($site);
         $ctx->preview = $ctx->previewBanner = $ctx->browsePreview = true;
@@ -653,7 +666,14 @@ test('preview status follows rendered changes in the current page locale and sha
     $assertState($ctx, 'about', 'about', 'preview');
     $site->saveRegion('footer', []);
 
-    $collection = ['id' => 'collection', 'kind' => 'collection', 'props' => ['type' => 'posts', 'display' => 'list']];
+    $ctx = $context();
+    $ctx->overrideEntry('posts', $changed, 'first');
+    $assertState($ctx, 'about', 'about', 'published');
+    assert_false($ctx->readsOverrides(), 'A page that reads no unsaved data skips the saved comparison render.');
+    $assertState($ctx, 'posts', 'first', 'preview');
+    assert_true($ctx->readsOverrides());
+
+    $collection =['id' => 'collection', 'kind' => 'collection', 'props' => ['type' => 'posts', 'display' => 'list']];
     $site->saveLayout('about', 'detail', $nodes([$collection]));
     $ctx = $context();
     $ctx->overrideEntry('posts', $changed, 'first');
