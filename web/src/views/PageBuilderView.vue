@@ -56,20 +56,22 @@
       <div v-if="activeTab === 'design'" class="grid items-start gap-6 lg:grid-cols-2">
         <div class="min-w-0 space-y-4">
           <SiteDesignPanel layout="page" />
-          <button
-            type="button"
-            class="btn-secondary w-full"
-            :aria-expanded="cssEditorOpen"
-            aria-controls="design-custom-css"
-            @click="cssEditorOpen = !cssEditorOpen"
-          >
-            <Icon icon="mdi:language-css3" class="h-4 w-4" />
-            {{ t("site.theme.customCss") }}
-            <Icon :icon="cssEditorOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="ml-auto h-4 w-4" />
-          </button>
-          <section v-if="cssEditorOpen" id="design-custom-css" class="card h-[28rem] overflow-hidden" :aria-label="t('site.theme.customCss')">
-            <CustomCssPanel :show-header="false" />
-          </section>
+          <div class="card overflow-hidden">
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-500"
+              :aria-expanded="cssEditorOpen"
+              aria-controls="design-custom-css"
+              @click="cssEditorOpen = !cssEditorOpen"
+            >
+              <Icon icon="mdi:language-css3" class="h-4 w-4" />
+              {{ t("site.theme.customCss") }}
+              <Icon :icon="cssEditorOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="ml-auto h-4 w-4" />
+            </button>
+            <section v-if="cssEditorOpen" id="design-custom-css" class="h-[28rem] overflow-hidden border-t border-slate-200" :aria-label="t('site.theme.customCss')">
+              <CustomCssPanel :show-header="false" />
+            </section>
+          </div>
         </div>
         <SiteThemePreview class="min-w-0 lg:sticky lg:top-24" />
       </div>
