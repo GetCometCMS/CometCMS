@@ -140,7 +140,7 @@ final class McpServer
                 'name' => 'cometcms',
                 'title' => 'CometCMS',
                 'version' => $this->version(),
-                'description' => 'Headless CMS content, schema, and media tools.',
+                'description' => 'CMS content, schema, media, and permission-scoped page-builder tools.',
                 'icons' => [[
                     'src' => $icon,
                     'mimeType' => 'image/png',
@@ -151,6 +151,7 @@ final class McpServer
             'instructions' => implode(' ', [
                 $this->principal === [] ? 'Unauthenticated access is read-only: only public schemas, published entries, and public media are available. Send a bearer access token for private reads or writes.' : 'Authenticated access uses the bearer token permission grants.',
                 'Use CometCMS tools to inspect schemas, manage entries, and work with media.',
+                $this->canUseBuilder() ? 'Page-builder tools edit shared, live collection layouts. Start with get_builder_schema and get_layout; every builder write requires the latest revision.' : 'Page-builder tools are available to bearer tokens with site.manage permission.',
                 'Content type updates are surgical by default: omitted label, icon, and fields are preserved. All content types use the workspace languages and default language.',
                 'When updating content type fields, pass only the fields to add or change; use remove_fields to delete fields, or replace_fields for a full field map replacement.',
                 'Entry writes target one locale and preserve other languages. Include locale, revision for optimistic concurrency, and reset_fields to remove translated overrides. Publication status and URL slugs belong to each locale.',
@@ -172,7 +173,7 @@ final class McpServer
                 throw new McpError('A bearer token is required for write tools.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool($name, $args));
             }
             $callback = $this->toolCallbacks()[$name];
-            return $this->textResult($callback($args));
+            return $this->textResult($callback($args), false, in_array($name, PageBuilderTools::NAMES, true));
         } catch (McpError $e) {
             return $this->textResult([
                 'error' => [
@@ -210,7 +211,14 @@ final class McpServer
 
     private function toolCallbacks(): array
     {
-        return [
+        $builder = [];
+        foreach (PageBuilderTools::NAMES as $name) {
+            $builder[$name] = function (array $args) use ($name): array {
+                $this->requirePermission($name, $args);
+                return (new PageBuilderTools($this->workspace, $this->principal))->call($name, $args);
+            };
+        }
+        return $builder + [
             'comet_health' => fn(array $args): array => $this->health(),
             'list_content_types' => fn(array $args): array => $this->listContentTypes(),
             'get_content_type' => fn(array $args): array => $this->getContentType($args),
@@ -505,6 +513,9 @@ final class McpServer
     private function tools(): array
     {
         $schemas = $this->toolSchemas();
+        if (!$this->canUseBuilder()) {
+            $schemas = array_diff_key($schemas, array_flip(PageBuilderTools::NAMES));
+        }
         if ($this->principal === []) {
             $schemas = array_filter($schemas, static fn(array $schema): bool => $schema['annotations']['readOnlyHint']);
         }
@@ -528,7 +539,7 @@ final class McpServer
         $object = ['type' => 'object', 'additionalProperties' => true];
         $visibility = ['type' => 'string', 'enum' => ['public', 'private']];
 
-        return [
+        return PageBuilderTools::schemas() + [
             'comet_health' => ['title' => 'CometCMS health', 'description' => 'Check the configured CometCMS public API health endpoint.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(true)],
@@ -571,8 +582,20 @@ final class McpServer
         ], static fn(mixed $value): bool => $value !== [] || $value === $required);
     }
 
+    private function canUseBuilder(): bool
+    {
+        return $this->principal !== [] && $this->permissions->allows($this->principal, 'site.manage', [
+            'type' => 'site', 'workspace' => $this->workspace->slug(), 'principal' => $this->principal,
+        ]);
+    }
+
     private function requirePermission(string $tool, array $args): void
     {
+        if (in_array($tool, PageBuilderTools::NAMES, true) && !$this->canUseBuilder()) {
+            throw new McpError('Page-builder tools require a bearer token with site.manage permission.', $this->principal === [] ? 401 : 403, ['code' => $this->principal === [] ? 'unauthorized' : 'forbidden'], $this->requiredPermissionsForTool($tool, $args), [
+                'Use an access token with site.manage on workspace:' . $this->workspace->slug() . ':site:*. Headless content grants do not grant builder access.',
+            ]);
+        }
         if ($this->principal === []) {
             $schema = isset($args['collection']) ? $this->types->find((string) $args['collection']) : null;
             if ($this->toolSchemas()[$tool]['annotations']['readOnlyHint'] && ($schema['visibility'] ?? 'public') !== 'private') {
@@ -637,6 +660,7 @@ final class McpServer
     private function requiredPermissionsForTool(string $tool, array $args): array
     {
         $workspace = $this->workspace->slug();
+        if (in_array($tool, PageBuilderTools::NAMES, true)) return [permissionGrant('site.manage', $workspace, 'site:*')];
 
         return match ($tool) {
             'list_content_types' => [permissionGrant('schema.read', $workspace, 'schema:*')],
@@ -661,6 +685,7 @@ final class McpServer
     private function recovery(McpError $error): array
     {
         $recovery = $error->recovery();
+        if ($recovery !== [] && in_array($error->status(), [404, 409, 422], true)) return $recovery;
 
         if ($error->status() === 401) {
             $recovery[] = 'Check the bearer access token and make sure it has permission grants for the operation.';
@@ -825,13 +850,14 @@ final class McpServer
         );
     }
 
-    private function textResult(mixed $value, bool $isError = false): array
+    private function textResult(mixed $value, bool $isError = false, bool $structured = false): array
     {
         return array_filter([
             'content' => [[
                 'type' => 'text',
-                'text' => json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                'text' => json_encode($value, ($structured ? 0 : JSON_PRETTY_PRINT) | JSON_UNESCAPED_SLASHES),
             ]],
+            'structuredContent' => $structured ? $value : null,
             'isError' => $isError ?: null,
         ], static fn(mixed $item): bool => $item !== null);
     }
