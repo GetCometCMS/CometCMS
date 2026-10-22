@@ -11,6 +11,7 @@ use CometCMS\Core\ValidationException;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PageRenderer;
+use CometCMS\Site\PreviewRepository;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteService;
@@ -646,11 +647,16 @@ final class SiteController extends BaseController
      */
     public function preview(): never
     {
-        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $body = $this->requestJson();
         $context = $this->context();
         $context->preview = true;
+        if (!empty($body['entries'])) {
+            $this->validated(fn() => $this->applySnapshot($context, [
+                'target' => 'entry', 'entries' => $body['entries'], 'locale' => $body['locale'] ?? '',
+            ], $user));
+        }
 
         if (is_array($body['theme'] ?? null)) {
             $context->override('theme', Theme::normalize($body['theme']));
@@ -733,12 +739,133 @@ final class SiteController extends BaseController
         $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry)]]);
     }
 
+    /** Open unsaved editor state as a navigable, private snapshot. */
+    public function createPreview(): never
+    {
+        $user = $this->requireUser();
+        $this->verifyCsrf();
+        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 2097152) {
+            $this->json(['error' => ['code' => 'preview_too_large', 'message' => 'The preview is too large.']], 413);
+        }
+        $body = $this->requestJson();
+        $context = $this->adminPreviewContext($user);
+        $this->validated(fn() => $this->applySnapshot($context, $body, $user));
+        $token = (new PreviewRepository($this->site))->create((string) $user['id'], $body);
+        $this->json(['data' => ['url' => $this->http->url('/admin/site-preview') . '?' . http_build_query([
+            'workspace' => $this->site->workspace()->slug(), 'snapshot' => $token,
+        ])]]);
+    }
+
+    /** Recheck permissions on every visit, including after roles or entries change. */
+    private function applySnapshot(SiteContext $context, array $body, array $user): array
+    {
+        $target = (string) ($body['target'] ?? 'entry');
+        if (!in_array($target, ['entry', 'layout', 'region', 'component'], true)) {
+            throw new ValidationException(['target' => 'Choose a valid preview target.']);
+        }
+        if ($target !== 'entry' || isset($body['theme']) || isset($body['menus'])) {
+            $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        }
+        if ((isset($body['theme']) && !is_array($body['theme'])) || (isset($body['menus']) && !is_array($body['menus']))) {
+            throw new ValidationException(['preview' => 'Invalid preview settings.']);
+        }
+        if (isset($body['theme'])) $context->override('theme', Theme::normalize($body['theme']));
+        if (isset($body['menus'])) {
+            $this->site->validateMenus($body['menus'], false);
+            $context->override('menus', $this->site->normalizeMenus($body['menus']));
+        }
+        $locale = (string) ($body['locale'] ?? $context->defaultLocale());
+        $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
+        $drafts = [];
+        $bases = [];
+        foreach ((array) ($body['entries'] ?? []) as $draft) {
+            if (!is_array($draft) || !is_array($draft['values'] ?? null)) {
+                throw new ValidationException(['entries' => 'Invalid entry preview.']);
+            }
+            $type = (string) ($draft['type'] ?? '');
+            if (!$context->isPublicType($type)) $this->http->notFound();
+            $id = (string) ($draft['id'] ?? '');
+            if ($id !== '' && !preg_match('/^[A-Za-z0-9_-]+$/', $id)) {
+                throw new ValidationException(['entries' => 'Invalid entry identifier.']);
+            }
+            $existing = $id !== '' ? $context->content->findByIdentifier($type, $id) : null;
+            if ($id !== '' && $existing === null) $this->http->notFound();
+            $values = $draft['values'];
+            $scope = ['type' => 'content', 'collection' => $type, 'entry' => $existing ?? [],
+                'locale' => $values['locale'] ?? null, 'fields' => array_values(array_diff(array_keys($values), ['locale']))];
+            if ($existing !== null) $this->requirePermission('content.read', $scope);
+            $this->requirePermission($existing !== null ? 'content.update' : 'content.create', $scope);
+            // Earlier locale drafts in this snapshot can provide shared field values.
+            $base = $bases[$type][$id] ?? $existing;
+            $entry = $context->content->preview($type, $values, $user, $base);
+            $bases[$type][$id] = $entry;
+            $context->overrideEntry($type, $entry, $id);
+            $drafts[] = $entry;
+        }
+        if ($target === 'layout') {
+            $type = (string) ($body['type'] ?? '');
+            $variant = (string) ($body['variant'] ?? 'detail');
+            $this->requireType($type, $variant);
+            if (!$context->isPublicType($type)) $this->http->notFound();
+            $context->override('layout:' . $type . ':' . $variant, LayoutSchema::normalize($body['nodes'] ?? []));
+        } elseif ($target === 'region') {
+            $region = (string) ($body['region'] ?? '');
+            $this->requireRegion($region);
+            $context->override('region:' . $region, LayoutSchema::normalize($body['nodes'] ?? []));
+        } elseif ($target === 'component') {
+            $component = $this->requireComponent((string) ($body['component'] ?? ''));
+            $component['nodes'] = LayoutSchema::normalizeComponent($body['nodes'] ?? [], $component['root']);
+            $context->override('component:' . $component['id'], $component);
+        }
+        return $drafts;
+    }
+
+    private function snapshot(SiteContext $context, array $user): ?array
+    {
+        $token = is_string($_GET['snapshot'] ?? null) ? $_GET['snapshot'] : '';
+        if ($token === '') return null;
+        $body = (new PreviewRepository($this->site))->find($token, (string) $user['id']);
+        if ($body === null) {
+            $this->sendFullPreview((new PageRenderer($context))->previewExpired(), 410);
+        }
+        $context->previewToken = $token;
+        $drafts = $this->validated(fn() => $this->applySnapshot($context, $body, $user));
+        return ['body' => $body, 'entries' => $drafts];
+    }
+
+    private function initialSnapshot(SiteContext $context, array $snapshot): string
+    {
+        $body = $snapshot['body'];
+        $renderer = new PageRenderer($context);
+        $type = (string) ($body['type'] ?? '');
+        $schema = $context->type($type);
+        $target = $body['target'] ?? 'entry';
+        if ($target === 'entry' || ($target === 'layout' && ($body['variant'] ?? 'detail') === 'detail')) {
+            $entry = $context->findEntry($type, (string) ($body['entry'] ?? $type), true);
+            if ($entry === null && $target === 'entry') {
+                $entry = isset($snapshot['entries'][0]) ? $context->localize($type, $snapshot['entries'][0]) : null;
+            }
+            if ($schema === null || !$context->isPublicType($type) || $entry === null) $this->http->notFound();
+            $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry, 'locale' => $context->locale]);
+            return $renderer->entryPage($schema, $entry);
+        }
+        if ($target === 'layout' && $schema !== null) return $renderer->indexPage($schema);
+        if ($target === 'component') {
+            $component = $context->component((string) $body['component']);
+            $schema = $context->type((string) ($component['type'] ?? ''));
+            $entry = $schema !== null ? $context->findEntry($schema['name'], (string) ($body['entry'] ?? $schema['name']), true) : null;
+            return $renderer->componentPreview($component, $schema, $entry);
+        }
+        return (new SiteService($context))->respond('/', [])['body'];
+    }
+
     /** Full-page draft preview of one entry, opened from the entry editor. */
     public function previewEntry(string $type, string $id): never
     {
         $user = $this->requireUser();
         $context = $this->adminPreviewContext($user);
-        $entry = $context->content->findByIdentifier($type, $id);
+        $this->snapshot($context, $user);
+        $entry = $context->content->findByIdentifier($type, $id) ?? $context->findEntry($type, $id, true);
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
         $this->sendPreview((new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? '')), 'This entry cannot be previewed on the website.');
     }
@@ -776,6 +903,10 @@ final class SiteController extends BaseController
     {
         $user = $this->requireUser();
         $context = $this->adminPreviewContext($user);
+        $snapshot = $this->snapshot($context, $user);
+        if ($snapshot !== null && !isset($_GET['path'])) {
+            $this->sendFullPreview($this->initialSnapshot($context, $snapshot));
+        }
         $path = is_string($_GET['path'] ?? null) ? $_GET['path'] : '/';
         $response = (new SiteService($context))->respond($path, $_GET);
         $this->sendFullPreview($response['body'], $response['status']);

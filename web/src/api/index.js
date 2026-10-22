@@ -462,6 +462,7 @@ export const api = {
     createForm:   (data)                 => request('POST',   '/site/forms', data),
     updateForm:   (id, data)             => request('PUT',    `/site/forms/${encodeURIComponent(id)}`, data),
     deleteForm:   (id)                   => request('DELETE', `/site/forms/${encodeURIComponent(id)}`),
+    createPreview: (body)               => request('POST', '/site/preview-snapshots', body),
     preview:      (body)                 => request('POST',   '/site/preview', body),
     /** Full-page draft preview of an entry, opened in a new tab. */
     entryPreviewUrl: (type, id, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, locale),

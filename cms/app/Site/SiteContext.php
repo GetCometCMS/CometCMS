@@ -39,6 +39,8 @@ final class SiteContext
 
     /** Signed-in full-page previews keep navigation and admin actions together. */
     public bool $browsePreview = false;
+    public string $previewToken = '';
+    private array $previewEntries = [];
     public ?array $adminUser = null;
     public ?\Closure $adminCan = null;
 
@@ -223,6 +225,7 @@ final class SiteContext
             return $this->basePath . '/admin/site-preview?' . http_build_query(array_merge($query, [
                 'workspace' => $this->site->workspace()->slug(),
                 'path' => $parts['path'] ?? '/',
+                ...($this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []),
             ])) . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
         }
 
@@ -346,7 +349,7 @@ final class SiteContext
             return $this->entries[$key];
         }
 
-        $entry = $this->content->findByIdentifier($type, $identifier, false, $this->locale);
+        $entry = $this->previewEntries[$type][$identifier] ?? $this->content->findByIdentifier($type, $identifier, false, $this->locale);
         if ($entry !== null && $this->browsePreview && !$this->adminAllows('content.read', $type, $entry)) {
             $entry = null;
         }
@@ -355,6 +358,14 @@ final class SiteContext
         }
 
         return $this->entries[$key] = $entry === null ? null : $this->localize($type, $entry);
+    }
+
+    public function overrideEntry(string $type, array $entry, string $original = ''): void
+    {
+        foreach (array_filter([$original, $entry['id'] ?? '', $entry['slug'] ?? '', $entry['uid'] ?? '']) as $identifier) {
+            $this->previewEntries[$type][$identifier] = $entry;
+        }
+        $this->entries = [];
     }
 
     public function adminAllows(string $action, string $type = '', array $entry = []): bool
@@ -391,7 +402,9 @@ final class SiteContext
             $offset = max(0, (int) ($params['offset'] ?? 0));
             $limit = isset($params['limit']) ? max(1, (int) $params['limit']) : null;
             unset($params['offset'], $params['limit'], $params['trash']);
-            $result = $this->content->query($type, $params, true);
+            $overrides = [];
+            foreach ($this->previewEntries[$type] ?? [] as $entry) $overrides[$entry['uid'] ?? $entry['id']] = $entry;
+            $result = $this->content->query($type, $params, true, array_values($overrides));
             $entries = array_values(array_filter($result['data'], fn(array $entry): bool => $this->adminAllows('content.read', $type, $entry)));
             return ['data' => array_slice($entries, $offset, $limit), 'total' => count($entries)];
         }

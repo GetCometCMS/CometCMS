@@ -15,26 +15,30 @@ final class PreviewAdminBar
     {
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $text = $de ? [
-            'backend' => 'Zum Backend', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
+            'backend' => 'Zum Backend', 'adminBar' => 'Website-Verwaltung', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
             'edit' => 'Seite bearbeiten', 'create' => 'Neu erstellen', 'entries' => 'Einträge', 'design' => 'Layout bearbeiten',
             'profile' => 'Mein Profil', 'language' => 'Vorschausprache',
-            'draft' => 'Entwurf', 'published' => 'Veröffentlicht', 'scheduled' => 'Geplant', 'archived' => 'Archiviert',
+            'draft' => 'Entwurf', 'protected' => 'Geschützt', 'published' => 'Veröffentlicht', 'scheduled' => 'Geplant', 'archived' => 'Archiviert',
         ] : [
-            'backend' => 'Back to backend', 'preview' => 'Preview', 'notice' => 'You are administering this website. Preview shows saved content, including drafts.',
+            'backend' => 'Back to backend', 'adminBar' => 'Site administration', 'preview' => 'Preview', 'notice' => 'You are administering this website. Preview shows saved content, including drafts.',
             'edit' => 'Edit page', 'create' => 'Create new', 'entries' => 'Entries', 'design' => 'Edit layout',
             'profile' => 'My profile', 'language' => 'Preview language',
-            'draft' => 'Draft', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived',
+            'draft' => 'Draft', 'protected' => 'Protected', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived',
         ];
+        if ($this->ctx->previewToken !== '') {
+            $text['notice'] = $de ? 'Diese Vorschau enthält ungespeicherte Änderungen. Die Website bleibt unverändert.' : 'This preview includes unsaved changes. The website remains unchanged.';
+        }
         $type = $state['type'] ?? null;
         $entry = $state['entry'] ?? null;
         $name = (string) ($type['name'] ?? '');
+        $savedEntry = $entry !== null ? $this->ctx->content->findByIdentifier($name, (string) ($entry['uid'] ?? $entry['id'])) : null;
         $link = fn(string $url, string $label, string $icon, string $class = ''): string => '<a class="c-admin-action ' . $class . '" href="' . Security::e($url) . '">'
             . $this->icon($icon) . '<span>' . Security::e($label) . '</span></a>';
         $actions = '';
         if ($name !== '') {
             $collection = '/content/' . rawurlencode($name);
-            if ($entry !== null && $this->ctx->adminAllows('content.update', $name, $entry)) {
-                $actions .= $link($this->ctx->adminUrl($collection . (!empty($type['singleton']) ? '' : '/' . rawurlencode((string) ($entry['slug'] ?? $entry['id'])))), $text['edit'], 'edit', 'c-admin-action-primary');
+            if ($savedEntry !== null && $this->ctx->adminAllows('content.update', $name, $savedEntry)) {
+                $actions .= $link($this->ctx->adminUrl($collection . (!empty($type['singleton']) ? '' : '/' . rawurlencode((string) ($savedEntry['slug'] ?? $savedEntry['id'])))), $text['edit'], 'edit', 'c-admin-action-primary');
             }
             if (empty($type['singleton'])) {
                 if ($this->ctx->adminAllows('content.read', $name)) {
@@ -46,13 +50,13 @@ final class PreviewAdminBar
             }
             if ($this->ctx->adminAllows('site.manage')) {
                 $url = $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($name) . '/' . ($entry !== null ? 'detail' : 'index'));
-                if ($entry !== null && empty($type['singleton'])) {
-                    $url .= '&entry=' . rawurlencode((string) ($entry['slug'] ?? $entry['id']));
+                if ($savedEntry !== null && empty($type['singleton'])) {
+                    $url .= '&entry=' . rawurlencode((string) ($savedEntry['slug'] ?? $savedEntry['id']));
                 }
                 $actions .= $link($url, $text['design'], 'layout', 'c-admin-action-design');
             }
         }
-        $status = $entry['status'] ?? '';
+        $status = $this->ctx->previewToken !== '' ? 'preview' : ($entry['status'] ?? 'preview');
         if ($entry !== null && $status === 'published' && !$this->ctx->content->isPubliclyVisible($entry)) {
             $status = 'scheduled';
         }
@@ -66,14 +70,15 @@ final class PreviewAdminBar
             $initials .= strtoupper($first[0] ?? '');
         }
         $logo = base64_encode((string) file_get_contents(__DIR__ . '/assets/cometcms-white.png'));
-        $statusClass = in_array($status, ['published', 'draft', 'scheduled', 'archived'], true) ? $status : 'draft';
-        $statusHtml = $status !== '' ? '<span class="c-admin-status c-admin-status-' . $statusClass . '"><span class="c-admin-status-dot" aria-hidden="true"></span>'
-            . Security::e($text[$status] ?? $status) . '</span>' : '';
+        $statusClass = in_array($status, ['published', 'protected', 'draft', 'preview', 'scheduled', 'archived'], true) ? $status : 'preview';
+        $statusHtml = '<span class="c-admin-status c-admin-status-' . $statusClass . '"'
+            . ($statusClass === 'preview' ? ' title="' . Security::e($text['notice']) . '"' : '')
+            . '><span class="c-admin-status-dot" aria-hidden="true"></span>'
+            . Security::e($text[$statusClass]) . '</span>';
 
-        return '<nav class="c-preview-bar" aria-label="' . Security::e($text['preview']) . '"><div class="c-admin-shell">'
+        return '<nav class="c-preview-bar" aria-label="' . Security::e($text['adminBar']) . '"><div class="c-admin-shell">'
             . '<a class="c-admin-brand" href="' . Security::e($this->ctx->adminUrl('/dashboard')) . '" aria-label="CometCMS · ' . Security::e($text['backend']) . '" title="' . Security::e($text['backend']) . '">'
             . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="138" height="30">' . $this->icon('back') . '</a>'
-            . '<span class="c-admin-mode" title="' . Security::e($text['notice']) . '">' . $this->icon('eye') . Security::e($text['preview']) . '</span>'
             . '<div class="c-admin-context" title="' . Security::e($workspace . ' · ' . $title) . '">' . $this->icon('page')
             . '<div><span class="c-admin-workspace">' . Security::e($workspace) . '</span><span class="c-admin-title">' . Security::e($title) . '</span></div></div>'
             . '<div class="c-admin-meta">' . $statusHtml . $this->languages($type, $entry, $text['language']) . '</div>'
@@ -102,6 +107,7 @@ final class PreviewAdminBar
                 // Entry previews also support drafts without a live route.
                 $url = $this->ctx->adminUrl('/site-preview/' . rawurlencode($type['name']) . '/' . rawurlencode((string) ($entry['slug'] ?? $entry['id'])));
                 $url = preg_replace('/([?&])locale=[^&]*/', '$1locale=' . rawurlencode($locale), $url);
+                if ($this->ctx->previewToken !== '') $url .= '&snapshot=' . rawurlencode($this->ctx->previewToken);
             } else {
                 $url = $type !== null ? $this->ctx->indexUrl($type['name'], $locale) : null;
                 $url ??= $this->ctx->homeUrl($locale);
@@ -118,7 +124,6 @@ final class PreviewAdminBar
     {
         $paths = [
             'back' => '<path d="m9 5-7 7 7 7M2 12h19"/>',
-            'eye' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
             'page' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8M8 17h5"/>',
             'edit' => '<path d="m16 3 5 5M4 15 16 3a2 2 0 0 1 5 5L9 20l-6 1Z"/>',
             'list' => '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',

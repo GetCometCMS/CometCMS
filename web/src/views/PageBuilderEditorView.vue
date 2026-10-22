@@ -321,6 +321,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import { useSitePreview } from "../composables/useSitePreview.js";
 import SplitButton from "../components/SplitButton.vue";
 import DeviceToggle from "../components/site/DeviceToggle.vue";
 import SegmentedControl from "../components/site/SegmentedControl.vue";
@@ -362,6 +363,7 @@ const site = useSiteStore();
 const auth = useAuthStore();
 const { canContent } = usePermissions();
 const toast = useToastStore();
+const fullPreview = useSitePreview();
 const { t, locale: uiLocale } = useI18n();
 const editorLanguages = useLanguages();
 const builder = createSiteBuilder({
@@ -619,17 +621,16 @@ const liveHint = computed(() => {
   if (variant.value === "index") return t("site.builder.noLiveIndex");
   return previewEntry.value ? t("site.builder.notLive") : t("site.builder.noEntry");
 });
-/**
- * Draft preview with the saved layout: the sample entry, the index page, or
- * the homepage for the header and footer. Components have no page of their own.
- */
-const previewUrl = computed(() => {
-  if (target.value === "region") return api.site.homePreviewUrl(locale.value);
-  if (target.value === "page") return api.site.entryPreviewUrl(name.value, pageEntry.value, locale.value);
-  if (target.value !== "layout") return null;
-  if (variant.value === "index") return api.site.indexPreviewUrl(name.value, locale.value);
-  return previewEntry.value ? api.site.entryPreviewUrl(name.value, previewEntry.value, locale.value) : null;
-});
+/** Full-page previews use the same draft as the canvas. */
+const canPreview = computed(() => !loading.value && (target.value !== "layout" || variant.value === "index" || !!previewEntry.value));
+async function onSaveMenuSelect(item) {
+  if (item.key !== "preview" || !canPreview.value || !previewBody.value) return;
+  try {
+    await fullPreview.open(previewBody.value);
+  } catch (error) {
+    toast.error(error.message);
+  }
+}
 const previewHint = computed(() => (target.value === "component" ? t("site.builder.componentNoPage") : t("site.builder.noEntry")));
 // Both actions are always offered, so the menu looks the same everywhere; unavailable ones say why.
 const saveMenuItems = computed(() => [
@@ -653,11 +654,8 @@ const saveMenuItems = computed(() => [
     key: "preview",
     label: t("site.entry.preview"),
     icon: "mdi:eye-outline",
-    href: previewUrl.value,
-    target: "_blank",
-    disabled: !previewUrl.value,
-    title: !previewUrl.value ? previewHint.value
-      : builder.isDirty.value || entryFields.isDirty.value ? t("site.builder.previewUnsaved") : t("site.entry.previewHint"),
+    disabled: !canPreview.value || fullPreview.opening.value,
+    title: !canPreview.value ? previewHint.value : t("site.builder.previewUnsaved"),
   },
   {
     key: "live",
@@ -776,7 +774,11 @@ const overview = computed(() => {
 const previewBody = computed(() => {
   if (loading.value) return null;
   // The canvas always shows the draft design: unsaved edits, and a restored version as soon as it arrives.
-  const theme = site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {};
+  const theme = {
+    ...(site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {}),
+    ...(site.draft?.menus ? { menus: site.draft.menus } : {}),
+    entries: entryFields.previewEntries(),
+  };
   if (target.value === "component") {
     return { target: "component", component: name.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }
@@ -1020,6 +1022,7 @@ function resetToDefault() {
 }
 
 function onSaveMenu(item) {
+  if (item.key === "preview") return onSaveMenuSelect(item);
   if (item.key === "reset-page" || item.key === "reset-layout") resetToDefault();
 }
 

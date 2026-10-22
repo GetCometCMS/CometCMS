@@ -113,6 +113,13 @@ final class ContentRepository
         ])), 0, 12);
     }
 
+    /** Normalize an editor draft without writing entries, revisions or events. */
+    public function preview(string $collection, array $payload, array $user, ?array $existing): array
+    {
+        Security::assertSafeName($collection);
+        return $this->normalizeAndValidate($collection, $payload, $user, $existing, true, array_keys($payload));
+    }
+
     public function save(
         string $collection,
         array $payload,
@@ -430,9 +437,14 @@ final class ContentRepository
         return $at === false || $at <= time();
     }
 
-    public function query(string $collection, array $params, bool $admin = false): array
+    public function query(string $collection, array $params, bool $admin = false, array $overrides = []): array
     {
         $entries = $this->all($collection, $admin && (($params['trash'] ?? '') === '1'));
+        foreach ($overrides as $override) {
+            $entries = array_values(array_filter($entries, static fn(array $entry): bool =>
+                ($entry['uid'] ?? $entry['id']) !== ($override['uid'] ?? $override['id'])));
+            $entries[] = $override;
+        }
 
         $locale = $this->locale((string) ($params['locale'] ?? ''));
         if (!$admin) $entries = array_values(array_filter($entries, fn(array $entry): bool => $this->isPubliclyVisible($entry, $locale)));

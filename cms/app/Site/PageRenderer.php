@@ -75,6 +75,16 @@ final class PageRenderer
         return PlaceholderPage::render($this->homeTitle(), $this->ctx->htmlLang());
     }
 
+    public function previewExpired(): string
+    {
+        $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
+        $title = $de ? 'Diese Vorschau ist nicht mehr verfügbar' : 'This preview is no longer available';
+        $message = $de ? 'Öffne eine neue Vorschau im Editor, um deine aktuellen Änderungen zu sehen.' : 'Open a new preview from the editor to see your current changes.';
+        return $this->document(['title' => $title, 'noindex' => true],
+            '<section class="c-section c-py-2xl"><div class="c-container c-container-narrow"><h1>' . Security::e($title) . '</h1><p>' . Security::e($message) . '</p></div></section>',
+            $this->state(null, null, $this->ctx->homeUrl(), 1, []));
+    }
+
     public function notFound(string $path): string
     {
         $settings = $this->ctx->settings();
@@ -338,7 +348,7 @@ final class PageRenderer
         return [
             'entry' => $entry,
             'type' => $type,
-            'path' => strtok($path, '?') ?: $path,
+            'path' => $this->ctx->browsePreview ? $path : (strtok($path, '?') ?: $path),
             'page' => $page,
             'alternates' => $alternates,
             'depth' => 0,

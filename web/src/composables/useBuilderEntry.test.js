@@ -78,6 +78,22 @@ describe('builder entry content', () => {
     expect(state.isDirty.value).toBe(false)
   })
 
+  it('exports unsaved values across samples without saving or losing the editor drafts', async () => {
+    const { state, entryId, contentApi } = await fixture()
+    state.update('title', 'Unsaved first')
+    entryId.value = 'second'
+    await vi.waitFor(() => expect(state.valueFor('intro')).toBe('Second intro'))
+    state.update('intro', 'Unsaved second')
+    const snapshots = state.previewEntries()
+    expect(snapshots).toHaveLength(2)
+    expect(snapshots[0]).toMatchObject({ type: 'posts', id: 'stable-first', values: { title: 'Unsaved first' } })
+    expect(snapshots[1]).toMatchObject({ type: 'posts', id: 'stable-second', values: { intro: 'Unsaved second' } })
+    expect(snapshots[0].values).not.toHaveProperty('status')
+    expect(snapshots[0].values).not.toHaveProperty('slug')
+    expect(contentApi.update).not.toHaveBeenCalled()
+    expect(state.isDirty.value).toBe(true)
+  })
+
   it('keeps translated drafts separate, including shared fields edited in the default language', async () => {
     const { state, locale, contentApi } = await fixture({
       schema: { locales: ['en', 'de'], default_locale: 'en', fields: {
@@ -97,6 +113,11 @@ describe('builder entry content', () => {
     expect(state.fieldReadonly('shared')).toBe(true)
     state.update('shared', 'Disallowed')
     state.update('intro', '<p>Geändert</p>')
+    const previews = state.previewEntries()
+    expect(previews.map((preview) => preview.values.locale)).toEqual(['en', 'de'])
+    expect(previews[0].values.shared).toBe('Updated shared value')
+    expect(previews[1].values).not.toHaveProperty('shared')
+    expect(previews[1].values.intro).toBe('<p>Geändert</p>')
     locale.value = 'en'
     await nextTick()
     expect(state.valueFor('intro')).toBe('<p>English</p>')

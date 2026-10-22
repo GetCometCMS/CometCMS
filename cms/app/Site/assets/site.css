@@ -893,8 +893,8 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 /* Admin chrome uses its own sizing and colors, independent of the site theme. */
 .c-site:has(> .c-preview-bar) { --c-admin-offset: 80px; }
 .c-site:has(> .c-preview-bar) .c-sticky { top: var(--c-admin-offset); }
-.c-preview-bar { position: sticky; top: 0; z-index: 1100; flex: none; padding: 8px 12px; color: #e2e8f0; background: #f1f5f9; font: 500 13px/1.4 system-ui, sans-serif; letter-spacing: normal; text-align: left; color-scheme: dark; }
-.c-admin-shell { display: grid; grid-template-areas: "brand mode context meta actions account"; grid-template-columns: auto auto minmax(120px, 1fr) auto auto auto; align-items: center; gap: 16px; height: 64px; padding: 0 16px; background: linear-gradient(120deg, #111c30, #0b1220); border: 1px solid #29354a; border-radius: 12px; box-shadow: 0 4px 12px #02061726, 0 1px 2px #02061740; }
+.c-preview-bar { position: sticky; top: 0; z-index: 1100; flex: none; padding: 8px 12px; color: #e2e8f0; background: transparent; font: 500 13px/1.4 system-ui, sans-serif; letter-spacing: normal; text-align: left; color-scheme: dark; }
+.c-admin-shell { display: grid; grid-template-areas: "brand context meta actions account"; grid-template-columns: auto minmax(120px, 1fr) auto auto auto; align-items: center; gap: 16px; height: 64px; padding: 0 16px; background: linear-gradient(120deg, #111c30, #0b1220); border: 1px solid #29354a; border-radius: 12px; box-shadow: 0 4px 12px #02061726, 0 1px 2px #02061740; }
 .c-preview-bar a, .c-preview-bar summary { color: #cbd5e1; font: inherit; text-decoration: none; cursor: pointer; }
 .c-preview-bar a:hover, .c-preview-bar summary:hover { color: #fff; text-decoration: none; }
 .c-preview-bar :is(a, summary):focus-visible { outline: 2px solid #fbbf24; outline-offset: 3px; border-radius: 6px; }
@@ -902,7 +902,6 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-admin-brand { grid-area: brand; display: flex; align-items: center; gap: 12px; padding-right: 16px; border-right: 1px solid #ffffff14; }
 .c-admin-brand img { width: 138px; height: 30px; object-fit: contain; }
 .c-admin-brand > svg { width: 15px; height: 15px; color: #94a3b8; }
-.c-admin-mode { grid-area: mode; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 12px; border: 1px solid #ffc95b; border-radius: 8px; color: #231900; background: linear-gradient(#ffc34a, #f5a600); box-shadow: 0 2px 8px #f59e0b26, inset 0 1px #ffffff40; font-weight: 700; white-space: nowrap; }
 .c-admin-context { grid-area: context; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .c-admin-context > svg { color: #94a3b8; }
 .c-admin-context > div { min-width: 0; }
@@ -913,6 +912,8 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-admin-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 20px; color: #fde68a; background: #f59e0b12; font-size: 12px; white-space: nowrap; }
 .c-admin-status-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
 .c-admin-status-published { color: #86efac; background: #22c55e12; }
+.c-admin-status-protected { color: #c4b5fd; background: #a78bfa12; }
+.c-admin-status-preview { color: #93c5fd; background: #3b82f612; }
 .c-admin-status-scheduled { color: #93c5fd; background: #3b82f612; }
 .c-admin-status-archived { color: #cbd5e1; background: #94a3b812; }
 .c-preview-actions > a { flex: none; }
@@ -938,19 +939,18 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-admin-username { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1500px) {
   .c-site:has(> .c-preview-bar) { --c-admin-offset: 116px; }
-  .c-admin-shell { height: 100px; grid-template-areas: "brand mode context meta account" "actions actions actions actions actions"; grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-rows: 54px 44px; gap: 0 16px; }
+  .c-admin-shell { height: 100px; grid-template-areas: "brand context meta account" "actions actions actions actions"; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-rows: 54px 44px; gap: 0 16px; }
   .c-preview-actions { border-top: 1px solid #ffffff12; }
   .c-preview-bar .c-admin-action { padding: 8px 12px; }
 }
 @media (max-width: 720px) {
   .c-site:has(> .c-preview-bar) { --c-admin-offset: 152px; }
   .c-preview-bar { padding: 6px; }
-  .c-admin-shell { height: 140px; padding: 0 10px; grid-template-areas: "brand mode account" "context meta meta" "actions actions actions"; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: 50px 44px 44px; gap: 0 10px; border-radius: 10px; }
+  .c-admin-shell { height: 140px; padding: 0 10px; grid-template-areas: "brand account" "context meta" "actions actions"; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 50px 44px 44px; gap: 0 10px; border-radius: 10px; }
   .c-admin-brand { gap: 4px; padding-right: 0; border: 0; }
   .c-admin-brand img { width: 115px; height: 26px; }
   .c-admin-brand > svg, .c-admin-username, .c-admin-account > summary > svg { display: none; }
-  .c-admin-account { border: 0; padding-left: 0; }
-  .c-admin-mode { padding: 7px 9px; font-size: 12px; }
+  .c-admin-account { border: 0; padding-left: 0; justify-self: end; }
   .c-admin-context { gap: 7px; }
   .c-admin-context > svg { display: none; }
   .c-admin-meta { gap: 5px; justify-content: flex-end; }
