@@ -2,8 +2,8 @@
   "api_version": 1,
   "name": "cometcms/essentials",
   "title": "Comet Essentials",
-  "description": "A callout, card, FAQ, feature, pricing plan, map, slideshow and animated stats that work with any theme.",
-  "version": "1.4.0",
+  "description": "Before/after comparisons, testimonials, callouts, cards, FAQs, features, pricing, maps, slideshows and stats that work with any theme.",
+  "version": "1.5.0",
   "author": "CometCMS",
   "license": "MIT"
 }

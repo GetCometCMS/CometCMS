@@ -104,8 +104,8 @@ function comet_block_errors(callable $callback): array
 test('block packages register their blocks without changing built-ins or crossing workspaces', function (): void {
     $blocks = BlockRegistry::active();
     $result = $blocks->installFiles(comet_block_files(), allowScripts: true);
-    assert_same(['name' => 'cometcms/essentials', 'title' => 'Comet Essentials', 'version' => '1.4.0', 'previous_version' => null,
-        'blocks' => ['cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/feature', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats'], 'changes' => [], 'scripts' => ['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $result);
+    assert_same(['name' => 'cometcms/essentials', 'title' => 'Comet Essentials', 'version' => '1.5.0', 'previous_version' => null,
+        'blocks' => ['cometcms/before-after', 'cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/feature', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats', 'cometcms/testimonial'], 'changes' => [], 'scripts' => ['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $result);
     $spec = LayoutSchema::spec(blocks: $blocks);
     assert_true(in_array('heading', $spec['elements'], true));
     foreach (['block:cometcms/callout', 'block:cometcms/faq', 'block:cometcms/feature'] as $kind) {
@@ -125,7 +125,7 @@ test('block packages register their blocks without changing built-ins or crossin
     $metadata = $blocks->metadata();
     assert_same([], $metadata['errors']);
     assert_same('cometcms/essentials', $metadata['packages'][0]['name']);
-    assert_same(['name' => 'cometcms/faq', 'title' => 'FAQ', 'description' => 'Questions that expand to their answers. Opening one closes the others in the same group.', 'icon' => 'mdi:frequently-asked-questions', 'script' => false], $metadata['packages'][0]['blocks'][2]);
+    assert_same(['name' => 'cometcms/faq', 'title' => 'FAQ', 'description' => 'Questions that expand to their answers. Opening one closes the others in the same group.', 'icon' => 'mdi:frequently-asked-questions', 'script' => false], $metadata['packages'][0]['blocks'][3]);
     assert_file_exists_at($blocks->directory() . '/cometcms/essentials/blocks/callout/template.html');
     assert_file_exists_at($blocks->directory() . '/cometcms/essentials/assets/check.svg');
     assert_false(BlockRegistry::cssClass('a/b--c') === BlockRegistry::cssClass('a--b/c'));
@@ -317,11 +317,11 @@ test('block package updates that break placed blocks need confirmation', functio
         assert_same(['cometcms/callout: the prop "tone" no longer offers success. Instances using them fall back to the default.',
             'cometcms/callout: the prop "link_label" is removed. Its saved values are dropped the next time a layout is saved.',
             'cometcms/feature is removed. Placed instances will show as missing blocks.'], $e->changes);
-        assert_same('1.4.0', $e->installedVersion);
+        assert_same('1.5.0', $e->installedVersion);
     }
-    assert_same('1.4.0', BlockRegistry::active()->package('cometcms/essentials')['version']);
+    assert_same('1.5.0', BlockRegistry::active()->package('cometcms/essentials')['version']);
     $result = BlockRegistry::active()->installFiles($update, true, true);
-    assert_same('1.4.0', $result['previous_version']);
+    assert_same('1.5.0', $result['previous_version']);
     assert_same(3, count($result['changes']));
     assert_null(BlockRegistry::active()->get('block:cometcms/feature'));
     $pricing = comet_block_manifest('blocks/pricing/block.json', []);
@@ -348,7 +348,7 @@ test('block names belong to one package and package folders must match their nam
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     $other = comet_block_files(['comet-package.json' => comet_block_manifest('comet-package.json', ['name' => 'cometcms/other'])]);
-    assert_same(['blocks/callout/: The block cometcms/callout is already provided by the package cometcms/essentials.'], comet_block_errors(fn() => $blocks->installFiles($other, allowScripts: true)));
+    assert_same(['blocks/before-after/: The block cometcms/before-after is already provided by the package cometcms/essentials.'], comet_block_errors(fn() => $blocks->installFiles($other, allowScripts: true)));
     $moved = $blocks->directory() . '/cometcms/renamed';
     mkdir($moved);
     foreach (comet_block_files() as $path => $bytes) {
@@ -398,7 +398,7 @@ test('missing or malformed packages preserve placed block values and do not disa
     mkdir($broken, 0775, true);
     file_put_contents($broken . '/comet-package.json', '{broken');
     $registry = BlockRegistry::active();
-    assert_same(8, count($registry->all()));
+    assert_same(10, count($registry->all()));
     assert_same('other/broken', $registry->metadata()['errors'][0]['package']);
     $template = $blocks->directory() . '/cometcms/essentials/blocks/callout/template.html';
     unlink($template);
@@ -406,7 +406,7 @@ test('missing or malformed packages preserve placed block values and do not disa
     assert_same([], BlockRegistry::active()->all());
     // Reinstalling repairs the linked file without following it when the old package is removed.
     $blocks->installFiles(comet_block_files(), allowScripts: true);
-    assert_same(8, count(BlockRegistry::active()->all()));
+    assert_same(10, count(BlockRegistry::active()->all()));
     assert_true(is_file(COMET_BLOCK_EXAMPLE . '/blocks/callout/template.html'));
 });
 
@@ -476,7 +476,7 @@ test('block package uploads report every problem and ask before breaking placed 
     assert_same(['cometcms/feature is removed. Placed instances will show as missing blocks.'], $body['error']['details']['changes']);
     [$status, $body] = comet_block_upload($update, ['accept_changes' => '1', 'allow_scripts' => '1'], $seed);
     assert_same(201, $status);
-    assert_same(['cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['blocks']);
+    assert_same(['cometcms/before-after', 'cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats', 'cometcms/testimonial'], $body['data']['blocks']);
 });
 
 test('block inventory requires site permission and installation and deletion require an administrator and CSRF', function (): void {
@@ -712,16 +712,16 @@ test('installing block scripts needs explicit consent and is reported in the inv
         throw new RuntimeException('Expected consent to be required.');
     } catch (\CometCMS\Site\Blocks\BlockPackageScripts $e) {
         assert_same('cometcms/essentials', $e->package);
-        assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $e->blocks);
+        assert_same(['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $e->blocks);
     }
     assert_same([], BlockRegistry::active()->all());
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     $metadata = BlockRegistry::active()->metadata()['packages'][0];
     assert_true($metadata['scripts']);
-    assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], array_column(array_filter($metadata['blocks'], static fn(array $block): bool => $block['script']), 'name'));
+    assert_same(['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], array_column(array_filter($metadata['blocks'], static fn(array $block): bool => $block['script']), 'name'));
     assert_true(LayoutSchema::spec(blocks: BlockRegistry::active())['kinds']['block:cometcms/stats']['script']);
     // Packages without scripts install as before.
-    $plain = comet_block_files(['blocks/maps/view.js' => null, 'blocks/slideshow/view.js' => null, 'blocks/stats/view.js' => null, 'blocks/stats/block.json' => null, 'blocks/stats/template.html' => null, 'blocks/stats/style.css' => null]);
+    $plain = comet_block_files(['blocks/before-after/view.js' => null, 'blocks/maps/view.js' => null, 'blocks/slideshow/view.js' => null, 'blocks/stats/view.js' => null, 'blocks/stats/block.json' => null, 'blocks/stats/template.html' => null, 'blocks/stats/style.css' => null]);
     assert_same([], BlockRegistry::active()->installFiles($plain, true)['scripts']);
     $file = hash('sha256', comet_block_files()['blocks/stats/view.js']) . '.js';
     assert_null(BlockRegistry::active()->asset($file));
@@ -763,10 +763,10 @@ test('block package uploads with scripts ask for consent before installing', fun
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files()));
     assert_same(409, $status);
     assert_same('block_package_scripts', $body['error']['code']);
-    assert_same(['package' => 'cometcms/essentials', 'blocks' => ['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $body['error']['details']);
+    assert_same(['package' => 'cometcms/essentials', 'blocks' => ['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $body['error']['details']);
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files()), ['allow_scripts' => '1']);
     assert_same(201, $status);
-    assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['scripts']);
+    assert_same(['cometcms/before-after', 'cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['scripts']);
 });
 
 test('example slideshows render translated media slides and only load their script on published pages', function (): void {
@@ -845,4 +845,55 @@ test('maps render escaped location labels and keep editor previews free of scrip
     assert_true(str_contains($preview, 'The interactive map loads on the published website.'));
     assert_false(str_contains($preview, 'import mount'));
     assert_false(str_contains($preview, 'tile.openstreetmap.org'));
+});
+
+test('example comparison and testimonial blocks render safe translated content and media with preview fallbacks', function (): void {
+    $site = comet_site_test_setup();
+    $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
+    comet_media_test_file('before.jpg', 'jpeg');
+    comet_media_test_file('after.jpg', 'jpeg');
+    (new \CometCMS\Media\MediaRepository())->updateMeta('before.jpg', 'Before "renovation"', 'Before');
+    $comparison = LayoutSchema::node('block:cometcms/before-after', [
+        'before_image' => 'before.jpg', 'after_image' => 'after.jpg', 'position' => 140,
+        'before_label' => ['type' => 'localized', 'values' => ['en' => 'Before <work>', 'de' => 'Vorher']],
+        'caption' => "First line\nSecond line",
+    ], ['background' => 'primary', 'text_color' => 'inverse']);
+    assert_same(100, LayoutSchema::normalizeProps('block:cometcms/before-after', $comparison['props'])['position']);
+    $testimonial = LayoutSchema::node('block:cometcms/testimonial', [
+        'quote' => ['type' => 'localized', 'values' => ['en' => 'A <wonderful> result & team.', 'de' => 'Ein tolles Ergebnis.']],
+        'name' => 'Alex <Morgan>', 'portrait' => 'before.jpg', 'rating' => '4', 'layout' => 'centered',
+    ]);
+    comet_block_page($site, [$comparison, $testimonial, LayoutSchema::node('block:cometcms/before-after'), LayoutSchema::node('block:cometcms/testimonial', ['name' => '', 'role' => '', 'company' => ''])]);
+    $site = new SiteRepository();
+    $ctx = comet_site_test_context($site);
+    $entry = $ctx->findEntry('about', 'about');
+    $html = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
+    assert_true(str_contains($html, 'src="/media/default/before.jpg" alt="Before &quot;renovation&quot;"'));
+    assert_true(str_contains($html, 'src="/media/default/after.jpg"'));
+    assert_true(str_contains($html, 'Before &lt;work&gt;'));
+    assert_true(str_contains($html, 'A &lt;wonderful&gt; result &amp; team.'));
+    assert_true(str_contains($html, 'Alex &lt;Morgan&gt;'));
+    assert_true(str_contains($html, 'aria-label="Rating: 4 / 5"'));
+    assert_true(str_contains($html, '★★★★☆'));
+    assert_same(1, substr_count($html, 'cometcms-testimonial__rating"'));
+    assert_true(str_contains($html, 'cometcms-testimonial--centered'));
+    assert_true(str_contains($html, 'Choose an image to compare.'));
+    assert_true(str_contains($html, 'data-control hidden'));
+    assert_true(str_contains($html, 'c-bg-primary c-fg-inverse'));
+    assert_same(2, substr_count($html, 'data-comet-block="cometcms/before-after"'));
+    assert_false(str_contains($html, 'data-comet-block="cometcms/testimonial"'));
+    $script = hash_file('sha256', COMET_BLOCK_EXAMPLE . '/blocks/before-after/view.js') . '.js';
+    $loader = \CometCMS\Site\Blocks\BlockScripts::loader('cometcms/before-after', '/_site/default/blocks/' . $script);
+    assert_same(1, substr_count($html, '<script type="module">' . $loader . '</script>'));
+
+    $ctx->preview = true;
+    $preview = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
+    assert_true(str_contains($preview, 'Before &lt;work&gt;'));
+    assert_false(str_contains($preview, 'import mount'));
+    assert_false(str_contains($preview, ' data-ready='));
+    $ctx->locale = 'de';
+    $translated = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
+    assert_true(str_contains($translated, '>Vorher</span>'));
+    assert_true(str_contains($translated, 'Ein tolles Ergebnis.'));
+    assert_false(str_contains($translated, 'A &lt;wonderful&gt;'));
 });

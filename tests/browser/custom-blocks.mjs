@@ -25,13 +25,25 @@ $user = (new \\CometCMS\\Auth\\UserRepository())->create('block-admin', 'block-t
 (new \\CometCMS\\Content\\ContentTypeRepository())->save(['name' => 'home', 'label' => 'Home', 'fields' => []]);
 \\CometCMS\\Content\\ContentRepository::make()->save('home', ['title' => 'Home', 'status' => 'published'], $user);
 (new \\CometCMS\\Site\\SiteRepository())->saveSettings(['title' => 'Block example', 'homepage' => ['type' => 'home', 'entry' => 'home']]);
+// Local image fixtures keep comparison tests independent of external media.
+$media = (new \\CometCMS\\Workspaces\\WorkspaceContext())->path('media');
+foreach (['compare-before.svg' => '#64748b', 'compare-after.svg' => '#0d9488'] as $file => $color) {
+    file_put_contents($media . '/' . $file, '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="' . $color . '"/></svg>');
+    (new \\CometCMS\\Media\\MediaRepository())->updateMeta($file, $file === 'compare-before.svg' ? 'Original room' : 'Renovated room', 'Comparison');
+}
 // Version 2 drops the feature block, which needs confirmation when updating.
 foreach ([${JSON.stringify(zips.v1)} => false, ${JSON.stringify(zips.v2)} => true] as $target => $breaking) {
     $zip = new ZipArchive();
     $zip->open($target, ZipArchive::CREATE);
     foreach (\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(${JSON.stringify(example)}) as $path => $bytes) {
         if ($breaking && str_starts_with($path, 'blocks/feature/')) continue;
-        $zip->addFromString('comet-essentials/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.4.0"', '"2.0.0"', $bytes) : $bytes);
+        if ($path === 'blocks/testimonial/block.json') {
+            $manifest = json_decode($bytes, true);
+            $manifest['props']['rating']['default'] = '4';
+            $manifest['props']['layout']['default'] = 'centered';
+            $bytes = json_encode($manifest);
+        }
+        $zip->addFromString('comet-essentials/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.5.0"', '"2.0.0"', $bytes) : $bytes);
     }
     $zip->close();
 }
@@ -113,10 +125,16 @@ async function checkBlockColors(documentExpression) {
   })()`);
   assert(result.normal && result.hover, 'Block surface, text and links honor Style colors and hover overrides: ' + JSON.stringify(result));
 }
+async function selectBlockMedia(label, file) {
+  await evaluate(`(() => { const label = [...document.querySelectorAll('span')].find((el) => el.textContent === ${JSON.stringify(label)}); const button = [...label.closest('.relative').querySelectorAll('button')].find((el) => el.textContent.trim() === 'Choose media'); button.click(); })()`);
+  await waitFor(`!!document.querySelector('[role="dialog"] [title="${file}"]')`, 'media picker image');
+  await evaluate(`document.querySelector('[role="dialog"] [title="${file}"]').closest('button').click()`);
+  await waitFor('!document.querySelector(\'[role="dialog"][aria-modal="true"]\')', 'media picker closed');
+}
 /** Packages with JavaScript ask before installing. */
 async function allowScripts() {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("Allow JavaScript?")', 'script consent');
-  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("cometcms/stats") && dialog.innerText.includes("cometcms/slideshow"))'), 'Consent names the blocks with scripts');
+  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("cometcms/before-after") && dialog.innerText.includes("cometcms/stats") && dialog.innerText.includes("cometcms/slideshow"))'), 'Consent names the blocks with scripts');
   await click('Install with JavaScript', '[role="alertdialog"] button');
   // Its overlay fades out; a drop before then would land on it.
   await waitFor('!document.querySelector(\'[role="alertdialog"]\')', 'script consent closed');
@@ -189,6 +207,23 @@ try {
     const palette = await command('Page.captureScreenshot', { format: 'png' });
     writeFileSync(process.env.COMET_BLOCK_SCREENSHOT.replace(/\.png$/, '-builder.png'), Buffer.from(palette.data, 'base64'));
   }
+  await click('Testimonial');
+  await waitFor('!!document.querySelector(\'textarea[id$="-props-quote"]\')', 'testimonial quote inspector');
+  await field('textarea[id$="-props-quote"]', 'A wonderful result, from start to finish.');
+  await selectBlockMedia('Portrait', 'compare-before.svg');
+  await waitFor(`(${previewDocument})?.querySelector('.cometcms-testimonial__quote p')?.textContent === 'A wonderful result, from start to finish.'`, 'testimonial live preview');
+  assert(await evaluate(`(${previewDocument}).querySelector('.cometcms-testimonial__rating').getAttribute('aria-label') === 'Rating: 4 / 5' && !!(${previewDocument}).querySelector('.cometcms-testimonial__portrait')`), 'Testimonial rating and portrait preview');
+  await click('Before / after');
+  await waitFor('!!document.querySelector(\'input[type="range"][id$="-props-position"]\')', 'comparison split inspector');
+  await field('input[type="range"][id$="-props-position"]', '35');
+  await selectBlockMedia('Before image', 'compare-before.svg');
+  await selectBlockMedia('After image', 'compare-after.svg');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.cometcms-compare__side img').length === 2`, 'comparison media preview');
+  assert(await evaluate(`(() => { const doc = ${previewDocument}; const root = doc.querySelector('.cometcms-compare'); return !root.hasAttribute('data-ready') && root.querySelector('[data-control]').hidden && doc.defaultView.getComputedStyle(root.querySelector('[data-frame]')).display === 'grid'; })()`), 'Comparison preview shows both images without active controls');
+  await click('Before / after');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.cometcms-compare').length === 2`, 'independent comparison instances');
+  await selectBlockMedia('Before image', 'compare-before.svg');
+  await selectBlockMedia('After image', 'compare-after.svg');
   await click('Stats');
   await waitFor(`!!(${previewDocument})?.querySelector('.cometcms-stats')`, 'stats block in preview');
   assert(await evaluate(`!(${previewDocument}).querySelector('[data-comet-block]') && ![...(${previewDocument}).querySelectorAll('script')].some((el) => el.textContent.includes('import mount'))`), 'Builder preview never loads block scripts');
@@ -228,6 +263,33 @@ try {
   await command('Page.navigate', { url: `${origin}/` });
   await waitFor('!!document.querySelector(".cometcms-callout")', 'published custom block');
   await checkBlockColors('document');
+  await waitFor('document.querySelectorAll(".cometcms-compare[data-ready]").length === 2', 'comparison images loaded and sliders mounted');
+  const comparison = 'document.querySelector(".cometcms-compare")';
+  assert(await evaluate(`(${comparison}).querySelector('input').value === '35' && (${comparison}).querySelector('input').getAttribute('aria-valuetext') === 'Before 35% / After 65%'`), 'Comparison starts at the saved split with an accessible value');
+  assert(await evaluate(`(() => { const frame = (${comparison}).querySelector('[data-frame]').getBoundingClientRect(); const before = (${comparison}).querySelector('.cometcms-compare__before'); const image = before.querySelector('img').getBoundingClientRect(); return Math.abs(frame.width - image.width) < 1 && Math.abs(frame.height - image.height) < 1 && getComputedStyle(before).clipPath.includes('65%'); })()`), 'Both images fill the same frame and the initial split clips the before image');
+  await evaluate(`(${comparison}).querySelector('input').focus()`);
+  for (const key of ['End', 'Home', 'ArrowRight']) {
+    await command('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key });
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key });
+    const expected = { End: '100', Home: '0', ArrowRight: '1' }[key];
+    assert(await evaluate(`(${comparison}).querySelector('input').value === '${expected}' && (${comparison}).style.getPropertyValue('--cometcms-compare-position') === '${expected}%'`), 'Comparison supports ' + key);
+  }
+  const drag = await evaluate(`(() => { const frame = (${comparison}).querySelector('[data-frame]'); frame.scrollIntoView({ block: 'center' }); const rect = frame.getBoundingClientRect(); return { x: rect.left + rect.width * .25, end: rect.left + rect.width * .75, y: rect.top + rect.height / 2 }; })()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: drag.x, y: drag.y, button: 'left', clickCount: 1 });
+  await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: drag.end, y: drag.y, button: 'left', buttons: 1 });
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: drag.end, y: drag.y, button: 'left', clickCount: 1 });
+  assert(await evaluate(`(${comparison}).querySelector('input').value === '75' && document.querySelectorAll('.cometcms-compare')[1].querySelector('input').value === '50'`), 'Dragging updates the divider and leaves other instances unchanged');
+  await command('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: drag.x, y: drag.y }] });
+  assert(await evaluate(`(${comparison}).querySelector('input').value === '25'`), 'Touch starts at the contact position');
+  await command('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: drag.end, y: drag.y }] });
+  await command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  assert(await evaluate(`(${comparison}).querySelector('input').value === '75'`), 'Comparison supports touch dragging');
+  const beforeSource = await evaluate(`(() => { const img = (${comparison}).querySelector('img'); const source = img.src; img.src = '/missing-comparison-image.svg'; return source; })()`);
+  await waitFor(`!(${comparison}).hasAttribute('data-ready') && (${comparison}).querySelector('[data-control]').hidden`, 'failed image restores side-by-side fallback');
+  await evaluate(`(${comparison}).querySelector('img').src = ${JSON.stringify(beforeSource)}`);
+  await waitFor(`(${comparison}).hasAttribute('data-ready')`, 'reloaded image restores comparison');
+  assert(await evaluate(`document.querySelector('.cometcms-testimonial__quote p').textContent === 'A wonderful result, from start to finish.' && document.querySelector('.cometcms-testimonial__rating').getAttribute('aria-label') === 'Rating: 4 / 5' && !document.querySelector('[data-comet-block="cometcms/testimonial"]')`), 'Published testimonial matches preview without JavaScript');
+
   const published = await evaluate(`({ html: document.querySelector('.cometcms-callout').outerHTML, border: getComputedStyle(document.querySelector('.cometcms-callout')).borderInlineStartWidth, annotated: !!document.querySelector('[data-node]') })`);
   assert(published.html === preview.html, 'Preview and published custom markup match: ' + JSON.stringify({ preview: preview.html, published: published.html }));
   assert(published.border === preview.border, 'Published CSS matches preview');
@@ -325,9 +387,9 @@ try {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("cometcms/feature is removed.")', 'breaking update confirmation');
   await click('Update anyway', '[role="alertdialog"] button');
   await allowScripts();
-  await waitFor('document.body.innerText.includes("updated from 1.4.0 to 2.0.0")', 'confirmed update');
+  await waitFor('document.body.innerText.includes("updated from 1.5.0 to 2.0.0")', 'confirmed update');
   assert(errors.length === 0, errors.join('\n'));
-  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, map slider/coordinates/tiles/zoom, slideshow navigation/autoplay/reduced motion, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
+  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, map slider/coordinates/tiles/zoom, comparison drag/touch/keyboard/instances/fallback, testimonial, slideshow navigation/autoplay/reduced motion, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
 } finally {
   socket?.close();
   chrome.kill();
