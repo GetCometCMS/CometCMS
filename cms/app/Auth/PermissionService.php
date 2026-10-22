@@ -402,6 +402,11 @@ final class PermissionService
             return ['workspaces:' . $slug, 'workspaces:*', '*'];
         }
 
+        if ($type === 'site') {
+            $workspace = (string) ($context['workspace'] ?? '');
+            return $workspace !== '' ? ['workspace:' . $workspace . ':site:*', 'site:*', '*'] : ['site:*', '*'];
+        }
+
         $resource = (string) ($context['resource'] ?? $type . ':*');
         return [$resource, '*'];
     }
