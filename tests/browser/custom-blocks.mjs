@@ -31,7 +31,7 @@ foreach ([${JSON.stringify(zips.v1)} => false, ${JSON.stringify(zips.v2)} => tru
     $zip->open($target, ZipArchive::CREATE);
     foreach (\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(${JSON.stringify(example)}) as $path => $bytes) {
         if ($breaking && str_starts_with($path, 'blocks/feature/')) continue;
-        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.2.0"', '"2.0.0"', $bytes) : $bytes);
+        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.3.0"', '"2.0.0"', $bytes) : $bytes);
     }
     $zip->close();
 }
@@ -85,7 +85,7 @@ async function click(text, selector = 'button') {
 /** Packages with JavaScript ask before installing. */
 async function allowScripts() {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("Allow JavaScript?")', 'script consent');
-  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("acme/stats"))'), 'Consent names the blocks with scripts');
+  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("acme/stats") && dialog.innerText.includes("acme/slideshow"))'), 'Consent names the blocks with scripts');
   await click('Install with JavaScript', '[role="alertdialog"] button');
   // Its overlay fades out; a drop before then would land on it.
   await waitFor('!document.querySelector(\'[role="alertdialog"]\')', 'script consent closed');
@@ -116,6 +116,8 @@ try {
   };
   await command('Page.enable');
   await command('Runtime.enable');
+  // Headless Chrome otherwise changes activeElement without dispatching focus events.
+  await command('Emulation.setFocusEmulationEnabled', { enabled: true });
   await command('Page.navigate', { url: `${origin}/admin` });
   await waitFor('!!document.querySelector("#login-username")', 'login');
   await field('#login-username', 'block-admin');
@@ -158,6 +160,13 @@ try {
   await click('Stats');
   await waitFor(`!!(${previewDocument})?.querySelector('.acme-stats')`, 'stats block in preview');
   assert(await evaluate(`!(${previewDocument}).querySelector('[data-comet-block]') && ![...(${previewDocument}).querySelectorAll('script')].some((el) => el.textContent.includes('import mount'))`), 'Builder preview never loads block scripts');
+  await click('Slideshow');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.acme-slideshow [data-slide]').length === 3`, 'slideshow preview');
+  assert(await evaluate(`(${previewDocument}).querySelector('.acme-slideshow [data-controls]').hidden && [...(${previewDocument}).querySelectorAll('.acme-slideshow [data-slide]')].every((slide) => !slide.hidden)`), 'Preview keeps all slides readable without inactive controls');
+  await click('Add item');
+  await waitFor('!!document.querySelector(\'input[id$="-props-slides-3-title"]\')', 'new slide fields');
+  await field('input[id$="-props-slides-3-title"]', 'A custom slide');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.acme-slideshow [data-slide]')[3]?.textContent.includes('A custom slide')`, 'slide content in preview');
   await click('Pricing plan');
   await waitFor('[...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Add item")', 'list editor');
   await click('Add item');
@@ -181,6 +190,57 @@ try {
   await waitFor('!!document.querySelector(\'[data-comet-block="acme/stats"][data-mounted="true"]\')', 'block script mounted under the site CSP');
   const csp = await evaluate(`fetch('/').then((res) => res.headers.get('content-security-policy'))`);
   assert(/script-src 'sha256-[^']+' 127\.0\.0\.1:\d+\/_site\/[^ ]+\/blocks\/[a-f0-9]{64}\.js/.test(csp) && !csp.includes("'self' 'sha") && !/script-src[^;]*'unsafe/.test(csp), 'CSP allows exactly the block script: ' + csp);
+  await waitFor('!!document.querySelector(\'[data-comet-block="acme/slideshow"][data-mounted="true"]\')', 'slideshow mounted under the site CSP');
+  const slideshow = 'document.querySelector(\'[data-comet-block="acme/slideshow"]\')';
+  const activeSlide = `(${slideshow}).querySelector('[data-slide]:not([hidden])')`;
+  assert(await evaluate(`(${slideshow}).querySelectorAll('[data-slide]:not([hidden])').length === 1 && (${slideshow}).querySelector('[data-status]').textContent === '1 / 4'`), 'Only the first slide is active');
+  await evaluate(`(${slideshow}).querySelector('[data-previous]').click()`);
+  assert(await evaluate(`(${activeSlide}).textContent.includes('A custom slide')`), 'Previous wraps to the last slide');
+  await evaluate(`(${slideshow}).querySelectorAll('[data-selectors] button')[1].click()`);
+  assert(await evaluate(`(${activeSlide}).textContent.includes('Make it yours') && (${slideshow}).querySelectorAll('[aria-current="true"]').length === 1`), 'Slide selectors update content and their accessible state');
+  await evaluate(`(${slideshow}).querySelector('[data-next]').focus(); (${slideshow}).querySelector('[data-next]').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))`);
+  assert(await evaluate(`(${activeSlide}).textContent.includes('A custom slide')`), 'End selects the last slide');
+  await evaluate(`(${slideshow}).querySelector('[data-next]').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))`);
+  assert(await evaluate(`(${activeSlide}).textContent.includes('Share your story')`), 'Right arrow wraps to the first slide');
+  // Mount extra instances from the same CSP-approved module to exercise edge cases and timers.
+  const slideshowUrl = `/_site/${workspace}/blocks/${createHash('sha256').update(readFileSync(join(example, 'blocks/slideshow/view.js'))).digest('hex')}.js`;
+  await evaluate(`(async () => {
+    const { default: mount } = await import(${JSON.stringify(slideshowUrl)});
+    window.slideshowFixture = (id, count, autoplay = false) => {
+      const copy = (${slideshow}).cloneNode(true);
+      copy.id = id;
+      copy.querySelector('[data-selectors]').replaceChildren();
+      [...copy.querySelectorAll('[data-slide]')].slice(count).forEach((slide) => slide.remove());
+      document.body.append(copy);
+      mount(copy, { ...JSON.parse(copy.dataset.cometProps), autoplay, interval: 2000 });
+      return copy;
+    };
+    window.slideshowFixture('slideshow-empty', 0);
+    window.slideshowFixture('slideshow-single', 1, true);
+    window.slideshowFixture('slideshow-auto', 4, true);
+  })()`);
+  assert(await evaluate(`document.querySelector('#slideshow-empty [data-controls]').hidden && document.querySelector('#slideshow-single [data-controls]').hidden && document.querySelectorAll('#slideshow-single [data-slide]:not([hidden])').length === 1`), 'Empty and single-slide instances hide navigation');
+  await waitFor(`document.querySelector('#slideshow-auto [data-status]').textContent === '2 / 4'`, 'autoplay advances independently');
+  assert(await evaluate(`(${slideshow}).querySelector('[data-status]').textContent === '1 / 4'`), 'Instances keep their navigation independent');
+  await evaluate(`document.querySelector('#slideshow-auto [data-next]').focus()`);
+  const pausedSlide = await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent`);
+  await delay(2200);
+  const focusState = await evaluate(`({ status: document.querySelector('#slideshow-auto [data-status]').textContent, play: document.querySelector('#slideshow-auto [data-play]').textContent, active: document.activeElement?.outerHTML, focused: document.hasFocus() })`);
+  assert(focusState.status === pausedSlide && focusState.play === 'Play slideshow', 'Keyboard focus stops autoplay: ' + JSON.stringify({ pausedSlide, ...focusState }));
+  await evaluate(`document.querySelector('#slideshow-auto [data-play]').click(); document.querySelector('#slideshow-auto .acme-slideshow').dispatchEvent(new PointerEvent('pointerenter'))`);
+  await delay(2200);
+  assert(await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent === ${JSON.stringify(pausedSlide)}`), 'Hover pauses autoplay after explicitly resuming');
+  await evaluate(`document.querySelector('#slideshow-auto .acme-slideshow').dispatchEvent(new PointerEvent('pointerleave'))`);
+  await waitFor(`document.querySelector('#slideshow-auto [data-status]').textContent !== ${JSON.stringify(pausedSlide)}`, 'autoplay resumes after hover');
+  await evaluate(`document.querySelector('#slideshow-auto [data-play]').click()`);
+  const buttonPausedSlide = await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent`);
+  await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  await evaluate(`window.slideshowFixture('slideshow-reduced', 4, true)`);
+  await delay(2200);
+  assert(await evaluate(`document.querySelector('#slideshow-reduced [data-status]').textContent === '1 / 4' && document.querySelector('#slideshow-reduced [data-play]').textContent === 'Play slideshow'`), 'Reduced motion suppresses autoplay');
+  assert(await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent === ${JSON.stringify(buttonPausedSlide)} && document.querySelector('#slideshow-auto [data-play]').textContent === 'Play slideshow'`), 'Pause button stops autoplay');
+  await command('Emulation.setEmulatedMedia', { features: [] });
+  await evaluate(`document.querySelectorAll('[id^="slideshow-"]').forEach((element) => element.remove())`);
   if (process.env.COMET_BLOCK_SCREENSHOT) {
     const { cssContentSize: size } = await command('Page.getLayoutMetrics');
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 } });
@@ -210,9 +270,9 @@ try {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("acme/feature is removed.")', 'breaking update confirmation');
   await click('Update anyway', '[role="alertdialog"] button');
   await allowScripts();
-  await waitFor('document.body.innerText.includes("updated from 1.2.0 to 2.0.0")', 'confirmed update');
+  await waitFor('document.body.innerText.includes("updated from 1.3.0 to 2.0.0")', 'confirmed update');
   assert(errors.length === 0, errors.join('\n'));
-  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
+  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, slideshow navigation/autoplay/reduced motion, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
 } finally {
   socket?.close();
   chrome.kill();

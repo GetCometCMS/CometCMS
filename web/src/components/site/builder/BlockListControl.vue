@@ -47,6 +47,7 @@ import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderControl from "./BuilderControl.vue";
 import { useI18n } from "../../../i18n/index.js";
+import { clone } from "../../../composables/layoutTree.js";
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -68,7 +69,7 @@ function title(item, index) {
 }
 
 function add() {
-  const item = Object.fromEntries(Object.entries(props.def.fields ?? {}).map(([key, field]) => [key, structuredClone(field.default ?? null)]));
+  const item = Object.fromEntries(Object.entries(props.def.fields ?? {}).map(([key, field]) => [key, clone(field.default ?? null)]));
   emit("update", [...items.value, item]);
   open.value = items.value.length;
 }

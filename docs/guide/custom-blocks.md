@@ -29,14 +29,17 @@ acme-marketing/
     feature/
       icon.svg              # optional: this block's palette icon
     pricing/…               # a list of features
+    slideshow/…             # image slides, captions, links and optional autoplay
     stats/
       view.js               # optional: JavaScript for the published website
 ```
 
 1. Check the package: `npm run blocks -- validate examples/blocks/acme-marketing`
-2. Pack it: `npm run blocks -- pack examples/blocks/acme-marketing` (writes `acme-marketing-1.0.0.zip`)
+2. Pack it: `npm run blocks -- pack examples/blocks/acme-marketing` (writes `acme-marketing-1.3.0.zip`)
 3. As an administrator, open **Page Builder → Custom blocks** and drop the ZIP on the upload area.
-4. Open a layout. **Callout**, **Card**, **FAQ**, **Feature** and **Pricing plan** are in the elements palette.
+4. Open a layout. **Callout**, **Card**, **FAQ**, **Feature**, **Pricing plan**, **Slideshow** and **Stats** are in the elements palette.
+
+**Slideshow** accepts up to 12 slides with a media image, title, caption and optional link. Edit the slides in the inspector; image alt text comes from the media library. On the published website, use the arrows, numbered selectors or Left/Right and Home/End keys to change slides. Optional autoplay uses a configurable interval and a play/pause button, pauses while hovered or the page is hidden, and stops after focus or manual navigation. Reduced motion disables automatic playback. All button labels and slide content are translatable. In previews and without JavaScript, the slides stay readable in a horizontally scrollable list.
 
 Zipping the folder yourself works too. A single top-level folder inside the ZIP is unwrapped, and `.DS_Store`, `__MACOSX/` and other dotfiles are ignored. The CLI runs the same validation as the installer, without a running CMS. It needs only PHP with the zip extension.
 

@@ -1,0 +1,23 @@
+{{! Without JavaScript, every slide stays readable in a horizontally scrollable list. }}
+<section class="acme-slideshow" aria-label="{{label}}" aria-roledescription="carousel">
+  <div class="acme-slideshow__track">
+    {{#slides}}
+    <figure class="acme-slideshow__slide" data-slide role="group" aria-roledescription="slide">
+      {{#image}}<img class="acme-slideshow__image" src="{{image}}" alt="{{image.alt}}" loading="lazy">{{/image}}
+      <figcaption class="acme-slideshow__caption">
+        {{#title}}<h3 class="acme-slideshow__title">{{title}}</h3>{{/title}}
+        {{#caption}}<p class="acme-slideshow__text">{{caption}}</p>{{/caption}}
+        {{#link}}<a class="acme-slideshow__link" href="{{link}}">{{link_label}}</a>{{/link}}
+      </figcaption>
+    </figure>
+    {{/slides}}
+    {{^slides}}<p class="acme-slideshow__empty">{{empty_label}}</p>{{/slides}}
+  </div>
+  <div class="acme-slideshow__controls" data-controls hidden>
+    <button class="acme-slideshow__arrow" type="button" data-previous aria-label="{{previous_label}}"><span aria-hidden="true">←</span></button>
+    <div class="acme-slideshow__selectors" data-selectors role="group" aria-label="{{label}}"></div>
+    <button class="acme-slideshow__arrow" type="button" data-next aria-label="{{next_label}}"><span aria-hidden="true">→</span></button>
+    <button class="acme-slideshow__play" type="button" data-play hidden>{{play_label}}</button>
+    <span class="acme-slideshow__status" data-status aria-live="polite" aria-atomic="true"></span>
+  </div>
+</section>
