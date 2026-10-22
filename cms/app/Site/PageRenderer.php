@@ -14,6 +14,7 @@ use CometCMS\Localization\Messages;
 final class PageRenderer
 {
     private NodeRenderer $nodes;
+    private ?\Closure $savedRender = null;
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -22,6 +23,14 @@ final class PageRenderer
 
     public function entryPage(array $type, array $entry, int $page = 1): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($type, $entry, $page): ?string {
+            $original = $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true);
+            if ($original === null || ($original['status'] ?? '') !== ($entry['status'] ?? '')
+                || ($original['published_at'] ?? null) !== ($entry['published_at'] ?? null)) {
+                return null;
+            }
+            return (new self($saved))->entryPage($type, $original, $page);
+        };
         $name = (string) $type['name'];
         $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->entryPath($name, $entry) === '/';
@@ -42,6 +51,7 @@ final class PageRenderer
 
     public function indexPage(array $type, int $page = 1): string
     {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->indexPage($type, $page);
         $name = (string) $type['name'];
         $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->indexPath($name) === '/';
@@ -67,6 +77,7 @@ final class PageRenderer
     /** Branded blank page shown until a public homepage is available. */
     public function autoHome(): string
     {
+        $this->savedRender = null;
         if ($this->ctx->previewBanner) {
             return $this->document(['title' => $this->homeTitle(), 'noindex' => true],
                 '<section class="c-section"><div class="c-container"><h1>' . Security::e($this->homeTitle()) . '</h1></div></section>',
@@ -77,6 +88,7 @@ final class PageRenderer
 
     public function previewExpired(): string
     {
+        $this->savedRender = null;
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $title = $de ? 'Diese Vorschau ist nicht mehr verfügbar' : 'This preview is no longer available';
         $message = $de ? 'Öffne eine neue Vorschau im Editor, um deine aktuellen Änderungen zu sehen.' : 'Open a new preview from the editor to see your current changes.';
@@ -87,6 +99,7 @@ final class PageRenderer
 
     public function notFound(string $path): string
     {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->notFound($path);
         $settings = $this->ctx->settings();
         foreach (['not_found_title', 'not_found_message'] as $key) if ($settings[$key] === '' && empty($settings['_localized'][$key])) $settings[$key] = Messages::get($key, $this->ctx->htmlLang());
         $state = $this->state(null, null, $path, 1, []);
@@ -111,6 +124,10 @@ final class PageRenderer
      */
     public function layoutPreview(array $type, string $variant, ?array $entry): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($type, $variant, $entry): string {
+            $original = $entry !== null ? $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true) : null;
+            return (new self($saved))->layoutPreview($type, $variant, $original);
+        };
         $name = (string) $type['name'];
         $entry ??= $this->sampleEntry($type);
         $layout = $this->ctx->layout($name, $variant);
@@ -163,6 +180,7 @@ final class PageRenderer
 
     public function regionPreview(string $region): string
     {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->regionPreview($region);
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
             . '<div class="c-preview-main" data-placeholder="regionMain">Page content</div></div></section>';
@@ -177,6 +195,12 @@ final class PageRenderer
      */
     public function componentPreview(array $component, ?array $type, ?array $entry): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($component, $type, $entry): ?string {
+            $original = $saved->component($component['id']);
+            if ($original === null) return null;
+            $savedEntry = $type !== null && $entry !== null ? $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true) : null;
+            return (new self($saved))->componentPreview($original, $type, $savedEntry);
+        };
         if ($type !== null) {
             $entry ??= $this->sampleEntry($type);
             $url = $this->ctx->entryUrl((string) $type['name'], $entry) ?? $this->ctx->homeUrl();
@@ -208,9 +232,9 @@ final class PageRenderer
             'collection' => (string) $type['name'],
             'title' => 'Sample ' . strtolower((string) $type['label']),
             'status' => 'published',
-            'published_at' => Security::now(),
-            'created_at' => Security::now(),
-            'updated_at' => Security::now(),
+            'published_at' => $this->ctx->previewTime ??= Security::now(),
+            'created_at' => $this->ctx->previewTime ??= Security::now(),
+            'updated_at' => $this->ctx->previewTime ??= Security::now(),
         ];
     }
 
@@ -310,19 +334,14 @@ final class PageRenderer
             : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">'
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
-        $banner = $this->ctx->previewBanner
-            ? (new PreviewAdminBar($this->ctx))->render($state)
-            : '';
-
         // The theme toggle's script runs before the body, so a saved choice never flashes.
         if (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-theme-toggle')) {
             $head .= '<script>' . ThemeToggle::script() . '</script>';
         }
 
-        return '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
-            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">'
-            . $banner
-            . '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>'
+        $opening = '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
+            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">';
+        $content = '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>'
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
@@ -335,15 +354,39 @@ final class PageRenderer
             . (!$this->ctx->preview && str_contains($header . $main . $footer, ' data-menu ')
                 ? '<script type="module">' . Menus::script() . '</script>' : '')
             . '</body></html>';
+        $banner = '';
+        if ($this->ctx->previewBanner) {
+            // Compare the page that was actually rendered, including shared regions,
+            // embedded entries, locale and theme. A token alone does not imply changes.
+            $saved = $this->ctx->previewToken !== '' && $this->savedRender !== null
+                ? ($this->savedRender)($this->ctx->withoutOverrides()) : null;
+            $unsaved = $this->ctx->previewToken !== '' && ($saved === null
+                || $this->comparisonHtml($saved) !== $this->comparisonHtml($opening . $content));
+            $banner = (new PreviewAdminBar($this->ctx))->render($state, $unsaved);
+        }
+        return $opening . $banner . $content;
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private function comparisonHtml(string $html): string
+    {
+        // Default layouts can generate fresh node IDs. Menu and form control IDs
+        // do not change the displayed content; preserve their relationships and order.
+        preg_match_all('/<input type="checkbox" id="([^"]+)" class="c-menu-toggle"|<input type="hidden" name="_anchor" value="([^"]+)"/', $html, $matches, PREG_SET_ORDER);
+        $ids = [];
+        foreach ($matches as $match) {
+            $id = ($match[1] ?? '') !== '' ? $match[1] : $match[2];
+            $ids[$id] ??= '__preview_control_' . count($ids);
+        }
+        return strtr($html, $ids);
+    }
 
     private function state(?array $entry, ?array $type, string $path, int $page, array $alternates): array
     {
         // A previewed draft shows the date it gets once published instead of an unresolved reference.
         if ($this->ctx->preview && $entry !== null && empty($entry['published_at'])) {
-            $entry['published_at'] = Security::now();
+            $entry['published_at'] = $this->ctx->previewTime ??= Security::now();
         }
         return [
             'entry' => $entry,

@@ -11,7 +11,7 @@ final class PreviewAdminBar
 {
     public function __construct(private readonly SiteContext $ctx) {}
 
-    public function render(array $state): string
+    public function render(array $state, bool $unsaved = false): string
     {
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $text = $de ? [
@@ -25,7 +25,7 @@ final class PreviewAdminBar
             'profile' => 'My profile', 'language' => 'Preview language',
             'draft' => 'Draft', 'protected' => 'Protected', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived',
         ];
-        if ($this->ctx->previewToken !== '') {
+        if ($unsaved) {
             $text['notice'] = $de ? 'Diese Vorschau enthält ungespeicherte Änderungen. Die Website bleibt unverändert.' : 'This preview includes unsaved changes. The website remains unchanged.';
         }
         $type = $state['type'] ?? null;
@@ -56,7 +56,7 @@ final class PreviewAdminBar
                 $actions .= $link($url, $text['design'], 'layout', 'c-admin-action-design');
             }
         }
-        $status = $this->ctx->previewToken !== '' ? 'preview' : ($entry['status'] ?? 'preview');
+        $status = $unsaved ? 'preview' : ($entry['status'] ?? 'preview');
         if ($entry !== null && $status === 'published' && !$this->ctx->content->isPubliclyVisible($entry)) {
             $status = 'scheduled';
         }

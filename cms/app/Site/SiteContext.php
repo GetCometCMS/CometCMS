@@ -40,6 +40,7 @@ final class SiteContext
     /** Signed-in full-page previews keep navigation and admin actions together. */
     public bool $browsePreview = false;
     public string $previewToken = '';
+    public ?string $previewTime = null;
     private array $previewEntries = [];
     public ?array $adminUser = null;
     public ?\Closure $adminCan = null;
@@ -65,6 +66,22 @@ final class SiteContext
         $workspace = $site->workspace();
 
         return new self($site, ContentRepository::make($workspace), new MediaRepository($workspace), rtrim($basePath, '/'), rtrim($origin, '/'));
+    }
+
+    /** The same preview navigation and permissions, using only current saved data. */
+    public function withoutOverrides(): self
+    {
+        $saved = new self($this->site, $this->content, $this->media, $this->basePath, $this->origin);
+        $saved->locale = $this->locale;
+        $saved->preview = $this->preview;
+        $saved->annotate = $this->annotate;
+        $saved->browsePreview = $this->browsePreview;
+        $saved->previewToken = $this->previewToken;
+        $saved->previewTime = $this->previewTime;
+        $saved->adminUser = $this->adminUser;
+        $saved->adminCan = $this->adminCan;
+        // No banner: the comparison must exclude the status label itself.
+        return $saved;
     }
 
     // ─── Configuration (with preview overrides) ──────────────────────────────

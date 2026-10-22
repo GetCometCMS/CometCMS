@@ -117,7 +117,13 @@ final class ContentRepository
     public function preview(string $collection, array $payload, array $user, ?array $existing): array
     {
         Security::assertSafeName($collection);
-        return $this->normalizeAndValidate($collection, $payload, $user, $existing, true, array_keys($payload));
+        $entry = $this->normalizeAndValidate($collection, $payload, $user, $existing, true, array_keys($payload));
+        if ($existing !== null) {
+            // A preview does not change the saved modification date or editor.
+            $entry['updated_at'] = $existing['updated_at'];
+            $entry['updated_by'] = $existing['updated_by'] ?? null;
+        }
+        return $entry;
     }
 
     public function save(

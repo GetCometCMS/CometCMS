@@ -410,6 +410,7 @@ $registry->save(['slug' => 'other-site', 'label' => 'Other site']);
 $content = \CometCMS\Content\ContentRepository::make();
 $entry = $content->save('posts', ['title' => 'Saved English', 'slug' => 'first', 'status' => 'published', 'locale' => 'en'], ['id' => 'snapshot-admin']);
 $content->save('posts', ['title' => 'Gespeichertes Deutsch', 'locale' => 'de'], ['id' => 'snapshot-admin'], $entry['id']);
+$content->save('posts', ['title' => 'Unchanged page', 'slug' => 'second', 'status' => 'published', 'locale' => 'en'], ['id' => 'snapshot-admin']);
 (new \CometCMS\Site\SiteRepository())->saveSettings([
     'locales' => ['en', 'de'], 'default_locale' => 'en',
     'homepage' => ['type' => 'posts', 'entry' => 'first'],
@@ -493,6 +494,20 @@ PHP .
         [$status, $editorHtml] = $request($editorPreviewPath, 'GET', [], 'editor');
         assert_same(200, $status);
         assert_true(str_contains($editorHtml, 'Unsaved English'));
+        assert_true(str_contains($editorHtml, 'class="c-admin-status c-admin-status-preview"'));
+        parse_str((string) parse_url($editorPreviewPath, PHP_URL_QUERY), $editorQuery);
+        $navigation = '/admin/site-preview?workspace=default&snapshot=' . $editorQuery['snapshot'];
+        [$status, $otherPage] = $request($navigation . '&path=/posts/second', 'GET', [], 'editor');
+        assert_same(200, $status);
+        assert_true(str_contains($otherPage, 'class="c-admin-status c-admin-status-published"'), 'An unaffected page shows its saved state within the same snapshot.');
+        [$status, $back] = $request($navigation . '&path=/', 'GET', [], 'editor');
+        assert_same(200, $status);
+        assert_true(str_contains($back, 'class="c-admin-status c-admin-status-preview"'));
+        assert_same(200, $request('/admin/api/content/posts/first', 'PUT', ['title' => 'Unsaved English', 'locale' => 'en'])[0]);
+        [$status, $upToDate] = $request($editorPreviewPath, 'GET', [], 'editor');
+        assert_same(200, $status);
+        assert_true(str_contains($upToDate, 'class="c-admin-status c-admin-status-published"'), 'A preview matching newly saved content shows the saved state.');
+
         $entryBody['entry'] = '';
         $entryBody['entries'] = [['type' => 'posts', 'id' => '', 'values' => ['title' => 'Brand new unsaved entry', 'locale' => 'en']]];
         [$status, $json] = $request('/admin/api/site/preview-snapshots', 'POST', $entryBody, 'editor');
@@ -542,9 +557,10 @@ test('the admin bar shows one localized state for the displayed content', functi
             assert_true(str_contains($html, 'c-admin-status-' . $display . '"'));
             assert_true(str_contains($html, '</span>' . $label . '</span>'));
             assert_false(str_contains($html, 'c-admin-mode'));
-            // An unsaved snapshot displays Preview even when its saved entry is published or protected.
             $context->previewToken = 'snapshot';
-            $html = $bar->render(['type' => $type, 'entry' => $entry]);
+            $unchanged = $bar->render(['type' => $type, 'entry' => $entry]);
+            assert_true(str_contains($unchanged, 'c-admin-status-' . $display . '"'), 'A snapshot token alone does not change the displayed state.');
+            $html = $bar->render(['type' => $type, 'entry' => $entry], true);
             assert_same(1, substr_count($html, 'class="c-admin-status c-admin-status-'));
             assert_true(str_contains($html, 'c-admin-status-preview"'));
             assert_false(str_contains($html, 'c-admin-status-' . $display . '"'));
@@ -553,4 +569,96 @@ test('the admin bar shows one localized state for the displayed content', functi
     }
     $context->previewToken = '';
     assert_true(str_contains($bar->render(['type' => $type, 'entry' => null]), 'c-admin-status-preview"'), 'Collection and layout previews also have one display state.');
+});
+
+test('preview status follows rendered changes in the current page locale and shared design', function (): void {
+    $types = new \CometCMS\Content\ContentTypeRepository();
+    $types->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $types->save(['name' => 'about', 'singleton' => true]);
+    $site = new \CometCMS\Site\SiteRepository();
+    $site->saveSettings(['locales' => ['en', 'de'], 'default_locale' => 'en', 'routes' => [
+        'posts' => ['enabled' => true, 'pattern' => '/posts/{slug}', 'index_path' => '/posts'],
+        'about' => ['enabled' => true, 'pattern' => '/about'],
+    ]]);
+    $nodes = static fn(array $children): array => \CometCMS\Site\LayoutSchema::normalize([
+        ['id' => 'section', 'kind' => 'section', 'children' => [
+            ['id' => 'row', 'kind' => 'row', 'children' => [
+                ['id' => 'column', 'kind' => 'column', 'children' => $children],
+            ]],
+        ]],
+    ]);
+    $detail = $nodes([['id' => 'title', 'kind' => 'field', 'props' => ['source' => \CometCMS\Site\SmartValue::reference('title')]]]);
+    $site->saveLayout('posts', 'detail', $detail);
+    $site->saveLayout('about', 'detail', $detail);
+    $site->saveRegion('header', []);
+    $site->saveRegion('footer', []);
+    $content = \CometCMS\Content\ContentRepository::make();
+    $user = ['id' => 'admin'];
+    $content->save('posts', ['title' => 'First', 'slug' => 'first', 'locale' => 'en', 'status' => 'published'], $user);
+    $first = $content->save('posts', ['title' => 'Erste', 'locale' => 'de'], $user, 'first');
+    $content->save('posts', ['title' => 'Second', 'slug' => 'second', 'locale' => 'en', 'status' => 'published'], $user);
+    $content->save('about', ['title' => 'About', 'status' => 'published'], $user);
+    $context = static function () use ($site): \CometCMS\Site\SiteContext {
+        $ctx = \CometCMS\Site\SiteContext::make($site);
+        $ctx->preview = $ctx->previewBanner = $ctx->browsePreview = true;
+        $ctx->previewToken = 'same-snapshot';
+        $ctx->locale = 'en';
+        $ctx->adminUser = ['username' => 'admin', 'language' => 'en'];
+        $ctx->adminCan = static fn(): bool => true;
+        return $ctx;
+    };
+    $assertState = static function (\CometCMS\Site\SiteContext $ctx, string $type, string $id, string $expected) use ($types): void {
+        $entry = $ctx->findEntry($type, $id, true);
+        $html = (new \CometCMS\Site\PageRenderer($ctx))->entryPage($types->find($type), $entry);
+        preg_match('/class="c-admin-status c-admin-status-([a-z]+)"/', $html, $match);
+        assert_same($expected, $match[1] ?? '', $type . '/' . $id . ' in ' . $ctx->locale);
+    };
+    $changed = $content->preview('posts', ['title' => 'Unsaved first', 'locale' => 'en'], $user, $first);
+    $ctx = $context();
+    $ctx->overrideEntry('posts', $changed, 'first');
+    $assertState($ctx, 'posts', 'first', 'preview');
+    $assertState($ctx, 'posts', 'second', 'published');
+    $assertState($ctx, 'about', 'about', 'published');
+    $ctx->locale = 'de';
+    $assertState($ctx, 'posts', 'first', 'published');
+    $ctx->locale = 'en';
+    $assertState($ctx, 'posts', 'first', 'preview');
+
+    $ctx = $context();
+    $ctx->overrideEntry('posts', $content->preview('posts', ['title' => 'First', 'locale' => 'en'], $user, $first), 'first');
+    $ctx->override('theme', $site->theme());
+    $ctx->override('layout:posts:detail', $detail);
+    $assertState($ctx, 'posts', 'first', 'published');
+
+    $ctx = $context();
+    $ctx->override('layout:posts:detail', $nodes([['id' => 'heading', 'kind' => 'heading', 'props' => ['text' => 'Shared draft layout']]]));
+    $assertState($ctx, 'posts', 'first', 'preview');
+    $assertState($ctx, 'posts', 'second', 'preview');
+    $assertState($ctx, 'about', 'about', 'published');
+    $ctx->override('theme', array_replace($site->theme(), ['custom_css' => '.unsaved { color: red; }']));
+    $assertState($ctx, 'about', 'about', 'preview');
+
+    $ctx = $context();
+    $ctx->override('region:header', $nodes([['id' => 'header', 'kind' => 'heading', 'props' => ['text' => 'Draft header']]]));
+    $assertState($ctx, 'about', 'about', 'preview');
+    $assertState($ctx, 'posts', 'second', 'preview');
+
+    $component = $site->createComponent('Shared section', $nodes([['id' => 'component-title', 'kind' => 'heading', 'props' => ['text' => 'Saved component']]]));
+    $ctx = $context();
+    $ctx->override('component:' . $component['id'], array_replace($component, ['nodes' => $nodes([
+        ['id' => 'component-title', 'kind' => 'heading', 'props' => ['text' => 'Draft component']],
+    ])]));
+    $assertState($ctx, 'about', 'about', 'published');
+    $site->saveRegion('footer', [['id' => 'instance', 'kind' => 'component', 'props' => ['component' => $component['id'], 'root' => 'section']]]);
+    $assertState($ctx, 'about', 'about', 'preview');
+    $site->saveRegion('footer', []);
+
+    $collection = ['id' => 'collection', 'kind' => 'collection', 'props' => ['type' => 'posts', 'display' => 'list']];
+    $site->saveLayout('about', 'detail', $nodes([$collection]));
+    $ctx = $context();
+    $ctx->overrideEntry('posts', $changed, 'first');
+    $assertState($ctx, 'about', 'about', 'preview');
+    $collection['props'] += ['filter_field' => 'slug', 'filter_value' => 'second'];
+    $site->saveLayout('about', 'detail', $nodes([$collection]));
+    $assertState($ctx, 'about', 'about', 'published');
 });
