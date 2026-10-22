@@ -468,7 +468,8 @@ const selectOptions = computed(() => {
     case "page_field":
       return [
         { value: "", label: t("site.page.chooseField") },
-        ...builder.pageFields().map((field) => ({ value: field.key, label: field.label })),
+        // A field another element already shows would take this element out of the layout.
+        ...builder.freePageFields(props.node.id).map((field) => ({ value: field.key, label: field.label })),
       ];
     case "key":
       return keyOptions.value ?? [];

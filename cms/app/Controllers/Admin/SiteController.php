@@ -137,6 +137,8 @@ final class SiteController extends BaseController
             'url' => $url,
             'previewable' => $entry !== null && $context->isPublicType($type),
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
+            // Page fields with an area in the entry page layout.
+            'page_fields' => $routed ? array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail')))) : [],
         ]]);
     }
 

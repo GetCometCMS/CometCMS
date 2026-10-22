@@ -61,7 +61,7 @@ const MAX_FALLBACK = 2000
  *
  * `fieldApi` connects content types: can(type) tells whether the user may
  * change a content type, create({ type, key, config }) adds a field to it
- * and returns the type's saved schema.
+ * and update({ type, key, config }) changes one; both return the type's saved schema.
  *
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
@@ -344,13 +344,48 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   async function assignPageField(id) {
     const node = findNode(nodes.value, id)
     if (node?.kind !== PAGE_CONTENT || node.props.field) return
-    const existing = pageFields()
-    const free = existing.find((field) => !findPlace(field.key, id))
+    const free = freePageFields(id)[0]
     if (free) {
       node.props.field = free.key
       return
     }
-    if (!type.value || !fieldApi.create || !(fieldApi.can?.(type.value.name) ?? true)) return
+    const key = await createPageField()
+    const placed = key && findNode(nodes.value, id)
+    if (placed) placed.props.field = key
+  }
+
+  /** Page fields page content element `id` may show: those no other element shows. */
+  function freePageFields(id) {
+    return pageFields().filter((field) => !findPlace(field.key, id))
+  }
+
+  function canAddPageField() {
+    return !!type.value && !!fieldApi.create && (fieldApi.can?.(type.value.name) ?? true)
+  }
+
+  /** Give page content element `id` a field of its own: an unplaced one, or a new one. */
+  async function setUpPageArea(id) {
+    const key = freePageFields(id)[0]?.key ?? await createPageField()
+    if (key && findNode(nodes.value, id)) updateValue(id, 'props', 'field', key)
+  }
+
+  /** Rename page field `key` in the edited language (an area's name for entries). */
+  async function renamePageField(key, label) {
+    const config = type.value?.fields?.[key]
+    const name = label.trim()
+    if (config?.type !== 'page' || !name || !fieldApi.update || !canAddPageField()) return
+    const current = config.label
+    const localized = (typeof current === 'object' && current !== null) || (!!locale.value && locale.value !== defaultLocale.value)
+    const next = { ...config, label: localized ? setLocalized(current, locale.value, name, defaultLocale.value) : name }
+    const schema = await fieldApi.update({ type: type.value.name, key, config: next })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...type.value.fields, [key]: next } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+  }
+
+  /** A new page field of the edited type; its key, or '' when the user may not add one. */
+  async function createPageField() {
+    if (!canAddPageField()) return ''
+    const existing = pageFields()
     const fields = type.value.fields ?? {}
     const key = uniqueKey('page_content', new Set(Object.keys(fields)), RESERVED_FIELDS)
     // Further areas are numbered, so entries can tell them apart.
@@ -358,8 +393,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const schema = await fieldApi.create({ type: type.value.name, key, config: { type: 'page', label } })
     type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: { type: 'page', label } } }
     types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
-    const placed = findNode(nodes.value, id)
-    if (placed) placed.props.field = key
+    return key
   }
 
   // ─── Editing ───────────────────────────────────────────────────────────
@@ -904,7 +938,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
     fieldDialog, canMakeField, convertToField,
-    pageFields, pageFieldError, holdsPageContent,
+    pageFields, freePageFields, canAddPageField, setUpPageArea, renamePageField, pageFieldError, holdsPageContent,
   }
 
   provide(KEY, api)

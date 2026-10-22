@@ -390,6 +390,11 @@ const builder = createSiteBuilder({
       if (schema.fields?.[key]) throw new Error(t("site.field.exists", { key }));
       return (await api.contentTypes.update(type, { ...schema, fields: { ...schema.fields, [key]: config } })).data;
     },
+    update: async ({ type, key, config }) => {
+      const schema = (await api.contentTypes.get(type)).data;
+      if (!schema.fields?.[key]) throw new Error(t("site.field.missing", { key }));
+      return (await api.contentTypes.update(type, { ...schema, fields: { ...schema.fields, [key]: { ...schema.fields[key], label: config.label } } })).data;
+    },
   },
   // Design edits are undone and redone together with layout edits.
   linked: {

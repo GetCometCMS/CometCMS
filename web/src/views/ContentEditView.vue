@@ -326,11 +326,11 @@
 
       <!-- Entries with page content design their own page; the layout around it is shared. -->
       <section
-        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageFields.length"
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageAreas.length"
         class="card page-builder-cta p-6 space-y-4"
         :aria-label="t('site.page.title')"
       >
-        <div v-for="field in pageFields" :key="field.key" class="flex flex-wrap items-center justify-between gap-4">
+        <div v-for="field in pageAreas" :key="field.key" class="flex flex-wrap items-center justify-between gap-4">
           <div class="min-w-0">
             <h2 class="card-title">{{ field.label }}</h2>
             <p class="page-builder-cta-description mt-1 flex items-center gap-1.5 text-sm text-slate-500">
@@ -1051,6 +1051,14 @@ const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields
       : resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
     customized: (fullEntry.value?.values?.[key]?.nodes?.length ?? 0) > 0,
   })));
+
+/** Page fields with an area in the entry page layout, and any this entry already designed. */
+const pageAreas = computed(() => {
+  const placed = siteLinks.value?.page_fields;
+  // Without any area, the page builder explains how to place one.
+  if (!placed?.length) return pageFields.value;
+  return pageFields.value.filter((field) => placed.includes(field.key) || field.customized);
+});
 
 function pageLink(field) {
   return {

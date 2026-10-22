@@ -212,6 +212,28 @@ test('page content in a column fills the column and the builder previews only th
     assert_matches('/<main id="main" class="c-main">/', $preview);
 });
 
+test('the page builder marks the entry\'s other page content areas', function (): void {
+    $site = comet_page_test_setup();
+    $types = new \CometCMS\Content\ContentTypeRepository();
+    $blog = $types->find('blog');
+    $blog['fields']['aside'] = ['type' => 'page', 'label' => 'Aside'];
+    $types->save($blog);
+    $site->saveLayout('blog', 'detail', [
+        ['id' => 'main', 'kind' => 'page_content', 'props' => ['field' => 'design']],
+        ['id' => 'side', 'kind' => 'page_content', 'props' => ['field' => 'aside']],
+    ]);
+
+    $context = comet_site_test_context($site);
+    $context->preview = true;
+    $context->annotate = true;
+    $context->pageDraft = ['field' => 'design', 'nodes' => []];
+    $preview = (new PageRenderer($context))->pagePreview($site->types()['blog'], $context->findEntry('blog', 'hello', true), 'design');
+    assert_true(str_contains($preview, '<div class="c-page-content" data-drop-root>'));
+    assert_true(str_contains($preview, 'data-page-area="aside"'));
+    assert_false(str_contains($preview, 'data-page-area="design"'));
+    assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'data-page-area'), 'The live page has no builder markup.');
+});
+
 test('a detail layout generated for a type with a page field starts in its page content', function (): void {
     $site = comet_page_test_setup();
     $layout = $site->layout('blog', 'detail');

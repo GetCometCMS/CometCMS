@@ -117,6 +117,10 @@ const BUILDER_CSS = `
   outline-offset:-2px;
 }
 
+.c-view-page-edit [data-page-area=""]{
+  cursor:default;
+}
+
 .c-view-page-edit [data-page-area]::after{
   content:attr(data-page-area-label);
   position:absolute;
@@ -451,8 +455,8 @@ function prepare(document) {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
   doc.querySelectorAll("[data-page-area]").forEach((element) => {
-    const label = builder.pageFields().find((field) => field.key === element.dataset.pageArea)?.label ?? element.dataset.pageArea;
-    element.setAttribute("data-page-area-label", t("site.page.editArea", { label }));
+    const label = builder.pageFields().find((field) => field.key === element.dataset.pageArea)?.label;
+    element.setAttribute("data-page-area-label", label ? t("site.page.editArea", { label }) : t("site.page.areaWithoutField"));
   });
   // The page renders hints in English; show them in the admin's language.
   doc.querySelectorAll("[data-placeholder]").forEach((element) => {
@@ -598,7 +602,8 @@ function onClick(event) {
 
   const area = event.target.closest?.("[data-page-area]");
   if (area) {
-    emit("switch-page-area", area.dataset.pageArea);
+    // An area without a field gets one in the layout first.
+    if (area.dataset.pageArea) emit("switch-page-area", area.dataset.pageArea);
     return;
   }
 
