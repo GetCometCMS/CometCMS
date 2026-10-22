@@ -90,6 +90,7 @@ final class PreviewAdminBar
         }
         // A 2x bar-sized copy: the full logo would add ~120 KB to every preview page.
         $logoFile = in_array($adminTheme, ['blue', 'dark'], true) ? 'cometcms-white-bar.png' : 'cometcms-' . $adminTheme . '-bar.png';
+        [$logoWidth, $logoHeight] = getimagesize(__DIR__ . '/assets/' . $logoFile);
         $logo = base64_encode((string) file_get_contents(__DIR__ . '/assets/' . $logoFile));
         $statusClass = in_array($status, ['published', 'protected', 'draft', 'preview', 'scheduled', 'archived'], true) ? $status : 'preview';
         $statusHtml = '<span class="c-admin-status c-admin-status-' . $statusClass . '"'
@@ -99,7 +100,7 @@ final class PreviewAdminBar
 
         return '<nav class="c-preview-bar" data-admin-theme="' . $adminTheme . '" aria-label="' . Security::e($text['adminBar']) . '"><div class="c-admin-shell">'
             . '<a class="c-admin-brand" href="' . Security::e($backUrl) . '" aria-label="CometCMS · ' . Security::e($backLabel) . '" title="' . Security::e($backLabel) . '">'
-            . $this->icon('back') . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="110" height="24"></a>'
+            . $this->icon('back') . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="' . $logoWidth . '" height="' . $logoHeight . '"></a>'
             . '<div class="c-admin-context" title="' . Security::e($workspace . ' · ' . $title) . '">'
             . '<span class="c-admin-workspace">' . Security::e($workspace) . '</span><span class="c-admin-title">' . Security::e($title) . '</span></div>'
             . '<div class="c-admin-meta">' . $statusHtml . $this->languages($type, $entry, $text['language']) . '</div>'

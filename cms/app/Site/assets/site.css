@@ -901,7 +901,7 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-preview-bar :is(a, summary):focus-visible { outline: 2px solid var(--c-admin-focus); outline-offset: 2px; border-radius: 6px; }
 .c-admin-icon { display: inline-block; flex: none; width: 16px; height: 16px; vertical-align: middle; }
 .c-admin-brand { display: flex; flex: none; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-right: 1px solid var(--c-admin-border); }
-.c-admin-brand img { width: 110px; height: 24px; object-fit: contain; }
+.c-admin-brand img { width: 110px; height: auto; max-height: 36px; object-fit: contain; }
 .c-admin-brand > svg { width: 14px; height: 14px; color: var(--c-admin-muted); transition: translate .15s, color .15s; }
 .c-admin-brand:hover > svg { translate: -2px 0; color: var(--c-admin-focus); }
 .c-admin-context { display: flex; flex: 1 1 auto; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
@@ -957,7 +957,7 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 }
 @media (max-width: 900px) {
   .c-admin-workspace, .c-admin-account > summary > svg { display: none; }
-  .c-admin-brand img { width: 32px; object-fit: cover; object-position: left; }
+  .c-admin-brand img { width: 32px; height: 24px; object-fit: cover; object-position: left; }
 }
 @media (max-width: 640px) {
   .c-admin-shell { gap: 8px; padding: 0 8px; }
