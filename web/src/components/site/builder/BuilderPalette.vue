@@ -42,7 +42,7 @@
         v-for="kind in elementKinds"
         :key="kind"
         stacked
-        :icon="KIND_ICONS[kind]"
+        :icon="KIND_ICONS[kind] || 'mdi:puzzle-outline'"
         :label="builder.kindLabel(kind)"
         :hint="kindHint(kind)"
         @add="builder.insert(create(kind))"
@@ -134,6 +134,7 @@ const presets = computed(() => PRESETS.filter((preset) => matches(
 )));
 
 function kindHint(kind) {
+  if (builder.spec.value?.kinds?.[kind]?.description) return builder.spec.value.kinds[kind].description;
   const key = `site.kindHint.${kind}`;
   const text = t(key);
   return text === key ? "" : text;

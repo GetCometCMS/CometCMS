@@ -347,6 +347,11 @@ final class PageRenderer
             : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">'
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
+        $blockStyles = $this->nodes->blockStylesheet();
+        if ($blockStyles !== '') {
+            $head .= '<style data-comet-blocks>' . $blockStyles . '</style>';
+        }
+
         // The theme toggle's script runs before the body, so a saved choice never flashes.
         $head .= $headScript;
 

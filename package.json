@@ -18,6 +18,7 @@
     "web:dev": "npm --workspace web run dev",
     "web:lint": "npm --workspace web run lint",
     "web:test": "npm --workspace web run test",
+    "blocks": "php scripts/block-package.php",
     "record:builder-guide": "node scripts/record-builder-guide.mjs"
   },
   "devDependencies": {

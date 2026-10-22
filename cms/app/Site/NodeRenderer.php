@@ -8,6 +8,8 @@ use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\Security;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Localization\Messages;
+use CometCMS\Site\Blocks\BlockRegistry;
+use CometCMS\Site\Blocks\BlockTemplate;
 
 /**
  * Turns layout trees into HTML.
@@ -85,6 +87,8 @@ final class NodeRenderer
     private int $searchSequence = 0;
 
     private SmartValue $smart;
+
+    private array $blockStyles = [];
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -169,7 +173,7 @@ final class NodeRenderer
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
             'theme_toggle' => $this->themeToggle($node),
-            default => '',
+            default => BlockRegistry::isKind((string) ($node['kind'] ?? '')) ? $this->block($node) : '',
         };
         if ($warnings && $this->annotating()) {
             $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('unresolvedFallback') . '>Unresolved content reference (using fallback if configured)</div>';
@@ -181,6 +185,38 @@ final class NodeRenderer
         }
 
         return $html;
+    }
+
+    /** CSS of the packages and blocks rendered so far: each package's shared CSS, then its blocks'. */
+    public function blockStylesheet(): string
+    {
+        $blocks = $this->ctx->site->blocks();
+        $assetUrl = $this->ctx->blockAssetUrl(...);
+        $css = [];
+        foreach ($this->blockStyles as $name => $kinds) {
+            $parts = $blocks->package($name)['css'] ?? [];
+            foreach (array_keys($kinds) as $kind) {
+                array_push($parts, "\n", ...($blocks->get($kind)['css'] ?? []));
+            }
+            $css[] = trim(implode('', array_map(static fn(string|array $part): string => is_array($part) ? $assetUrl($part[1]) : $part, $parts)));
+        }
+
+        return implode("\n", array_filter($css));
+    }
+
+    private function block(array $node): string
+    {
+        $blocks = $this->ctx->site->blocks();
+        $block = $blocks->get($node['kind']);
+        if ($block === null) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Missing block: ' . Security::e(substr($node['kind'], 6)) . '</div>') : '';
+        }
+        $props = LayoutSchema::normalizeProps($node['kind'], $node['props'] ?? [], $blocks);
+        // Compiled templates are well-formed allow-listed HTML; render only escapes values.
+        $html = BlockTemplate::render($block['template'], $props, $this->ctx->blockAssetUrl(...));
+        $this->blockStyles[$block['package']][$node['kind']] = true;
+
+        return $this->element($node, $html, [BlockRegistry::cssClass($block['name'])]);
     }
 
     /**
@@ -1577,7 +1613,7 @@ final class NodeRenderer
     private function element(array $node, string $inner, array $extraClasses = [], string $style = ''): string
     {
         $background = $this->background($node['style']);
-        $classes = ['c-el', 'c-el-' . str_replace('_', '-', $node['kind']), ...$extraClasses, ...$background['classes'], ...$this->styleClasses($node['style'])];
+        $classes = ['c-el', 'c-el-' . preg_replace('/[^a-z0-9-]/', '-', str_replace('_', '-', $node['kind'])), ...$extraClasses, ...$background['classes'], ...$this->styleClasses($node['style'])];
         $style = implode(';', array_filter([$background['style'], $style]));
 
         return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';

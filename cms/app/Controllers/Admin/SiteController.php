@@ -8,6 +8,9 @@ use CometCMS\Auth\Auth;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Core\Http;
 use CometCMS\Core\ValidationException;
+use CometCMS\Site\Blocks\BlockPackage;
+use CometCMS\Site\Blocks\BlockPackageChanges;
+use CometCMS\Site\Blocks\BlockPackageException;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PageRenderer;
@@ -65,6 +68,63 @@ final class SiteController extends BaseController
             'workspace_label' => $this->site->workspaceLabel(),
             'can_edit_css' => Auth::allows($user, 'admin'),
         ]]);
+    }
+
+    public function blocks(): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->json(['data' => $this->site->blocks()->metadata() + ['can_install' => Auth::allows($user, 'admin')]]);
+    }
+
+    /** Install or update a block package from a ZIP upload. */
+    public function installBlock(): never
+    {
+        $this->requireUser('admin');
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $upload = $_FILES['package'] ?? null;
+        $error = is_array($upload) ? ($upload['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+        if (in_array($error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+            || ($error === UPLOAD_ERR_OK && (int) ($upload['size'] ?? 0) > BlockPackage::MAX_BYTES)) {
+            $this->json(['error' => ['code' => 'invalid_block_package', 'message' => 'The package ZIP is too large for this server.', 'details' => []]], 413);
+        }
+        if ($error !== UPLOAD_ERR_OK || !is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name']) || array_diff(array_keys($_FILES), ['package']) !== []) {
+            $this->json(['error' => ['code' => 'invalid_block_package', 'message' => 'Upload one block package as a .zip file.', 'details' => []]], 422);
+        }
+        try {
+            $result = $this->site->blocks()->install($upload['tmp_name'], filter_var($_POST['accept_changes'] ?? false, FILTER_VALIDATE_BOOL));
+            $this->site->clearCache();
+            $this->logger->info('site.block_package_installed', ['workspace' => $this->site->workspace()->slug(), 'package' => $result['name'], 'version' => $result['version'], 'previous_version' => $result['previous_version']]);
+            $this->json(['data' => $result], 201);
+        } catch (BlockPackageException $e) {
+            $this->json(['error' => ['code' => 'invalid_block_package', 'message' => $e->getMessage(), 'details' => $e->errors()]], 422);
+        } catch (BlockPackageChanges $e) {
+            $this->json(['error' => ['code' => 'block_package_changes', 'message' => $e->getMessage(), 'details' => [
+                'package' => $e->package, 'installed_version' => $e->installedVersion, 'version' => $e->version, 'changes' => $e->changes,
+            ]]], 409);
+        } catch (\RuntimeException $e) {
+            $this->json(['error' => ['code' => 'block_package_unavailable', 'message' => $e->getMessage()]], 503);
+        }
+    }
+
+    public function deleteBlock(string $vendor, string $package): never
+    {
+        $this->requireUser('admin');
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $name = $vendor . '/' . $package;
+        try {
+            if (!$this->site->blocks()->delete($name)) {
+                $this->json(['error' => ['code' => 'not_found', 'message' => 'Package not found.']], 404);
+            }
+            $this->site->clearCache();
+            $this->logger->info('site.block_package_deleted', ['workspace' => $this->site->workspace()->slug(), 'package' => $name]);
+            $this->json(['data' => ['name' => $name]]);
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['error' => ['code' => 'invalid_block_package', 'message' => $e->getMessage()]], 422);
+        } catch (\RuntimeException $e) {
+            $this->json(['error' => ['code' => 'block_package_unavailable', 'message' => $e->getMessage()]], 503);
+        }
     }
 
     /** Lightweight summary for editors: is the website live, which types are published. */
@@ -691,7 +751,7 @@ final class SiteController extends BaseController
         $schema = $this->requireType($type, $variant);
 
         if (array_key_exists('nodes', $body)) {
-            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'], $variant === 'detail')));
+            $context->override('layout:' . $type . ':' . $variant, $this->validated(fn() => LayoutSchema::normalize($body['nodes'], $variant === 'detail', $this->site->blocks())));
         }
 
         $context->locale = $locale;
@@ -950,7 +1010,7 @@ final class SiteController extends BaseController
             'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
             'locales' => $this->site->settings()['locales'],
             'default_locale' => $this->site->settings()['default_locale'],
-            'spec' => LayoutSchema::spec($pageContent),
+            'spec' => LayoutSchema::spec($pageContent, $this->site->blocks()),
             'components' => $this->site->components(),
             'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
         ];

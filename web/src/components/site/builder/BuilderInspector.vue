@@ -346,6 +346,7 @@ function ownOverride(part, key) {
 }
 /** One sentence on what the selected kind of element is for. */
 const kindHint = computed(() => {
+  if (builder.spec.value?.kinds?.[node.value?.kind]?.description) return builder.spec.value.kinds[node.value.kind].description;
   if (!node.value) return "";
   const kind = builder.isCard(node.value) ? "card" : node.value.kind;
   const key = `site.kindHint.${kind}`;

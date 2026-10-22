@@ -204,7 +204,7 @@
     />
 
     <input
-      v-else-if="def.type === 'string' || (def.type === 'key' && !keyOptions)"
+      v-else-if="['string', 'url'].includes(def.type) || (def.type === 'key' && !keyOptions)"
       :id="inputId"
       type="text"
       :value="value"
@@ -374,6 +374,7 @@ const siteTheme = computed(() => site.draft?.theme ?? site.data?.theme ?? null);
 const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css ?? ""));
 const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && props.node.style?.animation_trigger === "hover");
 const label = computed(() => {
+  if (props.def.label) return props.def.label;
   if (isHoverAnimation.value) return t("site.style.hover_effect");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
@@ -424,6 +425,7 @@ const flagSample = computed(() => {
 });
 
 function optionLabel(option) {
+  if (props.group === "props" && props.node.kind.startsWith("block:")) return option;
   if (option === "") return t(props.group === "style" ? "site.option.default" : "site.option.auto");
   if (/^h[1-6]$/.test(option)) return option.toUpperCase();
   if (/^\d+:\d+$/.test(option)) return option;
@@ -447,7 +449,7 @@ const enumOptions = computed(() => {
 const colorOptions = computed(() => themeColorOptions(siteTheme.value, props.def.options ?? [], optionLabel));
 
 const enumBar = computed(() =>
-  props.def.type === "enum"
+  props.def.type === "enum" && !(props.group === "props" && props.node.kind.startsWith("block:"))
     ? barOptions(props.group, props.name, props.def.options ?? [], {
         title: optionLabel,
         theme: siteTheme.value,

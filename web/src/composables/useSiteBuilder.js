@@ -1010,7 +1010,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   // ─── Labels ────────────────────────────────────────────────────────────
 
   function kindLabel(kind) {
-    return t(`site.kind.${kind}`)
+    return spec.value?.kinds?.[kind]?.label ?? (kind.startsWith('block:') ? kind.slice(6) : t(`site.kind.${kind}`))
   }
 
   /**

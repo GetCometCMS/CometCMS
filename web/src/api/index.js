@@ -208,6 +208,7 @@ async function requestOnce(method, path, body = null, workspace = getActiveWorks
     const err = new Error(json.error?.message ?? t('apiError.failed'))
     err.code    = json.error?.code ?? 'unknown'
     err.fields  = json.error?.fields ?? {}
+    err.details = json.error?.details ?? null
     err.status  = res.status
     err.retryAfter = json.error?.retry_after ?? null
     throw err
@@ -254,6 +255,7 @@ function requestWithProgress(method, path, formData, onProgress, timeoutMs = 0) 
         const err = new Error(json.error?.message ?? t('apiError.failed'))
         err.code = json.error?.code ?? 'unknown'
         err.fields = json.error?.fields ?? {}
+        err.details = json.error?.details ?? null
         err.status = xhr.status
         err.retryAfter = json.error?.retry_after ?? null
         return reject(err)
@@ -468,6 +470,18 @@ export const api = {
     indexPreviewUrl: (type, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}`, locale),
     /** The homepage with the saved header and footer. */
     homePreviewUrl: (locale = '') => sitePreviewUrl('', locale),
+  },
+
+  blocks: {
+    list: () => request('GET', '/site/blocks'),
+    delete: (name) => request('DELETE', `/site/blocks/${name.split('/').map(encodeURIComponent).join('/')}`),
+    /** Install or update a package ZIP. Updates that break placed blocks fail with 409 unless acceptChanges is set. */
+    install: (file, { acceptChanges = false, onProgress } = {}) => {
+      const body = new FormData()
+      body.append('package', file, file.name)
+      if (acceptChanges) body.append('accept_changes', '1')
+      return requestWithProgress('POST', '/site/blocks', body, onProgress)
+    },
   },
 
   fonts: {

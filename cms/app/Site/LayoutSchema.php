@@ -7,6 +7,7 @@ namespace CometCMS\Site;
 use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Localization\LanguageSettings;
+use CometCMS\Site\Blocks\BlockRegistry;
 
 /**
  * The vocabulary of website layouts.
@@ -217,8 +218,22 @@ final class LayoutSchema
         };
     }
 
-    public static function propSpec(string $kind): array
+    /** Props that hold per-language values. Text and URL props of custom blocks are translatable. */
+    public static function localizedProps(string $kind, ?BlockRegistry $blocks = null): array
     {
+        if (!BlockRegistry::isKind($kind)) {
+            return self::LOCALIZED_PROPS[$kind] ?? [];
+        }
+        $props = ($blocks ?? BlockRegistry::active())->get($kind)['props'] ?? [];
+
+        return array_keys(array_filter($props, static fn(array $spec): bool => in_array($spec['type'], ['string', 'url'], true)));
+    }
+
+    public static function propSpec(string $kind, ?BlockRegistry $blocks = null): array
+    {
+        if (BlockRegistry::isKind($kind)) {
+            return ($blocks ?? BlockRegistry::active())->get($kind)['props'] ?? [];
+        }
         $ratio = ['type' => 'enum', 'options' => ['', '1:1', '4:3', '3:2', '16:9', '21:9', '3:4'], 'default' => ''];
         $fit = ['type' => 'enum', 'options' => ['cover', 'contain'], 'default' => 'cover'];
         $position = ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'center'];
@@ -422,15 +437,16 @@ final class LayoutSchema
     }
 
     /** Kinds a node of $parent may contain; "root" is the layout itself. */
-    public static function allowedChildren(string $parent): array
+    public static function allowedChildren(string $parent, ?BlockRegistry $blocks = null): array
     {
+        $custom = in_array($parent, ['column', 'tab', 'field'], true) ? array_keys(($blocks ?? BlockRegistry::active())->all()) : [];
         return match ($parent) {
             'root' => ['section'],
             'section' => ['row'],
             'row' => ['column'],
-            'column', 'tab' => [...self::ELEMENTS, 'row'],
+            'column', 'tab' => [...self::ELEMENTS, ...$custom, 'row'],
             'tabs' => ['tab'],
-            'field' => self::ITEM_ELEMENTS,
+            'field' => [...self::ITEM_ELEMENTS, ...$custom],
             // The card a collection repeats for each entry.
             'collection' => ['column'],
             self::PAGE_CONTENT => ['section'],
@@ -446,22 +462,25 @@ final class LayoutSchema
      * Everything the admin builder needs to draw palettes and inspectors.
      * With $pageContent (detail layouts) the page content place is offered.
      */
-    public static function spec(bool $pageContent = false): array
+    public static function spec(bool $pageContent = false, ?BlockRegistry $blocks = null): array
     {
+        $blocks ??= BlockRegistry::active();
+        $custom = array_keys($blocks->all());
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT] as $kind) {
-            $props = self::propSpec($kind);
-            foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, ...$custom, 'tab', self::COMPONENT, self::PAGE_CONTENT] as $kind) {
+            $props = self::propSpec($kind, $blocks);
+            foreach (self::localizedProps($kind, $blocks) as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
                 $props[$key]['binding'] = $binding;
             }
             $kinds[$kind] = [
                 'props' => $props,
                 'style' => self::styleKeys($kind),
-                'children' => self::childrenFor($kind, $pageContent),
+                'children' => self::childrenFor($kind, $pageContent, $blocks),
                 'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
                 'states' => ['props' => self::STATE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::STATE_STYLE, self::styleKeys($kind)))],
+                ...($blocks->get($kind) !== null ? ['label' => $blocks->get($kind)['title'], 'description' => $blocks->get($kind)['description'], 'extension' => true] : []),
             ];
         }
 
@@ -474,10 +493,10 @@ final class LayoutSchema
             'format_version' => self::FORMAT_VERSION,
             'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES, 'style_properties' => SmartValue::STYLE_PROPERTIES],
             'kinds' => $kinds,
-            'root' => self::childrenFor('root', $pageContent),
+            'root' => self::childrenFor('root', $pageContent, $blocks),
             'style' => $style,
-            'elements' => $pageContent ? [...self::ELEMENTS, self::PAGE_CONTENT] : self::ELEMENTS,
-            'item_elements' => self::ITEM_ELEMENTS,
+            'elements' => [...self::ELEMENTS, ...$custom, ...($pageContent ? [self::PAGE_CONTENT] : [])],
+            'item_elements' => [...self::ITEM_ELEMENTS, ...$custom],
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
             'variants' => self::VARIANTS,
@@ -495,19 +514,19 @@ final class LayoutSchema
      * values are dropped rather than rejected so an older or hand-edited
      * layout keeps rendering what is still valid.
      */
-    public static function normalize(mixed $nodes, bool $pageContent = false): array
+    public static function normalize(mixed $nodes, bool $pageContent = false, ?BlockRegistry $blocks = null): array
     {
         $count = 0;
         $seen = [];
         $places = $pageContent ? [] : null;
 
-        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $places);
+        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $blocks ?? BlockRegistry::active(), $places);
     }
 
     /** Kinds a node of $parent may contain, with the page content place where it is allowed. */
-    private static function childrenFor(string $parent, bool $pageContent): array
+    private static function childrenFor(string $parent, bool $pageContent, ?BlockRegistry $blocks = null): array
     {
-        $children = self::allowedChildren($parent);
+        $children = self::allowedChildren($parent, $blocks);
 
         return $pageContent && in_array($parent, ['root', 'column', 'tab'], true) ? [...$children, self::PAGE_CONTENT] : $children;
     }
@@ -641,13 +660,13 @@ final class LayoutSchema
     }
 
     /** Validate a component's tree: its first node of kind $root, nothing else. */
-    public static function normalizeComponent(mixed $nodes, string $root): array
+    public static function normalizeComponent(mixed $nodes, string $root, ?BlockRegistry $blocks = null): array
     {
         $count = 0;
         $seen = [];
         $first = array_values(array_filter(is_array($nodes) ? $nodes : [], static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === $root));
 
-        return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false);
+        return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false, 0, $blocks ?? BlockRegistry::active());
     }
 
     /**
@@ -1011,9 +1030,9 @@ final class LayoutSchema
      * columns. $places collects the page fields that already have a place
      * (null where no page content place may go).
      */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null): array
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows, BlockRegistry $blocks, ?array &$places = null): array
     {
-        $allowed = self::childrenFor($parent, $places !== null);
+        $allowed = self::childrenFor($parent, $places !== null, $blocks);
         $normalized = [];
 
         foreach (array_values($nodes) as $node) {
@@ -1031,7 +1050,8 @@ final class LayoutSchema
             }
             $kind = (string) ($node['kind'] ?? '');
             $placed = self::placementKind($node);
-            if ($placed === '' || !in_array($placed, $allowed, true) || ($placed === 'row' && $rows > self::MAX_ROW_DEPTH)) {
+            $missingBlock = BlockRegistry::isKind($kind) && in_array($parent, ['column', 'tab', 'field'], true);
+            if ($placed === '' || (!in_array($placed, $allowed, true) && !$missingBlock) || ($placed === 'row' && $rows > self::MAX_ROW_DEPTH)) {
                 continue;
             }
 
@@ -1058,7 +1078,7 @@ final class LayoutSchema
             // Cards, item templates and the default content hold no page content place.
             $childPlaces = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true) ? null : $places;
             $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $blocks, $childPlaces)
                 : [];
             if ($childPlaces !== null) {
                 $places = $childPlaces;
@@ -1074,7 +1094,7 @@ final class LayoutSchema
             $entry = [
                 'id' => $id,
                 'kind' => $kind,
-                'props' => self::normalizeProps($kind, $props),
+                'props' => self::normalizeProps($kind, $props, $blocks),
                 'style' => self::normalizeStyle($kind, $style),
                 'children' => $children,
             ];
@@ -1105,16 +1125,31 @@ final class LayoutSchema
         return $normalized;
     }
 
-    private static function normalizeProps(string $kind, array $props): array
+    public static function normalizeProps(string $kind, array $props, ?BlockRegistry $blocks = null): array
     {
+        // Keep bounded inert values when a package is unavailable so a later reinstall restores it.
+        if (BlockRegistry::isKind($kind) && ($blocks ?? BlockRegistry::active())->get($kind) === null) {
+            $safe = [];
+            foreach (array_slice($props, 0, 32, true) as $key => $value) {
+                if (!is_string($key) || !preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $key)) continue;
+                if (is_scalar($value)) {
+                    $safe[$key] = is_string($value) ? Text::limit($value, 5000) : $value;
+                } elseif (LocalizedValue::is($value) && is_array($value['values'] ?? null)) {
+                    $values = array_filter(array_slice($value['values'], 0, 100, true), static fn(mixed $item, mixed $locale): bool => is_string($locale) && is_scalar($item), ARRAY_FILTER_USE_BOTH);
+                    $safe[$key] = ['type' => 'localized', 'values' => array_map(static fn(mixed $item): mixed => is_string($item) ? Text::limit($item, 5000) : $item, $values)]
+                        + (is_array($value['sources'] ?? null) ? ['sources' => array_filter($value['sources'], 'is_string')] : []);
+                }
+            }
+            return $safe;
+        }
         $normalized = [];
 
-        foreach (self::propSpec($kind) as $key => $spec) {
+        foreach (self::propSpec($kind, $blocks) as $key => $spec) {
             $value = $props[$key] ?? $spec['default'];
             $binding = SmartValue::PROPERTIES[$kind][$key] ?? null;
             $normalize = static fn(mixed $item): mixed => $binding !== null && SmartValue::isDynamic($item)
                 ? SmartValue::normalize($item, $binding) : self::normalizeValue($spec, $item);
-            $normalized[$key] = in_array($key, self::LOCALIZED_PROPS[$kind] ?? [], true)
+            $normalized[$key] = in_array($key, self::localizedProps($kind, $blocks), true)
                 ? LocalizedValue::normalize($value, $normalize, (new LanguageSettings())->all()['locales'])
                 : $normalize($value);
         }
@@ -1218,6 +1253,7 @@ final class LayoutSchema
             'int' => is_numeric($value) ? max($spec['min'], min($spec['max'], (int) $value)) : $default,
             'font' => in_array($value, ['', 'body', 'heading'], true) || FontRegistry::validId($value) ? $value : $default,
             'string' => is_scalar($value) ? trim(Text::limit(str_replace(["\r", "\n"], ' ', (string) $value), $spec['max'] ?? 200)) : $default,
+            'url' => self::normalizeBlockUrl($spec, $value),
             'html' => is_scalar($value) ? HtmlSanitizer::sanitize(Text::limit((string) $value, 50000)) : $default,
             'media' => is_scalar($value) && preg_match('/^[^\/\\\\\0]{1,255}$/', basename((string) $value)) ? basename((string) $value) : '',
             'media_list' => self::normalizeMediaList($value),
@@ -1240,6 +1276,14 @@ final class LayoutSchema
         $keys = array_map(self::key(...), array_slice(is_array($value) ? array_values($value) : [], 0, 100));
 
         return array_values(array_unique(array_filter($keys, static fn(string $key): bool => $key !== '')));
+    }
+
+    private static function normalizeBlockUrl(array $spec, mixed $value): string
+    {
+        if (!is_string($value)) return $spec['default'];
+        $value = trim(Text::limit(trim($value), $spec['max']));
+
+        return HtmlSanitizer::isSafeUrl($value) ? $value : $spec['default'];
     }
 
     private static function normalizeMediaList(mixed $value): array
