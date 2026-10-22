@@ -37,6 +37,11 @@ final class SiteContext
      */
     public ?array $pageDraft = null;
 
+    /** Signed-in full-page previews keep navigation and admin actions together. */
+    public bool $browsePreview = false;
+    public ?array $adminUser = null;
+    public ?\Closure $adminCan = null;
+
     private array $overrides = [];
     private array $mediaItems = [];
     private array $entries = [];
@@ -211,6 +216,16 @@ final class SiteContext
         $prefix = $locale !== '' && $locale !== $this->defaultLocale() && in_array($locale, $this->locales(), true) ? '/' . $locale : '';
         $path = '/' . ltrim($path, '/');
 
+        if ($this->browsePreview) {
+            $parts = parse_url($prefix . $path);
+            $query = [];
+            parse_str($parts['query'] ?? '', $query);
+            return $this->basePath . '/admin/site-preview?' . http_build_query(array_merge($query, [
+                'workspace' => $this->site->workspace()->slug(),
+                'path' => $parts['path'] ?? '/',
+            ])) . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
+        }
+
         if ($prefix !== '' && $path === '/') {
             return $this->basePath . $prefix;
         }
@@ -332,11 +347,28 @@ final class SiteContext
         }
 
         $entry = $this->content->findByIdentifier($type, $identifier, false, $this->locale);
-        if ($entry !== null && !$allowHidden && !$this->content->isPubliclyVisible($entry, $this->locale ?: $this->defaultLocale())) {
+        if ($entry !== null && $this->browsePreview && !$this->adminAllows('content.read', $type, $entry)) {
+            $entry = null;
+        }
+        if ($entry !== null && !$allowHidden && !$this->browsePreview && !$this->content->isPubliclyVisible($entry, $this->locale ?: $this->defaultLocale())) {
             $entry = null;
         }
 
         return $this->entries[$key] = $entry === null ? null : $this->localize($type, $entry);
+    }
+
+    public function adminAllows(string $action, string $type = '', array $entry = []): bool
+    {
+        return $this->adminCan !== null && ($this->adminCan)($action, [
+            'type' => 'content', 'collection' => $type, 'entry' => $entry, 'locale' => $this->locale,
+        ]);
+    }
+
+    public function adminUrl(string $path): string
+    {
+        return $this->basePath . '/admin' . $path . '?' . http_build_query([
+            'workspace' => $this->site->workspace()->slug(), 'locale' => $this->locale,
+        ]);
     }
 
     /**
@@ -353,6 +385,15 @@ final class SiteContext
         if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return ['data' => [], 'total' => 0];
         if ($this->locale !== '') {
             $params['locale'] = $this->locale;
+        }
+
+        if ($this->browsePreview) {
+            $offset = max(0, (int) ($params['offset'] ?? 0));
+            $limit = isset($params['limit']) ? max(1, (int) $params['limit']) : null;
+            unset($params['offset'], $params['limit'], $params['trash']);
+            $result = $this->content->query($type, $params, true);
+            $entries = array_values(array_filter($result['data'], fn(array $entry): bool => $this->adminAllows('content.read', $type, $entry)));
+            return ['data' => array_slice($entries, $offset, $limit), 'total' => count($entries)];
         }
 
         $result = $this->content->query($type, $params, false);

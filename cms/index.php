@@ -299,7 +299,7 @@ $routes = [
     ['POST',   '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'createForm']],
     ['PUT',    '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'updateForm']],
     ['DELETE', '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'deleteForm']],
-    ['GET',    '#^/admin/site-preview$#',                                     [AdminSiteController::class, 'previewHome']],
+    ['GET',    '#^/admin/site-preview$#', [AdminSiteController::class, 'previewSite']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')$#',                       [AdminSiteController::class, 'previewIndex']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
 

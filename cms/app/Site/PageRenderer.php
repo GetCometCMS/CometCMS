@@ -58,7 +58,7 @@ final class PageRenderer
         return $this->document([
             'title' => $isHome ? $this->homeTitle() : $this->pageTitle($title . ($page > 1 ? ' – ' . $page : '')),
             'description' => (string) ($this->ctx->settings()['description'] ?? ''),
-            'canonical' => $url . ($page > 1 ? '?page=' . $page : ''),
+            'canonical' => $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : ''),
             'og_type' => 'website',
             'body_class' => 'c-type-' . $name . ' c-view-index' . ($isHome ? ' c-view-home' : ''),
         ], $main, $state);
@@ -67,6 +67,11 @@ final class PageRenderer
     /** Branded blank page shown until a public homepage is available. */
     public function autoHome(): string
     {
+        if ($this->ctx->previewBanner) {
+            return $this->document(['title' => $this->homeTitle(), 'noindex' => true],
+                '<section class="c-section"><div class="c-container"><h1>' . Security::e($this->homeTitle()) . '</h1></div></section>',
+                $this->state(null, null, $this->ctx->homeUrl(), 1, []));
+        }
         return PlaceholderPage::render($this->homeTitle(), $this->ctx->htmlLang());
     }
 
@@ -296,7 +301,7 @@ final class PageRenderer
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
         $banner = $this->ctx->previewBanner
-            ? '<div class="c-preview-bar" role="status">Preview – this is how the page will look once it is published.</div>'
+            ? (new PreviewAdminBar($this->ctx))->render($state)
             : '';
 
         // The theme toggle's script runs before the body, so a saved choice never flashes.

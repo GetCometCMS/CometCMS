@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const mocks = vi.hoisted(() => ({ workspace: 'default' }))
-vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { fonts: { list: vi.fn() }, workspaces: { update: vi.fn() }, site: { get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
+vi.mock('../api/index.js', () => ({ getActiveWorkspace: () => mocks.workspace, api: { fonts: { list: vi.fn() }, workspaces: { update: vi.fn() }, site: { status: vi.fn(), get: vi.fn(), saveSettings: vi.fn(), saveTheme: vi.fn(), saveMenus: vi.fn() } } }))
 import { useSiteStore } from './site.js'
 import { api } from '../api/index.js'
 
@@ -264,5 +264,27 @@ describe('routing settings saves', () => {
     await site.save({ parts: ['settings'] })
     expect(site.draft.settings.revision).toBe('third')
     expect(site.isDirty).toBe(false)
+  })
+})
+
+describe('homepage preview status', () => {
+  it('ignores a response for a workspace that is no longer active and clears links on invalidation', async () => {
+    setActivePinia(createPinia())
+    mocks.workspace = 'default'
+    const site = useSiteStore()
+    api.site.status.mockResolvedValueOnce({ data: { homepage_preview: '/admin/site-preview?workspace=default' } })
+    await site.loadStatus()
+    expect(site.homepagePreview).toBe('/admin/site-preview?workspace=default')
+    const old = deferred()
+    api.site.status.mockReturnValueOnce(old.promise)
+    const request = site.loadStatus()
+    mocks.workspace = 'second'
+    site.invalidate()
+    old.resolve({ data: { homepage_preview: '/wrong-workspace' } })
+    await request
+    expect(site.homepagePreview).toBeNull()
+    api.site.status.mockResolvedValueOnce({ data: {} })
+    await site.loadStatus()
+    expect(site.homepagePreview).toBeNull()
   })
 })

@@ -890,7 +890,16 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 }
 
 /* ── Preview & builder ────────────────────────────────────────────────── */
-.c-preview-bar { position: sticky; top: 0; z-index: 100; background: #f59e0b; color: #1f2937; text-align: center; font: 600 13px/1.4 system-ui, sans-serif; padding: 6px 12px; }
+.c-preview-bar { position: sticky; top: 0; z-index: 100; background: #0f172a; color: #e2e8f0; font: 500 13px/1.5 system-ui, sans-serif; padding: 10px 16px; border-bottom: 3px solid #f59e0b; }
+.c-preview-bar-main, .c-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.c-preview-bar a { color: #f8fafc; text-decoration: none; padding: 4px 0; font-weight: 600; }
+.c-preview-bar a:hover { color: #fcd34d; text-decoration: underline; }
+.c-preview-bar a:focus-visible { outline: 2px solid #fcd34d; outline-offset: 4px; }
+.c-preview-badge { background: #f59e0b; color: #0f172a; border-radius: 4px; padding: 2px 8px; font-weight: 700; }
+.c-preview-details { flex: 1; overflow-wrap: anywhere; }
+.c-preview-user { color: #cbd5e1; }
+.c-preview-actions { margin-top: 6px; border-top: 1px solid #334155; padding-top: 6px; }
+@media (max-width: 640px) { .c-preview-details { flex-basis: 100%; } }
 .c-preview-main { border: 2px dashed var(--c-border); border-radius: var(--radius-box); padding: var(--space-2xl) var(--space-md); text-align: center; color: var(--c-muted); }
 /* Room to scroll, so a sticky or floating header can be tried out while editing it. */
 .c-view-region-preview:has(.c-header .c-sticky, .c-header .c-overlap) .c-preview-main { min-height: 160vh; }

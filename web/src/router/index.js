@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { setActiveWorkspace } from '../api/index.js'
 import { ADMIN_BASE } from '../basePath.js'
 
 const routes = [
@@ -172,6 +173,10 @@ router.beforeEach(async (to) => {
   if (!authInitialized) {
     await auth.init()
     authInitialized = true
+  }
+
+  if (auth.isAuthenticated && typeof to.query.workspace === 'string' && auth.can('workspaces.read')) {
+    setActiveWorkspace(to.query.workspace)
   }
 
   if (auth.notSetUp && to.path !== '/setup') {

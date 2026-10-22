@@ -82,11 +82,15 @@ final class SiteController extends BaseController
             ];
         }
 
+        $homepageEditor = $this->homepageEditor($settings);
         $this->json(['data' => [
             'enabled' => $settings['enabled'],
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
             'site_url' => $this->siteUrl(),
-            'homepage_editor' => $this->homepageEditor($settings),
+            'homepage_editor' => $homepageEditor,
+            'homepage_preview' => $homepageEditor !== null
+                ? $this->http->url('/admin/site-preview') . '?' . http_build_query(['workspace' => $this->site->workspace()->slug()])
+                : null,
             'types' => $types,
         ]]);
     }
@@ -732,8 +736,8 @@ final class SiteController extends BaseController
     /** Full-page draft preview of one entry, opened from the entry editor. */
     public function previewEntry(string $type, string $id): never
     {
-        $this->requireUser();
-        $context = $this->context();
+        $user = $this->requireUser();
+        $context = $this->adminPreviewContext($user);
         $entry = $context->content->findByIdentifier($type, $id);
         $this->requirePermission('content.read', ['type' => 'content', 'collection' => $type, 'entry' => $entry ?? []]);
         $this->sendPreview((new SiteService($context))->previewEntry($type, $id, (string) ($_GET['locale'] ?? '')), 'This entry cannot be previewed on the website.');
@@ -764,7 +768,34 @@ final class SiteController extends BaseController
             exit;
         }
 
-        http_response_code(200);
+        $this->sendFullPreview($html);
+    }
+
+    /** Browse the frontend without leaving the authenticated preview. */
+    public function previewSite(): never
+    {
+        $user = $this->requireUser();
+        $context = $this->adminPreviewContext($user);
+        $path = is_string($_GET['path'] ?? null) ? $_GET['path'] : '/';
+        $response = (new SiteService($context))->respond($path, $_GET);
+        $this->sendFullPreview($response['body'], $response['status']);
+    }
+
+    private function adminPreviewContext(array $user): SiteContext
+    {
+        $context = $this->context();
+        $context->preview = true;
+        $context->previewBanner = true;
+        $context->browsePreview = true;
+        $context->adminUser = $user;
+        $context->adminCan = fn(string $action, array $scope): bool => $this->can($user, $action,
+            $action === 'site.manage' ? ['resource' => 'site:*'] : $scope);
+        return $context;
+    }
+
+    private function sendFullPreview(string $html, int $status = 200): never
+    {
+        http_response_code($status);
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: private, no-store');
         header('X-Robots-Tag: noindex, nofollow');

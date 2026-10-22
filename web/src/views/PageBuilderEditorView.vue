@@ -890,7 +890,8 @@ async function load(next = requested) {
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
-    locale.value = locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
+    locale.value = locales.value.includes(route.query.locale) ? route.query.locale
+      : locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
     if (moved) leftView();
   } catch (err) {

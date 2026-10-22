@@ -1165,8 +1165,8 @@ onMounted(async () => {
 
     if (isNew.value) {
       if (defaultLocale.value) {
-        form.value.locale = defaultLocale.value;
-        currentLocale.value = defaultLocale.value;
+        form.value.locale = contentTypeLocales.value.includes(route.query.locale) ? route.query.locale : defaultLocale.value;
+        currentLocale.value = form.value.locale;
       }
     }
 
@@ -1187,7 +1187,8 @@ onMounted(async () => {
       };
 
       const initLocale =
-        contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
+        contentTypeLocales.value.includes(route.query.locale) ? route.query.locale
+          : contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
       form.value = formFromEntry(entry, initLocale);

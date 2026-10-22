@@ -27,7 +27,9 @@ export const useSiteStore = defineStore('site', () => {
    * content type, or the website is live through its homepage.
    */
   const pageBuilderActive = ref(false)
+  const homepagePreview = ref(null)
   let workspace = ''
+  let statusWorkspace = ''
   let inFlight = null
   let requestGeneration = 0
 
@@ -50,8 +52,11 @@ export const useSiteStore = defineStore('site', () => {
   /** Refresh `pageBuilderActive` from the lightweight status, without loading the full site. */
   async function loadStatus() {
     const active = getActiveWorkspace()
+    if (active !== statusWorkspace) homepagePreview.value = null
+    statusWorkspace = active
     const res = await api.site.status()
     if (active !== getActiveWorkspace()) return
+    homepagePreview.value = res.data?.homepage_preview ?? null
     pageBuilderActive.value = !!res.data?.enabled || Object.values(res.data?.types ?? {}).some((type) => type.pages_enabled)
   }
 
@@ -222,9 +227,11 @@ export const useSiteStore = defineStore('site', () => {
     fieldErrors.value = {}
     data.value = null
     pageBuilderActive.value = false
+    homepagePreview.value = null
     draft.value = null
     workspace = ''
+    statusWorkspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, homepagePreview, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
 })

@@ -63,6 +63,38 @@ PHP;
     assert_same(200, comet_admin_request('admin', $seed, 'GET', '/admin/site-preview', $controller . '->previewHome();')[0]);
 });
 
+test('frontend preview browsing filters restricted entries and hides unauthorized actions', function (): void {
+    $seed = <<<'PHP'
+$roles->create(['label' => 'Read only', 'permissions' => [
+    ['effect' => 'allow', 'actions' => ['content.read'], 'resources' => ['content:posts:*']],
+    ['effect' => 'deny', 'actions' => ['content.read'], 'resources' => ['content:posts:locked']],
+]]);
+$users->create('limited', 'secret-password', 'read-only');
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts']);
+$content = \CometCMS\Content\ContentRepository::make();
+$content->save('posts', ['title' => 'Confidential draft', 'slug' => 'locked'], ['id' => 'admin']);
+$content->save('posts', ['title' => 'Allowed draft', 'slug' => 'open'], ['id' => 'admin']);
+(new \CometCMS\Site\SiteRepository())->saveSettings([
+    'homepage' => ['type' => 'posts'],
+    'routes' => ['posts' => ['enabled' => true, 'pattern' => '/posts/{slug}', 'index_path' => '/posts']],
+]);
+PHP;
+    $controller = 'ob_start(); register_shutdown_function(static function (): void { echo json_encode(["html" => ob_get_clean()]); }); (new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->previewSite();';
+    foreach (['/' => 200, '/posts/open' => 200, '/posts/locked' => 404] as $path => $expected) {
+        [$status, $response] = comet_admin_request('limited', $seed, 'GET', '/admin/site-preview?path=' . rawurlencode($path), $controller);
+        $html = $response['html'];
+        assert_same($expected, $status);
+        assert_false(str_contains($html, 'Confidential draft'));
+        assert_false(str_contains($html, 'Create new'));
+        assert_false(str_contains($html, 'Edit page'));
+        assert_false(str_contains($html, 'Edit layout'));
+        assert_true(str_contains($html, 'Back to backend'));
+        if ($path !== '/posts/locked') {
+            assert_true(str_contains($html, 'Allowed draft'));
+        }
+    }
+});
+
 /** Exercise the real entry point and session bootstrap using an isolated install. */
 function comet_site_preview_test_install(): string
 {
@@ -291,12 +323,15 @@ foreach (['default', 'preview-site'] as $slug) {
     (new \CometCMS\Content\ContentTypeRepository($workspace))->save([
         'name' => 'startseite', 'locales' => ['en', 'de'], 'default_locale' => 'en',
     ]);
+    (new \CometCMS\Content\ContentTypeRepository($workspace))->save(['name' => 'posts']);
     $content = \CometCMS\Content\ContentRepository::make($workspace);
+    $content->save('posts', ['title' => 'Collection draft', 'slug' => 'draft-post'], ['id' => 'preview-editor']);
     $entry = $content->save('startseite', ['title' => $slug . ' English draft', 'slug' => 'startseite', 'locale' => 'en'], ['id' => 'preview-editor']);
     $content->save('startseite', ['title' => $slug . ' Deutscher Entwurf', 'slug' => 'startseite', 'locale' => 'de'], ['id' => 'preview-editor'], $entry['id']);
     (new \CometCMS\Site\SiteRepository($workspace))->saveSettings([
         'enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en',
-        'routes' => ['startseite' => ['enabled' => true]],
+        'homepage' => ['type' => 'startseite', 'entry' => 'startseite'],
+        'routes' => ['startseite' => ['enabled' => true], 'posts' => ['enabled' => true, 'pattern' => '/posts/{slug}', 'index_path' => '/posts']],
     ]);
 }
 PHP .
@@ -321,6 +356,32 @@ PHP .
             assert_true(str_contains($html, '<html lang="de">'));
             assert_same('private, no-store', $headers['cache-control'] ?? null);
             assert_same('noindex, nofollow', $headers['x-robots-tag'] ?? null);
+
+            assert_true(str_contains($html, 'Back to backend'));
+            assert_true(str_contains($html, 'Edit page'));
+            assert_true(str_contains($html, 'Create new'));
+            assert_true(str_contains($html, $base . '/admin/content/startseite/startseite?workspace=preview-site&amp;locale=de'));
+
+            [$status, $home] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site', $cookie);
+            assert_same(200, $status);
+            assert_true(str_contains($home, 'preview-site English draft'), 'The logo destination previews the draft homepage.');
+            assert_true(str_contains($home, 'Back to backend'));
+
+            [$status, $index] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&path=/posts', $cookie);
+            assert_same(200, $status);
+            assert_true(str_contains($index, 'Create new'));
+            assert_true(str_contains($index, $base . '/admin/content/posts/new?workspace=preview-site'));
+            assert_true(str_contains($index, 'path=%2Fposts%2Fdraft-post'), 'Collection links remain in preview.');
+            [$status, $draft] = comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site&path=/posts/draft-post', $cookie);
+            assert_same(200, $status);
+            assert_true(str_contains($draft, 'Collection draft'));
+            assert_true(str_contains($draft, 'Create new'));
+            assert_true(str_contains($draft, 'Draft'));
+
+            [$status, $json] = comet_site_preview_test_request($port, $base . '/admin/api/site/status?workspace=preview-site', $cookie);
+            assert_same(200, $status);
+            assert_same($base . '/admin/site-preview?workspace=preview-site', json_decode($json, true)['data']['homepage_preview']);
+            assert_same(401, comet_site_preview_test_request($port, $base . '/admin/site-preview?workspace=preview-site')[0]);
 
             [$status] = comet_site_preview_test_request($port, $base . '/admin/site-preview/startseite/startseite' . $query);
             assert_same(401, $status, 'An editor session is required to preview a draft.');
