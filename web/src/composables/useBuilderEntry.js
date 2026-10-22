@@ -134,6 +134,25 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     else load()
   }, { immediate: true })
 
+  /** All unsaved entry values, with shared fields applied before translations. */
+  function previewEntries() {
+    const entries = []
+    for (const item of Object.values(records.value)) {
+      const languages = Object.keys(item.drafts).sort((a, b) => Number(b === defaultLocale.value) - Number(a === defaultLocale.value))
+      for (const language of languages) {
+        if (!dirty(item, language)) continue
+        const form = item.drafts[language]
+        const values = Object.fromEntries(Object.entries(editableValues(form.values, language))
+          .filter(([name, value]) => !form.resets.includes(name) && JSON.stringify(value) !== JSON.stringify(form.baseline[name]))
+          .map(([name, value]) => [name, savedValue(value, fields.value[name])]))
+        if (form.resets.length) values.reset_fields = [...form.resets]
+        if (language) values.locale = language
+        entries.push({ type: item.collection, id: item.entry.uid || item.identifier, values })
+      }
+    }
+    return entries
+  }
+
   /** Save each edited entry/language, preserving failed drafts and unrelated entry metadata. */
   async function save() {
     if (saving.value) return
@@ -192,5 +211,5 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     draft.value.values[name] = formValue(resolveLocalized(record.value.entry.values?.[name], defaultLocale.value, defaultLocale.value), fields.value[name])
   }
 
-  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard }
+  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard, previewEntries }
 }

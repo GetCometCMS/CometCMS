@@ -267,6 +267,8 @@ $routes = [
     ['GET',    '#^/admin/api/site/theme/revisions/(' . SEG . ')$#',    [AdminSiteController::class, 'themeRevision']],
     ['POST',   '#^/admin/api/site/theme/revisions/(' . SEG . ')/restore$#',    [AdminSiteController::class, 'restoreThemeRevision']],
     ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
+    ['POST',   '#^/admin/api/site/preview-snapshots$#', [AdminSiteController::class, 'createPreview']],
+    ['GET',    '#^/admin/api/site/preview-search$#', [AdminSiteController::class, 'previewSearch']],
     ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
     ['GET',    '#^/admin/api/site/card-template/(' . SEG . ')$#',             [AdminSiteController::class, 'cardTemplate']],
     ['GET',    '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'page']],
@@ -299,7 +301,7 @@ $routes = [
     ['POST',   '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'createForm']],
     ['PUT',    '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'updateForm']],
     ['DELETE', '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'deleteForm']],
-    ['GET',    '#^/admin/site-preview$#',                                     [AdminSiteController::class, 'previewHome']],
+    ['GET',    '#^/admin/site-preview$#', [AdminSiteController::class, 'previewSite']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')$#',                       [AdminSiteController::class, 'previewIndex']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
 

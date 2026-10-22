@@ -37,7 +37,16 @@ final class SiteContext
      */
     public ?array $pageDraft = null;
 
+    /** Signed-in full-page previews keep navigation and admin actions together. */
+    public bool $browsePreview = false;
+    public string $previewToken = '';
+    public ?string $previewTime = null;
+    private array $previewEntries = [];
+    public ?array $adminUser = null;
+    public ?\Closure $adminCan = null;
+
     private array $overrides = [];
+    private bool $overridesRead = false;
     private array $mediaItems = [];
     private array $entries = [];
     private array $components = [];
@@ -60,6 +69,22 @@ final class SiteContext
         return new self($site, ContentRepository::make($workspace), new MediaRepository($workspace), rtrim($basePath, '/'), rtrim($origin, '/'));
     }
 
+    /** The same preview navigation and permissions, using only current saved data. */
+    public function withoutOverrides(): self
+    {
+        $saved = new self($this->site, $this->content, $this->media, $this->basePath, $this->origin);
+        $saved->locale = $this->locale;
+        $saved->preview = $this->preview;
+        $saved->annotate = $this->annotate;
+        $saved->browsePreview = $this->browsePreview;
+        $saved->previewToken = $this->previewToken;
+        $saved->previewTime = $this->previewTime;
+        $saved->adminUser = $this->adminUser;
+        $saved->adminCan = $this->adminCan;
+        // No banner: the comparison must exclude the status label itself.
+        return $saved;
+    }
+
     // ─── Configuration (with preview overrides) ──────────────────────────────
 
     public function override(string $key, mixed $value): void
@@ -67,9 +92,25 @@ final class SiteContext
         $this->overrides[$key] = $value;
     }
 
+    /** Whether the page rendered so far used any preview override or unsaved entry. */
+    public function readsOverrides(): bool
+    {
+        return $this->overridesRead;
+    }
+
+    private function overridden(string $key): mixed
+    {
+        if (!array_key_exists($key, $this->overrides)) {
+            return null;
+        }
+        $this->overridesRead = true;
+
+        return $this->overrides[$key];
+    }
+
     public function settings(): array
     {
-        $raw = $this->overrides['settings'] ?? $this->site->settings();
+        $raw = $this->overridden('settings') ?? $this->site->settings();
         $resolved = LocalizedValue::tree($raw, $this->locale ?: $this->defaultLocale(), $this->defaultLocale());
         foreach ($raw as $key => $value) if (LocalizedValue::is($value)) $resolved['_localized'][$key] = true;
         return $resolved;
@@ -77,12 +118,12 @@ final class SiteContext
 
     public function theme(): array
     {
-        return $this->overrides['theme'] ?? $this->site->theme();
+        return $this->overridden('theme') ?? $this->site->theme();
     }
 
     public function menus(): array
     {
-        return LocalizedValue::tree($this->overrides['menus'] ?? $this->site->menus(), $this->htmlLang(), $this->defaultLocale());
+        return LocalizedValue::tree($this->overridden('menus') ?? $this->site->menus(), $this->htmlLang(), $this->defaultLocale());
     }
 
     public function menu(string $name): ?array
@@ -98,12 +139,12 @@ final class SiteContext
 
     public function region(string $region): array
     {
-        return $this->overrides['region:' . $region] ?? $this->site->region($region);
+        return $this->overridden('region:' . $region) ?? $this->site->region($region);
     }
 
     public function layout(string $type, string $variant): array
     {
-        return $this->overrides['layout:' . $type . ':' . $variant] ?? $this->site->layout($type, $variant);
+        return $this->overridden('layout:' . $type . ':' . $variant) ?? $this->site->layout($type, $variant);
     }
 
     /** The standard card of a content type (see SiteRepository::cardTemplate()). */
@@ -116,7 +157,7 @@ final class SiteContext
     public function component(string $id): ?array
     {
         if (array_key_exists('component:' . $id, $this->overrides)) {
-            return $this->overrides['component:' . $id];
+            return $this->overridden('component:' . $id);
         }
         if (!array_key_exists($id, $this->components)) {
             $this->components[$id] = $this->site->component($id);
@@ -154,6 +195,9 @@ final class SiteContext
     /** Where search elements look up their hits (see SiteController::search()). */
     public function searchUrl(): string
     {
+        if ($this->browsePreview) {
+            return $this->adminUrl('/api/site/preview-search', $this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []);
+        }
         return $this->basePath . '/_site/search/' . rawurlencode($this->site->workspace()->slug());
     }
 
@@ -210,6 +254,17 @@ final class SiteContext
         $locale ??= $this->locale;
         $prefix = $locale !== '' && $locale !== $this->defaultLocale() && in_array($locale, $this->locales(), true) ? '/' . $locale : '';
         $path = '/' . ltrim($path, '/');
+
+        if ($this->browsePreview) {
+            $parts = parse_url($prefix . $path);
+            $query = [];
+            parse_str($parts['query'] ?? '', $query);
+            return $this->basePath . '/admin/site-preview?' . http_build_query(array_merge($query, [
+                'workspace' => $this->site->workspace()->slug(),
+                'path' => $parts['path'] ?? '/',
+                ...($this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []),
+            ])) . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
+        }
 
         if ($prefix !== '' && $path === '/') {
             return $this->basePath . $prefix;
@@ -331,12 +386,39 @@ final class SiteContext
             return $this->entries[$key];
         }
 
-        $entry = $this->content->findByIdentifier($type, $identifier, false, $this->locale);
-        if ($entry !== null && !$allowHidden && !$this->content->isPubliclyVisible($entry, $this->locale ?: $this->defaultLocale())) {
+        $entry = $this->previewEntries[$type][$identifier] ?? null;
+        $this->overridesRead = $this->overridesRead || $entry !== null;
+        $entry ??= $this->content->findByIdentifier($type, $identifier, false, $this->locale);
+        if ($entry !== null && $this->browsePreview && !$this->adminAllows('content.read', $type, $entry)) {
+            $entry = null;
+        }
+        if ($entry !== null && !$allowHidden && !$this->browsePreview && !$this->content->isPubliclyVisible($entry, $this->locale ?: $this->defaultLocale())) {
             $entry = null;
         }
 
         return $this->entries[$key] = $entry === null ? null : $this->localize($type, $entry);
+    }
+
+    public function overrideEntry(string $type, array $entry, string $original = ''): void
+    {
+        foreach (array_filter([$original, $entry['id'] ?? '', $entry['slug'] ?? '', $entry['uid'] ?? '']) as $identifier) {
+            $this->previewEntries[$type][$identifier] = $entry;
+        }
+        $this->entries = [];
+    }
+
+    public function adminAllows(string $action, string $type = '', array $entry = []): bool
+    {
+        return $this->adminCan !== null && ($this->adminCan)($action, [
+            'type' => 'content', 'collection' => $type, 'entry' => $entry, 'locale' => $this->locale,
+        ]);
+    }
+
+    public function adminUrl(string $path, array $query = []): string
+    {
+        return $this->basePath . '/admin' . $path . '?' . http_build_query([
+            'workspace' => $this->site->workspace()->slug(), 'locale' => $this->locale, ...$query,
+        ]);
     }
 
     /**
@@ -353,6 +435,18 @@ final class SiteContext
         if (!in_array($this->locale ?: $this->defaultLocale(), $this->locales(), true)) return ['data' => [], 'total' => 0];
         if ($this->locale !== '') {
             $params['locale'] = $this->locale;
+        }
+
+        if ($this->browsePreview) {
+            $offset = max(0, (int) ($params['offset'] ?? 0));
+            $limit = isset($params['limit']) ? max(1, (int) $params['limit']) : null;
+            unset($params['offset'], $params['limit'], $params['trash']);
+            $overrides = [];
+            foreach ($this->previewEntries[$type] ?? [] as $entry) $overrides[$entry['uid'] ?? $entry['id']] = $entry;
+            $this->overridesRead = $this->overridesRead || $overrides !== [];
+            $result = $this->content->query($type, $params, true, array_values($overrides));
+            $entries = array_values(array_filter($result['data'], fn(array $entry): bool => $this->adminAllows('content.read', $type, $entry)));
+            return ['data' => array_slice($entries, $offset, $limit), 'total' => count($entries)];
         }
 
         $result = $this->content->query($type, $params, false);

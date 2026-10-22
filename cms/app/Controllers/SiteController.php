@@ -10,17 +10,14 @@ use CometCMS\Site\Flags;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
 use CometCMS\Site\FormUploads;
-use CometCMS\Site\GalleryLightbox;
-use CometCMS\Site\Tabs;
 use CometCMS\Site\LayoutSchema;
-use CometCMS\Site\Menus;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteSearch;
+use CometCMS\Site\SiteScripts;
 use CometCMS\Site\SiteService;
 use CometCMS\Site\Theme;
-use CometCMS\Site\ThemeToggle;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
@@ -246,14 +243,7 @@ final class SiteController
         header('ETag: ' . $etag);
 
         if (str_starts_with($response['content_type'], 'text/html')) {
-            $sources = [];
-            foreach ([GalleryLightbox::class, Tabs::class, SiteSearch::class, ThemeToggle::class, Menus::class] as $module) {
-                if (str_contains($response['body'], '>' . $module::script() . '</script>')) {
-                    $sources[] = $module::cspSource();
-                }
-            }
-            $policy = $sources === [] ? self::CONTENT_SECURITY_POLICY
-                : str_replace("script-src 'none'", 'script-src ' . implode(' ', $sources), self::CONTENT_SECURITY_POLICY);
+            $policy = str_replace("script-src 'none'", SiteScripts::cspDirective($response['body']), self::CONTENT_SECURITY_POLICY);
             header('Content-Security-Policy: ' . $policy);
         }
 

@@ -21,7 +21,10 @@
         ]"
       >
         <div class="sidebar-header flex h-16 shrink-0 items-center justify-between gap-2 px-3">
-          <router-link to="/dashboard" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
+          <a v-if="site.homepagePreview" :href="site.homepagePreview" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
+            <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto max-w-full object-contain" />
+          </a>
+          <router-link v-else to="/dashboard" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
             <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto max-w-full object-contain" />
           </router-link>
           <button
@@ -519,7 +522,7 @@ const logoSrc = computed(() => logoForTheme(auth.user?.theme, assetBase));
 watch(
   () => typesStore.list,
   () => {
-    if (auth.can("site.manage")) site.loadStatus().catch(() => {});
+    site.loadStatus().catch(() => {});
   },
   { immediate: true },
 );

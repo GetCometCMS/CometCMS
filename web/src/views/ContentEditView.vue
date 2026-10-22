@@ -29,6 +29,17 @@
           <span class="hidden sm:inline">{{ t("site.entry.view") }}</span>
         </a>
         <button
+          v-if="siteLinks?.previewable"
+          type="button"
+          class="btn-secondary"
+          :disabled="fullPreview.opening.value"
+          :title="t('site.entry.previewHint')"
+          @click="openWebsitePreview"
+        >
+          <Icon icon="mdi:eye-outline" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
+        </button>
+        <button
           v-if="!isNew"
           @click="openRevisions"
           class="btn-secondary"
@@ -669,6 +680,7 @@
 </template>
 
 <script setup>
+import { useSitePreview } from "../composables/useSitePreview.js";
 import { ADMIN_API_BASE } from "../basePath.js";
 import {
   ref,
@@ -1066,6 +1078,17 @@ const hasCustomFields = computed(
 
 // Website preview and live links; absent when the website is off.
 const siteLinks = ref(null);
+const fullPreview = useSitePreview();
+async function openWebsitePreview() {
+  try {
+    await fullPreview.open({
+      target: "entry", type: collection, entry: isNew.value ? "" : entryId.value, locale: currentLocale.value,
+      entries: canSaveEntry.value ? [{ type: collection, id: isNew.value ? "" : entryId.value, values: payloadForSave() }] : [],
+    });
+  } catch (error) {
+    toast.error(error.message);
+  }
+}
 
 // The type's page layout in the builder, previewed with this entry.
 const designLink = computed(() => ({
@@ -1126,17 +1149,25 @@ async function resetPage() {
   }
 }
 
+let siteLinksRequest = 0;
 async function loadSiteLinks() {
-  if (isNew.value || !entryId.value) {
-    siteLinks.value = null;
+  const request = ++siteLinksRequest;
+  if (isNew.value) {
+    try {
+      const status = (await api.site.status()).data;
+      if (request === siteLinksRequest) siteLinks.value = { previewable: !!status?.types?.[collection]?.routed };
+    } catch {
+      if (request === siteLinksRequest) siteLinks.value = null;
+    }
     return;
   }
+  if (!entryId.value) return;
 
   try {
     const res = await api.site.links(collection, entryId.value, currentLocale.value ? { locale: currentLocale.value } : {});
-    siteLinks.value = res.data;
+    if (request === siteLinksRequest) siteLinks.value = res.data;
   } catch {
-    siteLinks.value = null;
+    if (request === siteLinksRequest) siteLinks.value = null;
   }
 }
 
@@ -1150,6 +1181,7 @@ onMounted(async () => {
   document.addEventListener("keydown", onLocaleMenuKeydown);
 
   loadUsers();
+  loadSiteLinks();
 
   try {
     const typeRes = await api.contentTypes.get(collection);
@@ -1165,8 +1197,8 @@ onMounted(async () => {
 
     if (isNew.value) {
       if (defaultLocale.value) {
-        form.value.locale = defaultLocale.value;
-        currentLocale.value = defaultLocale.value;
+        form.value.locale = contentTypeLocales.value.includes(route.query.locale) ? route.query.locale : defaultLocale.value;
+        currentLocale.value = form.value.locale;
       }
     }
 
@@ -1187,7 +1219,8 @@ onMounted(async () => {
       };
 
       const initLocale =
-        contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
+        contentTypeLocales.value.includes(route.query.locale) ? route.query.locale
+          : contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
       form.value = formFromEntry(entry, initLocale);

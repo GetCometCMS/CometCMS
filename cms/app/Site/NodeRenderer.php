@@ -1047,7 +1047,7 @@ final class NodeRenderer
     private function pagination(int $page, int $pages, array $state): string
     {
         $path = (string) ($state['path'] ?? '');
-        $link = static fn(int $target): string => Security::e($path . ($target > 1 ? '?page=' . $target : ''));
+        $link = static fn(int $target): string => Security::e($path . ($target > 1 ? (str_contains($path, '?') ? '&' : '?') . 'page=' . $target : ''));
         $html = '<nav class="c-pagination" aria-label="' . Security::e(Messages::get('pagination', $this->ctx->htmlLang())) . '"><ul>';
 
         $html .= $page > 1
