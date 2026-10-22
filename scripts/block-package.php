@@ -34,6 +34,10 @@ try {
 }
 
 $blocks = implode(', ', array_map(static fn(string $kind): string => substr($kind, 6), array_keys($package['blocks'])));
+$scripts = array_map(static fn(array $block): string => $block['name'], array_filter($package['blocks'], static fn(array $block): bool => $block['script'] !== ''));
+if ($scripts !== []) {
+    $blocks .= ' (JavaScript: ' . implode(', ', $scripts) . ')';
+}
 if ($command === 'validate') {
     echo "OK {$package['name']} {$package['version']}: $blocks" . PHP_EOL;
     exit(0);

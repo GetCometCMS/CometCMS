@@ -475,11 +475,15 @@ export const api = {
   blocks: {
     list: () => request('GET', '/site/blocks'),
     delete: (name) => request('DELETE', `/site/blocks/${name.split('/').map(encodeURIComponent).join('/')}`),
-    /** Install or update a package ZIP. Updates that break placed blocks fail with 409 unless acceptChanges is set. */
-    install: (file, { acceptChanges = false, onProgress } = {}) => {
+    /**
+     * Install or update a package ZIP. Updates that break placed blocks, and packages
+     * with JavaScript, fail with 409 until acceptChanges and allowScripts are set.
+     */
+    install: (file, { acceptChanges = false, allowScripts = false, onProgress } = {}) => {
       const body = new FormData()
       body.append('package', file, file.name)
       if (acceptChanges) body.append('accept_changes', '1')
+      if (allowScripts) body.append('allow_scripts', '1')
       return requestWithProgress('POST', '/site/blocks', body, onProgress)
     },
   },

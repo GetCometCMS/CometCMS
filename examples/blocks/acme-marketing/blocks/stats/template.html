@@ -1,0 +1,9 @@
+{{! The final numbers are in the HTML; view.js only animates them on the published site. }}
+<dl class="acme-stats">
+  {{#items}}
+  <div class="acme-stats__item">
+    <dt class="acme-stats__label">{{label}}</dt>
+    <dd class="acme-stats__value"><span data-value="{{value}}">{{value}}</span>{{suffix}}</dd>
+  </div>
+  {{/items}}
+</dl>

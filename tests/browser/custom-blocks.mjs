@@ -31,7 +31,7 @@ foreach ([${JSON.stringify(zips.v1)} => false, ${JSON.stringify(zips.v2)} => tru
     $zip->open($target, ZipArchive::CREATE);
     foreach (\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(${JSON.stringify(example)}) as $path => $bytes) {
         if ($breaking && str_starts_with($path, 'blocks/feature/')) continue;
-        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.1.0"', '"2.0.0"', $bytes) : $bytes);
+        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.2.0"', '"2.0.0"', $bytes) : $bytes);
     }
     $zip->close();
 }
@@ -82,6 +82,14 @@ async function field(selector, value) {
 async function click(text, selector = 'button') {
   await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find((el) => el.textContent.trim() === ${JSON.stringify(text)}); if (!button) throw new Error('Missing button: ' + ${JSON.stringify(text)}); button.click(); })()`);
 }
+/** Packages with JavaScript ask before installing. */
+async function allowScripts() {
+  await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("Allow JavaScript?")', 'script consent');
+  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("acme/stats"))'), 'Consent names the blocks with scripts');
+  await click('Install with JavaScript', '[role="alertdialog"] button');
+  // Its overlay fades out; a drop before then would land on it.
+  await waitFor('!document.querySelector(\'[role="alertdialog"]\')', 'script consent closed');
+}
 async function dropFiles(paths) {
   const point = await evaluate(`(() => { const el = document.querySelector('#block-drop-zone'); el.scrollIntoView({ block: 'center' }); const rect = el.getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()`);
   const data = { items: [], files: paths, dragOperationsMask: 1 };
@@ -122,7 +130,9 @@ try {
   const { root: documentNode } = await command('DOM.getDocument');
   const { nodeId } = await command('DOM.querySelector', { nodeId: documentNode.nodeId, selector: '#block-package' });
   await command('DOM.setFileInputFiles', { nodeId, files: [zips.v1] });
+  await allowScripts();
   await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'example package installation');
+  assert(await evaluate('document.body.innerText.includes("JavaScript")'), 'Inventory marks packages with scripts');
   assert(await evaluate('document.body.innerText.includes("acme/marketing") && document.body.innerText.includes("Pricing plan")'), 'Inventory lists the package and its blocks');
   const asset = await evaluate(`fetch('/_site/${workspace}/blocks/${createHash('sha256').update(readFileSync(join(example, 'assets/check.svg'))).digest('hex')}.svg').then((res) => ({ status: res.status, type: res.headers.get('content-type'), csp: res.headers.get('content-security-policy'), cache: res.headers.get('cache-control') }))`);
   assert(asset.status === 200 && asset.type === 'image/svg+xml' && asset.csp.includes('sandbox') && asset.cache.includes('immutable'), 'Package asset is served safely: ' + JSON.stringify(asset));
@@ -145,6 +155,9 @@ try {
     const palette = await command('Page.captureScreenshot', { format: 'png' });
     writeFileSync(process.env.COMET_BLOCK_SCREENSHOT.replace(/\.png$/, '-builder.png'), Buffer.from(palette.data, 'base64'));
   }
+  await click('Stats');
+  await waitFor(`!!(${previewDocument})?.querySelector('.acme-stats')`, 'stats block in preview');
+  assert(await evaluate(`!(${previewDocument}).querySelector('[data-comet-block]') && ![...(${previewDocument}).querySelectorAll('script')].some((el) => el.textContent.includes('import mount'))`), 'Builder preview never loads block scripts');
   await click('Pricing plan');
   await waitFor('[...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Add item")', 'list editor');
   await click('Add item');
@@ -165,6 +178,9 @@ try {
   assert(published.border === preview.border, 'Published CSS matches preview');
   assert(!published.annotated, 'Public output excludes editor annotations');
   assert(await evaluate(`!!document.querySelector('.acme-card__body .c-el-heading') && [...document.querySelectorAll('.acme-plan__feature')].some((el) => el.textContent === 'Custom feature')`), 'Published slot children and list items');
+  await waitFor('!!document.querySelector(\'[data-comet-block="acme/stats"][data-mounted="true"]\')', 'block script mounted under the site CSP');
+  const csp = await evaluate(`fetch('/').then((res) => res.headers.get('content-security-policy'))`);
+  assert(/script-src 'sha256-[^']+' 127\.0\.0\.1:\d+\/_site\/[^ ]+\/blocks\/[a-f0-9]{64}\.js/.test(csp) && !csp.includes("'self' 'sha") && !/script-src[^;]*'unsafe/.test(csp), 'CSP allows exactly the block script: ' + csp);
   if (process.env.COMET_BLOCK_SCREENSHOT) {
     const { cssContentSize: size } = await command('Page.getLayoutMetrics');
     const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 } });
@@ -187,14 +203,16 @@ try {
   await command('Page.navigate', { url: `${origin}/admin/page-builder/blocks` });
   await waitFor('!!document.querySelector("#block-drop-zone")', 'drop area');
   await dropFiles([zips.v1]);
+  await allowScripts();
   await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'ZIP drop installation');
   assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => html.includes('>Custom blocks work</p>'))`), 'Reinstall restores saved instance props');
   await dropFiles([zips.v2]);
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("acme/feature is removed.")', 'breaking update confirmation');
   await click('Update anyway', '[role="alertdialog"] button');
-  await waitFor('document.body.innerText.includes("updated from 1.1.0 to 2.0.0")', 'confirmed update');
+  await allowScripts();
+  await waitFor('document.body.innerText.includes("updated from 1.2.0 to 2.0.0")', 'confirmed update');
   assert(errors.length === 0, errors.join('\n'));
-  console.log('Custom blocks browser checks passed (ZIP picker/drop, asset serving, icons, list editing, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
+  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
 } finally {
   socket?.close();
   chrome.kill();

@@ -516,6 +516,7 @@ final class LayoutSchema
                     'description' => $blocks->get($kind)['description'],
                     'icon' => $blocks->get($kind)['icon'],
                     'slot' => $blocks->get($kind)['slot'],
+                    'script' => $blocks->get($kind)['script'] !== '',
                     'extension' => true,
                 ] : []),
             ];

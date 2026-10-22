@@ -11,6 +11,7 @@ use CometCMS\Core\ValidationException;
 use CometCMS\Site\Blocks\BlockPackage;
 use CometCMS\Site\Blocks\BlockPackageChanges;
 use CometCMS\Site\Blocks\BlockPackageException;
+use CometCMS\Site\Blocks\BlockPackageScripts;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PageRenderer;
@@ -92,15 +93,23 @@ final class SiteController extends BaseController
             $this->json(['error' => ['code' => 'invalid_block_package', 'message' => 'Upload one block package as a .zip file.', 'details' => []]], 422);
         }
         try {
-            $result = $this->site->blocks()->install($upload['tmp_name'], filter_var($_POST['accept_changes'] ?? false, FILTER_VALIDATE_BOOL));
+            $result = $this->site->blocks()->install(
+                $upload['tmp_name'],
+                filter_var($_POST['accept_changes'] ?? false, FILTER_VALIDATE_BOOL),
+                filter_var($_POST['allow_scripts'] ?? false, FILTER_VALIDATE_BOOL),
+            );
             $this->site->clearCache();
-            $this->logger->info('site.block_package_installed', ['workspace' => $this->site->workspace()->slug(), 'package' => $result['name'], 'version' => $result['version'], 'previous_version' => $result['previous_version']]);
+            $this->logger->info('site.block_package_installed', ['workspace' => $this->site->workspace()->slug(), 'package' => $result['name'], 'version' => $result['version'], 'previous_version' => $result['previous_version'], 'scripts' => $result['scripts']]);
             $this->json(['data' => $result], 201);
         } catch (BlockPackageException $e) {
             $this->json(['error' => ['code' => 'invalid_block_package', 'message' => $e->getMessage(), 'details' => $e->errors()]], 422);
         } catch (BlockPackageChanges $e) {
             $this->json(['error' => ['code' => 'block_package_changes', 'message' => $e->getMessage(), 'details' => [
                 'package' => $e->package, 'installed_version' => $e->installedVersion, 'version' => $e->version, 'changes' => $e->changes,
+            ]]], 409);
+        } catch (BlockPackageScripts $e) {
+            $this->json(['error' => ['code' => 'block_package_scripts', 'message' => $e->getMessage(), 'details' => [
+                'package' => $e->package, 'blocks' => $e->blocks,
             ]]], 409);
         } catch (\RuntimeException $e) {
             $this->json(['error' => ['code' => 'block_package_unavailable', 'message' => $e->getMessage()]], 503);

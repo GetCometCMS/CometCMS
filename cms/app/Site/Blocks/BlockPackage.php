@@ -37,6 +37,8 @@ final class BlockPackage
     /** Theme colors a color prop may default to; workspaces add their own custom colors. */
     public const COLOR_KEYS = ['primary', 'secondary', 'accent', 'background', 'surface', 'text', 'muted', 'border'];
     public const ICONS = ['icon.svg' => 'image/svg+xml', 'icon.png' => 'image/png'];
+    /** What the asset route serves: assets, plus block scripts. */
+    public const SERVED_TYPES = self::ASSET_TYPES + ['js' => 'text/javascript'];
     private const ICON_LIMIT = 65536;
 
     /** Names are vendor/name; each part starts with a letter and holds up to 40 lowercase letters, digits or hyphens. */
@@ -158,6 +160,7 @@ final class BlockPackage
         $assets = [];
         $documents = [];
         $icons = [];
+        $scripts = [];
         foreach ($files as $path => $bytes) {
             $role = self::role((string) $path);
             if (is_string($role)) {
@@ -168,6 +171,11 @@ final class BlockPackage
                     $errors[] = ['file' => $path, 'line' => null, 'message' => 'Use either icon.svg or icon.png, not both.'];
                 }
                 $icons[$role[1]] = self::icon($path, $bytes, $errors);
+            } elseif ($role[0] === 'script') {
+                foreach (BlockScripts::problems($bytes) as [$line, $message]) {
+                    $errors[] = ['file' => $path, 'line' => $line, 'message' => $message];
+                }
+                $scripts[$role[1]] = hash('sha256', $bytes) . '.js';
             } elseif ($role[0] === 'asset') {
                 $file = self::asset($path, $bytes, $errors);
                 if ($file !== null) $assets[$path] = $file;
@@ -217,17 +225,26 @@ final class BlockPackage
                 'package' => $package['name'] ?? '',
                 'icon' => $icons[$slug] ?? ($block['icon'] !== '' ? $block['icon'] : ($icons[''] ?? '')),
                 'slot' => BlockTemplate::hasSlot($template),
+                'script' => $scripts[$slug] ?? '',
             ] + $block + [
                 'template' => $template,
                 'css' => self::css($parts['style.css'] ?? '', $folder . 'style.css', $assets, $errors),
             ];
+        }
+        foreach (array_diff_key($scripts, $blocks) as $slug => $_) {
+            $errors[] = ['file' => 'blocks/' . $slug . '/view.js', 'line' => null, 'message' => 'There is no block "' . $slug . '" for this script. Add block.json and template.html next to it.'];
         }
         $css = self::css($files['style.css'] ?? '', 'style.css', $assets, $errors);
         if ($errors !== []) {
             throw new BlockPackageException($errors);
         }
 
-        return $package + ['css' => $css, 'assets' => $assets, 'blocks' => $compiled];
+        $scriptFiles = [];
+        foreach ($scripts as $slug => $file) {
+            $scriptFiles['blocks/' . $slug . '/view.js'] = $file;
+        }
+
+        return $package + ['css' => $css, 'assets' => $assets + $scriptFiles, 'blocks' => $compiled];
     }
 
     /**
@@ -240,13 +257,16 @@ final class BlockPackage
         if (isset(self::ICONS[$path])) return ['icon', ''];
         if (in_array($path, self::DOCUMENTS, true)) return ['document'];
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $segments = explode('/', $path);
+        if ($segments[0] === 'blocks' && count($segments) === 3 && $segments[2] === 'view.js' && preg_match('/^[a-z][a-z0-9-]{0,39}$/D', $segments[1])) {
+            return ['script', $segments[1]];
+        }
         if (in_array($extension, ['js', 'mjs', 'cjs', 'ts'], true)) {
-            return 'JavaScript is not supported in block packages yet.';
+            return 'A block\'s script is blocks/<name>/view.js, one self-contained module. Bundle other files into it.';
         }
         if (in_array($extension, ['php', 'phtml', 'phar'], true)) {
             return 'PHP files are not allowed in block packages.';
         }
-        $segments = explode('/', $path);
         if ($segments[0] === 'assets' && count($segments) >= 2 && count($segments) <= 5) {
             return isset(self::ASSET_TYPES[$extension])
                 ? ['asset']
@@ -262,7 +282,7 @@ final class BlockPackage
             if ($segments[2] === 'template.mustache') return 'Rename template.mustache to template.html.';
         }
 
-        return 'Unexpected file. Packages contain ' . self::MANIFEST . ', style.css, icon.svg, README/LICENSE/CHANGELOG, blocks/<name>/{block.json, template.html, style.css, icon.svg} and assets/.';
+        return 'Unexpected file. Packages contain ' . self::MANIFEST . ', style.css, icon.svg, README/LICENSE/CHANGELOG, blocks/<name>/{block.json, template.html, style.css, view.js, icon.svg} and assets/.';
     }
 
     /** null when the path is fine, false when it is clutter to ignore, or a message. */

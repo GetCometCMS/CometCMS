@@ -89,6 +89,8 @@ final class NodeRenderer
     private SmartValue $smart;
 
     private array $blockStyles = [];
+    /** @var array<string, true> */
+    private array $blockScripts = [];
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -187,6 +189,12 @@ final class NodeRenderer
         return $html;
     }
 
+    /** @return list<string> block kinds rendered so far whose scripts the page loads */
+    public function blockScripts(): array
+    {
+        return array_keys($this->blockScripts);
+    }
+
     /** CSS of the packages and blocks rendered so far: each package's shared CSS, then its blocks'. */
     public function blockStylesheet(): string
     {
@@ -218,11 +226,19 @@ final class NodeRenderer
                 $slot = '<div class="c-placeholder c-placeholder-drop">Drop elements here</div>';
             }
         }
+        $values = $this->blockValues($block['props'], $node['props'] ?? [], $state);
         // Compiled templates are well-formed allow-listed HTML; render only escapes values.
-        $html = BlockTemplate::render($block['template'], $this->blockValues($block['props'], $node['props'] ?? [], $state), $this->ctx->blockAssetUrl(...), $slot);
+        $html = BlockTemplate::render($block['template'], $values, $this->ctx->blockAssetUrl(...), $slot);
         $this->blockStyles[$block['package']][$node['kind']] = true;
+        // Scripts only run on the published website; the builder and previews show the plain block.
+        $attributes = '';
+        if ($block['script'] !== '' && !$this->ctx->preview && !$this->annotating()) {
+            $this->blockScripts[$node['kind']] = true;
+            $attributes = ' data-comet-block="' . Security::e($block['name']) . '" data-comet-props="'
+                . Security::e(json_encode($values, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)) . '"';
+        }
 
-        return $this->element($node, $html, [BlockRegistry::cssClass($block['name'])]);
+        return $this->element($node, $html, [BlockRegistry::cssClass($block['name'])], '', $attributes);
     }
 
     /**
@@ -1648,13 +1664,14 @@ final class NodeRenderer
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private function element(array $node, string $inner, array $extraClasses = [], string $style = ''): string
+    /** @param string $attributes further escaped attributes, each with its leading space */
+    private function element(array $node, string $inner, array $extraClasses = [], string $style = '', string $attributes = ''): string
     {
         $background = $this->background($node['style']);
         $classes = ['c-el', 'c-el-' . preg_replace('/[^a-z0-9-]/', '-', str_replace('_', '-', $node['kind'])), ...$extraClasses, ...$background['classes'], ...$this->styleClasses($node['style'])];
         $style = implode(';', array_filter([$background['style'], $style]));
 
-        return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';
+        return '<div' . $this->attributes($node, $classes, $style) . $attributes . '>' . $background['layer'] . $inner . '</div>';
     }
 
     private function textGradientAttributes(array $node, string $class): string

@@ -2,7 +2,7 @@
 
 Developers can add their own page-builder elements with [block packages](./custom-blocks): ZIPs of HTML templates, CSS and assets, installed from **Page Builder → Custom blocks**.
 
-CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
+CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use JavaScript only where an element needs it: tabs, a gallery's modal viewer, and custom blocks that bring their own script. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 

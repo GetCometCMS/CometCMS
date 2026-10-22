@@ -62,7 +62,7 @@ final class SiteController
         WorkspaceContext::setActive($workspace->slug());
         $context = SiteContext::make(new SiteRepository($workspace), rtrim($this->http->url('/'), '/'), $this->origin());
         $response = (new SiteService($context))->respondCached($path, $_GET);
-        $this->send($response, $response['cache_status']);
+        $this->send($response, $response['cache_status'], $context);
     }
 
     public function font(string $workspace, string $hash): never
@@ -262,7 +262,8 @@ final class SiteController
         ], 'BYPASS');
     }
 
-    private function send(array $response, string $cacheStatus): never
+    /** $context, for website pages, lets installed block scripts through the CSP. */
+    private function send(array $response, string $cacheStatus, ?SiteContext $context = null): never
     {
         $etag = '"' . substr(sha1($response['body']), 0, 20) . '"';
 
@@ -275,7 +276,7 @@ final class SiteController
         header('ETag: ' . $etag);
 
         if (str_starts_with($response['content_type'], 'text/html')) {
-            $policy = str_replace("script-src 'none'", SiteScripts::cspDirective($response['body']), self::CONTENT_SECURITY_POLICY);
+            $policy = str_replace("script-src 'none'", SiteScripts::cspDirective($response['body'], $context), self::CONTENT_SECURITY_POLICY);
             header('Content-Security-Policy: ' . $policy);
         }
 

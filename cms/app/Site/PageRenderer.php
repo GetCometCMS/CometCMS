@@ -6,6 +6,7 @@ namespace CometCMS\Site;
 
 use CometCMS\Core\Security;
 use CometCMS\Localization\Messages;
+use CometCMS\Site\Blocks\BlockScripts;
 
 /**
  * Builds complete HTML documents: header region, the layout of the page,
@@ -362,6 +363,7 @@ final class PageRenderer
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
             . $bodyScripts
+            . (!$this->ctx->preview ? implode('', BlockScripts::elements($this->nodes->blockScripts(), $this->ctx->site->blocks(), $this->ctx)) : '')
             . '</body></html>';
         $banner = '';
         if ($this->ctx->previewBanner) {

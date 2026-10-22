@@ -17,7 +17,7 @@ final class BlockRegistry
     public const MAX_PACKAGES = 64;
     public const MAX_BLOCKS = 256;
     /** Bump whenever compiled packages change shape, so cached indexes are rebuilt. */
-    private const COMPILER = 1;
+    private const COMPILER = 2;
 
     private ?array $index = null;
     private ?string $signature = null;
@@ -67,11 +67,13 @@ final class BlockRegistry
         $packages = [];
         foreach ($index['packages'] as $package) {
             $packages[] = array_intersect_key($package, array_flip(['name', 'title', 'description', 'version', 'author', 'license', 'homepage'])) + [
+                'scripts' => self::scriptBlocks($package['blocks'], $index['blocks']) !== [],
                 'blocks' => array_map(static fn(string $kind): array => [
                     'name' => $index['blocks'][$kind]['name'],
                     'title' => $index['blocks'][$kind]['title'],
                     'description' => $index['blocks'][$kind]['description'],
                     'icon' => $index['blocks'][$kind]['icon'],
+                    'script' => $index['blocks'][$kind]['script'] !== '',
                 ], $package['blocks']),
             ];
         }
@@ -90,18 +92,18 @@ final class BlockRegistry
     {
         $path = $this->index()['assets'][$file] ?? null;
         $extension = pathinfo($file, PATHINFO_EXTENSION);
-        if ($path === null || !isset(BlockPackage::ASSET_TYPES[$extension])) {
+        if ($path === null || !isset(BlockPackage::SERVED_TYPES[$extension])) {
             return null;
         }
         $absolute = $this->directory() . '/' . $path;
 
         // The index is rebuilt whenever a file changes, so its hash still describes the file.
-        return is_file($absolute) && !is_link($absolute) ? ['path' => $absolute, 'type' => BlockPackage::ASSET_TYPES[$extension]] : null;
+        return is_file($absolute) && !is_link($absolute) ? ['path' => $absolute, 'type' => BlockPackage::SERVED_TYPES[$extension]] : null;
     }
 
-    public function install(string $zipPath, bool $acceptChanges = false): array
+    public function install(string $zipPath, bool $acceptChanges = false, bool $allowScripts = false): array
     {
-        return $this->installFiles(BlockPackage::readZip($zipPath), $acceptChanges);
+        return $this->installFiles(BlockPackage::readZip($zipPath), $acceptChanges, $allowScripts);
     }
 
     /**
@@ -110,11 +112,11 @@ final class BlockRegistry
      *
      * @param array<string, string> $files package path => bytes
      */
-    public function installFiles(array $files, bool $acceptChanges = false): array
+    public function installFiles(array $files, bool $acceptChanges = false, bool $allowScripts = false): array
     {
         $package = BlockPackage::compile($files);
 
-        return $this->locked(function () use ($files, $package, $acceptChanges): array {
+        return $this->locked(function () use ($files, $package, $acceptChanges, $allowScripts): array {
             $this->index = $this->signature = null;
             $index = $this->index();
             $name = $package['name'];
@@ -133,6 +135,11 @@ final class BlockRegistry
             if ($changes !== [] && !$acceptChanges) {
                 throw new BlockPackageChanges($name, $previous['version'], $package['version'], $changes);
             }
+            // Scripts run with the website's origin, so installing them is a separate decision.
+            $scripts = self::scriptBlocks(array_keys($package['blocks']), $package['blocks']);
+            if ($scripts !== [] && !$allowScripts) {
+                throw new BlockPackageScripts($name, $scripts);
+            }
             $this->write($name, $files);
             $this->index = $this->signature = null;
 
@@ -143,6 +150,7 @@ final class BlockRegistry
                 'previous_version' => $previous['version'] ?? null,
                 'blocks' => array_map(static fn(string $kind): string => substr($kind, 6), array_keys($package['blocks'])),
                 'changes' => $changes,
+                'scripts' => $scripts,
             ];
         });
     }
@@ -200,6 +208,12 @@ final class BlockRegistry
         }
 
         return $changes;
+    }
+
+    /** @return list<string> the names of the given blocks that have a script */
+    private static function scriptBlocks(array $kinds, array $blocks): array
+    {
+        return array_values(array_map(static fn(string $kind): string => substr($kind, 6), array_filter($kinds, static fn(string $kind): bool => ($blocks[$kind]['script'] ?? '') !== '')));
     }
 
     /** @return list<string> removed props, changed types and dropped enum options, also inside list items */

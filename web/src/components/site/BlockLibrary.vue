@@ -41,13 +41,19 @@
     <ul v-if="data?.packages.length" class="divide-y divide-slate-100">
       <li v-for="pkg in data.packages" :key="pkg.name" class="flex items-start justify-between gap-4 py-3">
         <div class="min-w-0 space-y-1">
-          <p class="font-medium text-slate-800">{{ pkg.title }} <span class="text-xs text-slate-500">{{ pkg.version }}</span></p>
+          <p class="font-medium text-slate-800">
+            {{ pkg.title }} <span class="text-xs text-slate-500">{{ pkg.version }}</span>
+            <span v-if="pkg.scripts" class="ml-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-amber-800" :title="t('site.blocks.scriptsBadgeHint')">
+              <Icon icon="mdi:language-javascript" class="h-3 w-3" aria-hidden="true" />{{ t("site.blocks.scriptsBadge") }}
+            </span>
+          </p>
           <p class="text-xs text-slate-500">{{ [pkg.name, pkg.author, pkg.license].filter(Boolean).join(" · ") }}</p>
           <p v-if="pkg.description" class="text-sm text-slate-600">{{ pkg.description }}</p>
           <ul class="flex flex-wrap gap-1.5 pt-1" :aria-label="t('site.blocks.blocksIn', { name: pkg.title })">
             <li v-for="block in pkg.blocks" :key="block.name" class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700" :title="block.description || block.name">
               <KindIcon :icon="kindIcon(`block:${block.name}`, { kinds: { [`block:${block.name}`]: block } })" class="h-3.5 w-3.5 shrink-0 text-slate-500" />
               {{ block.title }}
+              <Icon v-if="block.script" icon="mdi:language-javascript" class="h-3.5 w-3.5 text-amber-700" :aria-label="t('site.blocks.scriptsBadge')" />
             </li>
           </ul>
         </div>
@@ -86,6 +92,20 @@
         <li v-for="change in pendingUpdate?.changes ?? []" :key="change">{{ change }}</li>
       </ul>
     </ConfirmModal>
+    <ConfirmModal
+      :model-value="!!pendingScripts"
+      variant="warning"
+      :title="t('site.blocks.scriptsTitle')"
+      :message="t('site.blocks.scriptsMessage', { package: pendingScripts?.package ?? '' })"
+      :confirm-label="t('site.blocks.scriptsConfirm')"
+      :loading="busy"
+      @update:model-value="(open) => { if (!open) pendingScripts = null }"
+      @confirm="confirmScripts"
+    >
+      <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+        <li v-for="block in pendingScripts?.blocks ?? []" :key="block">{{ block }}</li>
+      </ul>
+    </ConfirmModal>
   </section>
 </template>
 
@@ -108,6 +128,7 @@ const progress = ref(null);
 const dragDepth = ref(0);
 const deleteTarget = ref(null);
 const pendingUpdate = ref(null);
+const pendingScripts = ref(null);
 let generation = 0;
 
 const formatIssue = (issue) => `${issue.file}${issue.line ? `:${issue.line}` : ""}${issue.file ? ": " : ""}${issue.message}`;
@@ -121,6 +142,7 @@ async function load() {
   dragDepth.value = 0;
   deleteTarget.value = null;
   pendingUpdate.value = null;
+  pendingScripts.value = null;
   busy.value = true;
   try {
     const result = await api.blocks.list();
@@ -151,7 +173,8 @@ function drop(event) {
   upload(Array.from(event.dataTransfer?.files ?? []));
 }
 
-async function upload(files, acceptChanges = false) {
+/** Consent travels with retries: confirming one question keeps the answer to the other. */
+async function upload(files, consent = { acceptChanges: false, allowScripts: false }) {
   if (busy.value || !data.value?.can_install || !files.length) return;
   const problem = packageUploadError(files);
   if (problem) {
@@ -166,9 +189,10 @@ async function upload(files, acceptChanges = false) {
   success.value = "";
   progress.value = 0;
   try {
-    const { data: installed } = await api.blocks.install(files[0], { acceptChanges, onProgress: (value) => { progress.value = value; } });
+    const { data: installed } = await api.blocks.install(files[0], { ...consent, onProgress: (value) => { progress.value = value; } });
     if (current !== generation || workspace !== getActiveWorkspace()) return;
     pendingUpdate.value = null;
+    pendingScripts.value = null;
     const result = await api.blocks.list();
     if (current === generation) {
       data.value = result.data;
@@ -178,10 +202,13 @@ async function upload(files, acceptChanges = false) {
     }
   } catch (err) {
     if (current !== generation) return;
+    pendingUpdate.value = null;
+    pendingScripts.value = null;
     if (err.code === "block_package_changes" && err.details) {
-      pendingUpdate.value = { ...err.details, file: files[0] };
+      pendingUpdate.value = { ...err.details, file: files[0], consent };
+    } else if (err.code === "block_package_scripts" && err.details) {
+      pendingScripts.value = { ...err.details, file: files[0], consent };
     } else {
-      pendingUpdate.value = null;
       error.value = fail(err);
     }
   } finally {
@@ -193,8 +220,13 @@ async function upload(files, acceptChanges = false) {
 }
 
 function confirmUpdate() {
-  const file = pendingUpdate.value?.file;
-  if (file) upload([file], true);
+  const pending = pendingUpdate.value;
+  if (pending) upload([pending.file], { ...pending.consent, acceptChanges: true });
+}
+
+function confirmScripts() {
+  const pending = pendingScripts.value;
+  if (pending) upload([pending.file], { ...pending.consent, allowScripts: true });
 }
 
 async function remove() {

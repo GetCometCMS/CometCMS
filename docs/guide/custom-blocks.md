@@ -2,7 +2,7 @@
 
 <div v-pre>
 
-**Block packages** add your own elements to the page builder. A package is a ZIP of plain files: a manifest, one folder per block with an HTML template and CSS, and optional assets. Packages contain no code. CometCMS validates and compiles them at installation, and every block then renders on the server, identically in the builder preview and on the published website.
+**Block packages** add your own elements to the page builder. A package is a ZIP of plain files: a manifest, one folder per block with an HTML template and CSS, optional assets, and optional JavaScript. CometCMS validates and compiles packages at installation, and every block then renders on the server, identically in the builder preview and on the published website. A block's script adds behavior on the published website only.
 
 Blocks behave like built-in elements. They appear in the elements palette with their own icon, get an inspector generated from their props, accept the standard element styles, and work in columns, tabs, reusable components, collection cards and header/footer layouts. Their content is translatable, text, rich text, images and links can be bound to entry fields, and a block can hold other elements in a slot.
 
@@ -29,6 +29,8 @@ acme-marketing/
     feature/
       icon.svg              # optional: this block's palette icon
     pricing/…               # a list of features
+    stats/
+      view.js               # optional: JavaScript for the published website
 ```
 
 1. Check the package: `npm run blocks -- validate examples/blocks/acme-marketing`
@@ -191,7 +193,7 @@ Not allowed: `script`, `style`, `link`, `iframe`, forms and form controls, `on*`
 
 ### Interactivity without JavaScript
 
-Packages cannot run JavaScript, but modern HTML and CSS cover many interactive patterns:
+Before reaching for a script, check whether HTML and CSS already do the job. They work in the builder preview too, and need no extra trust:
 
 - **Accordions:** `<details>`/`<summary>`. Items with the same `name` close each other (see the `faq` block, which repeats them for a list of questions).
 - **Menus, popovers and tooltips:** `<button type="button" popovertarget="x">` with `<div id="x" popover>`.
@@ -199,6 +201,29 @@ Packages cannot run JavaScript, but modern HTML and CSS cover many interactive p
 - **State-dependent styling:** `:has()`, `:target`, `details[open]`, and scroll-driven animations.
 
 Use a prop for `id` values, or include one in the template, when a block can appear several times on a page and its elements reference each other.
+
+## JavaScript
+
+A block can have a `view.js`: one ES module whose default export runs for every instance of the block on a published page.
+
+```js
+// blocks/stats/view.js
+export default function mount(element, props) {
+  // element: the block's root element, with the class c-block-acme__stats
+  // props: the block's values, as the template received them
+  for (const number of element.querySelectorAll('[data-value]')) {
+    // … animate number up to Number(number.dataset.value) over props.duration ms
+  }
+  element.dataset.mounted = 'true';
+}
+```
+
+- **Values.** `props` holds each prop by name: text as strings, `int` as numbers, `bool` as booleans, lists as arrays of item objects, and media, links and colors as objects whose `_` is the URL, the address or the color key (media also have `alt`, links `new_tab`, colors `css`). Bound and translated props are already resolved.
+- **Published website only.** Scripts never run in the builder or in draft previews, so a block must look complete without its script and add behavior on top (progressive enhancement). The inspector reminds editors of this.
+- **Self-contained.** `view.js` must `export default` its mount function and cannot `import` anything. Bundle dependencies into the file, for example `esbuild src/stats.js --bundle --format=esm --outfile=blocks/stats/view.js`. It is limited to 128 KiB and cannot contain `</script`.
+- **Errors.** An exception in one instance is logged to the console and does not stop the others.
+
+The script is served as a content-hashed module. Each page that contains the block gets one small loader, which imports the module and calls it for each instance with `data-comet-props`. The website's Content-Security-Policy allows exactly these loaders, by hash, and exactly these module URLs; it never allows the whole site, so other files on the server, such as uploaded media, still cannot run as scripts. Scripts may use `fetch`, but only to the website itself and to the sources the policy allows.
 
 ## CSS and assets
 
@@ -248,26 +273,28 @@ Installing, updating and deleting packages requires an administrator with the wo
 | Capability | Policy |
 | --- | --- |
 | Data | Blocks see only their own validated props. No content queries, media library, sessions or environment. |
-| Code | None. No JavaScript, PHP, build steps, hooks or package managers. JavaScript files are rejected. |
+| JavaScript | **Trusted, and confirmed separately.** A `view.js` runs on the published website with the website's origin. Because the admin shares that origin, a script runs with the permissions of any administrator or editor who is signed in while visiting the site. Installing or updating a package with scripts therefore needs an explicit confirmation, and such packages are marked "JavaScript" in **Custom blocks**. Packages copied into the folder directly are trusted like the rest of the server's files. |
+| Server code | None. No PHP, build steps, hooks or package managers. Other JavaScript files are rejected. |
 | Markup | Allow-listed at installation; values are escaped, and rich text is sanitized with the CMS's HTML allow-list. |
 | CSS | **Trusted, like custom theme CSS.** It is not sandboxed or scoped, so it can restyle the whole website and load external fonts and images. Prefixing selectors is a convention, not a security boundary. Only install packages from authors you trust. |
 | Assets | Served with `Content-Security-Policy: sandbox` and `nosniff`, so an SVG opened directly cannot run scripts. |
 
-The builder preview keeps its script prohibition, and package CSS never enters the admin interface itself.
+The builder preview keeps its script prohibition, and package CSS and scripts never enter the admin interface itself.
 
 ## API
 
 | Request | Purpose |
 | --- | --- |
 | `GET /admin/api/site/blocks` | Installed packages with their blocks, folder packages that failed to load (`errors`), and `can_install`. Requires `site.manage`. |
-| `POST /admin/api/site/blocks` | Multipart upload with the ZIP in `package`. Returns 201 with `name`, `version`, `previous_version`, `blocks` and `changes`. Invalid packages return 422 `invalid_block_package` with `details`: a list of `{file, line, message}`. Breaking updates return 409 `block_package_changes` with `details.changes`; send `accept_changes=1` to proceed. |
+| `POST /admin/api/site/blocks` | Multipart upload with the ZIP in `package`. Returns 201 with `name`, `version`, `previous_version`, `blocks` and `changes`. Invalid packages return 422 `invalid_block_package` with `details`: a list of `{file, line, message}`. Breaking updates return 409 `block_package_changes` with `details.changes`; send `accept_changes=1` to proceed. Packages with scripts return 409 `block_package_scripts` with `details.blocks`; send `allow_scripts=1` to install them. A successful response lists the blocks with scripts in `scripts`. |
 | `DELETE /admin/api/site/blocks/{vendor}/{package}` | Deletes the package. Returns 404 `not_found` when it is not installed. |
 
 The workspace header and CSRF handling are those of the other admin endpoints.
 
 ## Not yet supported
 
-- **JavaScript:** an optional per-block script with its own permission and Content-Security-Policy integration, running only on the published website.
+- **Scripts in the builder preview**, for blocks whose editing view needs them, which would require running package code isolated from the admin.
+- **Shared modules** between the scripts of several blocks; bundle shared code into each `view.js`.
 - **Nested lists**, binding a whole list to a repeater field, and several named slots.
 
 </div>
