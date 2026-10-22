@@ -1,7 +1,7 @@
 <template>
   <div v-if="templatePart" class="flex h-full flex-col overflow-y-auto">
     <div class="flex items-center gap-3 border-b border-slate-200 p-4">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f8eaf3] text-[#8c3b73] ring-1 ring-inset ring-[#dda5c6]/50">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f8eaf3] text-[#8c3b73] ring-1 ring-inset ring-[#ac477e]/50">
         <Icon :icon="templatePart === 'header' ? 'mdi:page-layout-header' : 'mdi:page-layout-footer'" class="h-5 w-5" aria-hidden="true" />
       </span>
       <div class="min-w-0">

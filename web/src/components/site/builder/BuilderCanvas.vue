@@ -70,41 +70,41 @@ const BUILDER_CSS = `
 }
 
 [data-node]{
-  --builder-color:#d9c182;
+  --builder-color:#526783;
   outline:1px solid transparent;
   outline-offset:-1px;
   transition:outline-color .12s;
 }
 
-/* Pastel structure colors; elements use warm gold to distinguish them from sections. */
+/* Strong structure borders stay visible on the page; labels retain softer tinted fills. */
 [data-kind="section"]{
-  --builder-color:#9aafe6;
+  --builder-color:#4b5fc8;
 }
 
 [data-kind="row"]{
-  --builder-color:#91c9b0;
+  --builder-color:#4c8a2b;
 }
 
 
 [data-kind="component"]{
-  --builder-color:#bda6dc;
-  outline:1px dashed color-mix(in srgb,var(--builder-color) 45%,transparent);
+  --builder-color:#8650b1;
+  outline:1px dashed color-mix(in srgb,var(--builder-color) 65%,transparent);
 }
 
 [data-kind="column"]{
-  --builder-color:#e8b095;
+  --builder-color:#b7653e;
 }
 
 /* Each entry replaces this area with its own content, so it stays marked. */
 [data-kind="page_content"]{
-  --builder-color:#92cad8;
-  outline:2px dashed color-mix(in srgb,var(--builder-color) 55%,transparent);
+  --builder-color:#217f98;
+  outline:2px dashed color-mix(in srgb,var(--builder-color) 75%,transparent);
   outline-offset:-2px;
 }
 
 /* The page builder of one entry: everything around its page content belongs to the layout. */
 .c-view-page-edit .c-page-content[data-drop-root]{
-  outline:2px dashed color-mix(in srgb,#92cad8 55%,transparent);
+  outline:2px dashed color-mix(in srgb,#217f98 75%,transparent);
   outline-offset:-2px;
 }
 
@@ -113,7 +113,7 @@ const BUILDER_CSS = `
   position:relative;
   min-height:64px;
   cursor:pointer;
-  outline:2px dashed color-mix(in srgb,#92cad8 30%,transparent);
+  outline:2px dashed color-mix(in srgb,#217f98 55%,transparent);
   outline-offset:-2px;
 }
 
@@ -129,7 +129,7 @@ const BUILDER_CSS = `
   align-items:center;
   justify-content:center;
   padding:12px;
-  background:rgba(255,255,255,.72);
+  background:color-mix(in srgb,#217f98 10%,rgba(255,255,255,.88));
   color:#286575;
   font:600 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
   text-align:center;
@@ -144,17 +144,17 @@ const BUILDER_CSS = `
 
 /* Hover and selection */
 [data-builder-hover]{
-  outline:calc(1px * var(--cometcms-ui-scale,1)) dashed var(--builder-color)!important;
+  outline:max(2px,calc(2px * var(--cometcms-ui-scale,1))) dashed var(--builder-color)!important;
 }
 
 [data-builder-selected]{
-  outline:calc(2px * var(--cometcms-ui-scale,1)) solid var(--builder-color)!important;
-  outline-offset:calc(-2px * var(--cometcms-ui-scale,1));
+  outline:max(3px,calc(3px * var(--cometcms-ui-scale,1))) solid var(--builder-color)!important;
+  outline-offset:calc(-1 * max(3px,calc(3px * var(--cometcms-ui-scale,1))));
 }
 
 /* A separate overlay stays visible above shared template part content. */
 .cometcms-template-highlight{
-  --builder-color:#dda5c6;
+  --builder-color:#ac477e;
   position:fixed;
   z-index:2147483647;
   pointer-events:none;
@@ -167,9 +167,9 @@ const BUILDER_CSS = `
   position:absolute;
   top:0;
   left:0;
-  background:var(--builder-color);
+  background:color-mix(in srgb,var(--builder-color) 42%,#fff);
   color:#54223f;
-  font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
+  font:600 max(12px,calc(12px * var(--s)))/1.2 system-ui,sans-serif;
   padding:calc(5px * var(--s)) calc(8px * var(--s));
   border-radius:0 0 calc(5px * var(--s)) 0;
   white-space:nowrap;
@@ -210,14 +210,14 @@ const BUILDER_CSS = `
   position:absolute;
   z-index:2147483646;
   pointer-events:none;
-  background:var(--builder-color,#d9c182);
+  background:var(--builder-color,#526783);
   border-radius:3px;
   box-shadow:0 0 0 2px rgba(255,255,255,.85);
 }
 
 .cometcms-drop.is-box{
-  background:color-mix(in srgb,var(--builder-color,#d9c182) 7%,transparent);
-  border:2px dashed var(--builder-color,#d9c182);
+  background:color-mix(in srgb,var(--builder-color,#526783) 7%,transparent);
+  border:2px dashed var(--builder-color,#526783);
   box-shadow:none;
   border-radius:6px;
 }
@@ -232,13 +232,13 @@ const BUILDER_CSS = `
   align-items:stretch;
   cursor:pointer;
   transform:translateY(-100%);
-  background:var(--builder-color,#d9c182);
+  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
   color:#253047;
-  font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
+  font:600 max(12px,calc(12px * var(--s)))/1.2 system-ui,sans-serif;
   letter-spacing:.01em;
   border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
   white-space:nowrap;
-  box-shadow:0 -1px 3px rgba(0,0,0,.08);
+  box-shadow:inset 0 0 0 1px var(--builder-color),0 -1px 4px rgba(0,0,0,.16);
 }
 
 .cometcms-badge[hidden]{display:none;}
@@ -246,7 +246,7 @@ const BUILDER_CSS = `
 .cometcms-badge.is-inside{
   transform:none;
   border-radius:0 0 calc(5px * var(--s)) 0;
-  box-shadow:0 1px 3px rgba(0,0,0,.08);
+  box-shadow:inset 0 0 0 1px var(--builder-color),0 1px 4px rgba(0,0,0,.16);
 }
 
 .cometcms-badge.is-inside .cometcms-badge-menu{
@@ -283,7 +283,7 @@ const BUILDER_CSS = `
 .cometcms-badge:focus-visible{
   outline:calc(2px * var(--s)) solid #fff;
   outline-offset:calc(2px * var(--s));
-  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#d9c182);
+  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#526783);
 }
 
 /* Column resizing: a grip on the edge under the pointer */
@@ -309,7 +309,7 @@ const BUILDER_CSS = `
   left:50%;
   width:4px;
   transform:translateX(-50%);
-  background:var(--builder-color,#d9c182);
+  background:var(--builder-color,#526783);
   border-radius:2px;
 }
 
@@ -322,7 +322,7 @@ const BUILDER_CSS = `
   height:28px;
   transform:translate(-50%,-50%);
   background:#fff;
-  border:2px solid var(--builder-color,#d9c182);
+  border:2px solid var(--builder-color,#526783);
   border-radius:4px;
   box-shadow:0 1px 3px rgba(0,0,0,.18);
 }
@@ -332,7 +332,7 @@ const BUILDER_CSS = `
   top:50%;
   left:50%;
   transform:translate(-50%,calc(-100% - 22px));
-  background:var(--builder-color,#d9c182);
+  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
   color:#253047;
   font:600 11px/1 system-ui,sans-serif;
   padding:5px 7px;
@@ -919,7 +919,7 @@ function showIndicator(target) {
   const win = doc.defaultView;
   const { rect, position, horizontal } = target;
   const el = element(target.id);
-  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#d9c182");
+  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#526783");
   const x = rect.left + win.scrollX;
   const y = rect.top + win.scrollY;
   indicator.classList.toggle("is-box", position === "inside");

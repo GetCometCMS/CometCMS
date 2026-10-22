@@ -146,10 +146,10 @@ watch(() => props.modelValue, (open) => {
 
 /** Mirrors the outline colors in BuilderCanvas. */
 const STRUCTURE = [
-  { kind: "section", color: "#9aafe6", depth: 0 },
-  { kind: "row", color: "#91c9b0", depth: 1 },
-  { kind: "column", color: "#e8b095", depth: 2 },
-  { kind: "component", color: "#bda6dc", dashed: true, depth: 0 },
+  { kind: "section", color: "#4b5fc8", depth: 0 },
+  { kind: "row", color: "#4c8a2b", depth: 1 },
+  { kind: "column", color: "#b7653e", depth: 2 },
+  { kind: "component", color: "#8650b1", dashed: true, depth: 0 },
 ];
 
 const steps = [
