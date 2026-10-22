@@ -70,41 +70,41 @@ const BUILDER_CSS = `
 }
 
 [data-node]{
-  --builder-color:#5875c9;
+  --builder-color:#d9c182;
   outline:1px solid transparent;
   outline-offset:-1px;
   transition:outline-color .12s;
 }
 
-/* Node colors */
+/* Pastel structure colors; elements use warm gold to distinguish them from sections. */
 [data-kind="section"]{
-  --builder-color:#5875c9;
+  --builder-color:#9aafe6;
 }
 
 [data-kind="row"]{
-  --builder-color:#238d85;
+  --builder-color:#91c9b0;
 }
 
 
 [data-kind="component"]{
-  --builder-color:#9464b5;
+  --builder-color:#bda6dc;
   outline:1px dashed color-mix(in srgb,var(--builder-color) 45%,transparent);
 }
 
 [data-kind="column"]{
-  --builder-color:#e07868;
+  --builder-color:#e8b095;
 }
 
 /* Each entry replaces this area with its own content, so it stays marked. */
 [data-kind="page_content"]{
-  --builder-color:#69bfce;
+  --builder-color:#92cad8;
   outline:2px dashed color-mix(in srgb,var(--builder-color) 55%,transparent);
   outline-offset:-2px;
 }
 
 /* The page builder of one entry: everything around its page content belongs to the layout. */
 .c-view-page-edit .c-page-content[data-drop-root]{
-  outline:2px dashed color-mix(in srgb,#69bfce 55%,transparent);
+  outline:2px dashed color-mix(in srgb,#92cad8 55%,transparent);
   outline-offset:-2px;
 }
 
@@ -113,7 +113,7 @@ const BUILDER_CSS = `
   position:relative;
   min-height:64px;
   cursor:pointer;
-  outline:2px dashed color-mix(in srgb,#69bfce 30%,transparent);
+  outline:2px dashed color-mix(in srgb,#92cad8 30%,transparent);
   outline-offset:-2px;
 }
 
@@ -154,7 +154,7 @@ const BUILDER_CSS = `
 
 /* A separate overlay stays visible above shared template part content. */
 .cometcms-template-highlight{
-  --builder-color:#e2a0ce;
+  --builder-color:#dda5c6;
   position:fixed;
   z-index:2147483647;
   pointer-events:none;
@@ -210,14 +210,14 @@ const BUILDER_CSS = `
   position:absolute;
   z-index:2147483646;
   pointer-events:none;
-  background:var(--builder-color,#5875c9);
+  background:var(--builder-color,#d9c182);
   border-radius:3px;
   box-shadow:0 0 0 2px rgba(255,255,255,.85);
 }
 
 .cometcms-drop.is-box{
-  background:color-mix(in srgb,var(--builder-color,#5875c9) 7%,transparent);
-  border:2px dashed var(--builder-color,#5875c9);
+  background:color-mix(in srgb,var(--builder-color,#d9c182) 7%,transparent);
+  border:2px dashed var(--builder-color,#d9c182);
   box-shadow:none;
   border-radius:6px;
 }
@@ -232,8 +232,8 @@ const BUILDER_CSS = `
   align-items:stretch;
   cursor:pointer;
   transform:translateY(-100%);
-  background:color-mix(in srgb,var(--builder-color,#5875c9) 88%,#111827);
-  color:#fff;
+  background:var(--builder-color,#d9c182);
+  color:#253047;
   font:600 calc(11px * var(--s))/1 system-ui,sans-serif;
   letter-spacing:.01em;
   border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
@@ -264,7 +264,7 @@ const BUILDER_CSS = `
   align-items:center;
   justify-content:center;
   width:calc(26px * var(--s));
-  border-left:1px solid rgba(255,255,255,.25);
+  border-left:1px solid rgba(37,48,71,.18);
   border-radius:0 calc(5px * var(--s)) 0 0;
   background:rgba(255,255,255,.1);
 }
@@ -283,7 +283,7 @@ const BUILDER_CSS = `
 .cometcms-badge:focus-visible{
   outline:calc(2px * var(--s)) solid #fff;
   outline-offset:calc(2px * var(--s));
-  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#5875c9);
+  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#d9c182);
 }
 
 /* Column resizing: a grip on the edge under the pointer */
@@ -309,7 +309,7 @@ const BUILDER_CSS = `
   left:50%;
   width:4px;
   transform:translateX(-50%);
-  background:var(--builder-color,#5875c9);
+  background:var(--builder-color,#d9c182);
   border-radius:2px;
 }
 
@@ -322,7 +322,7 @@ const BUILDER_CSS = `
   height:28px;
   transform:translate(-50%,-50%);
   background:#fff;
-  border:2px solid var(--builder-color,#5875c9);
+  border:2px solid var(--builder-color,#d9c182);
   border-radius:4px;
   box-shadow:0 1px 3px rgba(0,0,0,.18);
 }
@@ -332,8 +332,8 @@ const BUILDER_CSS = `
   top:50%;
   left:50%;
   transform:translate(-50%,calc(-100% - 22px));
-  background:color-mix(in srgb,var(--builder-color,#5875c9) 85%,#111827);
-  color:#fff;
+  background:var(--builder-color,#d9c182);
+  color:#253047;
   font:600 11px/1 system-ui,sans-serif;
   padding:5px 7px;
   border-radius:5px;
@@ -919,7 +919,7 @@ function showIndicator(target) {
   const win = doc.defaultView;
   const { rect, position, horizontal } = target;
   const el = element(target.id);
-  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#2563eb");
+  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#d9c182");
   const x = rect.left + win.scrollX;
   const y = rect.top + win.scrollY;
   indicator.classList.toggle("is-box", position === "inside");
