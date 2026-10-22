@@ -890,16 +890,76 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 }
 
 /* ── Preview & builder ────────────────────────────────────────────────── */
-.c-preview-bar { position: sticky; top: 0; z-index: 100; background: #0f172a; color: #e2e8f0; font: 500 13px/1.5 system-ui, sans-serif; padding: 10px 16px; border-bottom: 3px solid #f59e0b; }
-.c-preview-bar-main, .c-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
-.c-preview-bar a { color: #f8fafc; text-decoration: none; padding: 4px 0; font-weight: 600; }
-.c-preview-bar a:hover { color: #fcd34d; text-decoration: underline; }
-.c-preview-bar a:focus-visible { outline: 2px solid #fcd34d; outline-offset: 4px; }
-.c-preview-badge { background: #f59e0b; color: #0f172a; border-radius: 4px; padding: 2px 8px; font-weight: 700; }
-.c-preview-details { flex: 1; overflow-wrap: anywhere; }
-.c-preview-user { color: #cbd5e1; }
-.c-preview-actions { margin-top: 6px; border-top: 1px solid #334155; padding-top: 6px; }
-@media (max-width: 640px) { .c-preview-details { flex-basis: 100%; } }
+/* Admin chrome uses its own sizing and colors, independent of the site theme. */
+.c-site:has(> .c-preview-bar) { --c-admin-offset: 80px; }
+.c-site:has(> .c-preview-bar) .c-sticky { top: var(--c-admin-offset); }
+.c-preview-bar { position: sticky; top: 0; z-index: 1100; flex: none; padding: 8px 12px; color: #e2e8f0; background: #f1f5f9; font: 500 13px/1.4 system-ui, sans-serif; letter-spacing: normal; text-align: left; color-scheme: dark; }
+.c-admin-shell { display: grid; grid-template-areas: "brand mode context meta actions account"; grid-template-columns: auto auto minmax(120px, 1fr) auto auto auto; align-items: center; gap: 16px; height: 64px; padding: 0 16px; background: linear-gradient(120deg, #111c30, #0b1220); border: 1px solid #29354a; border-radius: 12px; box-shadow: 0 4px 12px #02061726, 0 1px 2px #02061740; }
+.c-preview-bar a, .c-preview-bar summary { color: #cbd5e1; font: inherit; text-decoration: none; cursor: pointer; }
+.c-preview-bar a:hover, .c-preview-bar summary:hover { color: #fff; text-decoration: none; }
+.c-preview-bar :is(a, summary):focus-visible { outline: 2px solid #fbbf24; outline-offset: 3px; border-radius: 6px; }
+.c-admin-icon { display: inline-block; flex: none; width: 18px; height: 18px; vertical-align: middle; }
+.c-admin-brand { grid-area: brand; display: flex; align-items: center; gap: 12px; padding-right: 16px; border-right: 1px solid #ffffff14; }
+.c-admin-brand img { width: 138px; height: 30px; object-fit: contain; }
+.c-admin-brand > svg { width: 15px; height: 15px; color: #94a3b8; }
+.c-admin-mode { grid-area: mode; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 12px; border: 1px solid #ffc95b; border-radius: 8px; color: #231900; background: linear-gradient(#ffc34a, #f5a600); box-shadow: 0 2px 8px #f59e0b26, inset 0 1px #ffffff40; font-weight: 700; white-space: nowrap; }
+.c-admin-context { grid-area: context; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.c-admin-context > svg { color: #94a3b8; }
+.c-admin-context > div { min-width: 0; }
+.c-admin-workspace, .c-admin-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-admin-workspace { color: #94a3b8; font-size: 11px; }
+.c-admin-title { color: #f1f5f9; font-weight: 600; }
+.c-admin-meta { grid-area: meta; display: flex; align-items: center; gap: 10px; }
+.c-admin-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 20px; color: #fde68a; background: #f59e0b12; font-size: 12px; white-space: nowrap; }
+.c-admin-status-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+.c-admin-status-published { color: #86efac; background: #22c55e12; }
+.c-admin-status-scheduled { color: #93c5fd; background: #3b82f612; }
+.c-admin-status-archived { color: #cbd5e1; background: #94a3b812; }
+.c-preview-actions > a { flex: none; }
+.c-preview-actions { grid-area: actions; display: flex; align-items: center; gap: 4px; min-width: 0; height: 100%; }
+.c-preview-bar .c-admin-action { display: inline-flex; align-items: center; justify-content: flex-start; gap: 9px; padding: 11px 12px; border-radius: 8px; color: #dbe3ef; font-weight: 600; white-space: nowrap; }
+.c-preview-bar .c-admin-action:hover { background: #ffffff0d; color: #fff; }
+.c-preview-bar .c-admin-action-primary { position: relative; background: #f59e0b0f; color: #fbbf24; }
+.c-admin-action-primary::after { content: ""; position: absolute; bottom: 0; left: 12px; right: 12px; height: 2px; border-radius: 2px; background: #fbbf24; }
+.c-preview-bar .c-admin-action-primary:hover { background: #f59e0b1a; color: #fcd34d; }
+.c-preview-bar .c-admin-action-design { margin-left: 4px; border-left: 1px solid #ffffff14; border-radius: 0 8px 8px 0; }
+.c-admin-dropdown { position: relative; }
+.c-admin-dropdown > summary { display: flex; align-items: center; gap: 9px; list-style: none; user-select: none; }
+.c-admin-dropdown > summary::-webkit-details-marker { display: none; }
+.c-admin-dropdown > summary > svg:last-child { width: 14px; height: 14px; }
+.c-admin-dropdown[open] > summary > svg:last-child { transform: rotate(180deg); }
+.c-admin-language { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 7px; color: #cbd5e1; background: #ffffff06; white-space: nowrap; }
+.c-admin-dropdown-panel { position: absolute; right: 0; top: calc(100% + 14px); z-index: 1; min-width: 180px; padding: 6px; background: #111c30; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 12px 28px #02061740; }
+.c-admin-dropdown-panel .c-admin-action { display: flex; justify-content: space-between; }
+.c-admin-dropdown-panel .c-admin-action[aria-current] { background: #ffffff0a; color: #fbbf24; }
+.c-admin-account { grid-area: account; padding-left: 16px; border-left: 1px solid #ffffff14; }
+.c-admin-account > summary { padding: 4px 0; }
+.c-admin-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; border: 1px solid #ffffff12; border-radius: 50%; background: linear-gradient(135deg, #334155, #1e293b); color: #f1f5f9; font-size: 12px; font-weight: 700; }
+.c-admin-username { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1500px) {
+  .c-site:has(> .c-preview-bar) { --c-admin-offset: 116px; }
+  .c-admin-shell { height: 100px; grid-template-areas: "brand mode context meta account" "actions actions actions actions actions"; grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-rows: 54px 44px; gap: 0 16px; }
+  .c-preview-actions { border-top: 1px solid #ffffff12; }
+  .c-preview-bar .c-admin-action { padding: 8px 12px; }
+}
+@media (max-width: 720px) {
+  .c-site:has(> .c-preview-bar) { --c-admin-offset: 152px; }
+  .c-preview-bar { padding: 6px; }
+  .c-admin-shell { height: 140px; padding: 0 10px; grid-template-areas: "brand mode account" "context meta meta" "actions actions actions"; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: 50px 44px 44px; gap: 0 10px; border-radius: 10px; }
+  .c-admin-brand { gap: 4px; padding-right: 0; border: 0; }
+  .c-admin-brand img { width: 115px; height: 26px; }
+  .c-admin-brand > svg, .c-admin-username, .c-admin-account > summary > svg { display: none; }
+  .c-admin-account { border: 0; padding-left: 0; }
+  .c-admin-mode { padding: 7px 9px; font-size: 12px; }
+  .c-admin-context { gap: 7px; }
+  .c-admin-context > svg { display: none; }
+  .c-admin-meta { gap: 5px; justify-content: flex-end; }
+  .c-admin-status { padding: 5px 7px; font-size: 11px; }
+  .c-admin-language { padding: 5px; font-size: 12px; }
+  .c-preview-actions { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #475569 transparent; }
+  .c-preview-bar .c-admin-action { gap: 7px; padding: 8px 9px; font-size: 12px; }
+}
+@media print { .c-preview-bar { display: none; } .c-site:has(> .c-preview-bar) { --c-admin-offset: 0px; } }
 .c-preview-main { border: 2px dashed var(--c-border); border-radius: var(--radius-box); padding: var(--space-2xl) var(--space-md); text-align: center; color: var(--c-muted); }
 /* Room to scroll, so a sticky or floating header can be tried out while editing it. */
 .c-view-region-preview:has(.c-header .c-sticky, .c-header .c-overlap) .c-preview-main { min-height: 160vh; }
