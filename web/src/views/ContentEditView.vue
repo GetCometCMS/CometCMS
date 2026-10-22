@@ -178,7 +178,10 @@
               required
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.title }"
+              :aria-invalid="!!fieldErrors.title || undefined"
             />
+            <p v-if="fieldErrors.title" class="mt-1 text-xs text-red-600">{{ fieldErrors.title }}</p>
           </div>
 
           <div>
@@ -192,7 +195,10 @@
               type="text"
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.slug }"
+              :aria-invalid="!!fieldErrors.slug || undefined"
             />
+            <p v-if="fieldErrors.slug" class="mt-1 text-xs text-red-600">{{ fieldErrors.slug }}</p>
           </div>
 
 
@@ -208,6 +214,7 @@
                 {{ s.label }}
               </option>
             </select>
+            <p v-if="fieldErrors.status" class="mt-1 text-xs text-red-600">{{ fieldErrors.status }}</p>
           </div>
 
           <div v-if="isNew && contentTypeLocales.length > 0">
@@ -272,6 +279,7 @@
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
             />
+            <p v-if="fieldErrors.published_at" class="mt-1 text-xs text-red-600">{{ fieldErrors.published_at }}</p>
           </div>
         </div>
 
@@ -316,9 +324,78 @@
         </div>
       </div>
 
+      <!-- Entries with page content design their own page; the layout around it is shared. -->
+      <section
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageAreas.length"
+        class="card page-builder-cta page-builder-overview"
+        :aria-label="t('site.page.layoutAndContent')"
+      >
+        <div class="page-builder-overview-main">
+          <div class="page-builder-overview-content">
+            <h2 class="page-builder-overview-heading">{{ t('site.page.layoutAndContent') }}</h2>
+            <div class="page-builder-overview-areas">
+              <button
+                v-for="field in pageAreas"
+                :key="field.key"
+                type="button"
+                class="page-builder-overview-area"
+                :aria-pressed="activePageArea?.key === field.key"
+                @click="selectedPageArea = field.key"
+              >
+                <span class="page-builder-overview-icon" aria-hidden="true">
+                  <Icon icon="mdi:file-document-outline" class="h-7 w-7" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-slate-900">{{ field.label }}</span>
+                  <span class="page-builder-cta-description mt-1 block text-sm text-slate-500">
+                    {{ t(field.customized ? 'site.page.ownHint' : 'site.page.defaultHint') }}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="page-builder-overview-actions">
+            <div class="page-builder-overview-illustration" aria-hidden="true">
+              <span class="page-builder-overview-pencil"><Icon icon="mdi:pencil-outline" class="h-7 w-7" /></span>
+            </div>
+            <template v-if="!isReadOnly && activePageArea">
+              <router-link
+                :to="pageLink(activePageArea.key)"
+                class="btn-primary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.editInBuilder', { label: activePageArea.label })"
+              >
+                <Icon icon="mdi:square-edit-outline" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.design') }}
+                <Icon icon="mdi:arrow-right" class="ml-auto h-5 w-5 shrink-0" aria-hidden="true" />
+              </router-link>
+              <button
+                v-if="activePageArea.customized"
+                type="button"
+                class="btn-secondary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.resetArea', { label: activePageArea.label })"
+                :disabled="resettingPage"
+                @click="pendingPageReset = activePageArea.key"
+              >
+                <Icon icon="mdi:restore" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.reset') }}
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="page-builder-overview-footer">
+          <span class="page-builder-overview-icon" aria-hidden="true"><Icon icon="mdi:layers-triple-outline" class="h-6 w-6" /></span>
+          <p class="page-builder-cta-description text-sm text-slate-500">
+            {{ t('site.page.layoutHint') }}
+            <router-link :to="designLink" class="inline-flex items-center gap-1.5 font-semibold text-theme-700 hover:underline">
+              {{ t('site.page.editLayout') }}
+              <Icon icon="mdi:open-in-new" class="h-4 w-4 shrink-0" aria-hidden="true" />
+            </router-link>
+          </p>
+        </div>
+      </section>
       <!-- Pages and collection entries keep their design action alongside their content. -->
       <PageBuilderCta
-        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        v-else-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
         :title="t('site.builderCta.title')"
         :description="t('site.entry.editDesignHint')"
         :to="designLink"
@@ -394,6 +471,16 @@
       :cancel-label="t('unsaved.stay')"
       variant="warning"
       @confirm="confirmLeave"
+    />
+    <ConfirmModal
+      :model-value="pendingPageReset !== ''"
+      :title="t('site.page.resetTitle')"
+      :message="t('site.page.resetEntryMessage')"
+      :confirm-label="t('site.page.reset')"
+      :loading="resettingPage"
+      variant="warning"
+      @update:model-value="(open) => { if (!open) pendingPageReset = '' }"
+      @confirm="resetPage"
     />
     <ConfirmModal
       v-model="showDeleteModal"
@@ -603,10 +690,11 @@ import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
+import { hasEntryDraftChanges } from "../composables/entryDraftChanges.js";
 import { languageTabItem } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import TranslationInfo from "../components/TranslationInfo.vue";
-import { entryForLocale } from "../composables/localizedValues.js";
+import { entryForLocale, resolveLocalized } from "../composables/localizedValues.js";
 import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -766,38 +854,31 @@ function selectLocaleTab(tab) {
   }
 }
 
-function populateFormFromLocale(entry, loc) {
-  const source = entryForLocale(entry, loc, defaultLocale.value);
-  form.value = { author_id: entry.author_id, title: source.title ?? '', slug: source.slug ?? '', status: source.status, published_at: source.published_at ? toDatetimeLocal(source.published_at) : '', locale: loc };
-  for (const [name, config] of Object.entries(customSchema.value)) form.value[name] = fieldValueForForm(source[name] ?? null, config);
-  resetFields.value = [];
+function formFromEntry(entry, loc = "") {
+  const source = contentTypeLocales.value.length > 0 && loc
+    ? entryForLocale(entry, loc, defaultLocale.value)
+    : { ...revisionFieldSource(entry), status: entry.status, slug: entry.slug, published_at: entry.published_at };
+  const values = {
+    status: source.status ?? "draft",
+    slug: source.slug ?? "",
+    published_at: source.published_at ? toDatetimeLocal(source.published_at) : "",
+    author_id: entry.author_id ?? null,
+    locale: loc,
+    title: source.title ?? "",
+  };
+  for (const [name, config] of Object.entries(customSchema.value)) {
+    values[name] = fieldValueForForm(source[name] ?? null, config);
+  }
+  return applyFieldDefaults(values);
+}
 
+function populateFormFromLocale(entry, loc) {
+  form.value = formFromEntry(entry, loc);
+  resetFields.value = [];
 }
 
 function populateFormFromEntry(entry, loc = "") {
-  form.value = {
-    status: entry.status ?? "draft",
-    slug: entry.slug ?? "",
-    published_at: entry.published_at ? toDatetimeLocal(entry.published_at) : "",
-    author_id: entry.author_id ?? form.value.author_id,
-    locale: loc,
-    title: "",
-  };
-
-  if (contentTypeLocales.value.length > 0 && loc) {
-    populateFormFromLocale(entry, loc);
-  } else {
-    const source = revisionFieldSource(entry);
-    form.value.title = source.title ?? "";
-    for (const name of Object.keys(customSchema.value)) {
-      form.value[name] = fieldValueForForm(
-        source[name] ?? null,
-        customSchema.value[name],
-      );
-    }
-  }
-
-  form.value = applyFieldDefaults(form.value);
+  populateFormFromLocale(entry, loc);
 }
 
 function switchLocale(loc) {
@@ -939,23 +1020,29 @@ async function confirmDeleteTranslation() {
     pendingDeleteLocale.value = "";
   }
 }
-const isDirty = ref(false);
+const formLoaded = ref(false);
+const newEntryBaseline = ref(null);
+const isDirty = computed(() => {
+  if (!formLoaded.value) return false;
+  const base = liveEntryBeforeRestore.value ?? fullEntry.value;
+  const drafts = {
+    ...localeDrafts.value,
+    [currentLocale.value]: { form: form.value, resets: resetFields.value },
+  };
+  return hasEntryDraftChanges(
+    drafts,
+    (language) => base ? formFromEntry(base, language) : newEntryBaseline.value,
+    (language) => !isNew.value && contentTypeLocales.value.length > 0 && !base?.publication?.[language],
+  );
+});
 const {
   leavePromptOpen,
   confirmLeave,
   bypass: bypassLeaveGuard,
 } = useUnsavedChangesGuard(isDirty);
-let _formLoaded = false;
 const entryMeta = ref({ created_at: null, updated_at: null, id: null });
 const contentTypeSchema = ref(null);
 
-watch(
-  form,
-  () => {
-    if (_formLoaded) isDirty.value = true;
-  },
-  { deep: true },
-);
 const customSchema = ref({});
 const fieldErrors = ref({});
 const loadError = ref("");
@@ -983,8 +1070,61 @@ const siteLinks = ref(null);
 // The type's page layout in the builder, previewed with this entry.
 const designLink = computed(() => ({
   path: `/page-builder/builder/layout/${collection}/detail`,
-  query: { entry: entryId.value, back: route.fullPath },
+  // Builders name entries by stable ID; slugs differ between languages.
+  query: { entry: fullEntry.value?.uid || entryId.value, back: route.fullPath },
 }));
+
+/** The type's page fields and whether this entry has page content of its own in each. */
+const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields ?? {})
+  .filter(([, config]) => config?.type === "page")
+  .map(([key, config]) => ({
+    key,
+    label: !config.label || config.label === "Page content" || config.label === "site.page.fieldLabel"
+      ? t("site.page.fieldLabel")
+      : resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
+    customized: (fullEntry.value?.values?.[key]?.nodes?.length ?? 0) > 0,
+  })));
+
+/** Page fields with an area in the entry page layout, and any this entry already designed. */
+const pageAreas = computed(() => {
+  const placed = siteLinks.value?.page_fields;
+  // Without any area, the page builder explains how to place one.
+  if (!placed?.length) return pageFields.value;
+  return pageFields.value.filter((field) => placed.includes(field.key) || field.customized);
+});
+
+// A single action panel follows the selected content area.
+const selectedPageArea = ref("");
+const activePageArea = computed(() => pageAreas.value.find((field) => field.key === selectedPageArea.value) ?? pageAreas.value[0]);
+
+function pageLink(field) {
+  return {
+    path: `/page-builder/builder/page/${collection}/${fullEntry.value?.uid || entryId.value}`,
+    query: { field, back: route.fullPath },
+  };
+}
+
+const pendingPageReset = ref("");
+const resettingPage = ref(false);
+
+/** Back to the layout's default content; the entry's other unsaved edits stay in the form. */
+async function resetPage() {
+  const field = pendingPageReset.value;
+  if (!field || resettingPage.value || !fullEntry.value) return;
+  resettingPage.value = true;
+  try {
+    const res = await api.site.resetPage(collection, fullEntry.value.uid || entryId.value, field, fullEntry.value.revision);
+    fullEntry.value = { ...fullEntry.value, revision: res.data.revision, values: { ...fullEntry.value.values, [field]: null } };
+    // Saving the form while a restored version is shown builds on the live entry.
+    if (liveEntryBeforeRestore.value) liveEntryBeforeRestore.value = { ...liveEntryBeforeRestore.value, revision: res.data.revision };
+    pendingPageReset.value = "";
+    toast.success(t("site.page.resetDone"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    resettingPage.value = false;
+  }
+}
 
 async function loadSiteLinks() {
   if (isNew.value || !entryId.value) {
@@ -1015,9 +1155,10 @@ onMounted(async () => {
     const typeRes = await api.contentTypes.get(collection);
     contentTypeSchema.value = typeRes.data;
     const builtins = new Set(["title", "slug"]);
+    // Page content is designed in the page builder, not edited as a form field.
     customSchema.value = Object.fromEntries(
       Object.entries(typeRes.data.fields ?? {}).filter(
-        ([k]) => !builtins.has(k),
+        ([k, config]) => !builtins.has(k) && config?.type !== "page",
       ),
     );
     contentTypeLocales.value = typeRes.data.locales ?? [];
@@ -1049,37 +1190,15 @@ onMounted(async () => {
         contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
-      form.value = {
-        status: entry.status ?? "draft",
-        slug: entry.slug ?? "",
-        published_at: entry.published_at
-          ? toDatetimeLocal(entry.published_at)
-          : "",
-        author_id: entry.author_id ?? null,
-        locale: initLocale,
-        title: "",
-      };
-
-      if (contentTypeLocales.value.length > 0 && initLocale) {
-        populateFormFromLocale(entry, initLocale, defaultLocale.value);
-      } else {
-        form.value.title = entry.title ?? "";
-        for (const name of Object.keys(customSchema.value)) {
-          form.value[name] = fieldValueForForm(
-            entry[name] ?? null,
-            customSchema.value[name],
-          );
-        }
-      }
-
-      form.value = applyFieldDefaults(form.value);
+      form.value = formFromEntry(entry, initLocale);
     } catch (err) {
       loadError.value = err.message;
     }
   }
 
   await nextTick();
-  _formLoaded = true;
+  newEntryBaseline.value = cloneLocaleValue(form.value);
+  formLoaded.value = true;
 });
 
 onBeforeUnmount(() => {
@@ -1116,7 +1235,7 @@ async function handleSave() {
     if (isNew.value) {
       const res = await api.content.create(collection, payloadForSave());
       toast.success(t("contentEdit.entryCreated"));
-      isDirty.value = false;
+      newEntryBaseline.value = cloneLocaleValue(form.value);
       router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
     } else {
       const drafts = { ...localeDrafts.value, [currentLocale.value]: { form: cloneLocaleValue(form.value), resets: [...resetFields.value] } };
@@ -1137,12 +1256,12 @@ async function handleSave() {
       const res = { data: latest };
       localeDrafts.value = {};
       toast.success(t("contentEdit.entrySaved"));
-      isDirty.value = false;
       fullEntry.value = res.data;
       delete localeDrafts.value[currentLocale.value];
       resetFields.value = [];
       liveEntryBeforeRestore.value = null;
       previewingRevision.value = null;
+      populateFormFromEntry(res.data, currentLocale.value);
       entryMeta.value = {
         created_at: res.data.created_at ?? null,
         updated_at: res.data.updated_at ?? null,
@@ -1153,9 +1272,9 @@ async function handleSave() {
       }
     }
   } catch (err) {
-    saveError.value = err.message;
+    saveError.value = errorMessage(err);
     fieldErrors.value = err.fields ?? {};
-    toast.error(err.message);
+    toast.error(saveError.value);
   } finally {
     saving.value = false;
   }
@@ -1226,6 +1345,19 @@ function payloadForSave(values = form.value, language = currentLocale.value, res
   return payload;
 }
 
+/** A failed save names the fields it is about, so they can be found even where the form has no place for the message. */
+function errorMessage(err) {
+  const fields = Object.entries(err.fields ?? {});
+  if (!fields.length) return err.message;
+  const label = (name) => {
+    if (["title", "slug", "status"].includes(name)) return t(`contentEdit.${name}`);
+    if (name === "published_at") return t("contentEdit.publishedAt");
+    const config = contentTypeSchema.value?.fields?.[name];
+    return resolveLocalized(config?.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || name;
+  };
+  return fields.map(([name, message]) => `${label(name)}: ${message}`).join(" ");
+}
+
 function fieldValueForForm(value, config) {
   if (config?.type === "datetime" && value) {
     return toDatetimeLocal(value);
@@ -1255,10 +1387,10 @@ async function cancelRestore() {
     populateFormFromEntry(currentEntry, restoreLocale);
   }
 
+  localeDrafts.value = {};
+  resetFields.value = [];
   liveEntryBeforeRestore.value = null;
   previewingRevision.value = null;
-  await nextTick();
-  isDirty.value = false;
 }
 
 function applyFieldDefaults(source) {
@@ -1311,6 +1443,8 @@ const currentVsFirstDiff = computed(() => {
   const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
   const changes = [];
   for (const key of allKeys) {
+    // The form never holds page content; it is saved from the page builder.
+    if (pageFields.value.some((field) => field.key === key)) continue;
     if (
       JSON.stringify(normDiffVal(current[key])) !==
       JSON.stringify(normDiffVal(previous[key]))
@@ -1365,6 +1499,7 @@ function formatRevVal(v) {
   if (typeof v === "boolean") return v ? "true" : "false";
   if (Array.isArray(v))
     return `[${t("contentEdit.items", { count: v.length })}]`;
+  if (Array.isArray(v.nodes)) return t("site.page.own");
   if (typeof v === "object") return "{…}";
   const s = String(v);
   return s.length > 35 ? s.slice(0, 35) + "…" : s;
@@ -1411,3 +1546,5 @@ function formatDateTime(iso) {
   });
 }
 </script>
+
+<style scoped src="../components/site/pageBuilderCta.css"></style>

@@ -82,7 +82,7 @@ test('new workspace website starter creates pages and a working homepage without
     assert_same('new-site', $json['data']['slug']);
     assert_same(['pages'], array_column($state['types'], 'name'));
     assert_same([false], array_column($state['types'], 'api_enabled'));
-    assert_same(['title', 'slug', 'intro', 'body'], array_keys($state['types'][0]['fields']));
+    assert_same(['title', 'slug', 'intro', 'body', 'page_content'], array_keys($state['types'][0]['fields']));
     $slugs = array_column($state['pages'], 'slug');
     sort($slugs);
     assert_same(['about', 'hello-world', 'landing-page'], $slugs);

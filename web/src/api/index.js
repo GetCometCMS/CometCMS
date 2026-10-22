@@ -437,6 +437,12 @@ export const api = {
     layoutRevisions: (type, variant) => request('GET', `/site/layouts/${type}/${variant}/revisions`),
     layoutRevision: (type, variant, id) => request('GET', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`),
     restoreLayoutRevision: (type, variant, id) => request('POST', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`),
+    /** An entry's own page content ({ field } picks the page field; the type's first by default). */
+    page:         (type, id, field = '') => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}`, field ? { field } : {})),
+    savePage:     (type, id, field, nodes, revision) => request('PUT', `/site/pages/${type}/${encodeURIComponent(id)}`, { field, nodes, revision }),
+    resetPage:    (type, id, field, revision) => request('DELETE', `/site/pages/${type}/${encodeURIComponent(id)}`, { field, revision }),
+    pageRevisions: (type, id, field) => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}/revisions`, { field })),
+    pageRevision: (type, id, field, revision) => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}`, { field })),
     region:       (region)               => request('GET',    `/site/regions/${region}`),
     saveRegion:   (region, nodes, revision)        => request('PUT',    `/site/regions/${region}`, { nodes, revision }),
     resetRegion:  (region)               => request('DELETE', `/site/regions/${region}`),

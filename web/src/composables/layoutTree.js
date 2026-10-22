@@ -50,6 +50,9 @@ export function isStructure(kind) {
 
 export const COMPONENT = 'component'
 
+/** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
+export const PAGE_CONTENT = 'page_content'
+
 /** The kind a node is placed as: a component instance counts as its root kind. */
 export function placementKind(node) {
   if (node?.kind !== COMPONENT) return node?.kind
@@ -101,7 +104,9 @@ export function canContain(spec, parent, kind, { isTemplateField = () => false, 
 export function rowDepth(nodes, parentId) {
   if (parentId === null) return 0
   const parent = findNode(nodes, parentId)
-  return [...ancestors(nodes, parentId), parent].filter((node) => placementKind(node) === 'row').length
+  const chain = [...ancestors(nodes, parentId), parent]
+  // Page content starts its own sections, so rows around it don't count.
+  return chain.slice(chain.findLastIndex((node) => node?.kind === PAGE_CONTENT) + 1).filter((node) => placementKind(node) === 'row').length
 }
 
 /** The collection whose card contains `id`, if any. */
@@ -197,7 +202,7 @@ export function wrapFor(spec, parentKind, node) {
     if (allowedChildren(spec, parentKind).includes(kind)) return current
     const wrapper = isStructure(kind) ? WRAPPER[kind] : 'column'
     if (!wrapper) return null
-    if (parentKind !== ROOT && !isStructure(parentKind)) return null
+    if (parentKind !== ROOT && parentKind !== PAGE_CONTENT && !isStructure(parentKind)) return null
     // Never wrap upwards past the parent's own level.
     if (structureLevel(wrapper) <= structureLevel(parentKind)) return null
     current = createNode(spec, wrapper, {}, {}, [current])
@@ -206,7 +211,7 @@ export function wrapFor(spec, parentKind, node) {
 }
 
 function structureLevel(kind) {
-  return { root: 0, section: 1, row: 2, column: 3 }[kind] ?? 4
+  return { root: 0, [PAGE_CONTENT]: 0, section: 1, row: 2, column: 3 }[kind] ?? 4
 }
 
 /**

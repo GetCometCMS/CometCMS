@@ -117,10 +117,12 @@ const routes = [
     redirect: (to) => ({ path: `/page-builder/builder/layout/${to.params.name}/index`, query: to.query }),
   },
   {
-    // Full-screen editor for a content type layout, the header/footer or a component.
-    path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',
+    // Full-screen editor for a content type layout, the header/footer, a component,
+    // or one entry's page content (/page/:type/:entry, ?field= picks the page field).
+    path: '/page-builder/builder/:target(layout|region|component|page)/:name/:variant?',
     component: () => import('../views/PageBuilderEditorView.vue'),
-    meta: { requiresAuth: true, bare: true },
+    // One editor for all builder pages: it loads the next page in place instead of remounting.
+    meta: { requiresAuth: true, bare: true, viewKey: 'page-builder-editor' },
   },
   {
     path: '/website/:tab(general|seo|workspaces)?',

@@ -40,6 +40,7 @@ test('field registry exposes built-in field types', function (): void {
             'relation',
             'repeater',
             'color',
+            'page',
         ],
         $registry->names()
     );

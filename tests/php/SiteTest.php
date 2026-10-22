@@ -1269,9 +1269,10 @@ $site = new \CometCMS\Site\SiteRepository();
 PHP;
     foreach ([
         ["['type' => '', 'entry' => '']", null],
-        ["['type' => 'pages', 'entry' => 'welcome']", '/page-builder/builder/layout/pages/detail?entry=welcome'],
-        ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '/page-builder/builder/layout/pages/detail?entry=welcome'],
-        ["['type' => 'pages', 'entry' => '']", '/page-builder/builder/layout/pages/index'],
+        // The builder names the entry by its stable ID, whichever way the setting does.
+        ["['type' => 'pages', 'entry' => 'welcome']", '#^/page-builder/builder/layout/pages/detail\\?entry=(?!welcome$)[A-Za-z0-9_-]+$#'],
+        ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '#^/page-builder/builder/layout/pages/detail\\?entry=(?!welcome$)[A-Za-z0-9_-]+$#'],
+        ["['type' => 'pages', 'entry' => '']", '#^/page-builder/builder/layout/pages/index$#'],
         ["['type' => 'pages', 'entry' => 'deleted']", null],
     ] as [$homepage, $expected]) {
         [$status, $json] = comet_admin_request('admin',
@@ -1280,6 +1281,7 @@ PHP;
             '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->status();');
         assert_same(200, $status);
         assert_true($json['data']['can_manage']);
-        assert_same($expected, $json['data']['homepage_editor']);
+        if ($expected === null) assert_null($json['data']['homepage_editor']);
+        else assert_matches($expected, (string) $json['data']['homepage_editor']);
     }
 });

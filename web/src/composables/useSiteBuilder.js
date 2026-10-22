@@ -4,6 +4,7 @@ import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
+  PAGE_CONTENT,
   ancestors,
   applyColumnPreset,
   clone,
@@ -26,6 +27,7 @@ import {
   stackColumns,
   templateCollection,
   usesCurrentEntry,
+  walk,
 } from './layoutTree.js'
 
 const KEY = Symbol('site-builder')
@@ -59,7 +61,7 @@ const MAX_FALLBACK = 2000
  *
  * `fieldApi` connects content types: can(type) tells whether the user may
  * change a content type, create({ type, key, config }) adds a field to it
- * and returns the type's saved schema.
+ * and update({ type, key, config }) changes one; both return the type's saved schema.
  *
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
@@ -86,6 +88,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const componentDialog = ref(null)
   /** Element waiting for a name before its content becomes a field: { id }. */
   const fieldDialog = ref(null)
+  /** Why a new page content element could not get a field of its own. */
+  const pageFieldError = ref('')
   const locale = ref('')
   const defaultLocale = computed(() => settings.value?.default_locale || 'en')
   // The default language edits the shared design; every other language only translates its texts.
@@ -249,11 +253,19 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     ]
 
     for (const [key, config] of Object.entries(fields)) {
-      if (key === 'title' || key === 'slug' || key === slugField || !config) continue
+      // Page content is placed with its own element, not bound like a field.
+      if (key === 'title' || key === 'slug' || key === slugField || !config || config.type === 'page') continue
       list.push({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key, type: config.type ?? 'text', config })
     }
 
     return list
+  }
+
+  /** Page fields of the edited type: where each entry's own page content is stored. */
+  function pageFields() {
+    return Object.entries(type.value?.fields ?? {})
+      .filter(([, config]) => config?.type === 'page')
+      .map(([key, config]) => ({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key }))
   }
 
   /** The repeater field node whose item template contains `id`, if any. */
@@ -289,9 +301,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   const dropOptions = { isTemplateField }
 
-  /** Drop containers: structure, tabs, item templates and lists without a card yet. */
+  /** Drop containers: structure, tabs, item templates, page content and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || ['tabs', 'tab'].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
   }
 
   /** The single root of a component's tree stays where it is. */
@@ -299,9 +311,89 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return !!rootKind.value && nodes.value[0]?.id === id
   }
 
-  /** Whether a resolved drop may happen: nothing joins a component's root. */
+  /**
+   * Whether a resolved drop may happen: nothing joins a component's root,
+   * and page content goes neither into page content, cards or item templates
+   * nor twice into one layout for the same field.
+   */
   function placeable(result) {
-    return !!result && !(rootKind.value && result.parentId === null)
+    if (!result || (rootKind.value && result.parentId === null)) return false
+    const places = []
+    walk([result.node], (node) => { if (node.kind === PAGE_CONTENT) places.push(node) })
+    if (!places.length) return true
+    const parent = result.parentId ? findNode(nodes.value, result.parentId) : null
+    const around = parent ? [...ancestors(nodes.value, parent.id), parent] : []
+    if (around.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
+    return places.every((place) => !place.props?.field || !findPlace(place.props.field, place.id))
+  }
+
+  /** The page content element showing `field`, other than the one with id `except`. */
+  function findPlace(field, except = null) {
+    let found = null
+    walk(nodes.value, (node) => {
+      if (node.kind === PAGE_CONTENT && node.props?.field === field && node.id !== except) found = node
+      return !found
+    })
+    return found
+  }
+
+  /**
+   * A new page content element shows the first page field without a place.
+   * When every page field has one, the type gets another, if the user may change it.
+   */
+  async function assignPageField(id) {
+    const node = findNode(nodes.value, id)
+    if (node?.kind !== PAGE_CONTENT || node.props.field) return
+    const free = freePageFields(id)[0]
+    if (free) {
+      node.props.field = free.key
+      return
+    }
+    const key = await createPageField()
+    const placed = key && findNode(nodes.value, id)
+    if (placed) placed.props.field = key
+  }
+
+  /** Page fields page content element `id` may show: those no other element shows. */
+  function freePageFields(id) {
+    return pageFields().filter((field) => !findPlace(field.key, id))
+  }
+
+  function canAddPageField() {
+    return !!type.value && !!fieldApi.create && (fieldApi.can?.(type.value.name) ?? true)
+  }
+
+  /** Give page content element `id` a field of its own: an unplaced one, or a new one. */
+  async function setUpPageArea(id) {
+    const key = freePageFields(id)[0]?.key ?? await createPageField()
+    if (key && findNode(nodes.value, id)) updateValue(id, 'props', 'field', key)
+  }
+
+  /** Rename page field `key` in the edited language (an area's name for entries). */
+  async function renamePageField(key, label) {
+    const config = type.value?.fields?.[key]
+    const name = label.trim()
+    if (config?.type !== 'page' || !name || !fieldApi.update || !canAddPageField()) return
+    const current = config.label
+    const localized = (typeof current === 'object' && current !== null) || (!!locale.value && locale.value !== defaultLocale.value)
+    const next = { ...config, label: localized ? setLocalized(current, locale.value, name, defaultLocale.value) : name }
+    const schema = await fieldApi.update({ type: type.value.name, key, config: next })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...type.value.fields, [key]: next } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+  }
+
+  /** A new page field of the edited type; its key, or '' when the user may not add one. */
+  async function createPageField() {
+    if (!canAddPageField()) return ''
+    const existing = pageFields()
+    const fields = type.value.fields ?? {}
+    const key = uniqueKey('page_content', new Set(Object.keys(fields)), RESERVED_FIELDS)
+    // Further areas are numbered, so entries can tell them apart.
+    const label = existing.length ? `${t('site.page.fieldLabel')} ${existing.length + 1}` : t('site.page.fieldLabel')
+    const schema = await fieldApi.create({ type: type.value.name, key, config: { type: 'page', label } })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: { type: 'page', label } } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+    return key
   }
 
   // ─── Editing ───────────────────────────────────────────────────────────
@@ -374,7 +466,13 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
     selectedId.value = node.id
+    placed(node)
     return true
+  }
+
+  /** Give a newly placed page content element its field (see assignPageField()). */
+  function placed(node) {
+    if (node.kind === PAGE_CONTENT) assignPageField(node.id).catch((error) => pageFieldError.value = error.message)
   }
 
   /** Complete a drag: insert a palette node or move an existing one. */
@@ -390,6 +488,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       if (!placeable(result)) return false
       mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
       selectedId.value = node.id
+      placed(node)
       return true
     }
 
@@ -429,7 +528,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   function duplicate(id = selectedId.value) {
     if (translating.value) return false
-    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id))) return
+    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id)) || holdsPageContent(findNode(nodes.value, id))) return
     let copy = null
     mutate((tree) => {
       copy = duplicateNode(tree, id)
@@ -589,9 +688,16 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return component
   }
 
-  /** Whether a structure node can become a component (not a component's own root). */
+  /** Whether a structure node can become a component (not a component's own root, nor holding page content). */
   function canConvert(node) {
-    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
+    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !holdsPageContent(node) && !!componentApi.create
+  }
+
+  /** Whether `node` is or contains the page content place, which exists once per field and only in its layout. */
+  function holdsPageContent(node) {
+    let found = false
+    if (node) walk([node], (item) => !(found = item.kind === PAGE_CONTENT))
+    return found
   }
 
   /** Swap the node `id` for an instance of `component`, as one undo step. */
@@ -811,6 +917,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return t(`site.option.${props.width ?? 'contained'}`)
       case COMPONENT:
         return t('site.component.instanceOf', { kind: kindLabel(props.root) })
+      case PAGE_CONTENT:
+        return pageFields().find((field) => field.key === props.field)?.label ?? t('site.page.noField')
       default:
         return ''
     }
@@ -830,6 +938,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
     fieldDialog, canMakeField, convertToField,
+    pageFields, freePageFields, canAddPageField, setUpPageArea, renamePageField, pageFieldError, holdsPageContent,
   }
 
   provide(KEY, api)

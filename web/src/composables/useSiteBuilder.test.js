@@ -571,3 +571,116 @@ describe('builder localization', () => {
     expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Changed source')
   })
 })
+
+describe('builder page content', () => {
+  async function pageFixture({ fields = { design: { type: 'page', label: 'Design' } }, fieldApi = {} } = {}) {
+    let builder
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi }); return () => null } }))
+    builder.spec.value = { root: ['section', 'page_content'], kinds: {
+      section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] },
+      column: { props: {}, children: ['text', 'page_content'] }, text: { props: { html: { default: '' } }, children: [] },
+      page_content: { props: { field: { default: '' } }, children: ['section'] },
+    } }
+    builder.type.value = { name: 'pages', fields: { intro: { type: 'text' }, ...fields } }
+    builder.types.value = [builder.type.value]
+    builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])])
+    return builder
+  }
+
+  it('places page content once per field, never inside itself, and keeps it out of copies and components', async () => {
+    const builder = await pageFixture()
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await Promise.resolve()
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('design')
+    expect(builder.typeFields().map((field) => field.key)).not.toContain('design')
+
+    const column = builder.nodes.value[0].children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'design' }), column.id)).toBe(false)
+    const inner = builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])
+    expect(builder.insert(inner, place.id)).toBe(true)
+    const innerColumn = inner.children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'other' }), innerColumn.id)).toBe(false)
+
+    builder.select(place.id)
+    builder.duplicate()
+    expect(builder.nodes.value.filter((node) => node.kind === 'page_content')).toHaveLength(1)
+    expect(builder.holdsPageContent(place)).toBe(true)
+    expect(builder.holdsPageContent(builder.nodes.value[0])).toBe(false)
+    expect(builder.isDropContainer(place)).toBe(true)
+  })
+
+  it('wraps an element dropped into page content in a section', async () => {
+    const builder = await pageFixture()
+    const column = builder.nodes.value[0].children[0].children[0]
+    const place = builder.make('page_content')
+    expect(builder.insert(place, column.id)).toBe(true)
+
+    const text = builder.make('text')
+    builder.drag.value = { source: 'palette', create: () => text }
+    expect(builder.dropAt(place.id, 'inside')).toBe(true)
+    const section = findNode(builder.nodes.value, place.id).children[0]
+    expect(section.kind).toBe('section')
+    expect(section.children[0].children[0].children[0].id).toBe(text.id)
+  })
+
+  it('renames a page field as the name of its area', async () => {
+    const updated = []
+    const builder = await pageFixture({
+      fieldApi: { can: () => true, create: async () => null, update: async ({ type, key, config }) => { updated.push({ type, key, config }); return null } },
+    })
+    await builder.renamePageField('design', '  Sidebar  ')
+    expect(updated).toEqual([{ type: 'pages', key: 'design', config: { type: 'page', label: 'Sidebar' } }])
+    expect(builder.pageFields().find((field) => field.key === 'design').label).toBe('Sidebar')
+
+    // Other languages keep the name of the default language.
+    builder.defaultLocale.value = 'en'
+    builder.locale.value = 'de'
+    await builder.renamePageField('design', 'Seitenleiste')
+    expect(builder.type.value.fields.design.label.values).toEqual({ en: 'Sidebar', de: 'Seitenleiste' })
+    await builder.renamePageField('intro', 'Not a page field')
+    expect(updated).toHaveLength(2)
+  })
+
+  it('gives a type without a page field one when the page content element is placed', async () => {
+    const created = []
+    const builder = await pageFixture({
+      fields: {},
+      fieldApi: {
+        can: () => true,
+        create: async ({ type, key, config }) => {
+          created.push({ type, key, config })
+          return { fields: { ...builder.type.value.fields, [key]: config } }
+        },
+      },
+    })
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created).toEqual([{ type: 'pages', key: 'page_content', config: { type: 'page', label: 'site.page.fieldLabel' } }])
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('page_content')
+    expect(builder.pageFields().map((field) => field.key)).toEqual(['page_content'])
+
+    const second = builder.make('page_content')
+    expect(builder.insert(second, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created[1]).toEqual({ type: 'pages', key: 'page_content_2', config: { type: 'page', label: 'site.page.fieldLabel 2' } })
+    expect(findNode(builder.nodes.value, second.id).props.field).toBe('page_content_2')
+
+    // Setting up an area without a field takes an unplaced field before adding one.
+    const third = builder.make('page_content', { field: '' })
+    builder.load([...builder.nodes.value, third])
+    expect(builder.freePageFields(third.id)).toEqual([])
+    expect(builder.freePageFields(place.id).map((field) => field.key)).toEqual(['page_content'])
+    await builder.setUpPageArea(third.id)
+    expect(findNode(builder.nodes.value, third.id).props.field).toBe('page_content_3')
+    expect(builder.isDirty.value).toBe(true)
+
+    // A field whose area was removed is reused by the next one.
+    const fourth = builder.make('page_content', { field: '' })
+    builder.load([...builder.nodes.value.filter((node) => node.id !== second.id), fourth])
+    await builder.setUpPageArea(fourth.id)
+    expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_2')
+    expect(created).toHaveLength(3)
+  })
+})

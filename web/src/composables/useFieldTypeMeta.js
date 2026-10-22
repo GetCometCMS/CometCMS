@@ -15,6 +15,7 @@ const FIELD_TYPE_ICONS = {
   repeater: 'mdi:view-list-outline',
   select: 'mdi:form-select',
   color: 'mdi:palette-outline',
+  page: 'mdi:file-document-edit-outline',
 }
 
 const FALLBACK_FIELD_TYPE_ICON = 'mdi:form-textbox'

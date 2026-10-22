@@ -31,6 +31,12 @@ final class SiteContext
     /** Draft previews of an entry carry a notice that the page is not live yet. */
     public bool $previewBanner = false;
 
+    /**
+     * The page builder of one entry: the page field it edits and the draft
+     * sections ({field, nodes}), shown instead of the entry's saved content.
+     */
+    public ?array $pageDraft = null;
+
     private array $overrides = [];
     private array $mediaItems = [];
     private array $entries = [];

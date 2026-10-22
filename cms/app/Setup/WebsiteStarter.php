@@ -21,13 +21,14 @@ final class WebsiteStarter
             'title' => ['type' => 'text', 'label' => 'Title', 'required' => true],
             'slug' => ['type' => 'slug', 'label' => 'Slug', 'required' => true, 'unique' => true],
             'intro' => ['type' => 'textarea', 'label' => 'Introduction'],
-            'body' => ['type' => 'markdown', 'label' => 'Page content'],
+            'body' => ['type' => 'markdown', 'label' => 'Text'],
         ];
+        // Each page can be designed on its own; until then it shows the layout with its text.
         $types->save([
             'name' => 'pages',
             'label' => 'Pages',
             'icon' => 'mdi:file-document-multiple-outline',
-            'fields' => $fields,
+            'fields' => $fields + ['page_content' => ['type' => 'page', 'label' => 'Page content']],
         ]);
         if ($includeEvents) {
             $types->save([

@@ -103,12 +103,12 @@ final class SiteController extends BaseController
         $variant = $homepage['entry'] !== '' ? 'detail' : 'index';
         $path = '/page-builder/builder/layout/' . rawurlencode($type['name']) . '/' . $variant;
         if ($homepage['entry'] !== '') {
-            $entry = ContentRepository::make($this->site->workspace())->findByIdentifier($type['name'], $homepage['entry']);
+            $entry = $this->findAdminEntry($type['name'], $homepage['entry']);
             if ($entry === null) {
                 return null;
             }
-            // Builder samples are selected by slug, even when settings use a stable ID.
-            $path .= '?entry=' . rawurlencode((string) $entry['id']);
+            // Builder samples are selected by stable ID, the same in every language.
+            $path .= '?entry=' . rawurlencode(ContentRepository::make($this->site->workspace())->stableId($entry));
         }
 
         return $path;
@@ -137,6 +137,8 @@ final class SiteController extends BaseController
             'url' => $url,
             'previewable' => $entry !== null && $context->isPublicType($type),
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
+            // Page fields with an area in the entry page layout.
+            'page_fields' => $routed ? array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail')))) : [],
         ]]);
     }
 
@@ -206,11 +208,14 @@ final class SiteController extends BaseController
             'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant)),
             'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
             'customized' => $this->site->layoutCustomized($type, $variant),
+            // Reset to default loads this as an edit, so it can be undone before saving.
+            'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
             'type' => $schema,
             'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
+            'sample' => $this->requestedSample($type),
             'index_url' => $this->liveUrl($context->indexUrl($type), $context),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
-            ...$this->builderContext(),
+            ...$this->builderContext($variant === 'detail'),
         ]]);
     }
 
@@ -234,6 +239,134 @@ final class SiteController extends BaseController
         $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => false]]);
     }
 
+    // ─── Page content of one entry ───────────────────────────────────────────
+
+    /**
+     * An entry's page content for the page builder: its own sections, or a
+     * copy of the layout's default content to start from. Query: field (the
+     * type's first page field when empty).
+     */
+    public function page(string $type, string $id): never
+    {
+        [$schema, $entry, $field] = $this->requirePage($type, $id, (string) ($_GET['field'] ?? ''));
+        $context = $this->context();
+        $value = $entry[$field] ?? null;
+        $customized = LayoutSchema::hasPageContent($value);
+
+        $this->json(['data' => [
+            'nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field),
+            'revision' => (string) ($entry['revision'] ?? ''),
+            'customized' => $customized,
+            'default_nodes' => $customized ? $this->defaultPage($type, $field) : null,
+            'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
+            'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]),
+            'field' => $field,
+            'samples' => $this->samples($type, $this->content()->stableId($entry)),
+            'type' => $schema,
+            'entry' => ['id' => $this->content()->stableId($entry), 'slug' => (string) ($entry['slug'] ?? $entry['id']), 'title' => self::entryLabel($entry), 'status' => (string) ($entry['status'] ?? 'draft')],
+            'home_url' => $this->liveUrl($context->homeUrl(), $context),
+            ...$this->builderContext(),
+        ]]);
+    }
+
+    /** Body: {field, nodes, revision}. Empty nodes go back to the layout's default content. */
+    public function updatePage(string $type, string $id): never
+    {
+        $body = $this->requestJson();
+        [, $entry, $field, $user] = $this->requirePage($type, $id, (string) ($body['field'] ?? ''));
+        $this->verifyCsrf();
+        $nodes = is_array($body['nodes'] ?? null) ? $body['nodes'] : [];
+        $saved = $this->validated(fn() => $this->content()->savePage($type, (string) $entry['id'], $field, $nodes, $user, isset($body['revision']) ? (string) $body['revision'] : null));
+        $this->logger->info('site.page_updated', ['type' => $type, 'id' => $entry['id'], 'field' => $field]);
+        $this->sendPage($type, $field, $saved);
+    }
+
+    /** Back to the layout's default content. Body: {field, revision}. */
+    public function resetPage(string $type, string $id): never
+    {
+        $body = $this->requestJson();
+        [, $entry, $field, $user] = $this->requirePage($type, $id, (string) ($body['field'] ?? ''));
+        $this->verifyCsrf();
+        $saved = $this->validated(fn() => $this->content()->savePage($type, (string) $entry['id'], $field, null, $user, isset($body['revision']) ? (string) $body['revision'] : null));
+        $this->logger->info('site.page_reset', ['type' => $type, 'id' => $entry['id'], 'field' => $field]);
+        $this->sendPage($type, $field, $saved);
+    }
+
+    /** The entry's saved versions, newest first, as the builder's history lists them. Query: field. */
+    public function pageRevisions(string $type, string $id): never
+    {
+        [, $entry, $field] = $this->requirePage($type, $id, (string) ($_GET['field'] ?? ''));
+        $revisions = array_map(static fn(array $revision): array => [
+            'id' => $revision['id'],
+            'created_at' => $revision['created_at'],
+            'created_by' => $revision['created_by'],
+            'event' => $revision['event'] === 'content.revision_restore' ? 'restored' : 'saved',
+            'customized' => LayoutSchema::hasPageContent($revision['entry'][$field] ?? null),
+        ], $this->content()->revisions($type, (string) $entry['id']));
+        usort($revisions, static fn(array $a, array $b): int => strcmp($b['id'], $a['id']));
+
+        $this->json(['data' => $revisions]);
+    }
+
+    public function pageRevision(string $type, string $id, string $revisionId): never
+    {
+        [, $entry, $field] = $this->requirePage($type, $id, (string) ($_GET['field'] ?? ''));
+        foreach ($this->content()->revisions($type, (string) $entry['id']) as $revision) {
+            if ($revision['id'] === $revisionId) {
+                $value = $revision['entry'][$field] ?? null;
+                $customized = LayoutSchema::hasPageContent($value);
+                $this->json(['data' => ['nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field), 'customized' => $customized]]);
+            }
+        }
+
+        $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
+    }
+
+    /**
+     * The type, entry and page field the page builder edits, for those who
+     * manage the website and may change this entry's page field.
+     *
+     * @return array{0: array, 1: array, 2: string, 3: array}
+     */
+    private function requirePage(string $type, string $id, string $field): array
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $schema = $this->requireType($type, 'detail');
+        $entry = $this->findAdminEntry($type, $id);
+        if ($entry === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
+        }
+        $fields = array_keys(array_filter($schema['fields'], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+        $field = $field !== '' ? $field : (string) ($fields[0] ?? '');
+        if (!in_array($field, $fields, true)) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'This content type has no page content field.']], 404);
+        }
+        $this->requirePermission('content.update', ['type' => 'content', 'collection' => $type, 'entry' => $entry, 'fields' => [$field], 'locale' => $this->content()->locale()]);
+
+        return [$schema, $entry, $field, $user];
+    }
+
+    /** A copy of the default content the detail layout shows in $field's place. */
+    private function defaultPage(string $type, string $field): array
+    {
+        return LayoutSchema::withNewIds(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]['children'] ?? []);
+    }
+
+    private function sendPage(string $type, string $field, array $entry): never
+    {
+        $customized = LayoutSchema::hasPageContent($entry[$field] ?? null);
+        $this->json(['data' => [
+            'nodes' => $customized ? LayoutSchema::pageNodes($entry[$field]) : $this->defaultPage($type, $field),
+            'revision' => (string) ($entry['revision'] ?? ''),
+            'customized' => $customized,
+        ]]);
+    }
+
+    private function content(): ContentRepository
+    {
+        return ContentRepository::make($this->site->workspace());
+    }
+
     public function region(string $region): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
@@ -246,6 +379,7 @@ final class SiteController extends BaseController
             'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->region($region)),
             'upgrade_required' => $this->site->needsRegionUpgrade($region),
             'customized' => $this->site->regionCustomized($region),
+            'default_nodes' => LayoutSchema::defaultRegion($region),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
@@ -305,6 +439,7 @@ final class SiteController extends BaseController
             'usages' => $this->site->componentUsages($id),
             'type' => $type,
             'samples' => $type !== null ? $this->samples((string) $type['name'], LayoutSchema::key($_GET['entry'] ?? '')) : [],
+            'sample' => $type !== null ? $this->requestedSample((string) $type['name']) : '',
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
@@ -502,8 +637,8 @@ final class SiteController extends BaseController
     }
 
     /**
-     * Render unsaved work. Body: {target: layout|region|component|page, type,
-     * variant, region, component, nodes, entry, locale, theme, menus, path}.
+     * Render unsaved work. Body: {target: layout|region|component|entry_page|page,
+     * type, variant, region, component, field, nodes, entry, locale, theme, menus, path}.
      */
     public function preview(): never
     {
@@ -565,12 +700,25 @@ final class SiteController extends BaseController
             $this->json(['data' => ['html' => $renderer->componentPreview($component, $schema, $entry)]]);
         }
 
+        if ($target === 'entry_page') {
+            $type = (string) ($body['type'] ?? '');
+            [$schema, , $field] = $this->requirePage($type, LayoutSchema::key($body['entry'] ?? ''), (string) ($body['field'] ?? ''));
+            $context->locale = $locale;
+            $context->pageDraft = ['field' => $field, 'nodes' => $this->validated(static fn() => LayoutSchema::normalize($body['nodes'] ?? []))];
+            $entry = $context->findEntry($type, $this->content()->stableId($this->findAdminEntry($type, LayoutSchema::key($body['entry'] ?? '')) ?? []), true);
+            if ($entry === null) {
+                $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
+            }
+
+            $this->json(['data' => ['html' => $renderer->pagePreview($schema, $entry, $field)]]);
+        }
+
         $type = (string) ($body['type'] ?? '');
         $variant = (string) ($body['variant'] ?? 'detail');
         $schema = $this->requireType($type, $variant);
 
         if (array_key_exists('nodes', $body)) {
-            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
+            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'], $variant === 'detail')));
         }
 
         $context->locale = $locale;
@@ -641,7 +789,8 @@ final class SiteController extends BaseController
         return SiteContext::make($this->site, rtrim($this->http->url('/'), '/'), $this->requestOrigin());
     }
 
-    private function builderContext(): array
+    /** What every builder page needs; $pageContent offers the page content place (detail layouts). */
+    private function builderContext(bool $pageContent = false): array
     {
         return [
             'settings' => $this->site->settings(),
@@ -649,7 +798,7 @@ final class SiteController extends BaseController
             'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
             'locales' => $this->site->settings()['locales'],
             'default_locale' => $this->site->settings()['default_locale'],
-            'spec' => LayoutSchema::spec(),
+            'spec' => LayoutSchema::spec($pageContent),
             'components' => $this->site->components(),
             'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
         ];
@@ -666,24 +815,61 @@ final class SiteController extends BaseController
         return $component;
     }
 
-    /** Recent entries to preview with; `$ensure` keeps a requested entry in the list. */
+    /**
+     * Recent entries to preview with; `$ensure` keeps a requested entry in the
+     * list. They are named by stable ID: slugs differ between languages and
+     * may equal another entry's file name.
+     */
     private function samples(string $type, string $ensure = ''): array
     {
         $content = ContentRepository::make($this->site->workspace());
         $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
 
-        if ($ensure !== '' && !in_array($ensure, array_map(static fn(array $entry): string => (string) ($entry['slug'] ?? $entry['id'] ?? ''), $entries), true)) {
+        if ($ensure !== '') {
             $requested = $content->findByIdentifier($type, $ensure);
-            if ($requested !== null) {
+            $ids = array_map($content->stableId(...), $entries);
+            if ($requested !== null && !in_array($content->stableId($requested), $ids, true)) {
                 array_unshift($entries, $requested);
             }
         }
 
         return array_map(static fn(array $entry): array => [
-            'id' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
-            'title' => (string) ($entry['title'] ?? ''),
+            'id' => $content->stableId($entry),
+            'title' => self::entryLabel($entry),
             'status' => (string) ($entry['status'] ?? 'draft'),
         ], $entries);
+    }
+
+    /** Admin navigation still needs a title after the default language changes. */
+    private static function entryLabel(array $entry): string
+    {
+        $title = (string) ($entry['title'] ?? '');
+        if (trim($title) !== '') return $title;
+
+        foreach ($entry['values']['title']['values'] ?? [] as $translation) {
+            if (is_string($translation) && trim($translation) !== '') return $translation;
+        }
+
+        return (string) ($entry['slug'] ?? $entry['id'] ?? '');
+    }
+
+    /** The stable ID of the entry asked for (?entry= may also be a slug or file name), or ''. */
+    private function requestedSample(string $type): string
+    {
+        $identifier = LayoutSchema::key($_GET['entry'] ?? '');
+        $entry = $identifier !== '' ? $this->findAdminEntry($type, $identifier) : null;
+
+        return $entry !== null ? $this->content()->stableId($entry) : '';
+    }
+
+    /**
+     * An entry by stable ID, slug in the default language, or file name. Unlike
+     * public URLs, the admin may use the file name: settings such as the
+     * homepage store it, and it may differ from every slug.
+     */
+    private function findAdminEntry(string $type, string $identifier): ?array
+    {
+        return $this->content()->findByIdentifier($type, $identifier) ?? $this->content()->find($type, $identifier);
     }
 
     private function requireType(string $type, string $variant): array

@@ -12,6 +12,7 @@ use CometCMS\Localization\LanguageSettings;
 use CometCMS\Core\ValidationException;
 use CometCMS\Fields\FieldRegistry;
 use CometCMS\Logging\Logger;
+use CometCMS\Site\LayoutSchema;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Trash\TrashStore;
 use CometCMS\Webhooks\WebhookDispatcher;
@@ -161,6 +162,72 @@ final class ContentRepository
         }
 
         return $this->resolveLocaleFields($entry, $this->locale((string) ($payload['locale'] ?? '')));
+    }
+
+    /**
+     * Save an entry's page content from the page builder, or clear it with
+     * null so the entry shows its layout's default content again. Page
+     * content is shared by all languages, so this works from any of them.
+     */
+    public function savePage(string $collection, string $id, string $field, ?array $nodes, array $user, ?string $revision = null): array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($collection, $id, $field, $nodes, $user, $revision): array {
+            $existing = $this->find($collection, $id);
+            if ($existing === null) throw new \RuntimeException('Entry not found.');
+            if ($revision !== null && $revision !== ($existing['revision'] ?? '')) throw new ConflictException();
+            if (($this->types->find($collection)['fields'][$field]['type'] ?? '') !== 'page') throw new ValidationException([$field => 'Choose a page content field.']);
+            $entry = $this->stored($existing);
+            $entry['values'][$field] = $this->fields->get('page')->normalize($nodes, []);
+            $entry['revision'] = bin2hex(random_bytes(12));
+            $entry['updated_at'] = Security::now();
+            $entry['updated_by'] = $user['id'] ?? null;
+            $this->writeRevision($collection, $id, $existing, 'content.updated', $user);
+            $this->store->write($entry, $collection, $id);
+            $this->afterWrite('content.updated', $collection, $id, $user);
+
+            return $this->normalizeStoredEntry($entry);
+        }, 'routing');
+    }
+
+    /**
+     * Rewrite the page content of every entry of $collection's page fields
+     * with $change (stored value => new stored value), including entries in
+     * the trash and their revisions, without new revisions of their own.
+     */
+    public function rewritePages(string $collection, callable $change): int
+    {
+        $fields = array_keys(array_filter($this->types->find($collection)['fields'], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+        if ($fields === []) return 0;
+        $rewrite = function (array $entry) use ($fields, $change): ?array {
+            $changed = false;
+            foreach ($fields as $field) {
+                $value = $entry['values'][$field] ?? null;
+                if (!LayoutSchema::hasPageContent($value)) continue;
+                $next = $change($value);
+                if ($next !== $value) {
+                    $entry['values'][$field] = $next;
+                    $changed = true;
+                }
+            }
+            return $changed ? $entry : null;
+        };
+        $updated = 0;
+        foreach ($this->all($collection, true) as $entry) {
+            $next = $rewrite($this->stored($entry));
+            if ($next !== null) {
+                $this->store->write($next, $collection, (string) $entry['id']);
+                $updated++;
+            }
+            foreach ($this->revisions->all($collection, (string) $entry['id']) as $revision) {
+                $next = is_array($revision['entry'] ?? null) && array_key_exists('values', $revision['entry']) ? $rewrite($revision['entry']) : null;
+                if ($next !== null) {
+                    $revision['entry'] = $next;
+                    $this->revisions->write($revision, $collection, (string) $entry['id'], (string) $revision['id']);
+                }
+            }
+        }
+        if ($updated) $this->cache->clear();
+        return $updated;
     }
 
     public function bulkUpdateFields(string $collection, array $existing, array $data, array $user): array

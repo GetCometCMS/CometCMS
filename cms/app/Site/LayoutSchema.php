@@ -39,6 +39,15 @@ final class LayoutSchema
      */
     public const COMPONENT = 'component';
 
+    /**
+     * Where an entry's own page content goes in its type's detail layout.
+     * Its children (sections) are the layout's default content, shown while
+     * the entry has none of its own in the page field named by props.field.
+     * It sits between sections or in a column, never inside another one or
+     * in a collection's card, and each page field has one place.
+     */
+    public const PAGE_CONTENT = 'page_content';
+
     public const ELEMENTS = [
         'field',
         'heading',
@@ -181,7 +190,7 @@ final class LayoutSchema
         return match ($kind) {
             'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
             'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            self::COMPONENT => [],
+            self::COMPONENT, self::PAGE_CONTENT => [],
             'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
             default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
@@ -227,6 +236,9 @@ final class LayoutSchema
                 'component' => ['type' => 'key', 'default' => ''],
                 'root' => ['type' => 'enum', 'options' => self::STRUCTURE, 'default' => 'section'],
                 'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],
+            ],
+            self::PAGE_CONTENT => [
+                'field' => ['type' => 'page_field', 'default' => ''],
             ],
             'field' => [
                 'source' => ['type' => 'reference', 'default' => ''],
@@ -387,6 +399,7 @@ final class LayoutSchema
             'field' => self::ITEM_ELEMENTS,
             // The card a collection repeats for each entry.
             'collection' => ['column'],
+            self::PAGE_CONTENT => ['section'],
             // The top of a component's own tree holds just its root kind.
             'component:section' => ['section'],
             'component:row' => ['row'],
@@ -395,12 +408,15 @@ final class LayoutSchema
         };
     }
 
-    /** Everything the admin builder needs to draw palettes and inspectors. */
-    public static function spec(): array
+    /**
+     * Everything the admin builder needs to draw palettes and inspectors.
+     * With $pageContent (detail layouts) the page content place is offered.
+     */
+    public static function spec(bool $pageContent = false): array
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT] as $kind) {
             $props = self::propSpec($kind);
             foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
@@ -409,7 +425,7 @@ final class LayoutSchema
             $kinds[$kind] = [
                 'props' => $props,
                 'style' => self::styleKeys($kind),
-                'children' => self::allowedChildren($kind),
+                'children' => self::childrenFor($kind, $pageContent),
             ];
         }
 
@@ -422,9 +438,9 @@ final class LayoutSchema
             'format_version' => self::FORMAT_VERSION,
             'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES, 'style_properties' => SmartValue::STYLE_PROPERTIES],
             'kinds' => $kinds,
-            'root' => self::allowedChildren('root'),
+            'root' => self::childrenFor('root', $pageContent),
             'style' => $style,
-            'elements' => self::ELEMENTS,
+            'elements' => $pageContent ? [...self::ELEMENTS, self::PAGE_CONTENT] : self::ELEMENTS,
             'item_elements' => self::ITEM_ELEMENTS,
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
@@ -441,12 +457,93 @@ final class LayoutSchema
      * values are dropped rather than rejected so an older or hand-edited
      * layout keeps rendering what is still valid.
      */
-    public static function normalize(mixed $nodes): array
+    public static function normalize(mixed $nodes, bool $pageContent = false): array
     {
         $count = 0;
         $seen = [];
+        $places = $pageContent ? [] : null;
 
-        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false);
+        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $places);
+    }
+
+    /** Kinds a node of $parent may contain, with the page content place where it is allowed. */
+    private static function childrenFor(string $parent, bool $pageContent): array
+    {
+        $children = self::allowedChildren($parent);
+
+        return $pageContent && in_array($parent, ['root', 'column', 'tab'], true) ? [...$children, self::PAGE_CONTENT] : $children;
+    }
+
+    /**
+     * An entry's page content as stored in its page field: sections, with
+     * the format they were saved in. Content saved in another format stays
+     * as it is (see pageNodes()) instead of being dropped.
+     */
+    public static function pageValue(mixed $nodes): array
+    {
+        return ['format_version' => self::FORMAT_VERSION, 'nodes' => self::normalize($nodes)];
+    }
+
+    /** The sections of a stored page field value; empty when the entry has none. */
+    public static function pageNodes(mixed $value): array
+    {
+        return is_array($value) && is_array($value['nodes'] ?? null) ? self::normalize($value['nodes']) : [];
+    }
+
+    /** Whether a stored page field value holds content of the entry's own. */
+    public static function hasPageContent(mixed $value): bool
+    {
+        return is_array($value) && is_array($value['nodes'] ?? null) && $value['nodes'] !== [];
+    }
+
+    /** Whether a stored page field value was saved in an older format and needs saving again. */
+    public static function pageNeedsUpgrade(mixed $value): bool
+    {
+        return self::hasPageContent($value) && ($value['format_version'] ?? null) !== self::FORMAT_VERSION;
+    }
+
+    /** The page content places of a detail layout: field => node. */
+    public static function pagePlaces(array $nodes): array
+    {
+        $places = [];
+        foreach ($nodes as $node) {
+            if (($node['kind'] ?? '') === self::PAGE_CONTENT) {
+                $field = (string) ($node['props']['field'] ?? '');
+                if ($field !== '' && !isset($places[$field])) $places[$field] = $node;
+                continue;
+            }
+            $places += self::pagePlaces(is_array($node['children'] ?? null) ? $node['children'] : []);
+        }
+
+        return $places;
+    }
+
+    /**
+     * The words visitors read in a tree, for search and descriptions:
+     * literal texts in $locale. Texts bound to fields are left out; the
+     * fields are read on their own.
+     */
+    public static function text(array $nodes, string $locale, string $defaultLocale): string
+    {
+        $parts = [];
+        $visit = static function (array $nodes) use (&$visit, &$parts, $locale, $defaultLocale): void {
+            foreach ($nodes as $node) {
+                if (!is_array($node)) {
+                    continue;
+                }
+                $props = LocalizedValue::tree(is_array($node['props'] ?? null) ? $node['props'] : [], $locale, $defaultLocale);
+                foreach (['text', 'html', 'label', 'title', 'alt', 'caption'] as $key) {
+                    $value = $props[$key] ?? null;
+                    if (is_string($value) && $value !== '' && in_array($key, self::LOCALIZED_PROPS[$node['kind'] ?? ''] ?? [], true)) {
+                        $parts[] = $key === 'html' ? html_entity_decode(strip_tags(str_replace(['</p>', '<br>'], ' ', $value)), ENT_QUOTES | ENT_HTML5, 'UTF-8') : $value;
+                    }
+                }
+                $visit(is_array($node['children'] ?? null) ? $node['children'] : []);
+            }
+        };
+        $visit($nodes);
+
+        return trim((string) preg_replace('/\s+/u', ' ', implode(' ', $parts)));
     }
 
     /** The kind a node is placed as: a component instance counts as its root kind. */
@@ -558,7 +655,14 @@ final class LayoutSchema
     /** A sensible starting layout built from a content type's fields. */
     public static function defaultLayout(array $type, string $variant): array
     {
-        return self::withDefaultIds(self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), self::defaultFields($type)), 'layout:' . ($type['name'] ?? '') . ':' . $variant);
+        $nodes = self::bindDefaultNodes(self::buildDefaultLayout($type, $variant), self::defaultFields($type));
+        // Entries of a type with a page field design their page; the generated layout is where they start.
+        $field = $variant === 'detail' ? self::firstFieldOfType(is_array($type['fields'] ?? null) ? $type['fields'] : [], ['page']) : null;
+        if ($field !== null) {
+            $nodes = [self::node(self::PAGE_CONTENT, ['field' => $field], [], $nodes)];
+        }
+
+        return self::withDefaultIds($nodes, 'layout:' . ($type['name'] ?? '') . ':' . $variant);
     }
 
     /** Generated defaults must keep their revision hash across reads and requests. */
@@ -667,7 +771,7 @@ final class LayoutSchema
             }
 
             $fieldType = (string) ($config['type'] ?? 'text');
-            if ($fieldType === 'json') {
+            if (in_array($fieldType, ['json', 'page'], true)) {
                 continue;
             }
 
@@ -831,10 +935,14 @@ final class LayoutSchema
         return preg_match('/^[A-Za-z0-9_-]{1,80}$/', $value) ? $value : '';
     }
 
-    /** $rows counts the rows around $nodes, to bound how deep rows nest in columns. */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0): array
+    /**
+     * $rows counts the rows around $nodes, to bound how deep rows nest in
+     * columns. $places collects the page fields that already have a place
+     * (null where no page content place may go).
+     */
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null): array
     {
-        $allowed = self::allowedChildren($parent);
+        $allowed = self::childrenFor($parent, $places !== null);
         $normalized = [];
 
         foreach (array_values($nodes) as $node) {
@@ -856,6 +964,17 @@ final class LayoutSchema
                 continue;
             }
 
+            // Each page field has one place, which needs a field to show.
+            if ($kind === self::PAGE_CONTENT) {
+                $field = self::key($node['props']['field'] ?? '');
+                if ($field !== '' && isset($places[$field])) {
+                    continue;
+                }
+                if ($field !== '') {
+                    $places[$field] = true;
+                }
+            }
+
             $count++;
             $id = self::key($node['id'] ?? '');
             if ($id === '' || isset($seen[$id])) {
@@ -865,9 +984,14 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab'], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $rows + ($kind === 'row' ? 1 : 0))
+            // Cards, item templates and the default content hold no page content place.
+            $childPlaces = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true) ? null : $places;
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT], true) && is_array($node['children'] ?? null)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces)
                 : [];
+            if ($childPlaces !== null) {
+                $places = $childPlaces;
+            }
             // A collection repeats a single card.
             if ($kind === 'collection') {
                 $children = array_slice($children, 0, 1);
@@ -1000,7 +1124,7 @@ final class LayoutSchema
             'spans' => self::normalizeSpans($value),
             'class' => self::cssClasses($value),
             'sort_field' => self::key($value) !== '' ? self::key($value) : $default,
-            'field', 'display', 'content_type', 'menu', 'form', 'key' => self::key($value),
+            'field', 'display', 'content_type', 'menu', 'form', 'key', 'page_field' => self::key($value),
             'content_types', 'search_fields' => self::keyList($value),
             default => $default,
         };

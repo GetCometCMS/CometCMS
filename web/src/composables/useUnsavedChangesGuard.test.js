@@ -22,7 +22,7 @@ const renderer = createRenderer({
 })
 let app
 
-async function fixture(isDirty = ref(true), options = { guardUpdates: true }) {
+async function fixture(isDirty = ref(true), options = { guardUpdates: true }, { remount = true } = {}) {
   let guard
   const editor = { setup() { guard = useUnsavedChangesGuard(isDirty, options); return () => null } }
   const router = createRouter({
@@ -33,7 +33,7 @@ async function fixture(isDirty = ref(true), options = { guardUpdates: true }) {
     ],
   })
   await router.push('/builder/first')
-  app = renderer.createApp({ render: () => h(RouterView, { key: router.currentRoute.value.path }) })
+  app = renderer.createApp({ render: () => h(RouterView, remount ? { key: router.currentRoute.value.path } : {}) })
   app.use(router)
   app.mount(node())
   return { router, guard, getGuard: () => guard }
@@ -74,6 +74,18 @@ describe('unsaved changes navigation', () => {
     getGuard().confirmLeave()
     await navigation
     expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
+
+  it('lets one navigation through after bypass, then guards a view that stays mounted again', async () => {
+    const { router, guard } = await fixture(ref(true), { guardUpdates: true }, { remount: false })
+    guard.bypass()
+    await router.push('/builder/second')
+    expect(guard.leavePromptOpen.value).toBe(false)
+    expect(router.currentRoute.value.path).toBe('/builder/second')
+    const navigation = router.push('/builder/third')
+    await vi.waitFor(() => expect(guard.leavePromptOpen.value).toBe(true))
+    guard.leavePromptOpen.value = false
+    expect(isNavigationFailure(await navigation)).toBe(true)
   })
 
   it('does not prompt for query-only changes', async () => {

@@ -118,6 +118,32 @@
         />
         <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
         <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
+        <div v-if="node.kind === 'page_content' && pageFieldLabel !== null">
+          <label class="mb-1 block text-xs text-slate-500" :for="`builder-${node.id}-area-name`">{{ t("site.page.areaName") }}</label>
+          <input
+            :id="`builder-${node.id}-area-name`"
+            :key="`${node.props.field}-${builder.locale.value}`"
+            type="text"
+            class="form-input w-full rounded-lg border-slate-300 py-1.5 text-xs"
+            :value="pageFieldLabel"
+            :disabled="!builder.canAddPageField() || renamingArea"
+            @keydown.enter="$event.target.blur()"
+            @change="renameArea($event.target.value)"
+          />
+          <p class="mt-1 text-[11px] text-slate-400">{{ t("site.page.areaNameHint") }}</p>
+        </div>
+        <button
+          v-if="node.kind === 'page_content' && !node.props.field && builder.canAddPageField()"
+          type="button"
+          class="btn-primary btn-sm"
+          :disabled="renamingArea"
+          @click="setUpArea"
+        >
+          <Icon icon="mdi:file-document-edit-outline" class="mr-1 h-4 w-4" />{{ t("site.page.setUpArea") }}
+        </button>
+        <p v-if="node.kind === 'page_content'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
+          {{ node.props.field || builder.canAddPageField() ? t("site.page.placeHint") : t("site.page.noFieldHint") }}
+        </p>
         <div v-if="node.kind === 'collection'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
           <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
@@ -246,6 +272,36 @@ const component = computed(() => builder.componentOf(node.value));
 const locked = computed(() => builder.translating?.value || (!!node.value && builder.isLockedRoot(node.value.id)));
 const nodePath = useBuilderBreadcrumbs(builder);
 const fieldConfig = computed(() => (node.value?.kind === "field" ? builder.fieldConfig(node.value) : null));
+/** The name entries show for the selected page content area: its field's label. */
+const pageFieldLabel = computed(() => {
+  if (node.value?.kind !== "page_content" || !node.value.props?.field) return null;
+  return builder.pageFields().find((field) => field.key === node.value.props.field)?.label ?? null;
+});
+const renamingArea = ref(false);
+
+async function setUpArea() {
+  renamingArea.value = true;
+  try {
+    await builder.setUpPageArea(node.value.id);
+  } catch (error) {
+    builder.pageFieldError.value = error.message;
+  } finally {
+    renamingArea.value = false;
+  }
+}
+
+async function renameArea(value) {
+  if (!value.trim() || value.trim() === pageFieldLabel.value) return;
+  renamingArea.value = true;
+  try {
+    await builder.renamePageField(node.value.props.field, value);
+  } catch (error) {
+    builder.pageFieldError.value = error.message;
+  } finally {
+    renamingArea.value = false;
+  }
+}
+
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
 
@@ -317,6 +373,9 @@ const visibleProps = computed(() => {
     };
     return keys.filter((key) => rules[key]);
   }
+
+  // Each page content area owns its field; the inspector names it instead.
+  if (current.kind === "page_content") return [];
 
   // Only a column component's instances have something of their own: their width.
   if (current.kind === COMPONENT) {
