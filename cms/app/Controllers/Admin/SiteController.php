@@ -206,6 +206,8 @@ final class SiteController extends BaseController
             'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant)),
             'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
             'customized' => $this->site->layoutCustomized($type, $variant),
+            // Reset to default loads this as an edit, so it can be undone before saving.
+            'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
             'type' => $schema,
             'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
             'index_url' => $this->liveUrl($context->indexUrl($type), $context),
@@ -252,6 +254,7 @@ final class SiteController extends BaseController
             'nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field),
             'revision' => (string) ($entry['revision'] ?? ''),
             'customized' => $customized,
+            'default_nodes' => $customized ? $this->defaultPage($type, $field) : null,
             'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
             'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]),
             'field' => $field,
@@ -372,6 +375,7 @@ final class SiteController extends BaseController
             'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->region($region)),
             'upgrade_required' => $this->site->needsRegionUpgrade($region),
             'customized' => $this->site->regionCustomized($region),
+            'default_nodes' => LayoutSchema::defaultRegion($region),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);

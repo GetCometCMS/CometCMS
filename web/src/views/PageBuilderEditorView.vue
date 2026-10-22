@@ -108,7 +108,8 @@
     </header>
 
     <div v-for="scope in ['layout', 'theme'].filter((scope) => loadedRevisions[scope])" :key="scope" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-      <p>{{ t('site.history.loadedBanner', { scope: t(scope === 'theme' ? 'site.history.scope.design' : historyScopeKey), date: formatRevisionDate(loadedRevisions[scope].revision.created_at) }) }}</p>
+      <p v-if="!loadedRevisions[scope].revision">{{ t('site.builder.resetPending') }}</p>
+      <p v-else>{{ t('site.history.loadedBanner', { scope: t(scope === 'theme' ? 'site.history.scope.design' : historyScopeKey), date: formatRevisionDate(loadedRevisions[scope].revision.created_at) }) }}</p>
       <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="saving" @click="cancelRevision(scope)">{{ t('common.cancel') }}</button>
     </div>
     <p v-if="upgradeRequired" role="status" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">{{ t("site.binding.upgrade") }}</p>
@@ -289,24 +290,6 @@
       :cancel-label="t('unsaved.stay')"
       variant="warning"
       @confirm="confirmLeave"
-    />
-    <ConfirmModal
-      v-model="resetPagePromptOpen"
-      :title="t('site.page.resetTitle')"
-      :message="t('site.page.resetMessage')"
-      :confirm-label="t('site.page.reset')"
-      :loading="saving"
-      variant="warning"
-      @confirm="resetPage"
-    />
-    <ConfirmModal
-      v-model="resetLayoutPromptOpen"
-      :title="t('site.builder.resetDefaultTitle')"
-      :message="t(target === 'region' ? 'site.builder.resetRegionMessage' : 'site.builder.resetDefaultMessage')"
-      :confirm-label="t('site.builder.resetDefault')"
-      :loading="saving"
-      variant="warning"
-      @confirm="resetToDefault"
     />
     <ConfirmModal
       :model-value="pendingView !== null"
@@ -517,8 +500,8 @@ const pageCustomized = ref(false);
 /** The detail layout has a place for the page field. */
 const pagePlaced = ref(true);
 const pageTitle = ref("");
-const resetPagePromptOpen = ref(false);
-const resetLayoutPromptOpen = ref(false);
+/** The default design (generated layout, header or footer, or the layout's default page content) that Reset brings back. */
+const defaultNodes = ref(null);
 /** A layout, header or footer has a saved design of its own (not the generated default). */
 const layoutCustomized = ref(false);
 /** The layout previews entries by slug. */
@@ -836,6 +819,7 @@ async function load() {
       pageSlug.value = data.entry?.slug || pageEntry;
     }
     layoutCustomized.value = !!data.customized;
+    defaultNodes.value = data.default_nodes ?? (target === "page" ? data.nodes : null);
     upgradeRequired.value = !!data.upgrade_required;
     samples.value = target === "page" ? [data.entry] : data.samples ?? [];
     const requested = target === "page" ? data.entry.id : typeof route.query.entry === "string" ? route.query.entry : "";
@@ -952,51 +936,20 @@ function savedPage(data) {
   entryFields.setRevision(data.revision);
 }
 
-/** Go back to the layout's default content: saved right away, after confirming. */
-async function resetPage() {
-  if (saving.value) return;
-  saving.value = true;
-  try {
-    const res = await api.site.resetPage(name, pageEntry, pageField.value, layoutRevision.value);
-    builder.load(res.data.nodes);
-    savedPage(res.data);
-    upgradeRequired.value = false;
-    loadedRevisions.value.layout = null;
-    historyVersion.value++;
-    resetPagePromptOpen.value = false;
-    toast.success(t("site.page.resetDone"));
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    saving.value = false;
-  }
-}
-
-/** Back to the generated layout (or the default header or footer): saved right away, after confirming. */
-async function resetToDefault() {
-  if (saving.value) return;
-  saving.value = true;
-  try {
-    const res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
-    builder.load(res.data.nodes);
-    layoutRevision.value = res.data.revision;
-    layoutCustomized.value = false;
-    upgradeRequired.value = false;
-    loadedRevisions.value.layout = null;
-    site.markCustomized(target, name, variant, false);
-    historyVersion.value++;
-    resetLayoutPromptOpen.value = false;
-    toast.success(t("site.builder.resetDefaultDone"));
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    saving.value = false;
-  }
+/**
+ * Show the default design again as an ordinary edit: it can be undone or
+ * cancelled, and saving it removes the custom version (see save()).
+ */
+function resetToDefault() {
+  if (!defaultNodes.value) return;
+  const nodes = clone(defaultNodes.value);
+  const before = loadedRevisions.value.layout?.before ?? clone(builder.nodes.value);
+  loadedRevisions.value.layout = { before, revision: null, customized: false, nodes: JSON.stringify(nodes) };
+  builder.loadRevision(nodes);
 }
 
 function onSaveMenu(item) {
-  if (item.key === "reset-page") resetPagePromptOpen.value = true;
-  else if (item.key === "reset-layout") resetLayoutPromptOpen.value = true;
+  if (item.key === "reset-page" || item.key === "reset-layout") resetToDefault();
   else if (item.key === "edit-layout") router.push(layoutLink.value);
 }
 
