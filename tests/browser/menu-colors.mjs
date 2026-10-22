@@ -15,7 +15,7 @@ const theme = ':root{--c-primary:#2563eb;--c-primary-rgb:37 99 235;--c-on-primar
 const menu = (id, style = '', fg = '') => `<div class="c-el c-el-menu${fg}"><nav id="${id}" class="c-menu c-menu-horizontal c-menu-collapsible"${style} aria-label="Main">`
   + `<input type="checkbox" id="${id}-t" class="c-menu-toggle" aria-label="Menu"><label for="${id}-t" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>`
   + '<ul class="c-menu-list"><li class="c-has-children"><div class="c-menu-label"><a href="/" aria-current="page">Home</a></div>'
-  + '<details class="c-menu-disclosure" open><summary aria-label="Home"><span aria-hidden="true">⌄</span></summary>'
+  + `<details class="c-menu-disclosure" name="${id}" open><summary aria-label="Home"><span class="c-menu-chevron" aria-hidden="true"></span></summary>`
   + '<ul class="c-submenu"><li><div class="c-menu-label"><a href="/a">Sub</a></div></li><li><div class="c-menu-label"><a href="/b" aria-current="page">Current sub</a></div></li></ul></details></li>'
   + '<li><div class="c-menu-label"><a href="/about">About</a></div></li></ul></nav></div>';
 const sections = `<section class="c-bg-muted">${menu('filled')}</section><section class="c-bg-background">${menu('plain')}</section>`

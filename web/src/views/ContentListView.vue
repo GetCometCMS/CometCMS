@@ -515,7 +515,6 @@ const homepageEntry = computed(() => {
 });
 const COLLECTION_TEMPLATES = [
   { variant: "index", icon: "mdi:view-grid-outline" },
-  { variant: "card", icon: "mdi:card-text-outline" },
   { variant: "detail", icon: "mdi:file-document-outline" },
 ];
 const templateMenuItems = computed(() => COLLECTION_TEMPLATES.slice(1).map((template) => ({

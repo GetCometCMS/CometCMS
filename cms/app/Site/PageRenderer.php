@@ -293,6 +293,8 @@ final class PageRenderer
                 ? '<script type="module">' . Tabs::script() . '</script>' : '')
             . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-search=')
                 ? '<script type="module">' . SiteSearch::script() . '</script>' : '')
+            . (!$this->ctx->preview && str_contains($header . $main . $footer, ' data-menu ')
+                ? '<script type="module">' . Menus::script() . '</script>' : '')
             . '</body></html>';
     }
 

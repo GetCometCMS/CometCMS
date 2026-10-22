@@ -171,6 +171,44 @@ test('menu panel options default safely and dress dropdowns as well as panels', 
     assert_false(str_contains($html, '--c-menu-text'));
 });
 
+test('menu groups open from their label while links keep a toggle and siblings share one disclosure name', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [
+        comet_menu_test_item('group', [comet_menu_test_item('one', [comet_menu_test_item('deep')]), comet_menu_test_item('two', [comet_menu_test_item('deeper')])], ['type' => 'none']),
+        comet_menu_test_item('home', [comet_menu_test_item('child')]),
+        comet_menu_test_item('plain'),
+    ]]]);
+    $html = comet_menu_test_render(comet_site_test_context($site));
+    assert_true(str_contains($html, '<li class="c-has-children c-menu-group"><details class="c-menu-disclosure" name="'));
+    assert_true(str_contains($html, '<summary class="c-menu-label"><span>group</span><span class="c-menu-chevron" aria-hidden="true"></span></summary>'));
+    assert_true(str_contains($html, '<div class="c-menu-label"><a href="/">home</a></div><details'));
+    assert_true(str_contains($html, '<summary aria-label="home"><span class="c-menu-chevron" aria-hidden="true"></span></summary>'));
+    assert_true(str_contains($html, '<li><div class="c-menu-label"><a href="/">plain</a></div></li>'));
+    preg_match_all('/<details class="c-menu-disclosure" name="([^"]+)">/', $html, $names);
+    // The bar's items share a name, and so do the siblings one level down, but not with each other.
+    assert_same(4, count($names[1]));
+    assert_same($names[1][0], $names[1][3]);
+    assert_same($names[1][1], $names[1][2]);
+    assert_true($names[1][0] !== $names[1][1]);
+    assert_true(str_contains($html, ' data-menu '));
+});
+
+test('menus load their hashed closing module only for submenus and panels while previews stay script free', function (): void {
+    $site = comet_site_test_setup();
+    foreach ([[[comet_menu_test_item('home')], [], false], [[comet_menu_test_item('home', [comet_menu_test_item('child')])], [], true], [[comet_menu_test_item('home')], ['panel' => 'drawer'], true]] as [$items, $props, $loads]) {
+        $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => $items]]);
+        $menu = LayoutSchema::node('menu', $props);
+        $site->saveRegion('header', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+        $ctx = comet_site_test_context($site);
+        $renderer = new \CometCMS\Site\PageRenderer($ctx);
+        $html = $renderer->entryPage($ctx->type('blog'), $ctx->findEntry('blog', 'hello'));
+        assert_same($loads ? 1 : 0, substr_count($html, '<script type="module">' . \CometCMS\Site\Menus::script()));
+        $ctx->preview = true;
+        assert_false(str_contains($renderer->regionPreview('header'), '<script'));
+    }
+    assert_same("'sha256-" . base64_encode(hash('sha256', \CometCMS\Site\Menus::script(), true)) . "'", \CometCMS\Site\Menus::cspSource());
+});
+
 test('menus preserve five levels with IDs labels links and sibling order after reload', function (): void {
     $site = new SiteRepository();
     $menus = [['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_chain(5), comet_menu_test_item('second')]]];
@@ -253,7 +291,7 @@ test('published menus render independent disclosures and localized prefixed anch
     foreach (['href="/cms/de#intro"', 'href="/cms/de/blog/hello#details"', 'href="/cms/de/blog#latest"', 'href="#contact"', '<span>DE group</span>', 'rel="noopener noreferrer"'] as $needle) {
         assert_true(str_contains($html, $needle), $needle);
     }
-    assert_same(5, substr_count($html, '<details class="c-menu-disclosure">'));
+    assert_same(5, substr_count($html, '<details class="c-menu-disclosure"'));
     assert_true(str_contains($html, '<span>DE draft</span>'));
     assert_false(str_contains($html, 'href="/cms/de/blog/secret-draft'));
     assert_true(str_contains($html, '<span>DE scheduled</span>'));

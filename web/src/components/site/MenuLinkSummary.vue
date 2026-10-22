@@ -14,13 +14,14 @@ import { useLinkEntries } from '../../composables/useLinkEntries.js'
 import { anchorId, destinationAvailable, linkSummary } from '../../composables/siteLinks.js'
 import { effectiveStatus, statusPillClass } from '../../composables/contentDisplay.js'
 import { useI18n } from '../../i18n/index.js'
-const props = defineProps({ link: { type: Object, required: true }, types: { type: Array, default: () => [] }, settings: { type: Object, default: null }, context: { type: String, default: '' }, verbose: { type: Boolean, default: false }, explainUnavailable: { type: Boolean, default: false } })
+const props = defineProps({ link: { type: Object, default: null }, types: { type: Array, default: () => [] }, settings: { type: Object, default: null }, context: { type: String, default: '' }, verbose: { type: Boolean, default: false }, explainUnavailable: { type: Boolean, default: false } })
 const emit = defineEmits(['resolved'])
 const { t } = useI18n()
+const link = computed(() => props.link ?? {})
 const target = computed(() => {
-  if (props.link.type === 'entry') return props.link
+  if (link.value.type === 'entry') return link.value
   const home = props.settings?.homepage
-  if (props.link.type === 'home' && home?.type && home.entry) return { collection: home.type, entry: home.entry }
+  if (link.value.type === 'home' && home?.type && home.entry) return { collection: home.type, entry: home.entry }
   return {}
 })
 const { selected, selectedTitle, selectedError, retrySelected } = useLinkEntries({
@@ -34,11 +35,11 @@ const warning = computed(() => {
     if (selectedError.value.status === 404) return t('site.menus.missingDestination')
     return t('site.link.loadFailed')
   }
-  const type = props.types.find((type) => type.name === props.link.collection)
+  const type = props.types.find((type) => type.name === link.value.collection)
   if (!type) return t('site.menus.missingCollection')
   if (type.visibility === 'private') return t('site.menus.privateCollection')
   return t('site.link.unavailableRoute')
 })
-const unavailable = computed(() => !destinationAvailable(props.link, props.types, props.settings, selected.value))
+const unavailable = computed(() => !destinationAvailable(link.value, props.types, props.settings, selected.value))
 watch(selected, (entry) => { if (entry) emit('resolved', entry) })
 </script>

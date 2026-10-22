@@ -39,6 +39,7 @@ import { useI18n } from "../../i18n/index.js";
 import { patchDocument, withPreviewStyles } from "../../composables/previewDocument.js";
 import { initGalleryLightbox } from "../../../../cms/app/Site/assets/gallery.js";
 import { initTabs } from "../../../../cms/app/Site/assets/tabs.js";
+import { initMenus } from "../../../../cms/app/Site/assets/menus.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -138,6 +139,7 @@ function onLoad() {
   applyScale();
   initGalleryLightbox(doc);
   initTabs(doc);
+  initMenus(doc);
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);
