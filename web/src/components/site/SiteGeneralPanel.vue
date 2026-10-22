@@ -158,7 +158,7 @@ watch(
     if (!type) return;
     loadingEntries.value = true;
     try {
-      const res = await api.content.list(type.name, { limit: 200, sort: "-updated_at" });
+      const res = await api.content.list(type.name, { limit: 200, sort: "-updated_at", "filter[status]": "published" });
       homeEntries.value = (res.data ?? []).map((entry) => ({ value: entryIdentifier(entry), label: entry.title || entry.slug }));
     } catch {
       homeEntries.value = [];
