@@ -13,17 +13,19 @@
         <p class="topbar-muted truncate text-[11px] leading-tight">{{ subheading }}</p>
       </div>
 
-      <nav v-if="variants.length > 1" class="topbar-variants hidden rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+      <!-- The layers of one content type: an entry's own page content, the entry page around it, the list page. -->
+      <nav v-if="views.length > 1" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
         <button
-          v-for="item in variants"
-          :key="item"
+          v-for="item in views"
+          :key="item.key"
           type="button"
-          class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-          :aria-pressed="item === variant"
-          @click="goToVariant(item)"
+          class="flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          :aria-pressed="item.key === currentView"
+          :title="item.title"
+          @click="goToView(item)"
         >
-          <Icon :icon="item === 'index' ? 'mdi:view-grid-outline' : 'mdi:file-document-outline'" class="h-3.5 w-3.5" />
-          {{ t(`site.variant.${item}`) }}
+          <Icon :icon="item.icon" class="h-3.5 w-3.5 shrink-0" />
+          <span class="truncate">{{ item.label }}</span>
         </button>
       </nav>
 
@@ -298,14 +300,23 @@
       @confirm="resetPage"
     />
     <ConfirmModal
-      :model-value="pendingVariant !== ''"
+      v-model="resetLayoutPromptOpen"
+      :title="t('site.builder.resetDefaultTitle')"
+      :message="t(target === 'region' ? 'site.builder.resetRegionMessage' : 'site.builder.resetDefaultMessage')"
+      :confirm-label="t('site.builder.resetDefault')"
+      :loading="saving"
+      variant="warning"
+      @confirm="resetToDefault"
+    />
+    <ConfirmModal
+      :model-value="pendingView !== null"
       :title="t('unsaved.title')"
       :message="t('unsaved.message')"
       :confirm-label="t('unsaved.leave')"
       :cancel-label="t('unsaved.stay')"
       variant="warning"
-      @update:model-value="(open) => { if (!open) pendingVariant = '' }"
-      @confirm="switchVariant(pendingVariant)"
+      @update:model-value="(open) => { if (!open) pendingView = null }"
+      @confirm="switchView(pendingView)"
     />
   </div>
 </template>
@@ -507,6 +518,9 @@ const pageCustomized = ref(false);
 const pagePlaced = ref(true);
 const pageTitle = ref("");
 const resetPagePromptOpen = ref(false);
+const resetLayoutPromptOpen = ref(false);
+/** A layout, header or footer has a saved design of its own (not the generated default). */
+const layoutCustomized = ref(false);
 /** The layout previews entries by slug. */
 const pageSlug = ref(pageEntry);
 const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name}/detail`, query: { entry: pageSlug.value, back: route.fullPath } }));
@@ -525,7 +539,8 @@ const sampleId = ref("");
 const locales = ref([]);
 const locale = ref("");
 const device = ref("desktop");
-const pendingVariant = ref("");
+/** A layer to switch to once unsaved changes may be left behind. */
+const pendingView = ref(null);
 const canvasRef = ref(null);
 const indexUrl = ref(null);
 const homeUrl = ref(null);
@@ -598,6 +613,13 @@ const saveMenuItems = computed(() => [
     },
     { key: "edit-layout", label: t("site.page.editLayout"), icon: "mdi:page-layout-body", title: t("site.page.editLayoutHint") },
   ] : []),
+  ...(["layout", "region"].includes(target) ? [{
+    key: "reset-layout",
+    label: t("site.builder.resetDefault"),
+    icon: "mdi:restore",
+    disabled: saving.value || (!layoutCustomized.value && !builder.isDirty.value),
+    title: layoutCustomized.value || builder.isDirty.value ? t("site.builder.resetDefaultHint") : t("site.builder.usesDefault"),
+  }] : []),
   {
     key: "preview",
     label: t("site.entry.preview"),
@@ -628,10 +650,37 @@ watch([previewEntry, locale], async ([entry]) => {
   }
 });
 
-const variants = computed(() => {
-  if (target !== "layout" || !builder.type.value) return [];
-  return ["detail", "index"];
+/**
+ * The layers of the edited content type, to move between them without
+ * losing the entry or where the builder was opened from: the entry's own
+ * page content (when the type has a page field), its entry page and the list page.
+ */
+const views = computed(() => {
+  const type = builder.type.value;
+  if (!["layout", "page"].includes(target) || !type) return [];
+  const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
+  const entry = target === "page" ? pageSlug.value : sampleId.value;
+  const entryTitle = target === "page" ? pageTitle.value : samples.value.find((sample) => sample.id === entry)?.title ?? "";
+  const hasPage = Object.values(type.fields ?? {}).some((config) => config?.type === "page");
+  return [
+    ...(hasPage && entry ? [{
+      key: "page",
+      label: t("site.view.page", { title: entryTitle || entry }),
+      title: t("site.view.pageHint", { title: entryTitle || entry }),
+      icon: "mdi:file-document-edit-outline",
+      to: { path: `/page-builder/builder/page/${name}/${entry}`, query: { ...(target === "page" && pageField.value ? { field: pageField.value } : {}), ...back } },
+    }] : []),
+    {
+      key: "detail",
+      label: t("site.variant.detail"),
+      title: hasPage ? t("site.view.detailHint") : undefined,
+      icon: "mdi:file-document-outline",
+      to: { path: `/page-builder/builder/layout/${name}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
+    },
+    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name}/index`, query: back } },
+  ];
 });
+const currentView = computed(() => (target === "page" ? "page" : variant));
 // Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
 const backTo = computed(() => {
   const back = typeof route.query.back === "string" ? route.query.back : "";
@@ -786,6 +835,7 @@ async function load() {
       pageTitle.value = data.entry?.title ?? "";
       pageSlug.value = data.entry?.slug || pageEntry;
     }
+    layoutCustomized.value = !!data.customized;
     upgradeRequired.value = !!data.upgrade_required;
     samples.value = target === "page" ? [data.entry] : data.samples ?? [];
     const requested = target === "page" ? data.entry.id : typeof route.query.entry === "string" ? route.query.entry : "";
@@ -849,7 +899,10 @@ async function save() {
       loadedRevisions.value.layout = null;
       if (target === "component") component.value = res.data.component;
       else if (target === "page") savedPage(res.data);
-      else site.markCustomized(target, name, variant, res.data.customized);
+      else {
+        site.markCustomized(target, name, variant, res.data.customized);
+        layoutCustomized.value = res.data.customized;
+      }
     }
     if (saveTheme) {
       await site.save({ parts: ["theme"] });
@@ -919,8 +972,31 @@ async function resetPage() {
   }
 }
 
+/** Back to the generated layout (or the default header or footer): saved right away, after confirming. */
+async function resetToDefault() {
+  if (saving.value) return;
+  saving.value = true;
+  try {
+    const res = target === "region" ? await api.site.resetRegion(name) : await api.site.resetLayout(name, variant);
+    builder.load(res.data.nodes);
+    layoutRevision.value = res.data.revision;
+    layoutCustomized.value = false;
+    upgradeRequired.value = false;
+    loadedRevisions.value.layout = null;
+    site.markCustomized(target, name, variant, false);
+    historyVersion.value++;
+    resetLayoutPromptOpen.value = false;
+    toast.success(t("site.builder.resetDefaultDone"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    saving.value = false;
+  }
+}
+
 function onSaveMenu(item) {
   if (item.key === "reset-page") resetPagePromptOpen.value = true;
+  else if (item.key === "reset-layout") resetLayoutPromptOpen.value = true;
   else if (item.key === "edit-layout") router.push(layoutLink.value);
 }
 
@@ -963,19 +1039,19 @@ async function convertField(label) {
   }
 }
 
-function goToVariant(next) {
-  if (next === variant) return;
+function goToView(view) {
+  if (view.key === currentView.value) return;
   if (builder.isDirty.value || entryFields.isDirty.value) {
-    pendingVariant.value = next;
+    pendingView.value = view;
     return;
   }
-  switchVariant(next);
+  switchView(view);
 }
 
-function switchVariant(next) {
-  pendingVariant.value = "";
+function switchView(view) {
+  pendingView.value = null;
   bypass();
-  router.push({ path: `/page-builder/builder/layout/${name}/${next}`, query: route.query });
+  router.push(view.to);
 }
 
 function onKeydown(event) {

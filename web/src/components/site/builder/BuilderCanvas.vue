@@ -420,6 +420,18 @@ function prepare(document) {
   doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
+  // The page renders hints in English; show them in the admin's language.
+  doc.querySelectorAll("[data-placeholder]").forEach((element) => {
+    const key = `site.placeholder.${element.dataset.placeholder}`;
+    let params = {};
+    try {
+      params = JSON.parse(element.dataset.placeholderParams || "{}");
+    } catch {
+      // Keep the parameters empty; the text still reads well.
+    }
+    const text = t(key, params);
+    if (text !== key) element.textContent = text;
+  });
   doc.querySelectorAll("[data-node]").forEach((element) => element.setAttribute("draggable", "true"));
   doc.querySelectorAll("img, a").forEach((element) => element.setAttribute("draggable", "false"));
 

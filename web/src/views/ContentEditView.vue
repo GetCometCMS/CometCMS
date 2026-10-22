@@ -178,7 +178,10 @@
               required
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.title }"
+              :aria-invalid="!!fieldErrors.title || undefined"
             />
+            <p v-if="fieldErrors.title" class="mt-1 text-xs text-red-600">{{ fieldErrors.title }}</p>
           </div>
 
           <div>
@@ -192,7 +195,10 @@
               type="text"
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.slug }"
+              :aria-invalid="!!fieldErrors.slug || undefined"
             />
+            <p v-if="fieldErrors.slug" class="mt-1 text-xs text-red-600">{{ fieldErrors.slug }}</p>
           </div>
 
 
@@ -208,6 +214,7 @@
                 {{ s.label }}
               </option>
             </select>
+            <p v-if="fieldErrors.status" class="mt-1 text-xs text-red-600">{{ fieldErrors.status }}</p>
           </div>
 
           <div v-if="isNew && contentTypeLocales.length > 0">
@@ -272,6 +279,7 @@
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
             />
+            <p v-if="fieldErrors.published_at" class="mt-1 text-xs text-red-600">{{ fieldErrors.published_at }}</p>
           </div>
         </div>
 
@@ -1238,9 +1246,9 @@ async function handleSave() {
       }
     }
   } catch (err) {
-    saveError.value = err.message;
+    saveError.value = errorMessage(err);
     fieldErrors.value = err.fields ?? {};
-    toast.error(err.message);
+    toast.error(saveError.value);
   } finally {
     saving.value = false;
   }
@@ -1309,6 +1317,19 @@ function payloadForSave(values = form.value, language = currentLocale.value, res
   }
   if (language !== defaultLocale.value) delete payload.author_id;
   return payload;
+}
+
+/** A failed save names the fields it is about, so they can be found even where the form has no place for the message. */
+function errorMessage(err) {
+  const fields = Object.entries(err.fields ?? {});
+  if (!fields.length) return err.message;
+  const label = (name) => {
+    if (["title", "slug", "status"].includes(name)) return t(`contentEdit.${name}`);
+    if (name === "published_at") return t("contentEdit.publishedAt");
+    const config = contentTypeSchema.value?.fields?.[name];
+    return resolveLocalized(config?.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || name;
+  };
+  return fields.map(([name, message]) => `${label(name)}: ${message}`).join(" ");
 }
 
 function fieldValueForForm(value, config) {

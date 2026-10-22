@@ -150,7 +150,7 @@ final class PageRenderer
     {
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
-            . '<div class="c-preview-main">Page content</div></div></section>';
+            . '<div class="c-preview-main" data-placeholder="regionMain">Page content</div></div></section>';
 
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
     }

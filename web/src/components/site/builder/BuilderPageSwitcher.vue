@@ -98,7 +98,7 @@ const allGroups = computed(() => [
       label: type.label ?? type.name,
       icon: "mdi:file-multiple-outline",
       path: `/page-builder/builder/layout/${type.name}/detail`,
-      current: props.target === "layout" && props.name === type.name,
+      current: ["layout", "page"].includes(props.target) && props.name === type.name,
       isHomepage: builder.settings.value?.homepage?.type === type.name,
     })),
   },
