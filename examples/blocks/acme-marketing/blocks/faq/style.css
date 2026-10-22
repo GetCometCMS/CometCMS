@@ -1,4 +1,4 @@
-.c-block-acme__faq .acme-faq {
+.c-block-acme__faq .acme-faq__item {
   border-bottom: 1px solid var(--c-border, #e2e8f0);
 }
 .c-block-acme__faq .acme-faq__question {
@@ -21,9 +21,12 @@
   background: url(assets/chevron.svg) center / contain no-repeat;
   transition: transform 0.2s;
 }
-.c-block-acme__faq .acme-faq[open] .acme-faq__question::after {
+.c-block-acme__faq .acme-faq__item[open] .acme-faq__question::after {
   transform: rotate(180deg);
 }
 .c-block-acme__faq .acme-faq__answer {
-  margin: 0 0 1rem;
+  padding-bottom: 1rem;
+}
+.c-block-acme__faq .acme-faq__answer > :first-child {
+  margin-top: 0;
 }

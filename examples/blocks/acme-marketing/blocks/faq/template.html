@@ -1,5 +1,9 @@
-{{! Items that share a group form an exclusive accordion, natively and without JavaScript. }}
-<details class="acme-faq" name="{{group}}" {{#open}}open{{/open}}>
-  <summary class="acme-faq__question">{{question}}</summary>
-  <p class="acme-faq__answer">{{answer}}</p>
-</details>
+{{! Details elements that share a name form an exclusive accordion, natively and without JavaScript. }}
+<div class="acme-faq">
+  {{#items}}
+  <details class="acme-faq__item" name="{{group}}">
+    <summary class="acme-faq__question">{{question}}</summary>
+    <div class="acme-faq__answer">{{{answer}}}</div>
+  </details>
+  {{/items}}
+</div>

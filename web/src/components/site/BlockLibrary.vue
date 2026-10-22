@@ -45,7 +45,8 @@
           <p class="text-xs text-slate-500">{{ [pkg.name, pkg.author, pkg.license].filter(Boolean).join(" · ") }}</p>
           <p v-if="pkg.description" class="text-sm text-slate-600">{{ pkg.description }}</p>
           <ul class="flex flex-wrap gap-1.5 pt-1" :aria-label="t('site.blocks.blocksIn', { name: pkg.title })">
-            <li v-for="block in pkg.blocks" :key="block.name" class="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700" :title="block.description || block.name">
+            <li v-for="block in pkg.blocks" :key="block.name" class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700" :title="block.description || block.name">
+              <KindIcon :icon="kindIcon(`block:${block.name}`, { kinds: { [`block:${block.name}`]: block } })" class="h-3.5 w-3.5 shrink-0 text-slate-500" />
               {{ block.title }}
             </li>
           </ul>
@@ -92,6 +93,8 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../ConfirmModal.vue";
+import KindIcon from "./builder/KindIcon.vue";
+import { kindIcon } from "./builder/kindIcons.js";
 import { api, getActiveWorkspace } from "../../api/index.js";
 import { packageUploadError } from "../../composables/blockPackages.js";
 import { useI18n } from "../../i18n/index.js";

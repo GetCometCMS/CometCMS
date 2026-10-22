@@ -14,9 +14,9 @@ use CometCMS\Core\HtmlSanitizer;
  */
 final class BlockMarkup
 {
-    /** Template tags and asset references stand in as these markers while the HTML is parsed. */
+    /** Template tags, and extras such as assets and the slot, stand in as these markers while the HTML is parsed. */
     public const TAG = "\u{E000}%d\u{E001}";
-    public const ASSET = "\u{E002}%d\u{E003}";
+    public const EXTRA = "\u{E002}%d\u{E003}";
     public const MARKERS = '/\x{E000}(\d+)\x{E001}|\x{E002}(\d+)\x{E003}/u';
     private const TAG_MARKER = '/\x{E000}(\d+)\x{E001}/u';
     private const ROOT = '__comet_block_root__';
@@ -67,6 +67,11 @@ final class BlockMarkup
         'header', 'hgroup', 'hr', 'nav', 'ol', 'p', 'pre', 'search', 'section', 'table', 'ul',
     ];
 
+    /** Elements whose content may be block-level HTML: where rich text and slots can go. */
+    private const FLOW = ['root', 'div', 'section', 'article', 'aside', 'header', 'footer', 'nav', 'search', 'li', 'dd', 'td', 'th', 'blockquote', 'figure', 'figcaption', 'details'];
+    /** Prop types whose value is a URL. Links only fit href; media and plain URLs fit any URL attribute. */
+    private const URL_TYPES = ['url', 'link', 'media'];
+
     private const HINTS = [
         'script' => 'JavaScript is not supported in block packages yet.',
         'style' => 'Put CSS in the block\'s style.css.',
@@ -80,26 +85,29 @@ final class BlockMarkup
 
     /** @var array<int, string> marker number => where it was found */
     private array $seen = [];
-    /** @var list<string> published asset files, by asset marker number */
-    private array $assetFiles = [];
+    /** @var array<int, string> value marker number => text, attr, url or css */
+    private array $contexts = [];
+    /** @var list<array> extra template nodes: ['asset', file], ['slot'] and ['target', key] */
+    private array $extras = [];
 
     /**
-     * @param list<array{type: string, key: string, option: ?string, line: int, pair: ?int, source: string}> $tags by marker number
-     * @param array<string, array> $props declared prop specs
+     * @param list<array{type: string, key: string, field: ?string, option: ?string, spec: ?array, line: int, pair: ?int, source: string}> $tags by marker number
      * @param array<string, string> $assets package path => published asset file
      */
     private function __construct(
         private readonly string $file,
         private readonly array $tags,
-        private readonly array $props,
         private readonly array $assets,
         private array &$errors,
     ) {}
 
-    /** @return array{0: string, 1: list<string>} the serialized template, and the asset files its asset markers refer to */
-    public static function normalize(string $html, string $file, array $tags, array $props, array $assets, array &$errors): array
+    /**
+     * @return array{0: string, 1: list<array>, 2: array<int, string>} the serialized template,
+     *         the extra nodes its extra markers refer to, and the context of each value
+     */
+    public static function normalize(string $html, string $file, array $tags, array $assets, array &$errors): array
     {
-        $markup = new self($file, $tags, $props, $assets, $errors);
+        $markup = new self($file, $tags, $assets, $errors);
         $previous = libxml_use_internal_errors(true);
         $document = new \DOMDocument('1.0', 'UTF-8');
         $document->loadHTML('<?xml encoding="UTF-8"><div id="' . self::ROOT . '">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
@@ -117,7 +125,7 @@ final class BlockMarkup
         $root = $document->getElementById(self::ROOT);
         if (!$root instanceof \DOMElement) {
             $markup->error(null, 'The template could not be parsed as HTML.');
-            return ['', []];
+            return ['', [], []];
         }
         if ($root->nextSibling !== null) {
             $markup->error($root->nextSibling->getLineNo(), 'The template closes more elements than it opens.');
@@ -125,7 +133,7 @@ final class BlockMarkup
         $output = $markup->children($root, 'root');
         $markup->checkTags();
 
-        return [$output, $markup->assetFiles];
+        return [$output, $markup->extras, $markup->contexts];
     }
 
     private function children(\DOMNode $node, string $container): string
@@ -141,8 +149,14 @@ final class BlockMarkup
     private function node(\DOMNode $node, string $container): string
     {
         if ($node instanceof \DOMText) {
-            $this->mark($node->nodeValue ?? '', $container);
-            return htmlspecialchars($node->nodeValue ?? '', ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $text = $node->nodeValue ?? '';
+            $this->mark($text, $container, 'text');
+            foreach ($this->markers($text) as $id) {
+                if ($this->tags[$id]['type'] === 'raw' && !$this->flow($node->parentNode)) {
+                    $this->error($node->getLineNo(), $this->tags[$id]['source'] . ' outputs HTML paragraphs and lists, so it must be inside a <div> or another block container, not <' . $this->tagName($node->parentNode) . '>.');
+                }
+            }
+            return htmlspecialchars($text, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
         if ($node instanceof \DOMComment) {
             if (preg_match(self::TAG_MARKER, $node->nodeValue ?? '') === 1) {
@@ -159,6 +173,9 @@ final class BlockMarkup
     {
         $tag = strtolower($element->tagName);
         $line = $element->getLineNo();
+        if ($tag === 'slot') {
+            return $this->slot($element, $line);
+        }
         $svg = isset(self::SVG_ELEMENTS[$tag]);
         if (!$svg && !isset(self::ELEMENTS[$tag])) {
             $this->error($line, '<' . $tag . '> is not allowed in block templates.' . (isset(self::HINTS[$tag]) ? ' ' . self::HINTS[$tag] : ''));
@@ -177,11 +194,12 @@ final class BlockMarkup
 
         $self = (string) spl_object_id($element);
         $attributes = '';
+        $linkTarget = null;
         foreach (iterator_to_array($element->attributes ?? []) as $attribute) {
             $name = strtolower($attribute->nodeName);
             $value = $attribute->nodeValue ?? '';
             if (preg_match(self::TAG_MARKER, $name) === 1) {
-                $this->error($line, 'Template tags can only be used inside quoted attribute values. To toggle an attribute, put a section around the whole element or vary a class.');
+                $this->error($line, 'Template tags can only be used inside quoted attribute values. To toggle an attribute, write <details {{#open}}open{{/open}}>, or vary a class.');
                 $this->mark($name, 'attribute-name');
                 continue;
             }
@@ -189,12 +207,14 @@ final class BlockMarkup
                 $attributes .= $this->flag((int) $flag[1], $tag, $svg, $line, $self);
                 continue;
             }
+            if ($name === 'style' && !$svg) {
+                $value = $this->style($value, $line, $self . '@style');
+                if ($value !== null) $attributes .= ' style="' . $value . '"';
+                continue;
+            }
             if (!$this->allowedAttribute($tag, $name, $svg)) {
-                $this->error($line, 'Attribute "' . $name . '" is not allowed on <' . $tag . '>.' . match (true) {
-                    $name === 'style' => ' Use classes and style.css instead of inline styles.',
-                    str_starts_with($name, 'on') => ' JavaScript is not supported in block packages yet.',
-                    default => '',
-                });
+                $this->error($line, 'Attribute "' . $name . '" is not allowed on <' . $tag . '>.'
+                    . (str_starts_with($name, 'on') ? ' JavaScript is not supported in block packages yet.' : ''));
                 $this->mark($value, 'removed');
                 continue;
             }
@@ -204,7 +224,7 @@ final class BlockMarkup
             if ($tag === 'button' && $name === 'type' && $value !== 'button') {
                 $this->error($line, 'Buttons must use type="button"; forms are not supported in block templates.');
             }
-            $value = $this->attributeValue($name, $value, $line, $self . '@' . $name);
+            $value = $this->attributeValue($tag, $name, $value, $line, $self . '@' . $name, $linkTarget);
             if ($value !== null) {
                 $attributes .= ' ' . $name . ($value === '' ? '' : '="' . $value . '"');
             }
@@ -213,13 +233,32 @@ final class BlockMarkup
         if ($tag === 'a' && $element->hasAttribute('target')) {
             $rel = preg_split('/\s+/', trim($element->getAttribute('rel')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
             $attributes .= ' rel="' . htmlspecialchars(implode(' ', array_unique([...$rel, 'noopener', 'noreferrer'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-            $this->mark($element->getAttribute('rel'), $self . '@rel');
+            $this->mark($element->getAttribute('rel'), $self . '@rel', 'attr');
+        } elseif ($linkTarget !== null) {
+            // A link prop the editor set to open in a new tab adds target and rel itself.
+            $attributes .= $this->extra(['target', $linkTarget]);
         }
 
         // libxml nests the siblings of HTML5 void elements it does not know; browsers do not.
         return in_array($tag, self::VOID, true)
             ? '<' . $tag . $attributes . '>' . $this->children($element, $container)
             : '<' . $tag . $attributes . '>' . $this->children($element, $self) . '</' . $tag . '>';
+    }
+
+    /** Where a block's child elements go. */
+    private function slot(\DOMElement $element, ?int $line): string
+    {
+        if ($element->attributes->length > 0 || trim($element->textContent) !== '' || $element->getElementsByTagName('*')->length > 0) {
+            $this->error($line, '<slot> stays empty and takes no attributes: it marks where the elements placed in the block appear.');
+        }
+        if (array_filter($this->extras, static fn(array $extra): bool => $extra[0] === 'slot') !== []) {
+            $this->error($line, 'A block has at most one <slot>.');
+        }
+        if (!$this->flow($element->parentNode)) {
+            $this->error($line, '<slot> holds block elements, so it must be inside a <div> or another block container, not <' . $this->tagName($element->parentNode) . '>.');
+        }
+
+        return $this->extra(['slot']);
     }
 
     /** A boolean attribute that a section switches on or off. */
@@ -235,6 +274,22 @@ final class BlockMarkup
         return sprintf(self::TAG, $open) . ' ' . $section['attribute'] . sprintf(self::TAG, $section['pair']);
     }
 
+    /** Inline styles may only set custom properties from color props: style="--accent: {{accent}}". */
+    private function style(string $value, ?int $line, string $location): ?string
+    {
+        $declaration = '(--[a-z][a-z0-9-]{0,40})\s*:\s*(\x{E000}(\d+)\x{E001})\s*';
+        preg_match_all('/' . $declaration . '/u', $value, $declarations, PREG_SET_ORDER);
+        $colors = array_filter($declarations, fn(array $match): bool => $this->tags[(int) $match[3]]['type'] === 'value' && ($this->tags[(int) $match[3]]['spec']['type'] ?? '') === 'color');
+        if (preg_match('/^\s*(?:' . $declaration . '(?:;\s*|$))+$/uD', $value) !== 1 || count($colors) !== count($declarations)) {
+            $this->error($line, 'The style attribute may only set CSS custom properties from color props, as in style="--accent: {{accent}}". Put other CSS in style.css.');
+            $this->mark($value, 'removed');
+            return null;
+        }
+        $this->mark($value, $location, 'css');
+
+        return implode(';', array_map(static fn(array $match): string => $match[1] . ':' . $match[2], $declarations));
+    }
+
     private function allowedAttribute(string $tag, string $name, bool $svg): bool
     {
         if (preg_match('/^(?:aria|data)-[a-z0-9-]+$/D', $name) === 1) {
@@ -246,8 +301,15 @@ final class BlockMarkup
             : in_array($name, self::ELEMENTS[$tag], true) || in_array($name, self::GLOBAL_ATTRIBUTES, true);
     }
 
-    private function attributeValue(string $name, string $value, ?int $line, string $location): ?string
+    private function attributeValue(string $tag, string $name, string $value, ?int $line, string $location, ?string &$linkTarget): ?string
     {
+        foreach ($this->markers($value) as $id) {
+            if ($this->tags[$id]['type'] === 'raw') {
+                $this->error($line, $this->tags[$id]['source'] . ' outputs HTML, which cannot go into an attribute.');
+                $this->mark($value, 'removed');
+                return null;
+            }
+        }
         if ($name === 'srcset') {
             if (preg_match(self::TAG_MARKER, $value) === 1) {
                 $this->error($line, 'srcset accepts literal URLs and assets/ paths only.');
@@ -266,20 +328,22 @@ final class BlockMarkup
         if (in_array($name, self::URL_ATTRIBUTES, true)) {
             $trimmed = trim($value);
             if (preg_match('/^\x{E000}(\d+)\x{E001}$/uD', $trimmed, $match) === 1) {
-                $tag = $this->tags[(int) $match[1]];
-                if ($tag['type'] === 'value' && ($this->props[$tag['key']]['type'] ?? '') === 'url') {
-                    $this->mark($trimmed, $location);
+                $marked = $this->tags[(int) $match[1]];
+                $type = $marked['spec']['type'] ?? '';
+                if ($marked['type'] === 'value' && in_array($type, self::URL_TYPES, true) && $marked['field'] !== 'alt' && ($type !== 'link' || ($name === 'href' && $tag === 'a'))) {
+                    $this->mark($trimmed, $location, 'url');
+                    if ($type === 'link') $linkTarget = $marked['key'];
                     return $trimmed;
                 }
             }
             if (preg_match(self::TAG_MARKER, $value) === 1) {
-                $this->error($line, $name . ' accepts a literal URL, an assets/ path or exactly one url prop such as {{link}} (declared with "type": "url").');
+                $this->error($line, $name . ' accepts a literal URL, an assets/ path or exactly one url, link or media prop, such as {{link}} or {{photo}}. link props only fit <a href>.');
                 $this->mark($value, $location);
                 return null;
             }
             return $this->literalUrl($trimmed, $line, $name);
         }
-        $this->mark($value, $location);
+        $this->mark($value, $location, 'attr');
 
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
@@ -291,8 +355,7 @@ final class BlockMarkup
                 $this->error($line, 'The package has no file ' . $url . '.');
                 return null;
             }
-            $this->assetFiles[] = $this->assets[$url];
-            return sprintf(self::ASSET, count($this->assetFiles) - 1);
+            return $this->extra(['asset', $this->assets[$url]]);
         }
         if ($url !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|/|#|\?)~i', $url)) {
             $this->error($line, 'The relative URL "' . $url . '" in ' . $name . ' would resolve against each page\'s address. Reference package files as assets/…, and site pages with a leading /.');
@@ -306,6 +369,13 @@ final class BlockMarkup
         return htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
+    private function extra(array $node): string
+    {
+        $this->extras[] = $node;
+
+        return sprintf(self::EXTRA, count($this->extras) - 1);
+    }
+
     private function inside(\DOMElement $element, string $tag): bool
     {
         for ($parent = $element->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
@@ -316,11 +386,31 @@ final class BlockMarkup
         return false;
     }
 
-    private function mark(string $value, string $location): void
+    private function flow(?\DOMNode $parent): bool
+    {
+        return in_array($this->tagName($parent), self::FLOW, true);
+    }
+
+    private function tagName(?\DOMNode $node): string
+    {
+        if (!$node instanceof \DOMElement) return '';
+
+        return $node->getAttribute('id') === self::ROOT ? 'root' : strtolower($node->tagName);
+    }
+
+    /** @return list<int> the tag markers in a string */
+    private function markers(string $value): array
     {
         preg_match_all(self::TAG_MARKER, $value, $matches);
-        foreach ($matches[1] as $id) {
-            $this->seen[(int) $id] ??= $location;
+
+        return array_map('intval', $matches[1]);
+    }
+
+    private function mark(string $value, string $location, ?string $context = null): void
+    {
+        foreach ($this->markers($value) as $id) {
+            $this->seen[$id] ??= $location;
+            if ($context !== null) $this->contexts[$id] ??= $context;
         }
     }
 

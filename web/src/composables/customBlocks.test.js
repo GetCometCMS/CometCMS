@@ -7,6 +7,8 @@ import { createSiteBuilder } from './useSiteBuilder.js'
 import { findNode } from './layoutTree.js'
 import BuilderPalette from '../components/site/builder/BuilderPalette.vue'
 import BuilderControl from '../components/site/builder/BuilderControl.vue'
+import KindIcon from '../components/site/builder/KindIcon.vue'
+import { nodeIcon } from '../components/site/builder/kindIcons.js'
 import { t } from '../i18n/index.js'
 
 const manifest = JSON.parse(readFileSync(new URL('../../../examples/blocks/acme-marketing/blocks/callout/block.json', import.meta.url), 'utf8'))
@@ -72,5 +74,58 @@ describe('block package blocks in the builder', () => {
     expect(html).toContain('value="Something worth sharing"')
     expect(html).toContain('success')
     expect(html).not.toContain('site.prop.url')
+  })
+})
+
+describe('block package editing features', () => {
+  const listDef = {
+    type: 'list', label: 'Features', max: 2,
+    fields: { text: { type: 'string', label: 'Feature', default: '' }, included: { type: 'bool', label: 'Included', default: true } },
+  }
+
+  it('edits list items with nested field controls and respects the item limit', async () => {
+    const updates = []
+    const { html } = await fixture((builder) => h(BuilderControl, {
+      node: builder.make(kind), name: 'features', def: listDef,
+      value: [{ text: 'Unlimited pages', included: true }],
+      onUpdate: (value) => updates.push(value),
+    }))
+    expect(html).toContain('Unlimited pages')
+    expect(html).toContain('Add item')
+    expect(html).toContain('<button type="button" class="btn-secondary btn-sm w-full">')
+
+    const full = await fixture((builder) => h(BuilderControl, {
+      node: builder.make(kind), name: 'features', def: listDef, value: [{ text: 'A' }, { text: '' }],
+    }))
+    expect(full.html).toContain('Item 2')
+    expect(full.html).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*?Add item/)
+  })
+
+  it('shows multi-line text in a textarea', async () => {
+    const { html } = await fixture((builder) => h(BuilderControl, {
+      node: builder.make(kind), name: 'note', def: { type: 'text', label: 'Note', max: 200 }, value: 'Line one\nLine two',
+    }))
+    expect(html).toMatch(/<textarea[^>]*maxlength="200"[^>]*>Line one\nLine two<\/textarea>/)
+  })
+
+  it('uses package icons and lets slot blocks take dropped elements', async () => {
+    const icon = 'data:image/svg+xml;base64,PHN2Zy8+'
+    const slotSpec = structuredClone(spec)
+    slotSpec.kinds[kind] = { ...slotSpec.kinds[kind], icon, slot: true, children: ['heading'] }
+    const { builder } = await fixture()
+    builder.spec.value = slotSpec
+    expect(nodeIcon({ kind }, false, slotSpec)).toBe(icon)
+    expect(nodeIcon({ kind: 'block:other/thing' })).toBe('mdi:cube-outline')
+    expect(nodeIcon({ kind: 'heading' }, false, slotSpec)).toBe('mdi:format-header-pound')
+    const block = builder.make(kind)
+    expect(builder.isDropContainer(block)).toBe(true)
+    builder.insert(block)
+    builder.select(block.id)
+    expect(builder.insert(builder.make('heading'))).toBe(true)
+    expect(findNode(builder.nodes.value, block.id).children.map((child) => child.kind)).toEqual(['heading'])
+
+    const rendered = await renderToString(createSSRApp({ render: () => h(KindIcon, { icon, class: 'h-4 w-4' }) }))
+    expect(rendered).toContain('mask:url(&quot;' + icon + '&quot;) center / contain no-repeat')
+    expect(rendered).toContain('h-4 w-4')
   })
 })

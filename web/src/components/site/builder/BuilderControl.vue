@@ -1,10 +1,10 @@
 <template>
   <div>
-    <fieldset :disabled="builder.translating?.value && !def.localized" class="min-w-0">
+    <fieldset :disabled="builder.translating?.value && !def.localized && !embedded" class="min-w-0">
     <div v-if="!def.binding" class="mb-1 flex items-center justify-between gap-2">
       <div class="flex shrink-0 items-center gap-1.5">
         <label class="text-xs text-slate-500" :for="isSectionHeight ? `${inputId}-auto` : inputId">{{ label }}</label>
-        <BuilderTranslationStatus v-if="def.localized" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="resetTranslation" />
+        <BuilderTranslationStatus v-if="def.localized && !embedded" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="resetTranslation" />
         <BuilderOverrideStatus v-if="variants" :node="node" :group="group" :name="name" />
         <slot name="status" />
       </div>
@@ -13,7 +13,7 @@
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
       <template #label-status>
-        <BuilderTranslationStatus v-if="def.localized" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="resetTranslation" />
+        <BuilderTranslationStatus v-if="def.localized && !embedded" :state="translationState" :source="sourceText" :show-source="isSecondaryLocale" :can-reset="isSecondaryLocale && translationState !== 'inherited'" @reset="resetTranslation" />
         <slot name="status" />
       </template>
       <template v-if="['media', 'media_list', 'link'].includes(def.binding)" #literal>
@@ -214,6 +214,18 @@
       @input="emitValue($event.target.value)"
     />
 
+    <textarea
+      v-else-if="def.type === 'text'"
+      :id="inputId"
+      :value="value ?? ''"
+      :maxlength="def.max"
+      rows="4"
+      class="form-textarea w-full rounded-lg border-slate-300 py-1.5 text-xs"
+      @input="emitValue($event.target.value)"
+    ></textarea>
+
+    <BlockListControl v-else-if="def.type === 'list'" :node="node" :name="name" :def="def" :value="value ?? []" @update="emitValue" />
+
     <div v-else-if="def.type === 'html'" class="site-builder-richtext">
       <FieldInput :name="inputId" :config="{ type: 'html' }" :model-value="value" @update:model-value="emitValue" />
     </div>
@@ -332,6 +344,7 @@ import { DEVICE_ICONS, barOptions, numberBar } from "./controlOptions.js";
 import { effectiveSpan } from "../../../composables/layoutTree.js";
 import { localeFlagCountry } from "../../../composables/localeOptions.js";
 import FontPicker from "../FontPicker.vue";
+import BlockListControl from "./BlockListControl.vue";
 import { resolveLocalized } from '../../../composables/localizedValues.js';
 import { useSiteStore } from "../../../stores/site.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
@@ -347,6 +360,8 @@ const props = defineProps({
   def: { type: Object, required: true },
   value: { default: null },
   group: { type: String, default: "props" },
+  /** A field inside another control, such as a list item: the parent handles translation. */
+  embedded: { type: Boolean, default: false },
   /** Devices a column width control shows, e.g. only the one previewed. */
   devices: { type: Array, default: () => ["desktop", "tablet", "mobile"] },
   /** Whether device and state values are shown; an instance's own values have none. */

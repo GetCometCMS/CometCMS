@@ -4,7 +4,7 @@
 
 **Block packages** add your own elements to the page builder. A package is a ZIP of plain files: a manifest, one folder per block with an HTML template and CSS, and optional assets. Packages contain no code. CometCMS validates and compiles them at installation, and every block then renders on the server, identically in the builder preview and on the published website.
 
-Blocks behave like built-in elements. They appear in the elements palette, get an inspector generated from their props, accept the standard element styles, and work in columns, tabs, reusable components, collection cards and header/footer layouts. Their text props are translatable like built-in text.
+Blocks behave like built-in elements. They appear in the elements palette with their own icon, get an inspector generated from their props, accept the standard element styles, and work in columns, tabs, reusable components, collection cards and header/footer layouts. Their content is translatable, text, rich text, images and links can be bound to entry fields, and a block can hold other elements in a slot.
 
 ## Quick start
 
@@ -14,23 +14,27 @@ The repository includes a complete example in `examples/blocks/acme-marketing/`:
 acme-marketing/
   comet-package.json        # required: name, version, title
   style.css                 # optional: CSS shared by all blocks of the package
+  icon.svg                  # optional: palette icon for blocks without their own
   README.md                 # optional: README.md, LICENSE(.md/.txt), CHANGELOG.md are kept but ignored
   assets/
     check.svg               # optional: images, fonts and videos
     chevron.svg
   blocks/
     callout/
-      block.json            # required: title, description, props
+      block.json            # required: title, description, icon, props
       template.html         # required: the markup
       style.css             # optional
-    faq/…
-    feature/…
+    card/…                  # media, color and link props, and a slot
+    faq/…                   # a list of questions with rich-text answers
+    feature/
+      icon.svg              # optional: this block's palette icon
+    pricing/…               # a list of features
 ```
 
 1. Check the package: `npm run blocks -- validate examples/blocks/acme-marketing`
 2. Pack it: `npm run blocks -- pack examples/blocks/acme-marketing` (writes `acme-marketing-1.0.0.zip`)
 3. As an administrator, open **Page Builder → Custom blocks** and drop the ZIP on the upload area.
-4. Open a layout. **Callout**, **FAQ item** and **Feature** are in the elements palette.
+4. Open a layout. **Callout**, **Card**, **FAQ**, **Feature** and **Pricing plan** are in the elements palette.
 
 Zipping the folder yourself works too. A single top-level folder inside the ZIP is unwrapped, and `.DS_Store`, `__MACOSX/` and other dotfiles are ignored. The CLI runs the same validation as the installer, without a running CMS. It needs only PHP with the zip extension.
 
@@ -64,28 +68,57 @@ Every folder `blocks/<name>/` is one block. Its name combines the package vendor
 
 ```json
 {
-  "title": "Callout",
-  "description": "An announcement with an optional link.",
+  "title": "Pricing plan",
+  "description": "A plan with its price, features and a call to action.",
+  "icon": "mdi:tag-outline",
   "props": {
-    "title": { "type": "string", "label": "Heading", "max": 200, "default": "Something worth sharing" },
-    "tone": { "type": "enum", "label": "Tone", "options": ["info", "success"], "default": "info" },
-    "show_link": { "type": "bool", "label": "Show link", "default": true },
-    "url": { "type": "url", "label": "Link URL", "default": "#details" }
+    "name": { "type": "string", "label": "Plan", "max": 80, "default": "Pro" },
+    "highlight": { "type": "bool", "label": "Highlight this plan" },
+    "features": {
+      "type": "list", "label": "Features", "max": 20,
+      "fields": {
+        "text": { "type": "string", "label": "Feature", "max": 200 },
+        "included": { "type": "bool", "label": "Included", "default": true }
+      },
+      "default": [{ "text": "Unlimited pages" }, { "text": "Priority support", "included": false }]
+    },
+    "cta": { "type": "link", "label": "Button link", "default": "#signup" },
+    "note": { "type": "text", "label": "Small print", "max": 500 }
   }
 }
 ```
 
 `title` (up to 120 bytes) is the palette label, and the optional `description` (up to 500 bytes) its hint. Do not add `name`; the folder decides it. A block has at most 32 props. Prop names start with a lowercase letter and use lowercase letters, digits and underscores.
 
-| Type | Optional settings | Default if omitted | Editor and saved value |
-| --- | --- | --- | --- |
-| `string` | `max` 1–5000 (default 500) | `""` | Single-line text, trimmed and length-limited. Translatable. |
-| `url` | `max` 1–5000 (default 2000) | `""` | Relative, `http(s)`, `mailto` or `tel` URL; anything else falls back to the default. Translatable. |
-| `bool` | none | `false` | Checkbox. |
-| `int` | `min`, `max` within ±1,000,000 | 0, clamped to the range | Number, clamped to the range. |
-| `enum` | `options` (required): 1–50 values of letters, digits, `-` and `_` | the first option | Select. Options double as CSS class fragments. |
+**Icon.** Give a block its palette icon in one of three ways, in this order of precedence:
 
-Every prop needs `type` and `label` (up to 120 bytes). Values are validated when layouts are saved, previewed and rendered. Values of props a package no longer declares are dropped the next time the layout is saved.
+1. An `icon.svg` or `icon.png` (up to 64 KiB) in the block folder.
+2. An `"icon"` in `block.json`: any [Iconify](https://icon-sets.iconify.design/) name, such as `"mdi:tag-outline"`.
+3. An `icon.svg` or `icon.png` at the package root, shared by blocks without their own.
+
+A block cannot have both an icon name and an icon file. Icon files are shown as a mask in the current text color, like the built-in icons, so only their shape matters: draw them on a transparent background. Blocks without any icon show a cube.
+
+### Prop types
+
+Every prop needs `type` and `label` (up to 120 bytes); `default` is optional.
+
+| Type | Settings | Default if omitted | Editor | In templates |
+| --- | --- | --- | --- | --- |
+| `string` | `max` 1–5000 (500) | `""` | Single-line text; can be bound to fields | Escaped text |
+| `text` | `max` 1–20000 (2000) | `""` | Multi-line text area | Escaped text; line breaks become `<br>` in element content |
+| `richtext` | none | `""` | Rich-text editor; can be bound to fields | HTML, written `{{{name}}}` |
+| `url` | `max` 1–5000 (2000) | `""` | URL field | A relative, `http(s)`, `mailto` or `tel` URL |
+| `link` | none; the default is a URL | no link | Page, entry, anchor or URL picker with "new tab"; can be bound to fields | The link's address |
+| `bool` | none | `false` | Switch | Truthy or falsy |
+| `int` | `min`, `max` within ±1,000,000 | 0, clamped | Number | The number |
+| `enum` | `options` (required): 1–50 values of letters, digits, `-` and `_` | the first option | Select | The option |
+| `color` | none; the default is a theme color or `""` | `""` | Theme color picker, including the workspace's custom colors | The color key, such as `primary` |
+| `media` | none; no default | no image | Media library; can be bound to fields | The image URL; `{{name.alt}}` is its alternative text |
+| `list` | `fields` (required, 1–16 item fields of any other type), `max` 1–100 (20) | `[]` | Items to add, reorder and remove | Repeated by `{{#name}}…{{/name}}` |
+
+Defaults are checked against their types. Theme colors are `primary`, `secondary`, `accent`, `background`, `surface`, `text`, `muted` and `border`. List item defaults may leave out fields, which then use the field's default.
+
+Text, rich text, URL, link, media and list props are translated per language. A list is translated as a whole, so translations can add or remove items. Values are validated whenever layouts are saved and loaded. Values of props a package no longer declares are dropped the next time the layout is saved.
 
 ## template.html
 
@@ -93,14 +126,39 @@ Templates are HTML with Mustache tags. All values are HTML-escaped.
 
 | Tag | Meaning |
 | --- | --- |
-| `{{title}}` | The prop's value, escaped. |
-| `{{#show_link}}…{{/show_link}}` | Rendered when the prop is truthy. Empty strings, `false`, `0` and `"0"` are falsy. |
+| `{{title}}` | The prop's value, escaped. For media it is the image URL; `{{photo.alt}}` is its alternative text. |
+| `{{{body}}}` | A `richtext` prop's HTML, sanitized. It must be the content of a `<div>` or another block container, not a `<p>` or an attribute. |
+| `{{#show_link}}…{{/show_link}}` | Rendered when the prop is truthy. Empty strings, `false`, `0`, `"0"`, a missing image and an empty link are falsy. |
+| `{{#features}}…{{/features}}` | Repeated for each item of a list. Inside, item fields are available by name, and the block's other props stay available too. `{{^features}}` renders when the list is empty. |
 | `{{^show_link}}…{{/show_link}}` | Rendered when the prop is falsy. |
 | `{{#tone=success}}…{{/tone}}` | Rendered when an enum prop has this option. `{{^tone=success}}` is the opposite. The closing tag may repeat the option. |
 | `<details {{#open}}open{{/open}}>` | Inside a start tag, a section toggles one boolean attribute: `open`, `hidden`, `inert`, `disabled`, `controls`, `autoplay`, `muted`, `loop`, `playsinline` or `reversed`. |
 | `{{! comment }}` | Removed. |
 
-Elsewhere inside a start tag, tags may only appear in quoted attribute values: `class="acme-callout acme-callout--{{tone}}"`. Sections can nest 16 deep. Each section must open and close inside the same element, or inside the same attribute value, so every combination of values produces well-formed HTML. There is no raw output (`{{{x}}}`, `{{& x}}`), no partials, no dotted names and no delimiter changes. In this version, `{{#prop}}` never loops.
+Elsewhere inside a start tag, tags may only appear in quoted attribute values: `class="acme-callout acme-callout--{{tone}}"`. Sections can nest 16 deep. Each section must open and close inside the same element, or inside the same attribute value, so every combination of values produces well-formed HTML. Raw output is only for `richtext` props; there are no partials and no delimiter changes, and the only dotted names are `.url` and `.alt` on media props. Lists cannot be nested.
+
+**Links.** Put a `link` prop in an `<a href="{{cta}}">`. When the editor chooses "open in new tab", CometCMS adds `target="_blank" rel="noopener noreferrer"` itself, unless the template sets its own `target`.
+
+**Colors.** A `color` prop prints its theme key, which fits theme classes such as `c-bg-{{tint}}` or your own class names. To use it in your CSS, set a custom property: `style="--acme-tint: {{tint}}"` becomes `--acme-tint: var(--c-accent)`, which follows the theme and dark mode. An empty color becomes `initial`, so `var(--acme-tint, fallback)` uses the fallback. The `style` attribute accepts nothing else.
+
+### Slots
+
+A block whose template contains `<slot></slot>` holds child elements: editors drop headings, text, buttons, images, other blocks and so on into it, on the canvas or in the layer outline, and they appear where the slot is. Inside a repeater item, a slot accepts the elements allowed there. The slot must be empty, stand inside a `<div>` or another block container, and not be inside a section. A block has at most one slot. When its package is missing, a block keeps its child elements for a reinstall.
+
+```html
+<article class="acme-card" style="--acme-card-accent: {{accent}}">
+  {{#image}}<img class="acme-card__image" src="{{image}}" alt="{{image.alt}}" loading="lazy">{{/image}}
+  <div class="acme-card__body">
+    <h3 class="acme-card__title">{{title}}</h3>
+    <slot></slot>
+    {{#link}}<a class="acme-card__link" href="{{link}}">{{link_label}}</a>{{/link}}
+  </div>
+</article>
+```
+
+### Bindings
+
+`string`, `richtext`, `media` and `link` props can be bound to content in the inspector, like the text of a built-in heading: the current entry's fields, fields of a specific entry, the current item in collection cards and repeaters, and site values such as its title. A bound card in a collection shows each entry's own title, image and page link.
 
 The callout template uses most of this:
 
@@ -125,9 +183,9 @@ Templates are parsed at installation and rejected, with file and line, when they
 - **On every element:** `class id title role lang dir hidden inert popover translate tabindex`, plus any `aria-*` and `data-*` attribute.
 - **Element attributes:** for example `a[href target rel hreflang]`, `img[src srcset sizes alt width height loading decoding fetchpriority]`, `video[src poster controls autoplay muted loop playsinline preload]`, `details[open name]`, `button[type popovertarget popovertargetaction disabled]`, `td/th[colspan rowspan headers]`, `time[datetime]`.
 
-Not allowed: `script`, `style`, `link`, `iframe`, forms and form controls, inline `style` attributes and `on*` event handlers. Buttons must be `type="button"`. A `<p>` cannot contain block elements such as `<section>` or `<div>`, because browsers would close the paragraph early. Links with a `target` automatically get `rel="noopener noreferrer"`.
+Not allowed: `script`, `style`, `link`, `iframe`, forms and form controls, `on*` event handlers, and `style` attributes other than color custom properties. Buttons must be `type="button"`. A `<p>` cannot contain block elements such as `<section>` or `<div>`, because browsers would close the paragraph early. Links with a `target` automatically get `rel="noopener noreferrer"`.
 
-**URLs.** `href`, `src` and `poster` take a literal URL, an `assets/…` path, or exactly one `url`-type prop: `href="{{url}}"`. A `string` prop cannot be a URL, and URLs cannot be assembled from several parts. Literal URLs must be absolute (`https://…`), start with `/`, `#` or `?`, or use `mailto:` or `tel:`. A bare relative path like `logo.png` is rejected, because it would resolve against each page's address. `srcset` accepts literal URLs and `assets/…` paths only.
+**URLs.** `href`, `src` and `poster` take a literal URL, an `assets/…` path, or exactly one `url`, `media` or `link` prop: `src="{{photo}}"`. `link` props only fit `<a href>`. A `string` prop cannot be a URL, and URLs cannot be assembled from several parts. Literal URLs must be absolute (`https://…`), start with `/`, `#` or `?`, or use `mailto:` or `tel:`. A bare relative path like `logo.png` is rejected, because it would resolve against each page's address. `srcset` accepts literal URLs and `assets/…` paths only.
 
 **Markup is normalized.** The stored template is the parsed HTML written back out, so `<li>` without closing tags, self-closing SVG elements and similar shorthand are fine.
 
@@ -135,7 +193,7 @@ Not allowed: `script`, `style`, `link`, `iframe`, forms and form controls, inlin
 
 Packages cannot run JavaScript, but modern HTML and CSS cover many interactive patterns:
 
-- **Accordions:** `<details>`/`<summary>`. Items with the same `name` close each other (see the `faq` block).
+- **Accordions:** `<details>`/`<summary>`. Items with the same `name` close each other (see the `faq` block, which repeats them for a list of questions).
 - **Menus, popovers and tooltips:** `<button type="button" popovertarget="x">` with `<div id="x" popover>`.
 - **Carousels:** CSS scroll snapping on a horizontally scrolling list.
 - **State-dependent styling:** `:has()`, `:target`, `details[open]`, and scroll-driven animations.
@@ -177,7 +235,7 @@ Keep your packages in version control. Versions are informational: there is no d
 Validation reports every problem at once, as `file:line: message`, in the upload panel, the API response and the CLI:
 
 ```text
-blocks/faq/template.html:3: {{{answer}}}: Raw output with {{{name}}} or {{& name}} is not supported; values are always escaped. Use {{name}}.
+blocks/faq/template.html:6: {{answer}}: answer is rich text: output its HTML with {{{answer}}}.
 blocks/feature/style.css:1: The relative URL "images/bg.png" would resolve against each page's address. Reference package files as url(assets/…).
 ```
 
@@ -191,7 +249,7 @@ Installing, updating and deleting packages requires an administrator with the wo
 | --- | --- |
 | Data | Blocks see only their own validated props. No content queries, media library, sessions or environment. |
 | Code | None. No JavaScript, PHP, build steps, hooks or package managers. JavaScript files are rejected. |
-| Markup | Allow-listed at installation; values are always escaped. |
+| Markup | Allow-listed at installation; values are escaped, and rich text is sanitized with the CMS's HTML allow-list. |
 | CSS | **Trusted, like custom theme CSS.** It is not sandboxed or scoped, so it can restyle the whole website and load external fonts and images. Prefixing selectors is a convention, not a security boundary. Only install packages from authors you trust. |
 | Assets | Served with `Content-Security-Policy: sandbox` and `nosniff`, so an SVG opened directly cannot run scripts. |
 
@@ -209,10 +267,7 @@ The workspace header and CSRF handling are those of the other admin endpoints.
 
 ## Not yet supported
 
-These are deliberately left out of version 1 and planned as additive extensions of the same package format:
-
-- **Repeating content:** list props with item schemas (iterated by `{{#items}}…{{/items}}`) and child slots, for FAQ lists, pricing tables or card grids built from one block.
-- **More prop types:** multi-line and rich text, media from the library, colours from the theme, and bindings to collection fields.
 - **JavaScript:** an optional per-block script with its own permission and Content-Security-Policy integration, running only on the published website.
+- **Nested lists**, binding a whole list to a repeater field, and several named slots.
 
 </div>

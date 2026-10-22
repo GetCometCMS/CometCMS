@@ -41,7 +41,7 @@
     </nav>
     <div class="relative z-10 flex shrink-0 items-center gap-2.5 px-3 pb-2 pt-2.5" :class="{ 'border-b border-slate-200': isInstance }">
       <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600 ring-1 ring-inset ring-theme-100">
-        <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-[18px] w-[18px]" />
+        <KindIcon :icon="nodeIcon(node, builder.isStacked(node), builder.spec.value)" class="h-[18px] w-[18px]" />
       </span>
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-1">
@@ -292,6 +292,7 @@ import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
 import { nodeIcon } from "./kindIcons.js";
+import KindIcon from "./KindIcon.vue";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
 import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumbs.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";

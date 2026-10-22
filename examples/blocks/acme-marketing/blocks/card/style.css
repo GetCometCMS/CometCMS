@@ -1,0 +1,27 @@
+.c-block-acme__card .acme-card {
+  overflow: hidden;
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-top: 4px solid var(--acme-card-accent, var(--acme-accent));
+  border-radius: var(--acme-radius);
+  background: var(--c-surface, #fff);
+}
+.c-block-acme__card .acme-card__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.c-block-acme__card .acme-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: var(--space-lg, 1.5rem);
+}
+.c-block-acme__card .acme-card__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.c-block-acme__card .acme-card__link {
+  color: var(--acme-card-accent, var(--acme-accent));
+  font-weight: 600;
+}

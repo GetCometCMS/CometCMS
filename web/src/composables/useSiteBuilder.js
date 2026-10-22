@@ -311,7 +311,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Drop containers: structure, tabs, item templates, page content and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length)
+      || !!spec.value?.kinds?.[node.kind]?.slot)
   }
 
   /** The single root of a component's tree stays where it is. */

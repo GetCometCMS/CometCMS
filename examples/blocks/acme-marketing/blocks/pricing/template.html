@@ -1,0 +1,11 @@
+<div class="acme-plan{{#highlight}} acme-plan--highlight{{/highlight}}">
+  <h3 class="acme-plan__name">{{name}}</h3>
+  <p class="acme-plan__price"><strong>{{price}}</strong> <span>{{period}}</span></p>
+  <ul class="acme-plan__features">
+    {{#features}}
+    <li class="acme-plan__feature{{^included}} acme-plan__feature--excluded{{/included}}">{{text}}</li>
+    {{/features}}
+  </ul>
+  {{#cta}}<a class="acme-plan__cta" href="{{cta}}">{{cta_label}}</a>{{/cta}}
+  {{#note}}<p class="acme-plan__note">{{note}}</p>{{/note}}
+</div>

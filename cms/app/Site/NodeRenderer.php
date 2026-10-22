@@ -124,7 +124,7 @@ final class NodeRenderer
         $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $warnings = false;
-        foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
+        foreach (LayoutSchema::bindings((string) ($node['kind'] ?? ''), $this->ctx->site->blocks()) as $key => $target) {
             $binding = $node['props'][$key] ?? null;
             if ($target === 'link' && ($binding['type'] ?? '') === 'dynamic') {
                 $resolved = $this->smart->resolve($binding['value'], $state);
@@ -173,7 +173,7 @@ final class NodeRenderer
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
             'theme_toggle' => $this->themeToggle($node),
-            default => BlockRegistry::isKind((string) ($node['kind'] ?? '')) ? $this->block($node) : '',
+            default => BlockRegistry::isKind((string) ($node['kind'] ?? '')) ? $this->block($node, $state) : '',
         };
         if ($warnings && $this->annotating()) {
             $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('unresolvedFallback') . '>Unresolved content reference (using fallback if configured)</div>';
@@ -204,19 +204,57 @@ final class NodeRenderer
         return implode("\n", array_filter($css));
     }
 
-    private function block(array $node): string
+    private function block(array $node, array $state): string
     {
         $blocks = $this->ctx->site->blocks();
         $block = $blocks->get($node['kind']);
         if ($block === null) {
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Missing block: ' . Security::e(substr($node['kind'], 6)) . '</div>') : '';
         }
-        $props = LayoutSchema::normalizeProps($node['kind'], $node['props'] ?? [], $blocks);
+        $slot = '';
+        if ($block['slot']) {
+            $slot = $this->render($node['children'] ?? [], $state);
+            if ($slot === '' && $this->annotating()) {
+                $slot = '<div class="c-placeholder c-placeholder-drop">Drop elements here</div>';
+            }
+        }
         // Compiled templates are well-formed allow-listed HTML; render only escapes values.
-        $html = BlockTemplate::render($block['template'], $props, $this->ctx->blockAssetUrl(...));
+        $html = BlockTemplate::render($block['template'], $this->blockValues($block['props'], $node['props'] ?? [], $state), $this->ctx->blockAssetUrl(...), $slot);
         $this->blockStyles[$block['package']][$node['kind']] = true;
 
         return $this->element($node, $html, [BlockRegistry::cssClass($block['name'])]);
+    }
+
+    /**
+     * Saved block props (already localized and with bindings resolved) as template
+     * values: media become URLs with alt text, colors theme keys with their CSS
+     * value, links an href with the editor's new-tab choice.
+     */
+    private function blockValues(array $specs, array $props, array $state): array
+    {
+        $values = [];
+        foreach ($specs as $key => $spec) {
+            $value = $props[$key] ?? $spec['default'];
+            $values[$key] = match ($spec['type']) {
+                'media' => $this->blockMedia(is_string($value) ? $value : ''),
+                'color' => is_string($value) && $value !== '' ? ['_' => $value, 'css' => 'var(--c-' . $value . ')'] : ['_' => '', 'css' => 'initial'],
+                'link' => ($link = is_array($value) ? $this->resolveLink($value, $state) : null) !== null ? ['_' => $link['href'], 'new_tab' => $link['new_tab']] : ['_' => ''],
+                'url' => is_string($value) && HtmlSanitizer::isSafeUrl(trim($value)) ? trim($value) : '',
+                // Saved layouts are sanitized already; like the text element, render does it again.
+                'richtext' => is_string($value) ? HtmlSanitizer::sanitize($value) : '',
+                'list' => array_map(fn(mixed $item): array => $this->blockValues($spec['fields'], is_array($item) ? $item : [], $state), is_array($value) ? array_values($value) : []),
+                default => is_scalar($value) ? $value : '',
+            };
+        }
+
+        return $values;
+    }
+
+    private function blockMedia(string $file): array
+    {
+        $item = $file !== '' ? $this->ctx->mediaItem($file) : null;
+
+        return $item === null ? ['_' => '', 'alt' => ''] : ['_' => $this->ctx->mediaUrl($item['name']), 'alt' => (string) ($item['alt'] ?? '')];
     }
 
     /**

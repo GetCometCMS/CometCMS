@@ -42,7 +42,7 @@
         v-for="kind in elementKinds"
         :key="kind"
         stacked
-        :icon="KIND_ICONS[kind] || 'mdi:puzzle-outline'"
+        :icon="kindIcon(kind, builder.spec.value)"
         :label="builder.kindLabel(kind)"
         :hint="kindHint(kind)"
         @add="builder.insert(create(kind))"
@@ -97,7 +97,7 @@
 import { computed, ref, useId, watch } from "vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
-import { KIND_ICONS } from "./kindIcons.js";
+import { KIND_ICONS, kindIcon } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
 import { ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";

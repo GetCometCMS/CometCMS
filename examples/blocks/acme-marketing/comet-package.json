@@ -2,8 +2,8 @@
   "api_version": 1,
   "name": "acme/marketing",
   "title": "Acme marketing blocks",
-  "description": "A callout, an FAQ item and a feature card that work with any theme.",
-  "version": "1.0.0",
+  "description": "A callout, FAQ, feature, card and pricing plan that work with any theme.",
+  "version": "1.1.0",
   "author": "Acme",
   "license": "MIT"
 }

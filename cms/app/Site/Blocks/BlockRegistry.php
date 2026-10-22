@@ -71,6 +71,7 @@ final class BlockRegistry
                     'name' => $index['blocks'][$kind]['name'],
                     'title' => $index['blocks'][$kind]['title'],
                     'description' => $index['blocks'][$kind]['description'],
+                    'icon' => $index['blocks'][$kind]['icon'],
                 ], $package['blocks']),
             ];
         }
@@ -192,15 +193,29 @@ final class BlockRegistry
                 $changes[] = $block . ' is removed. Placed instances will show as missing blocks.';
                 continue;
             }
-            foreach ($old['props'] as $key => $spec) {
-                $next = $new['props'][$key] ?? null;
-                if ($next === null) {
-                    $changes[] = $block . ': the prop "' . $key . '" is removed. Its saved values are dropped the next time a layout is saved.';
-                } elseif ($next['type'] !== $spec['type']) {
-                    $changes[] = $block . ': the prop "' . $key . '" changes from ' . $spec['type'] . ' to ' . $next['type'] . '. Saved values that do not fit fall back to the default.';
-                } elseif ($spec['type'] === 'enum' && array_diff($spec['options'], $next['options']) !== []) {
-                    $changes[] = $block . ': the prop "' . $key . '" no longer offers ' . implode(', ', array_diff($spec['options'], $next['options'])) . '. Instances using them fall back to the default.';
-                }
+            if (($old['slot'] ?? false) && !$new['slot']) {
+                $changes[] = $block . ' no longer has a slot. Elements placed inside it are removed the next time a layout is saved.';
+            }
+            array_push($changes, ...self::propChanges($block . ': the prop "', $old['props'], $new['props']));
+        }
+
+        return $changes;
+    }
+
+    /** @return list<string> removed props, changed types and dropped enum options, also inside list items */
+    private static function propChanges(string $prefix, array $old, array $new): array
+    {
+        $changes = [];
+        foreach ($old as $key => $spec) {
+            $next = $new[$key] ?? null;
+            if ($next === null) {
+                $changes[] = $prefix . $key . '" is removed. Its saved values are dropped the next time a layout is saved.';
+            } elseif ($next['type'] !== $spec['type']) {
+                $changes[] = $prefix . $key . '" changes from ' . $spec['type'] . ' to ' . $next['type'] . '. Saved values that do not fit fall back to the default.';
+            } elseif ($spec['type'] === 'enum' && array_diff($spec['options'], $next['options']) !== []) {
+                $changes[] = $prefix . $key . '" no longer offers ' . implode(', ', array_diff($spec['options'], $next['options'])) . '. Instances using them fall back to the default.';
+            } elseif ($spec['type'] === 'list') {
+                array_push($changes, ...self::propChanges($prefix . $key . '" item field "', $spec['fields'], $next['fields']));
             }
         }
 

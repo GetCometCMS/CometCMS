@@ -31,9 +31,13 @@ final class BlockPackage
     private const DOCUMENTS = ['README.md', 'LICENSE', 'LICENSE.md', 'LICENSE.txt', 'CHANGELOG.md'];
     private const DOCUMENT_LIMIT = 262144;
     private const PACKAGE_FIELDS = ['api_version', 'name', 'title', 'description', 'version', 'author', 'license', 'homepage'];
-    private const BLOCK_FIELDS = ['title', 'description', 'props'];
-    private const PROP_FIELDS = ['type', 'label', 'default', 'max', 'min', 'options'];
-    private const PROP_TYPES = ['string', 'url', 'bool', 'int', 'enum'];
+    private const BLOCK_FIELDS = ['title', 'description', 'icon', 'props'];
+    private const PROP_FIELDS = ['type', 'label', 'default', 'max', 'min', 'options', 'fields'];
+    public const PROP_TYPES = ['string', 'text', 'richtext', 'url', 'link', 'bool', 'int', 'enum', 'color', 'media', 'list'];
+    /** Theme colors a color prop may default to; workspaces add their own custom colors. */
+    public const COLOR_KEYS = ['primary', 'secondary', 'accent', 'background', 'surface', 'text', 'muted', 'border'];
+    public const ICONS = ['icon.svg' => 'image/svg+xml', 'icon.png' => 'image/png'];
+    private const ICON_LIMIT = 65536;
 
     /** Names are vendor/name; each part starts with a letter and holds up to 40 lowercase letters, digits or hyphens. */
     public static function validName(mixed $name): bool
@@ -153,10 +157,17 @@ final class BlockPackage
         $blocks = [];
         $assets = [];
         $documents = [];
+        $icons = [];
         foreach ($files as $path => $bytes) {
             $role = self::role((string) $path);
             if (is_string($role)) {
                 $errors[] = ['file' => $path, 'line' => null, 'message' => $role];
+            } elseif ($role[0] === 'icon') {
+                $documents[] = $path;
+                if (isset($icons[$role[1]])) {
+                    $errors[] = ['file' => $path, 'line' => null, 'message' => 'Use either icon.svg or icon.png, not both.'];
+                }
+                $icons[$role[1]] = self::icon($path, $bytes, $errors);
             } elseif ($role[0] === 'asset') {
                 $file = self::asset($path, $bytes, $errors);
                 if ($file !== null) $assets[$path] = $file;
@@ -196,11 +207,18 @@ final class BlockPackage
             if (!isset($parts['block.json'], $parts['template.html'])) continue;
             $block = self::blockManifest($parts['block.json'], $folder . 'block.json', $errors);
             if ($block === null) continue;
+            if (isset($icons[$slug]) && $block['icon'] !== '') {
+                $errors[] = ['file' => $folder . 'block.json', 'line' => null, 'message' => 'The block has both an "icon" name and an icon file. Keep one.'];
+            }
             $name = $vendor . '/' . $slug;
-            $compiled['block:' . $name] = $block + [
+            $template = BlockTemplate::compile($parts['template.html'], $block['props'], $assets, $folder . 'template.html', $errors);
+            $compiled['block:' . $name] = [
                 'name' => $name,
                 'package' => $package['name'] ?? '',
-                'template' => BlockTemplate::compile($parts['template.html'], $block['props'], $assets, $folder . 'template.html', $errors),
+                'icon' => $icons[$slug] ?? ($block['icon'] !== '' ? $block['icon'] : ($icons[''] ?? '')),
+                'slot' => BlockTemplate::hasSlot($template),
+            ] + $block + [
+                'template' => $template,
                 'css' => self::css($parts['style.css'] ?? '', $folder . 'style.css', $assets, $errors),
             ];
         }
@@ -219,6 +237,7 @@ final class BlockPackage
     private static function role(string $path): array|string
     {
         if (in_array($path, [self::MANIFEST, 'style.css'], true)) return ['root'];
+        if (isset(self::ICONS[$path])) return ['icon', ''];
         if (in_array($path, self::DOCUMENTS, true)) return ['document'];
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (in_array($extension, ['js', 'mjs', 'cjs', 'ts'], true)) {
@@ -238,11 +257,12 @@ final class BlockPackage
                 return 'Block folder names start with a lowercase letter and hold up to 40 lowercase letters, digits or hyphens.';
             }
             if (in_array($segments[2], ['block.json', 'template.html', 'style.css'], true)) return ['block', $segments[1], $segments[2]];
+            if (isset(self::ICONS[$segments[2]])) return ['icon', $segments[1]];
             if ($segments[2] === 'README.md') return ['document'];
             if ($segments[2] === 'template.mustache') return 'Rename template.mustache to template.html.';
         }
 
-        return 'Unexpected file. Packages contain ' . self::MANIFEST . ', style.css, README/LICENSE/CHANGELOG, blocks/<name>/{block.json, template.html, style.css} and assets/.';
+        return 'Unexpected file. Packages contain ' . self::MANIFEST . ', style.css, icon.svg, README/LICENSE/CHANGELOG, blocks/<name>/{block.json, template.html, style.css, icon.svg} and assets/.';
     }
 
     /** null when the path is fine, false when it is clutter to ignore, or a message. */
@@ -344,6 +364,10 @@ final class BlockPackage
         }
         self::text($manifest, 'title', 120, true, $error);
         self::text($manifest, 'description', 500, false, $error);
+        $icon = $manifest['icon'] ?? '';
+        if (!is_string($icon) || ($icon !== '' && !preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/D', $icon))) {
+            $error('icon must be an Iconify icon name such as "mdi:bullhorn-outline", or put an icon.svg in the block folder.');
+        }
         $props = [];
         $declared = $manifest['props'] ?? [];
         if (!is_array($declared) || ($declared !== [] && array_is_list($declared))) {
@@ -358,11 +382,11 @@ final class BlockPackage
         }
         if (count($errors) > $before) return null;
 
-        return ['title' => trim($manifest['title']), 'description' => trim($manifest['description'] ?? ''), 'props' => $props];
+        return ['title' => trim($manifest['title']), 'description' => trim($manifest['description'] ?? ''), 'icon' => $icon, 'props' => $props];
     }
 
-    /** A complete prop spec, with the documented defaults filled in. */
-    private static function prop(string $key, mixed $spec, callable $error): ?array
+    /** A complete prop spec, with the documented defaults filled in. List fields use the same rules, minus lists. */
+    private static function prop(string $key, mixed $spec, callable $error, bool $field = false): ?array
     {
         if (!preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $key) || in_array($key, ['constructor', 'prototype'], true)) {
             $error('prop names start with a lowercase letter and use lowercase letters, digits and underscores (up to 64).');
@@ -381,19 +405,22 @@ final class BlockPackage
             $fail('unknown field "' . $unknown . '". Allowed: ' . implode(', ', self::PROP_FIELDS) . '.');
         }
         $type = $spec['type'] ?? null;
-        if (!in_array($type, self::PROP_TYPES, true)) {
-            $fail('type must be one of ' . implode(', ', self::PROP_TYPES) . '.');
+        $types = $field ? array_diff(self::PROP_TYPES, ['list']) : self::PROP_TYPES;
+        if (!in_array($type, $types, true)) {
+            $fail('type must be one of ' . implode(', ', $types) . '.' . ($field && $type === 'list' ? ' Lists cannot contain lists.' : ''));
             return null;
         }
         if (!is_string($spec['label'] ?? null) || trim($spec['label']) === '' || strlen($spec['label']) > 120) {
             $fail('label is required text of at most 120 bytes.');
         }
         $prop = ['type' => $type, 'label' => trim((string) ($spec['label'] ?? ''))];
-        $int = static fn(string $field, int $min, int $max, int $fallback) => !array_key_exists($field, $spec) ? $fallback
-            : (is_int($spec[$field]) && $spec[$field] >= $min && $spec[$field] <= $max ? $spec[$field] : $fail(sprintf('%s must be an integer from %d to %d.', $field, $min, $max)));
-        foreach (['min', 'max', 'options'] as $field) {
-            $allowed = match ($type) { 'string', 'url' => ['max'], 'int' => ['min', 'max'], 'enum' => ['options'], default => [] };
-            if (array_key_exists($field, $spec) && !in_array($field, $allowed, true)) $fail($field . ' does not apply to ' . $type . ' props.');
+        $int = static fn(string $name, int $min, int $max, int $fallback) => !array_key_exists($name, $spec) ? $fallback
+            : (is_int($spec[$name]) && $spec[$name] >= $min && $spec[$name] <= $max ? $spec[$name] : $fail(sprintf('%s must be an integer from %d to %d.', $name, $min, $max)));
+        $allowed = match ($type) {
+            'string', 'url', 'text' => ['max'], 'int' => ['min', 'max'], 'enum' => ['options'], 'list' => ['fields', 'max'], default => [],
+        };
+        foreach (['min', 'max', 'options', 'fields'] as $name) {
+            if (array_key_exists($name, $spec) && !in_array($name, $allowed, true)) $fail($name . ' does not apply to ' . $type . ' props.');
         }
         $default = $spec['default'] ?? null;
         switch ($type) {
@@ -401,22 +428,23 @@ final class BlockPackage
             case 'url':
                 $prop['max'] = $int('max', 1, 5000, $type === 'url' ? 2000 : 500);
                 $prop['default'] = $default ?? '';
-                if (!is_string($prop['default']) || strlen($prop['default']) > (int) $prop['max'] || str_contains($prop['default'], "\n")) {
-                    $fail('default must be single-line text no longer than max.');
-                } elseif ($type === 'url' && !HtmlSanitizer::isSafeUrl(trim($prop['default']))) {
-                    $fail('default must be a relative, http(s), mailto or tel URL.');
-                }
+                break;
+            case 'text':
+                $prop['max'] = $int('max', 1, 20000, 2000);
+                $prop['default'] = $default ?? '';
+                break;
+            case 'richtext':
+            case 'link':
+                $prop['default'] = self::convertDefault($type, $default);
                 break;
             case 'bool':
                 $prop['default'] = $default ?? false;
-                if (!is_bool($prop['default'])) $fail('default must be true or false.');
                 break;
             case 'int':
                 $prop['min'] = $int('min', -1000000, 1000000, -1000000);
                 $prop['max'] = $int('max', -1000000, 1000000, 1000000);
                 $prop['default'] = $default ?? max((int) $prop['min'], min(0, (int) $prop['max']));
                 if (is_int($prop['min']) && is_int($prop['max']) && $prop['min'] > $prop['max']) $fail('min cannot be greater than max.');
-                if (!is_int($prop['default']) || $prop['default'] < (int) $prop['min'] || $prop['default'] > (int) $prop['max']) $fail('default must be an integer between min and max.');
                 break;
             case 'enum':
                 $options = $spec['options'] ?? null;
@@ -427,11 +455,96 @@ final class BlockPackage
                 }
                 $prop['options'] = $options;
                 $prop['default'] = $default ?? $options[0];
-                if (!in_array($prop['default'], $options, true)) $fail('default must be one of the options.');
                 break;
+            case 'color':
+            case 'media':
+                $prop['default'] = $default ?? '';
+                break;
+            case 'list':
+                $fields = $spec['fields'] ?? null;
+                if (!is_array($fields) || $fields === [] || array_is_list($fields) || count($fields) > 16) {
+                    $fail('fields must be an object of 1 to 16 item fields, for example {"title": {"type": "string", "label": "Title"}}.');
+                    return null;
+                }
+                $prop['max'] = $int('max', 1, 100, 20);
+                $prop['fields'] = [];
+                foreach ($fields as $name => $fieldSpec) {
+                    $compiled = self::prop((string) $name, $fieldSpec, static fn(string $message) => $fail('fields.' . $name . ': ' . $message), true);
+                    if ($compiled !== null) $prop['fields'][$name] = $compiled;
+                }
+                if (!$valid) return null;
+                $prop['default'] = is_array($default) && array_is_list($default) ? array_map(static fn(mixed $item): mixed => self::listItem($prop['fields'], $item), $default) : ($default ?? []);
+                break;
+        }
+        $problem = $valid ? self::defaultProblem($prop, $prop['default']) : null;
+        if ($problem !== null) $fail('default ' . $problem);
+        if ($type === 'list' && $valid) {
+            $prop['default'] = array_map(static function (array $item): array {
+                unset($item['_unknown']);
+                return $item;
+            }, $prop['default']);
         }
 
         return $valid ? $prop : null;
+    }
+
+    /** A list item default with missing fields defaulted; unknown fields are kept aside to report them. */
+    private static function listItem(array $fields, mixed $item): mixed
+    {
+        // JSON's {} decodes to an empty array, which is an empty item, not a list.
+        if (!is_array($item) || ($item !== [] && array_is_list($item))) return $item;
+        $values = [];
+        foreach ($fields as $name => $spec) {
+            $values[$name] = array_key_exists($name, $item) ? self::convertDefault($spec['type'], $item[$name]) : $spec['default'];
+        }
+
+        return $values + ['_unknown' => array_diff_key($item, $fields)];
+    }
+
+    /** Defaults in their stored form: sanitized HTML, and links from a suggested URL. */
+    private static function convertDefault(string $type, mixed $value): mixed
+    {
+        return match ($type) {
+            'richtext' => is_string($value) ? HtmlSanitizer::sanitize($value) : ($value ?? ''),
+            'link' => $value === null || $value === '' ? ['type' => 'none'] : (is_string($value) ? ['type' => 'url', 'url' => trim($value)] : $value),
+            default => $value,
+        };
+    }
+
+    /** Why a default does not fit its prop, or null when it does. */
+    private static function defaultProblem(array $prop, mixed $value): ?string
+    {
+        return match ($prop['type']) {
+            'string' => is_string($value) && strlen($value) <= $prop['max'] && !str_contains($value, "\n") ? null : 'must be single-line text no longer than max.',
+            'text' => is_string($value) && strlen($value) <= $prop['max'] ? null : 'must be text no longer than max.',
+            'richtext' => is_string($value) && strlen($value) <= 50000 ? null : 'must be HTML text.',
+            'url' => is_string($value) && strlen($value) <= $prop['max'] && HtmlSanitizer::isSafeUrl(trim($value)) ? null : 'must be a relative, http(s), mailto or tel URL.',
+            'link' => ($value['type'] ?? '') === 'none' || (($value['type'] ?? '') === 'url' && is_string($value['url'] ?? null) && HtmlSanitizer::isSafeUrl($value['url'])) ? null : 'must be a URL.',
+            'bool' => is_bool($value) ? null : 'must be true or false.',
+            'int' => is_int($value) && $value >= (int) $prop['min'] && $value <= (int) $prop['max'] ? null : 'must be an integer between min and max.',
+            'enum' => in_array($value, $prop['options'], true) ? null : 'must be one of the options.',
+            'color' => $value === '' || in_array($value, self::COLOR_KEYS, true) ? null : 'must be empty or a theme color: ' . implode(', ', self::COLOR_KEYS) . '.',
+            'media' => $value === '' ? null : 'is not supported: media comes from the library. Show a fallback with {{^name}}…{{/name}}.',
+            'list' => self::listProblem($prop, $value),
+            default => 'is invalid.',
+        };
+    }
+
+    private static function listProblem(array $prop, mixed $items): ?string
+    {
+        if (!is_array($items) || !array_is_list($items) || count($items) > $prop['max']) {
+            return 'must be a list of at most ' . $prop['max'] . ' items.';
+        }
+        foreach ($items as $index => $item) {
+            if (!is_array($item) || ($item !== [] && array_is_list($item))) return 'item ' . $index . ' must be an object of field values.';
+            foreach (array_keys($item['_unknown'] ?? []) as $unknown) return 'item ' . $index . ' has no field "' . $unknown . '".';
+            foreach ($prop['fields'] as $name => $field) {
+                $problem = self::defaultProblem($field, $item[$name]);
+                if ($problem !== null) return 'item ' . $index . ': ' . $name . ' ' . $problem;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -470,6 +583,21 @@ final class BlockPackage
         $parts[] = substr($css, $offset);
 
         return array_values(array_filter($parts, static fn(string|array $part): bool => $part !== ''));
+    }
+
+    /** A block or package icon, inlined for the editor. It is shown as a mask, so only its shape matters. */
+    private static function icon(string $path, string $bytes, array &$errors): string
+    {
+        $type = self::ICONS[basename($path)];
+        $valid = strlen($bytes) <= self::ICON_LIMIT && ($type === 'image/png'
+            ? str_starts_with($bytes, "\x89PNG\r\n\x1a\n")
+            : preg_match('/<svg[\s>]/i', substr($bytes, 0, 4096)) === 1 && preg_match('/<script|\son[a-z]+\s*=|<foreignObject/i', $bytes) !== 1);
+        if (!$valid) {
+            $errors[] = ['file' => $path, 'line' => null, 'message' => 'Icons must be an SVG or PNG of at most 64 KiB, without scripts.'];
+            return '';
+        }
+
+        return 'data:' . $type . ';base64,' . base64_encode($bytes);
     }
 
     /** Store each asset under its content hash, after checking it is the type its name says. */

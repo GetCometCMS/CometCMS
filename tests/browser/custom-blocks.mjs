@@ -31,7 +31,7 @@ foreach ([${JSON.stringify(zips.v1)} => false, ${JSON.stringify(zips.v2)} => tru
     $zip->open($target, ZipArchive::CREATE);
     foreach (\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(${JSON.stringify(example)}) as $path => $bytes) {
         if ($breaking && str_starts_with($path, 'blocks/feature/')) continue;
-        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.0.0"', '"2.0.0"', $bytes) : $bytes);
+        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.1.0"', '"2.0.0"', $bytes) : $bytes);
     }
     $zip->close();
 }
@@ -123,21 +123,39 @@ try {
   const { nodeId } = await command('DOM.querySelector', { nodeId: documentNode.nodeId, selector: '#block-package' });
   await command('DOM.setFileInputFiles', { nodeId, files: [zips.v1] });
   await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'example package installation');
-  assert(await evaluate('document.body.innerText.includes("acme/marketing") && document.body.innerText.includes("FAQ item")'), 'Inventory lists the package and its blocks');
+  assert(await evaluate('document.body.innerText.includes("acme/marketing") && document.body.innerText.includes("Pricing plan")'), 'Inventory lists the package and its blocks');
   const asset = await evaluate(`fetch('/_site/${workspace}/blocks/${createHash('sha256').update(readFileSync(join(example, 'assets/check.svg'))).digest('hex')}.svg').then((res) => ({ status: res.status, type: res.headers.get('content-type'), csp: res.headers.get('content-security-policy'), cache: res.headers.get('cache-control') }))`);
   assert(asset.status === 200 && asset.type === 'image/svg+xml' && asset.csp.includes('sandbox') && asset.cache.includes('immutable'), 'Package asset is served safely: ' + JSON.stringify(asset));
   await command('Page.navigate', { url: `${origin}/admin/page-builder/builder/layout/home/detail` });
   await waitFor('[...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Callout")', 'custom palette entry');
   await evaluate('document.querySelector(\'[role="dialog"][aria-labelledby^="builder-guide-"] button[aria-label="Collapse panel"]\')?.click()');
   await click('Callout');
-  await waitFor('!!document.querySelector(\'input[id$="-props-title"]\')', 'generated inspector');
-  await field('input[id$="-props-title"]', 'Custom blocks work');
+  // Single-line text props are bindable and use the smart value editor; the multi-line message is a textarea.
+  await waitFor('!!document.querySelector(\'textarea[id$="-props-message"]\')', 'generated inspector');
+  await field('textarea[id$="-props-message"]', 'Custom blocks work');
   const previewDocument = '[...document.querySelectorAll("iframe")].map((el) => el.contentDocument).find((doc) => doc?.querySelector(".acme-callout"))';
-  await waitFor(`(${previewDocument})?.querySelector('h3')?.textContent === 'Custom blocks work'`, 'live custom block preview');
+  await waitFor(`(${previewDocument})?.querySelector('.acme-callout p')?.textContent === 'Custom blocks work'`, 'live custom block preview');
   const preview = await evaluate(`(() => { const doc = ${previewDocument}; const el = doc.querySelector('.acme-callout'); const copy = el.cloneNode(true); copy.querySelectorAll('[draggable]').forEach((node) => node.removeAttribute('draggable')); return { html: copy.outerHTML, border: doc.defaultView.getComputedStyle(el).borderInlineStartWidth, annotated: !!el.closest('[data-kind="block:acme/callout"]'), cssCount: doc.querySelectorAll('style[data-comet-blocks]').length }; })()`);
   assert(preview.border === '4px', 'Preview loads block CSS');
   assert(preview.annotated && preview.cssCount === 1, 'Builder annotations and one block stylesheet');
   assert(await evaluate('!document.querySelector("style[data-comet-blocks]")'), 'Package CSS stays out of admin parent');
+  const icons = await evaluate(`(() => { const item = (label) => [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === label); return { feature: !!item("Feature")?.querySelector('span[style*="mask"]'), card: !!item("Card")?.querySelector("svg") }; })()`);
+  assert(icons.feature && icons.card, 'Palette shows file and named block icons: ' + JSON.stringify(icons));
+  if (process.env.COMET_BLOCK_SCREENSHOT) {
+    const palette = await command('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(process.env.COMET_BLOCK_SCREENSHOT.replace(/\.png$/, '-builder.png'), Buffer.from(palette.data, 'base64'));
+  }
+  await click('Pricing plan');
+  await waitFor('[...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Add item")', 'list editor');
+  await click('Add item');
+  await waitFor('!!document.querySelector(\'input[id$="-props-features-3-text"]\')', 'new list item fields');
+  await field('input[id$="-props-features-3-text"]', 'Custom feature');
+  await waitFor(`[...(${previewDocument})?.querySelectorAll('.acme-plan__feature') ?? []].map((el) => el.textContent).includes('Custom feature')`, 'list item in preview');
+  // A selected slot block takes the next element inside it.
+  await click('Card');
+  await waitFor(`!!(${previewDocument})?.querySelector('.acme-card .c-placeholder-drop')`, 'empty card slot');
+  await click('Heading');
+  await waitFor(`!!(${previewDocument})?.querySelector('.acme-card__body .c-el-heading')`, 'heading placed in card slot');
   await click('Save');
   await waitFor('document.body.innerText.includes("Layout saved.") || [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Save" && el.disabled)', 'layout saved');
   await command('Page.navigate', { url: `${origin}/` });
@@ -146,8 +164,10 @@ try {
   assert(published.html === preview.html, 'Preview and published custom markup match: ' + JSON.stringify({ preview: preview.html, published: published.html }));
   assert(published.border === preview.border, 'Published CSS matches preview');
   assert(!published.annotated, 'Public output excludes editor annotations');
+  assert(await evaluate(`!!document.querySelector('.acme-card__body .c-el-heading') && [...document.querySelectorAll('.acme-plan__feature')].some((el) => el.textContent === 'Custom feature')`), 'Published slot children and list items');
   if (process.env.COMET_BLOCK_SCREENSHOT) {
-    const screenshot = await command('Page.captureScreenshot', { format: 'png' });
+    const { cssContentSize: size } = await command('Page.getLayoutMetrics');
+    const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 } });
     writeFileSync(process.env.COMET_BLOCK_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
   }
   await command('Page.navigate', { url: `${origin}/admin/page-builder/blocks` });
@@ -163,18 +183,18 @@ try {
   assert(await evaluate('document.body.innerText.includes("No block packages installed.")'), 'Deleted package leaves inventory');
   assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => !html.includes('Custom blocks work'))`), 'Deletion invalidates published output');
   await command('Page.navigate', { url: `${origin}/admin/page-builder/builder/layout/home/detail` });
-  await waitFor('[...document.querySelectorAll("iframe")].some((frame) => frame.contentDocument?.body.textContent.includes("Missing block: acme/callout"))', 'placed instance preserved as missing block');
+  await waitFor('[...document.querySelectorAll("iframe")].some((frame) => frame.contentDocument?.body?.textContent.includes("Missing block: acme/callout"))', 'placed instance preserved as missing block');
   await command('Page.navigate', { url: `${origin}/admin/page-builder/blocks` });
   await waitFor('!!document.querySelector("#block-drop-zone")', 'drop area');
   await dropFiles([zips.v1]);
   await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'ZIP drop installation');
-  assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => html.includes('>Custom blocks work</h3>'))`), 'Reinstall restores saved instance props');
+  assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => html.includes('>Custom blocks work</p>'))`), 'Reinstall restores saved instance props');
   await dropFiles([zips.v2]);
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("acme/feature is removed.")', 'breaking update confirmation');
   await click('Update anyway', '[role="alertdialog"] button');
-  await waitFor('document.body.innerText.includes("updated from 1.0.0 to 2.0.0")', 'confirmed update');
+  await waitFor('document.body.innerText.includes("updated from 1.1.0 to 2.0.0")', 'confirmed update');
   assert(errors.length === 0, errors.join('\n'));
-  console.log('Custom blocks browser checks passed (ZIP picker/drop, asset serving, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
+  console.log('Custom blocks browser checks passed (ZIP picker/drop, asset serving, icons, list editing, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
 } finally {
   socket?.close();
   chrome.kill();
