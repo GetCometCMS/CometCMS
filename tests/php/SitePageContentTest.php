@@ -36,7 +36,7 @@ function comet_page_test_heading(string $id, string $text): array
     return ['id' => $id, 'kind' => 'heading', 'props' => ['text' => $text, 'level' => 'h2']];
 }
 
-test('page content editor offers other entries using the same slugs as template navigation', function (): void {
+test('page content editor offers titled entries using stable identifiers', function (): void {
     $seed = <<<'PHP'
 $types = new \CometCMS\Content\ContentTypeRepository();
 $types->save(['name' => 'pages', 'fields' => ['design' => ['type' => 'page']]]);
@@ -50,9 +50,34 @@ PHP;
 
     assert_same(200, $status);
     assert_same('home', $body['data']['entry']['slug']);
-    $entries = array_column($body['data']['samples'], null, 'id');
-    assert_same(['id' => 'home', 'title' => 'Home', 'status' => 'published'], $entries['home']);
-    assert_same(['id' => 'about', 'title' => 'About', 'status' => 'draft'], $entries['about']);
+    $entries = array_column($body['data']['samples'], null, 'title');
+    assert_same('published', $entries['Home']['status']);
+    assert_same('draft', $entries['About']['status']);
+    assert_same($body['data']['entry']['id'], $entries['Home']['id']);
+    assert_true($entries['Home']['id'] !== $entries['About']['id']);
+});
+
+test('builder entry labels fall back to available titles after changing the default language', function (): void {
+    $seed = <<<'PHP'
+(new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'pages', 'fields' => ['design' => ['type' => 'page']]]);
+$content = \CometCMS\Content\ContentRepository::make();
+$current = $content->save('pages', ['title' => 'About', 'slug' => 'about', 'status' => 'published'], ['id' => 'admin']);
+$home = $content->save('pages', ['title' => 'Home', 'slug' => 'home', 'status' => 'published'], ['id' => 'admin']);
+$content->save('pages', ['title' => 'Startseite', 'slug' => 'startseite', 'locale' => 'de', 'status' => 'published'], ['id' => 'admin'], $home['id']);
+(new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'de']);
+(new \CometCMS\Site\SiteRepository())->saveSettings(['routes' => ['pages' => ['enabled' => true]]]);
+PHP;
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/pages/pages/about',
+        '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->page("pages", $current["uid"]);');
+
+    assert_same(200, $status);
+    assert_same('About', $body['data']['entry']['title']);
+    $entries = array_column($body['data']['samples'], null, 'title');
+    assert_true(isset($entries['About'], $entries['Startseite']));
+    assert_same($body['data']['entry']['id'], $entries['About']['id']);
+    assert_same('draft', $entries['About']['status']);
+    assert_same('published', $entries['Startseite']['status']);
 });
 
 /** A detail layout: a frame heading, then the page content place with a default section. */
@@ -231,4 +256,14 @@ test('page content texts are searched and describe entries without a text field'
     $hits = (new \CometCMS\Site\SiteSearch($context))->search('zebra', ['blog']);
     assert_same(['Hello <script>alert(1)</script>'], array_column($hits, 'title'));
     assert_same('Unmistakable zebra Stripes & more', LayoutSchema::text($content->find('blog', $hello['id'])['design']['nodes'], 'en', 'en'));
+});
+
+test('page fields saved with the untranslated builder key get a readable label', function (): void {
+    comet_page_test_setup();
+    $types = new ContentTypeRepository();
+    $blog = $types->find('blog');
+    $blog['fields']['design']['label'] = 'site.page.fieldLabel';
+    $types->save($blog);
+
+    assert_same('Page content', (new ContentTypeRepository())->find('blog')['fields']['design']['label']);
 });

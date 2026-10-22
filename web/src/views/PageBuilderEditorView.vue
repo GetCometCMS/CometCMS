@@ -31,7 +31,7 @@
             :title="item.title"
             :icon="item.icon"
             :active="currentView === 'page'"
-            :model-value="target === 'page' ? pageSlug : sampleId"
+            :model-value="target === 'page' ? pageEntryId : sampleId"
             :entries="samples"
             :disabled="saving || loading"
             @navigate="goToView(item)"
@@ -507,9 +507,9 @@ const pageTitle = ref("");
 const defaultNodes = ref(null);
 /** A layout, header or footer has a saved design of its own (not the generated default). */
 const layoutCustomized = ref(false);
-/** The layout previews entries by slug. */
-const pageSlug = ref(pageEntry);
-const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name}/detail`, query: { entry: pageSlug.value, back: route.fullPath } }));
+/** The entry's stable ID: builders name entries by it, as slugs differ between languages. */
+const pageEntryId = ref(pageEntry);
+const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name}/detail`, query: { entry: pageEntryId.value, back: route.fullPath } }));
 const historyScopeKey = computed(() => {
   if (target === "page") return "site.history.scope.page";
   return target === "component" ? "site.history.scope.component" : "site.history.scope.layout";
@@ -645,7 +645,7 @@ const views = computed(() => {
   const type = builder.type.value;
   if (!["layout", "page"].includes(target) || !type) return [];
   const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
-  const entry = target === "page" ? pageSlug.value : sampleId.value;
+  const entry = target === "page" ? pageEntryId.value : sampleId.value;
   const entryTitle = target === "page" ? pageTitle.value : samples.value.find((sample) => sample.id === entry)?.title ?? "";
   const hasPage = Object.values(type.fields ?? {}).some((config) => config?.type === "page");
   return [
@@ -819,13 +819,14 @@ async function load() {
       pageCustomized.value = !!data.customized;
       pagePlaced.value = data.placed !== false;
       pageTitle.value = data.entry?.title ?? "";
-      pageSlug.value = data.entry?.slug || pageEntry;
+      pageEntryId.value = data.entry?.id || pageEntry;
     }
     layoutCustomized.value = !!data.customized;
     defaultNodes.value = data.default_nodes ?? (target === "page" ? data.nodes : null);
     upgradeRequired.value = !!data.upgrade_required;
     samples.value = data.samples ?? [];
-    const requested = typeof route.query.entry === "string" ? route.query.entry : "";
+    // The server names the requested entry by its stable ID, whatever the link used.
+    const requested = data.sample || (typeof route.query.entry === "string" ? route.query.entry : "");
     sampleId.value = target === "page" ? data.entry.id
       : samples.value.some((sample) => sample.id === requested) ? requested
       : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
@@ -853,10 +854,10 @@ async function save() {
     if (saveContent) {
       const entries = await entryFields.save();
       for (const entry of entries) {
-        const sample = samples.value.find((item) => item.id === entry.id || item.id === entry.slug);
+        const sample = samples.value.find((item) => item.id === (entry.uid || entry.id));
         if (sample) sample.title = entry.title;
         // The page content is saved on top of the version the fields just saved.
-        if (target === "page" && entry.id === sampleId.value) {
+        if (target === "page" && (entry.uid || entry.id) === sampleId.value) {
           layoutRevision.value = entry.revision;
           pageTitle.value = entry.title;
         }
@@ -1002,7 +1003,7 @@ function selectEntry(entry) {
     sampleId.value = entry;
     return;
   }
-  if (entry === pageSlug.value) return;
+  if (entry === pageEntryId.value) return;
   goToView({
     key: `entry:${entry}`,
     to: {

@@ -1037,7 +1037,8 @@ const siteLinks = ref(null);
 // The type's page layout in the builder, previewed with this entry.
 const designLink = computed(() => ({
   path: `/page-builder/builder/layout/${collection}/detail`,
-  query: { entry: entryId.value, back: route.fullPath },
+  // Builders name entries by stable ID; slugs differ between languages.
+  query: { entry: fullEntry.value?.uid || entryId.value, back: route.fullPath },
 }));
 
 /** The type's page fields and whether this entry has page content of its own in each. */
@@ -1051,7 +1052,7 @@ const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields
 
 function pageLink(field) {
   return {
-    path: `/page-builder/builder/page/${collection}/${entryMeta.value.id || entryId.value}`,
+    path: `/page-builder/builder/page/${collection}/${fullEntry.value?.uid || entryId.value}`,
     query: { field, back: route.fullPath },
   };
 }
@@ -1065,7 +1066,7 @@ async function resetPage() {
   if (!field || resettingPage.value || !fullEntry.value) return;
   resettingPage.value = true;
   try {
-    const res = await api.site.resetPage(collection, entryMeta.value.id || entryId.value, field, fullEntry.value.revision);
+    const res = await api.site.resetPage(collection, fullEntry.value.uid || entryId.value, field, fullEntry.value.revision);
     fullEntry.value = { ...fullEntry.value, revision: res.data.revision, values: { ...fullEntry.value.values, [field]: null } };
     // Saving the form while a restored version is shown builds on the live entry.
     if (liveEntryBeforeRestore.value) liveEntryBeforeRestore.value = { ...liveEntryBeforeRestore.value, revision: res.data.revision };

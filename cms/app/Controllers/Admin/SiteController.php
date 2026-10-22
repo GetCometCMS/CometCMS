@@ -103,12 +103,12 @@ final class SiteController extends BaseController
         $variant = $homepage['entry'] !== '' ? 'detail' : 'index';
         $path = '/page-builder/builder/layout/' . rawurlencode($type['name']) . '/' . $variant;
         if ($homepage['entry'] !== '') {
-            $entry = ContentRepository::make($this->site->workspace())->findByIdentifier($type['name'], $homepage['entry']);
+            $entry = $this->findAdminEntry($type['name'], $homepage['entry']);
             if ($entry === null) {
                 return null;
             }
-            // Builder samples are selected by slug, even when settings use a stable ID.
-            $path .= '?entry=' . rawurlencode((string) $entry['id']);
+            // Builder samples are selected by stable ID, the same in every language.
+            $path .= '?entry=' . rawurlencode(ContentRepository::make($this->site->workspace())->stableId($entry));
         }
 
         return $path;
@@ -210,6 +210,7 @@ final class SiteController extends BaseController
             'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
             'type' => $schema,
             'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
+            'sample' => $this->requestedSample($type),
             'index_url' => $this->liveUrl($context->indexUrl($type), $context),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext($variant === 'detail'),
@@ -258,9 +259,9 @@ final class SiteController extends BaseController
             'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
             'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]),
             'field' => $field,
-            'samples' => $this->samples($type, (string) ($entry['slug'] ?? $entry['id'])),
+            'samples' => $this->samples($type, $this->content()->stableId($entry)),
             'type' => $schema,
-            'entry' => ['id' => (string) $entry['id'], 'slug' => (string) ($entry['slug'] ?? $entry['id']), 'title' => (string) ($entry['title'] ?? ''), 'status' => (string) ($entry['status'] ?? 'draft')],
+            'entry' => ['id' => $this->content()->stableId($entry), 'slug' => (string) ($entry['slug'] ?? $entry['id']), 'title' => self::entryLabel($entry), 'status' => (string) ($entry['status'] ?? 'draft')],
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
@@ -329,7 +330,7 @@ final class SiteController extends BaseController
     {
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $schema = $this->requireType($type, 'detail');
-        $entry = $this->content()->findByIdentifier($type, $id);
+        $entry = $this->findAdminEntry($type, $id);
         if ($entry === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
         }
@@ -436,6 +437,7 @@ final class SiteController extends BaseController
             'usages' => $this->site->componentUsages($id),
             'type' => $type,
             'samples' => $type !== null ? $this->samples((string) $type['name'], LayoutSchema::key($_GET['entry'] ?? '')) : [],
+            'sample' => $type !== null ? $this->requestedSample((string) $type['name']) : '',
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
@@ -701,7 +703,7 @@ final class SiteController extends BaseController
             [$schema, , $field] = $this->requirePage($type, LayoutSchema::key($body['entry'] ?? ''), (string) ($body['field'] ?? ''));
             $context->locale = $locale;
             $context->pageDraft = ['field' => $field, 'nodes' => $this->validated(static fn() => LayoutSchema::normalize($body['nodes'] ?? []))];
-            $entry = $context->findEntry($type, LayoutSchema::key($body['entry'] ?? ''), true);
+            $entry = $context->findEntry($type, $this->content()->stableId($this->findAdminEntry($type, LayoutSchema::key($body['entry'] ?? '')) ?? []), true);
             if ($entry === null) {
                 $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
             }
@@ -811,24 +813,61 @@ final class SiteController extends BaseController
         return $component;
     }
 
-    /** Recent entries to preview with; `$ensure` keeps a requested entry in the list. */
+    /**
+     * Recent entries to preview with; `$ensure` keeps a requested entry in the
+     * list. They are named by stable ID: slugs differ between languages and
+     * may equal another entry's file name.
+     */
     private function samples(string $type, string $ensure = ''): array
     {
         $content = ContentRepository::make($this->site->workspace());
         $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
 
-        if ($ensure !== '' && !in_array($ensure, array_map(static fn(array $entry): string => (string) ($entry['slug'] ?? $entry['id'] ?? ''), $entries), true)) {
+        if ($ensure !== '') {
             $requested = $content->findByIdentifier($type, $ensure);
-            if ($requested !== null) {
+            $ids = array_map($content->stableId(...), $entries);
+            if ($requested !== null && !in_array($content->stableId($requested), $ids, true)) {
                 array_unshift($entries, $requested);
             }
         }
 
         return array_map(static fn(array $entry): array => [
-            'id' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
-            'title' => (string) ($entry['title'] ?? ''),
+            'id' => $content->stableId($entry),
+            'title' => self::entryLabel($entry),
             'status' => (string) ($entry['status'] ?? 'draft'),
         ], $entries);
+    }
+
+    /** Admin navigation still needs a title after the default language changes. */
+    private static function entryLabel(array $entry): string
+    {
+        $title = (string) ($entry['title'] ?? '');
+        if (trim($title) !== '') return $title;
+
+        foreach ($entry['values']['title']['values'] ?? [] as $translation) {
+            if (is_string($translation) && trim($translation) !== '') return $translation;
+        }
+
+        return (string) ($entry['slug'] ?? $entry['id'] ?? '');
+    }
+
+    /** The stable ID of the entry asked for (?entry= may also be a slug or file name), or ''. */
+    private function requestedSample(string $type): string
+    {
+        $identifier = LayoutSchema::key($_GET['entry'] ?? '');
+        $entry = $identifier !== '' ? $this->findAdminEntry($type, $identifier) : null;
+
+        return $entry !== null ? $this->content()->stableId($entry) : '';
+    }
+
+    /**
+     * An entry by stable ID, slug in the default language, or file name. Unlike
+     * public URLs, the admin may use the file name: settings such as the
+     * homepage store it, and it may differ from every slug.
+     */
+    private function findAdminEntry(string $type, string $identifier): ?array
+    {
+        return $this->content()->findByIdentifier($type, $identifier) ?? $this->content()->find($type, $identifier);
     }
 
     private function requireType(string $type, string $variant): array
