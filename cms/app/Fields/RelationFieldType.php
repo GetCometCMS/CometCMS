@@ -48,7 +48,7 @@ final class RelationFieldType extends AbstractFieldType
     public function normalize(mixed $value, array $config, array $context = []): mixed
     {
         $repository = ContentRepository::make();
-        $normalize = fn(string $id): string => $repository->stableId($repository->findByIdentifier($config['target'], $id) ?? ['id' => $id]);
+        $normalize = fn(string $id): string => ($entry = $repository->findByIdentifier($config['target'], $id)) !== null ? $repository->stableId($entry) : $id;
         if ($config['multiple'] ?? false) return array_values(array_unique(array_map($normalize, $this->values($value))));
         $id = $this->singleValue($value);
         return $id !== null ? $normalize($id) : null;

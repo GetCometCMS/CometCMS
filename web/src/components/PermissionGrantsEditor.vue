@@ -432,6 +432,7 @@ const bulkAreaResourceMap = {
   schema: { resource: "schema:*", key: "schema:*" },
   content: { resource: "content:*:*", key: "content:*:*" },
   media: { resource: "media:*", key: "media:*" },
+  site: { resource: "*", key: "site:*" },
   users: { resource: "*", key: "users:*" },
 };
 

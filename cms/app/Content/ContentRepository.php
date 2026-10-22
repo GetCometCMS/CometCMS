@@ -100,17 +100,7 @@ final class ContentRepository
 
     public function stableId(array $entry): string
     {
-        $uid = trim((string) ($entry['uid'] ?? ''));
-
-        if ($uid !== '') {
-            return $uid;
-        }
-
-        return substr(hash('sha256', implode('|', [
-            (string) ($entry['collection'] ?? ''),
-            (string) ($entry['created_at'] ?? ''),
-            (string) ($entry['id'] ?? ''),
-        ])), 0, 12);
+        return trim((string) ($entry['uid'] ?? ''));
     }
 
     /** Normalize an editor draft without writing entries, revisions or events. */
@@ -300,9 +290,10 @@ final class ContentRepository
         $entry['collection'] = $collection;
         $entry['id'] = $id;
         // Preserve the current entry's immutable uid
-        $currentUid = $current !== null ? trim((string) ($current['uid'] ?? '')) : '';
-        $revisionUid = trim((string) ($entry['uid'] ?? ''));
-        $entry['uid'] = $currentUid !== '' ? $currentUid : ($revisionUid !== '' ? $revisionUid : Security::opaqueId());
+        $entry['uid'] = $current['uid'] ?? $entry['uid'] ?? '';
+        if ($entry['uid'] === '') {
+            throw new \RuntimeException('Cannot restore an entry without an immutable uid.');
+        }
         $entry['updated_at'] = Security::now();
         $entry['updated_by'] = $user['id'] ?? null;
         unset($entry['deleted_at'], $entry['deleted_by']);

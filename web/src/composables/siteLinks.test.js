@@ -33,18 +33,18 @@ describe('website destinations', () => {
   })
 
   it('does not treat unrelated entries as routable when only the homepage entry is enabled', () => {
-    const homeSettings = { ...settings, homepage: { type: 'portfolio', entry: 'welcome' } }
-    expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'welcome' }, types, homeSettings)).toBe(true)
+    const homeSettings = { ...settings, homepage: { type: 'portfolio', entry: 'stable-uid' } }
+    expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'stable-uid' }, types, homeSettings)).toBe(true)
     expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'stable-uid' }, types, homeSettings, { uid: 'stable-uid', slug: 'welcome' })).toBe(true)
     expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'other' }, types, homeSettings)).toBe(false)
     expect(destinationAvailable({ type: 'index', collection: 'portfolio' }, types, homeSettings)).toBe(false)
     expect(destinationAvailable({ type: 'entry', collection: 'private', entry: 'x' }, types, settings)).toBe(false)
   })
 
-  it('uses localized titles and stable identifiers, falling back for legacy content', () => {
+  it('uses localized titles and immutable identifiers', () => {
     expect(entryTitle({ title: 'About', values: { title: { type: 'localized', values: { en: 'About', de: 'Über uns' } } } }, 'de')).toBe('Über uns')
     expect(entryIdentifier({ uid: 'stable', slug: 'changed', id: 'old' })).toBe('stable')
-    expect(entryIdentifier({ slug: 'legacy', id: 'old' })).toBe('legacy')
+    expect(entryIdentifier({ slug: 'legacy', id: 'old' })).toBe('')
   })
 
   it('validates manual anchors and custom links without requiring destination availability', () => {

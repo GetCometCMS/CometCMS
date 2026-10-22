@@ -331,39 +331,6 @@ final class WorkspaceRepository
             return $target;
         }
 
-        // Transparently migrate icons written by releases before icons lived
-        // inside their workspace. Re-encode them so icon.png is always a PNG.
-        foreach (['png', 'jpg', 'jpeg', 'webp', 'gif'] as $extension) {
-            $legacy = COMET_STORAGE . '/workspaces/icons/' . $slug . '.' . $extension;
-            if (!is_file($legacy)) {
-                continue;
-            }
-
-            $contents = file_get_contents($legacy);
-            $image = is_string($contents) && function_exists('imagecreatefromstring')
-                ? @imagecreatefromstring($contents)
-                : false;
-
-            if ($image instanceof \GdImage) {
-                if (@imagepng($image, $target)) {
-                    @unlink($legacy);
-                }
-                unset($image);
-            } elseif ($extension === 'png' && @rename($legacy, $target)) {
-                // PNG icons can still be migrated on installations without GD.
-            }
-
-            if (is_file($target)) {
-                $legacyDirectory = dirname($legacy);
-                if ((glob($legacyDirectory . '/*') ?: []) === []) {
-                    @rmdir($legacyDirectory);
-                }
-                return $target;
-            }
-
-            return null;
-        }
-
         return null;
     }
 

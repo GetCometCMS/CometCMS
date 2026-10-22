@@ -189,13 +189,12 @@
       </div>
 
       <TypeSubmissionSettings
-        v-if="form.allow_submissions && !submissionSettingsError"
+        v-if="form.allow_submissions"
         v-model="form.submission_settings"
         :name="isNew ? '' : form.name"
         :fields="customFields"
       />
 
-      <p v-if="form.allow_submissions && submissionSettingsError" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{{ submissionSettingsError }}</p>
 
       <div
         v-if="saveError"
@@ -317,7 +316,6 @@ const contentTypes = ref([]);
 const loadError = ref("");
 const saveError = ref("");
 const submissionError = ref("");
-const submissionSettingsError = ref("");
 const customFieldErrors = ref({});
 const saving = ref(false);
 const deleting = ref(false);
@@ -468,7 +466,7 @@ onMounted(async () => {
       const type = res.data;
       form.value = {
         ...type,
-        // Legacy private types stay protected until website pages or the public API are explicitly enabled.
+        // Private types remain protected when loading API settings.
         visibility: type.visibility ?? "public",
         api_enabled: type.visibility !== "private" && !!type.api_enabled,
         submission_settings: type.submission_settings,
@@ -481,21 +479,6 @@ onMounted(async () => {
         .map(([key, cfg]) => ({ key, ...cfg }));
     } catch (err) {
       loadError.value = err.message;
-    }
-  }
-
-  // Legacy forms keep their own texts until the type’s settings are edited.
-  // A failed optional read must never prevent loading the content fields.
-  if (!isNew.value && form.value.allow_submissions && !form.value.submission_settings && auth.can("site.manage", "site:*")) {
-    try {
-      const forms = (await api.site.forms()).data.forms ?? [];
-      const existing = forms.find((item) => item.type === form.value.name);
-      if (existing) {
-        const { status, captcha, submit_label, success_message, error_message } = existing;
-        form.value.submission_settings = { status, captcha, submit_label, success_message, error_message };
-      }
-    } catch {
-      submissionSettingsError.value = t("contentTypeEdit.submissionSettingsLoadFailed");
     }
   }
 

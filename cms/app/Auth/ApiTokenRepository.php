@@ -10,26 +10,20 @@ use CometCMS\Storage\JsonStore;
 final class ApiTokenRepository
 {
     private JsonStore $store;
-    private UserRepository $users;
 
     public function __construct()
     {
         $this->store = new JsonStore(COMET_STORAGE . '/api-tokens');
-        $this->users = new UserRepository();
     }
 
     public function all(): array
     {
-        $this->migrateLegacyUserTokens();
-
         return $this->store->all();
     }
 
     public function find(string $id): ?array
     {
         Security::assertSafeName($id);
-        $this->migrateLegacyUserTokens();
-
         return $this->store->read($id);
     }
 
@@ -75,8 +69,6 @@ final class ApiTokenRepository
 
     public function findByToken(string $plainToken): ?array
     {
-        $this->migrateLegacyUserTokens();
-
         foreach ($this->store->all() as $token) {
             if (!is_array($token) || !empty($token['revoked_at']) || empty($token['hash']) || !password_verify($plainToken, (string) $token['hash'])) {
                 continue;
@@ -120,37 +112,8 @@ final class ApiTokenRepository
         $this->store->write($token, (string) $token['id']);
     }
 
-    private function migrateLegacyUserTokens(): void
-    {
-        foreach ($this->users->all() as $user) {
-            $tokens = is_array($user['api_tokens'] ?? null) ? $user['api_tokens'] : [];
-
-            if ($tokens === []) {
-                continue;
-            }
-
-            foreach ($tokens as $token) {
-                if (!is_array($token) || empty($token['id']) || $this->store->read((string) $token['id']) !== null) {
-                    continue;
-                }
-
-                $token['description'] = (string) ($token['description'] ?? '');
-                $this->save($token);
-            }
-
-            unset($user['api_tokens']);
-            $user['updated_at'] = Security::now();
-            $this->users->save($user);
-        }
-    }
-
     private function normalizePermissions(mixed $permissions): array
     {
-        // Direct callers may still pass grants as a JSON-encoded string.
-        if (is_string($permissions)) {
-            $permissions = json_decode($permissions, true);
-        }
-
         return PermissionService::normalizeGrants($permissions);
     }
 }

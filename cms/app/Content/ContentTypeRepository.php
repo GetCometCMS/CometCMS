@@ -203,16 +203,6 @@ final class ContentTypeRepository
         $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
         $languages = (new LanguageSettings($this->workspace))->all();
 
-        // Existing forms keep working until their type explicitly disables submissions.
-        $legacyForms = [];
-        $formsPath = $this->workspace->path('site') . '/forms';
-        if (!array_key_exists('allow_submissions', $schema) && is_dir($formsPath)) {
-            $legacyForms = array_filter((new JsonStore($formsPath))->all(), static fn(array $form): bool => ($form['type'] ?? '') === $name);
-        }
-        // Stored schemas from before API opt-in already chose their visibility.
-        // New schemas omit it and start with the API disabled.
-        $apiEnabled = (bool) ($schema['api_enabled'] ?? array_key_exists('visibility', $schema));
-
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
         foreach ($fields as $key => &$config) {
@@ -225,11 +215,9 @@ final class ContentTypeRepository
             'name' => $name,
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
-            // API exposure and website pages are independent. Keep legacy private
-            // protection until the owner explicitly enables the public API.
-            'api_enabled' => $apiEnabled,
+            'api_enabled' => (bool) ($schema['api_enabled'] ?? false),
             'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
-            'allow_submissions' => (bool) ($schema['allow_submissions'] ?? ($legacyForms !== [])),
+            'allow_submissions' => (bool) ($schema['allow_submissions'] ?? false),
             'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),

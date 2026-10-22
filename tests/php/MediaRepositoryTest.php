@@ -132,9 +132,6 @@ test('media thumbnails are stored as variants', function (): void {
     $source = imagecreatetruecolor(800, 400);
     imagejpeg($source, $path, 90);
     unset($source);
-    $legacyDirectory = comet_test_workspace_path() . '/media-thumbs';
-    mkdir($legacyDirectory, 0775, true);
-    file_put_contents($legacyDirectory . '/old.jpg', 'disposable cache');
     $repository = new MediaRepository();
 
     $thumbnail = $repository->thumbnailPath('thumbnail.jpg');

@@ -25,9 +25,6 @@ final class Theme
     /** Spacing scale tokens in px, used by padding, space below, gaps and spacers. */
     public const SPACE_TOKENS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
-    /** Density presets of earlier themes, kept to convert them into a spacing scale. */
-    public const SPACING = ['compact' => 0.8, 'normal' => 1.0, 'relaxed' => 1.25];
-
     public const TYPE_SCALES = ['1.125', '1.2', '1.25', '1.333'];
 
     /** Entrance animation speeds in ms. */
@@ -134,8 +131,7 @@ final class Theme
             'type_scale' => self::oneOf(isset($theme['type_scale']) ? (string) $theme['type_scale'] : null, self::TYPE_SCALES, $defaults['type_scale']),
             'heading_weight' => self::clampInt($theme['heading_weight'] ?? null, 300, 900, $defaults['heading_weight'], 100),
             'headings' => self::headings($theme['headings'] ?? []),
-            // "xl" was a fixed size before radius tokens existed.
-            'radius' => self::oneOf(($theme['radius'] ?? null) === 'xl' ? 'lg' : ($theme['radius'] ?? null), self::RADII, $defaults['radius']),
+            'radius' => self::oneOf($theme['radius'] ?? null, self::RADII, $defaults['radius']),
             'radii' => self::radii($theme, $defaults['radii']),
             'container_width' => self::clampInt($theme['container_width'] ?? null, 720, 1920, $defaults['container_width']),
             'narrow_width' => self::clampInt($theme['narrow_width'] ?? null, 480, 1200, $defaults['narrow_width']),
@@ -438,15 +434,13 @@ final class Theme
         return $radii;
     }
 
-    /** The spacing scale; themes saved with a density preset are converted. */
+    /** The explicit spacing scale. */
     private static function space(array $theme, array $defaults): array
     {
-        $factor = self::SPACING[$theme['spacing'] ?? 'normal'] ?? 1.0;
         $space = [];
 
         foreach (self::SPACE_TOKENS as $token) {
-            $fallback = (int) round($defaults[$token] * $factor);
-            $space[$token] = self::clampInt($theme['space'][$token] ?? null, 0, 400, $fallback);
+            $space[$token] = self::clampInt($theme['space'][$token] ?? null, 0, 400, $defaults[$token]);
         }
 
         return $space;

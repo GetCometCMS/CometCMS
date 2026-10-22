@@ -235,12 +235,11 @@ final class PermissionService
 
     /**
      * Canonical grant shape shared by roles, tokens and permission checks.
-     * Singular `action` / `resource` keys and scalar values are still accepted inputs.
      */
     public static function normalizeGrant(array $grant): array
     {
-        $actions = $grant['actions'] ?? $grant['action'] ?? [];
-        $resources = $grant['resources'] ?? $grant['resource'] ?? [];
+        $actions = is_array($grant['actions'] ?? null) ? $grant['actions'] : [];
+        $resources = is_array($grant['resources'] ?? null) ? $grant['resources'] : [];
 
         return array_filter([
             'effect' => ($grant['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',

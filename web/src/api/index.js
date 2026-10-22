@@ -459,9 +459,6 @@ export const api = {
     componentRevision: (id, revision) => request('GET', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}`),
     restoreComponentRevision: (id, revision) => request('POST', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}/restore`),
     forms:        ()                     => request('GET',    '/site/forms'),
-    createForm:   (data)                 => request('POST',   '/site/forms', data),
-    updateForm:   (id, data)             => request('PUT',    `/site/forms/${encodeURIComponent(id)}`, data),
-    deleteForm:   (id)                   => request('DELETE', `/site/forms/${encodeURIComponent(id)}`),
     createPreview: (body)               => request('POST', '/site/preview-snapshots', body),
     preview:      (body)                 => request('POST',   '/site/preview', body),
     /** Full-page draft preview of an entry, opened in a new tab. */

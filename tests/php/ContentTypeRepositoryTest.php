@@ -111,11 +111,11 @@ test('new content types require explicit API opt-in and default to no submission
     assert_false($types->find('pages')['api_enabled']);
 });
 
-test('legacy API visibility is retained until explicitly reconfigured', function (): void {
+test('API exposure requires explicit opt-in even with stored visibility', function (): void {
     $store = new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/content-types');
     $store->write(['name' => 'legacy', 'visibility' => 'public'], 'legacy');
     $types = new ContentTypeRepository();
-    assert_true($types->find('legacy')['api_enabled']);
+    assert_false($types->find('legacy')['api_enabled']);
     $types->save([...$types->find('legacy'), 'api_enabled' => false]);
     assert_false($types->find('legacy')['api_enabled']);
 });

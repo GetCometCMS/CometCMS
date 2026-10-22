@@ -248,8 +248,7 @@ test('collections without a card of their own show the standard card', function 
     ]], 'layouts', 'blog', 'card');
     $template = $site->cardTemplate('blog');
     assert_same(['column'], array_column($template, 'kind'));
-    assert_same(['padding_y' => 'xl', 'background' => 'accent'], $template[0]['style'], 'The card keeps the section look columns support.');
-    assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'An old card layout keeps rendering.');
+    assert_false(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'Retired per-type cards are ignored.');
 });
 
 test('default and legacy builder designs can be saved with their loaded revisions', function (): void {
@@ -635,21 +634,11 @@ test('theme stores custom css separately and reads direct stylesheet edits', fun
     assert_same('', $site->theme()['custom_css'], 'An empty stylesheet clears custom CSS.');
 });
 
-test('legacy themes migrate on save and restored legacy themes take precedence', function (): void {
+test('retired combined themes do not override current theme files', function (): void {
     $site = comet_site_test_setup();
-    $store = new JsonStore($site->workspace()->path('site'));
-    $legacy = ['colors' => ['primary' => '#abcdef'], 'custom_css' => '.legacy { color: red; }'];
-    $store->write($legacy, 'theme');
-    assert_same($legacy['custom_css'], $site->theme()['custom_css']);
-    $site->saveTheme($site->theme());
-    assert_null($store->read('theme'));
-    assert_same($legacy['custom_css'], file_get_contents($site->workspace()->path('site') . '/theme/style.css'));
-    assert_false(array_key_exists('custom_css', $store->read('theme', 'theme')));
-
-    $store->write([...$legacy, 'custom_css' => '.restored {}'], 'theme');
-    assert_same('.restored {}', $site->theme()['custom_css'], 'Older backups override existing migrated files.');
-    $site->saveTheme($site->theme());
-    assert_same('.restored {}', (new SiteRepository())->theme()['custom_css']);
+    $site->saveTheme(['custom_css' => '.current {}']);
+    (new JsonStore($site->workspace()->path('site')))->write(['custom_css' => '.retired {}'], 'theme');
+    assert_same('.current {}', $site->theme()['custom_css']);
 });
 
 test('custom stylesheet edits update cached page links while previews keep draft css inline', function (): void {
@@ -812,12 +801,10 @@ test('deleting a content type removes its website layouts and route', function (
     assert_true($site->layoutCustomized('blog', 'index'));
     $store = new JsonStore(comet_test_workspace_path() . '/site');
     $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
-    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
 
     (new ContentTypeRepository())->delete('blog');
 
     assert_null($theme->read('layouts', 'blog', 'index'));
-    assert_null($theme->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });
@@ -938,9 +925,9 @@ test('the locked admin role always holds new built-in permissions', function ():
 });
 
 test('background images and cropped images follow their size and focal point', function (): void {
-    // Sections stored background images as props before they became a style.
+    // Background images are stored in style.
     $nodes = LayoutSchema::normalize([
-        ['kind' => 'section', 'props' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
+        ['kind' => 'section', 'style' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
             ['kind' => 'row', 'children' => [['kind' => 'column', 'children' => [
                 ['kind' => 'image', 'props' => ['media' => 'x.jpg', 'ratio' => '16:9', 'position' => 'bottom-left']],
                 ['kind' => 'image', 'props' => ['position' => 'somewhere']],
@@ -994,12 +981,12 @@ test('column reversal persists independently per device and orders every column'
     }
 });
 
-test('section scroll behavior upgrades the old sticky switch and only adds effects to sections that stay in view', function (): void {
+test('section scroll behavior accepts only current sticky modes and only adds effects to sections that stay in view', function (): void {
     $site = comet_site_test_setup();
     $row = fn(): array => LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading')])]);
 
     foreach ([
-        [['sticky' => true], 'always', ['c-sticky']],
+        [['sticky' => true], 'none', []],
         [['sticky' => false], 'none', []],
         [['sticky' => 'sideways'], 'none', []],
         [['sticky' => 'reveal', 'scroll_effect' => ['shadow', 'glass', 'bogus']], 'reveal', ['c-sticky', 'c-sticky-reveal', 'c-scroll-shadow', 'c-scroll-glass']],
@@ -1169,7 +1156,7 @@ test('rows, columns and elements take a background image over their background c
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/texture.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
     $background = ['background' => 'surface', 'background_image' => 'texture.svg', 'overlay' => 'dark', 'background_blur' => 4];
-    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg', 'radius' => 'lg', 'shadow' => 'md', 'border' => 'all'], [
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg', 'radius' => 'lg', 'shadow' => 'md', 'border' => ['left', 'top', 'right', 'bottom']], [
         LayoutSchema::node('column', [], $background, [LayoutSchema::node('heading', ['text' => 'Column'])]),
         LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Element</p>'], $background)]),
     ])])]);
@@ -1193,14 +1180,14 @@ test('borders pick their sides and only keep a look while a side is set', functi
     $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
         LayoutSchema::node('text', [], ['border' => ['bottom', 'left', 'diagonal'], 'border_width' => 9, 'border_style' => 'dashed', 'border_color' => 'custom-brand']),
         LayoutSchema::node('text', [], ['border' => [], 'border_width' => 3, 'border_style' => 'dotted', 'border_color' => 'primary']),
-        LayoutSchema::node('text', [], ['border' => 'top']),
+        LayoutSchema::node('text', [], ['border' => ['top']]),
         LayoutSchema::node('text', [], ['border' => 'none']),
     ])])])]);
     $elements = $nodes[0]['children'][0]['children'][0]['children'];
 
     assert_same(['border' => ['left', 'bottom'], 'border_width' => 6, 'border_style' => 'dashed', 'border_color' => 'custom-brand'], $elements[0]['style'], 'Sides keep their order and the width is clamped.');
     assert_same([], $elements[1]['style'], 'Without a side there is nothing to style.');
-    assert_same(['border' => ['top']], $elements[2]['style'], 'Older single-side borders still load.');
+    assert_same(['border' => ['top']], $elements[2]['style'], 'A list of border sides is preserved.');
     assert_same([], $elements[3]['style']);
 
     $html = (new NodeRenderer(comet_site_test_context()))->render([$elements[0]]);
@@ -1254,8 +1241,8 @@ test('theme spacing and radius tokens drive the stylesheet', function (): void {
 
     // Themes saved before tokens existed keep their look.
     $legacy = Theme::normalize(['spacing' => 'relaxed', 'radius' => 'xl']);
-    assert_same(40, $legacy['space']['lg'], 'A relaxed density scales the default scale.');
-    assert_same('lg', $legacy['radius']);
+    assert_same(Theme::defaults()['space']['lg'], $legacy['space']['lg'], 'Density presets are retired.');
+    assert_same(Theme::defaults()['radius'], $legacy['radius']);
     assert_false(array_key_exists('spacing', $legacy));
 });
 

@@ -11,7 +11,7 @@ test('private content collection rejects unauthenticated reads', function (): vo
     $output = comet_test_run_php(['-r',
         comet_api_controller_test_bootstrap_require_snippet() .
         'comet_test_reset_storage();' .
-        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private"], "members");' .
+        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private", "api_enabled" => true], "members");' .
         '\\CometCMS\\Content\\ContentRepository::make()->save("members", ["title" => "Member", "status" => "published"], ["id" => "admin"]);' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/content/members";' .
@@ -27,7 +27,7 @@ test('private content collection allows a token with collection read permission'
     $output = comet_test_run_php(['-r',
         comet_api_controller_test_bootstrap_require_snippet() .
         'comet_test_reset_storage();' .
-        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private"], "members");' .
+        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private", "api_enabled" => true], "members");' .
         '\\CometCMS\\Content\\ContentRepository::make()->save("members", ["title" => "Member", "status" => "published"], ["id" => "admin"]);' .
         '$plain = (new \\CometCMS\\Auth\\ApiTokenRepository())->create("reader", "", [["effect" => "allow", "actions" => ["content.read"], "resources" => ["content:members:*"]]]);' .
         '$_SERVER["HTTP_AUTHORIZATION"] = "Bearer " . $plain;' .

@@ -27,7 +27,7 @@ test('workspace repository creates default and custom workspace folders', functi
     assert_false(is_dir(comet_test_workspace_path('site-a') . '/media-thumbs'));
 });
 
-test('workspace repository migrates legacy icons into the workspace', function (): void {
+test('workspace repository ignores retired icon storage', function (): void {
     if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) {
         return;
     }
@@ -42,9 +42,9 @@ test('workspace repository migrates legacy icons into the workspace', function (
 
     $workspace = $repository->find('site-a');
 
-    assert_true((bool) ($workspace['has_icon'] ?? false));
-    assert_file_exists_at(comet_test_workspace_path('site-a') . '/icon.png');
-    assert_false(is_file($legacy));
+    assert_false((bool) ($workspace['has_icon'] ?? false));
+    assert_null($repository->iconPath('site-a'));
+    assert_true(is_file($legacy));
 });
 
 test('workspace repository picks up renamed workspace folders on disk', function (): void {
@@ -161,7 +161,7 @@ test('workspace content types entries and media are isolated', function (): void
     assert_same(['hero.jpg'], array_map(static fn(array $file): string => $file['name'], (new MediaRepository($siteA))->files()));
 });
 
-test('permission service supports workspace scoped resources with legacy fallback', function (): void {
+test('permission service supports workspace scoped and global resources', function (): void {
     $service = new PermissionService();
     $workspacePrincipal = [
         '_principal_type' => 'token',

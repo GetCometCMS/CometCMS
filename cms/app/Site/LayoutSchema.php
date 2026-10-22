@@ -113,7 +113,7 @@ final class LayoutSchema
 
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
-    /** Background image options; older layouts stored them as section props. */
+    /** Background image style options. */
     private const BACKGROUND_IMAGE_KEYS = ['background_image', 'background_size', 'background_position', 'background_repeat', 'background_blur', 'overlay'];
 
     /** Border sides and how they are drawn; the look only applies once a side is picked. */
@@ -121,9 +121,6 @@ final class LayoutSchema
 
     /** Entrance animation and its timing; the timing only applies to an animation. */
     private const ANIMATION_KEYS = ['animation', 'animation_trigger', 'animation_duration', 'animation_delay'];
-
-    /** Borders used to be a single choice of sides. */
-    private const LEGACY_BORDERS = ['all' => ['left', 'top', 'right', 'bottom'], 'top' => ['top'], 'bottom' => ['bottom']];
 
     public const LOCALIZED_PROPS = [
         'heading' => ['text', 'link'], 'text' => ['html'],
@@ -683,20 +680,6 @@ final class LayoutSchema
         return self::bindDefaultNodes(self::buildDefaultLayout($type, 'card'), self::defaultFields($type));
     }
 
-    /**
-     * Turn a card layout from before cards lived in collections (sections of
-     * rows) into a card template: one column holding all the rows, styled
-     * like the first section as far as columns allow.
-     */
-    public static function cardTemplate(array $layout): array
-    {
-        $sections = array_values(array_filter($layout, static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === 'section'));
-        $style = array_intersect_key($sections[0]['style'] ?? [], array_flip(self::styleKeys('column')));
-        $rows = array_merge(...array_map(static fn(array $section): array => $section['children'] ?? [], $sections ?: [[]]));
-
-        return [self::node('column', [], $style, $rows)];
-    }
-
     private static function defaultFields(array $type): array
     {
         $fields = ($type['fields'] ?? []) + array_fill_keys(self::SYSTEM_FIELDS, ['type' => 'datetime']);
@@ -997,10 +980,8 @@ final class LayoutSchema
                 $children = array_slice($children, 0, 1);
             }
 
-            [$props, $style] = self::liftBackgroundImage(
-                is_array($node['props'] ?? null) ? $node['props'] : [],
-                is_array($node['style'] ?? null) ? $node['style'] : [],
-            );
+            $props = is_array($node['props'] ?? null) ? $node['props'] : [];
+            $style = is_array($node['style'] ?? null) ? $node['style'] : [];
 
             $entry = [
                 'id' => $id,
@@ -1023,10 +1004,6 @@ final class LayoutSchema
 
     private static function normalizeProps(string $kind, array $props): array
     {
-        // Sections used to be either sticky or not.
-        if ($kind === 'section' && is_bool($props['sticky'] ?? null)) {
-            $props['sticky'] = $props['sticky'] ? 'always' : 'none';
-        }
         $normalized = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {
@@ -1060,9 +1037,6 @@ final class LayoutSchema
     {
         $specs = self::styleSpec();
         $normalized = [];
-        if (is_string($style['border'] ?? null)) {
-            $style['border'] = self::LEGACY_BORDERS[$style['border']] ?? [];
-        }
 
         foreach (self::styleKeys($kind) as $key) {
             if (!array_key_exists($key, $style)) {
@@ -1088,19 +1062,6 @@ final class LayoutSchema
         }
 
         return $normalized;
-    }
-
-    /** Move background image props of older sections into their style. */
-    private static function liftBackgroundImage(array $props, array $style): array
-    {
-        foreach (self::BACKGROUND_IMAGE_KEYS as $key) {
-            if (array_key_exists($key, $props)) {
-                $style[$key] ??= $props[$key];
-                unset($props[$key]);
-            }
-        }
-
-        return [$props, $style];
     }
 
     private static function normalizeValue(array $spec, mixed $value): mixed

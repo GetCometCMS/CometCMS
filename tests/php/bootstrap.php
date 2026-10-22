@@ -48,7 +48,7 @@ function comet_config(string $key, mixed $default = null): mixed
 
 function comet_version(): string
 {
-    return 'test';
+    return require __DIR__ . '/../../cms/app/version.php';
 }
 
 function comet_test_reset_storage(): void

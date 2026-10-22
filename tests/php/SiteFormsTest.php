@@ -16,7 +16,8 @@ function comet_form_test_setup(): array
 {
     $site = comet_site_test_setup();
     (new ContentTypeRepository())->save([
-        'name' => 'inquiries',
+        'name' => 'inquiries', 'label' => 'Contact',
+        'submission_settings' => ['success_message' => 'Thanks, we will be in touch.'],
         'visibility' => 'private', 'allow_submissions' => true,
         'fields' => [
             'name' => ['type' => 'text', 'label' => 'Your name', 'required' => true, 'layout' => ['width' => '1/2']],
@@ -29,11 +30,7 @@ function comet_form_test_setup(): array
     ]);
     $site = new SiteRepository();
     $forms = new FormRepository($site);
-    $form = $forms->create([
-        'name' => 'Contact',
-        'type' => 'inquiries',
-        'success_message' => 'Thanks, we will be in touch.',
-    ]);
+    $form = $forms->all()[0];
 
     return [$site, $forms, $form];
 }
@@ -53,22 +50,13 @@ test('forms show every field of their type that visitors can fill in', function 
 
     (new ContentTypeRepository())->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => ['cv' => ['type' => 'media', 'required' => true]]]);
     $forms = new FormRepository(new SiteRepository());
-    $rejected = static function (array $input) use ($forms): array {
-        try {
-            $forms->create($input);
-        } catch (ValidationException $e) {
-            return $e->fields();
-        }
-        throw new RuntimeException('Expected a validation error.');
-    };
-    assert_same('applications', $forms->create(['name' => 'Apply', 'type' => 'applications'])['type']);
-    assert_true(isset($rejected(['name' => 'About', 'type' => 'about'])['type']), 'Types must allow submissions.');
-    assert_true(isset($rejected(['name' => '', 'type' => 'inquiries'])['name']));
-
-    $updated = $forms->update($form['id'], ['name' => 'Kontakt', 'type' => 'inquiries', 'status' => 'published', 'captcha' => 'turnstile']);
+    assert_same(['applications', 'inquiries'], array_column($forms->all(), 'type'));
+    $types = new ContentTypeRepository();
+    $types->save([...$types->find('inquiries'), 'submission_settings' => ['status' => 'published', 'captcha' => 'turnstile']]);
+    $updated = (new FormRepository(new SiteRepository()))->find($form['id']);
     assert_same('published', $updated['status']);
-    assert_same('none', $updated['captcha'], 'Captchas are not supported yet.');
-    assert_same($form['created_at'], $updated['created_at']);
+    assert_same('none', $updated['captcha']);
+
 });
 
 test('a submission becomes a draft entry with only the form\'s fields', function (): void {
@@ -169,7 +157,8 @@ test('a placed form renders labelled inputs from the content type and is found w
     assert_true($document->getElementById($anchor . '-error') !== null);
 
     assert_same([['target' => 'layout', 'type' => 'blog', 'variant' => 'detail']], $site->formUsages($form['id']));
-    $forms->delete($form['id']);
+    $types = new ContentTypeRepository();
+    $types->save([...$types->find('inquiries'), 'allow_submissions' => false]);
     assert_same(0, substr_count(comet_site_test_get('/blog/hello')['body'], 'c-form-grid'));
 });
 
@@ -180,7 +169,7 @@ test('posting a form stores the entry and sends the visitor back to the page', f
     'email' => ['type' => 'text', 'required' => true],
     'message' => ['type' => 'textarea'],
 ]]);
-echo (new \CometCMS\Site\FormRepository(new \CometCMS\Site\SiteRepository()))->create(['name' => 'Contact', 'type' => 'inquiries'])['id'];
+echo (new \CometCMS\Site\FormRepository(new \CometCMS\Site\SiteRepository()))->all()[0]['id'];
 PHP]));
     $port = 22080 + random_int(0, 2000);
     $server = comet_test_start_php_server('127.0.0.1', $port, $root . '/router.php');
@@ -287,17 +276,15 @@ test('existing forms retain their placements and adopt settings saved with the t
     assert_same('Send request', $types->find('inquiries')['submission_settings']['submit_label']);
 });
 
-test('legacy forms opt their receiving type into submissions without rewriting storage', function (): void {
+test('retired standalone forms neither enable submissions nor appear in the builder', function (): void {
     (new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/content-types'))->write([
         'name' => 'legacy', 'fields' => ['email' => ['type' => 'text']],
     ], 'legacy');
     (new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/site/forms'))->write([
         'id' => 'old-form', 'type' => 'legacy', 'name' => 'Contact', 'success_message' => 'Thank you',
     ], 'old-form');
-    assert_true((new ContentTypeRepository())->find('legacy')['allow_submissions']);
-    $form = (new FormRepository(new SiteRepository()))->all()[0];
-    assert_same('old-form', $form['id']);
-    assert_same('Thank you', $form['success_message']);
+    assert_false((new ContentTypeRepository())->find('legacy')['allow_submissions']);
+    assert_same([], (new FormRepository(new SiteRepository()))->all());
 });
 
 test('form upload configuration is capped by the media limit and rejects malformed and forged files', function (): void {

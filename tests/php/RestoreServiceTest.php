@@ -37,7 +37,7 @@ test('restore service inspect parses manifest counts and available parts', funct
     comet_restore_test_create_zip($zipPath, [
         'manifest.json' => json_encode([
             'cms' => 'CometCMS',
-            'version' => '0.9.8',
+            'version' => '2.0.0',
             'workspace' => 'default',
             'created_at' => '2026-05-08T00:00:00Z',
             'parts' => ['content_types', 'content', 'media', 'users', 'api_tokens', 'webhooks'],
@@ -83,7 +83,7 @@ test('restore service restores selected parts to workspace paths', function (): 
 
     $zipPath = COMET_STORAGE . '/backups/parts.zip';
     comet_restore_test_create_zip($zipPath, [
-        'manifest.json' => json_encode(['parts' => ['content_types', 'content', 'media']]),
+        'manifest.json' => json_encode(['version' => '2.0.0', 'parts' => ['content_types', 'content', 'media']]),
         'content-types/posts.json' => '{"name":"posts"}',
         'content/posts/post-1.json' => '{"id":"post-1"}',
         'media/hero.jpg' => 'image-data',
@@ -109,7 +109,7 @@ test('restore service flags unsafe paths and skips extraction', function (): voi
 
     $zipPath = COMET_STORAGE . '/backups/unsafe.zip';
     comet_restore_test_create_zip($zipPath, [
-        'manifest.json' => json_encode(['parts' => ['content_types']]),
+        'manifest.json' => json_encode(['version' => '2.0.0', 'parts' => ['content_types']]),
         '../escape.txt' => 'bad',
         '/absolute.txt' => 'bad',
         'content-types/posts.json' => '{"name":"posts"}',
@@ -145,7 +145,7 @@ test('restore service rejects missing manifest and invalid part selection', func
 
     $zipWithManifest = COMET_STORAGE . '/backups/with-manifest.zip';
     comet_restore_test_create_zip($zipWithManifest, [
-        'manifest.json' => json_encode(['parts' => ['content_types']]),
+        'manifest.json' => json_encode(['version' => '2.0.0', 'parts' => ['content_types']]),
         'content-types/posts.json' => '{"name":"posts"}',
     ]);
 
@@ -178,4 +178,19 @@ test('restore service reports missing zip extension in no-extension subprocess',
     }
 
     assert_true(true);
+});
+
+test('restore rejects retired and unversioned backups before writing any files', function (): void {
+    if (!class_exists(ZipArchive::class)) return;
+    foreach ([null, '1.1.0', '2.0.0-beta.1', 'invalid'] as $version) {
+        $zipPath = COMET_STORAGE . '/backups/retired.zip';
+        comet_restore_test_create_zip($zipPath, [
+            'manifest.json' => json_encode(['version' => $version]),
+            'content-types/retired.json' => '{"name":"retired"}',
+        ]);
+        $restore = new RestoreService();
+        assert_throws(RuntimeException::class, fn() => $restore->inspect($zipPath));
+        assert_throws(RuntimeException::class, fn() => $restore->restore($zipPath, true, ['id' => 'admin']));
+        assert_false(is_file(comet_test_workspace_path() . '/content-types/retired.json'));
+    }
 });

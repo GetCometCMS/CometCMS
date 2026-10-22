@@ -137,13 +137,8 @@ test('deleting a component detaches all placements and removes its history', fun
     $component = $site->saveComponent($component['id'], [comet_component_test_section([['kind' => 'text', 'props' => ['html' => '<p>Keep this content</p>']]])]);
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id']) + ['name' => 'Footer promo']]);
     $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
-    // A card layout from before cards lived in collections still renders as the standard card.
-    $store = new JsonStore(comet_test_workspace_path() . '/site/theme');
-    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [comet_component_test_instance('i3', $component['id'])]], 'layouts', 'blog', 'card');
-
     assert_same([
         ['target' => 'layout', 'type' => 'blog', 'variant' => 'index'],
-        ['target' => 'layout', 'type' => 'blog', 'variant' => 'card'],
         ['target' => 'region', 'region' => 'footer'],
     ], $site->componentUsages($component['id']));
     $cache = ApiCache::fromConfig();
@@ -155,7 +150,7 @@ test('deleting a component detaches all placements and removes its history', fun
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('components', $component['id']));
     assert_null($cache->get($key));
 
-    $copies = [$site->region('footer')[0], $site->layout('blog', 'index')[0], $store->read('layouts', 'blog', 'card')['nodes'][0]];
+    $copies = [$site->region('footer')[0], $site->layout('blog', 'index')[0]];
     assert_same('Footer promo', $copies[0]['name']);
     $childIds = [];
     foreach ($copies as $copy) {

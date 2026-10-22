@@ -10,17 +10,12 @@ use CometCMS\Auth\UserRepository;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Logging\Logger;
-use CometCMS\Site\SingletonMigration;
-use CometCMS\Site\ThemeMigration;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
 
 final class RestoreService
 {
     private WorkspaceContext $workspace;
-
-    /** @var array<string, string>|null legacy component id => current id */
-    private ?array $componentAliases = null;
 
     public function __construct(?WorkspaceContext $workspace = null)
     {
@@ -66,6 +61,8 @@ final class RestoreService
             throw new \RuntimeException('Backup ZIP is missing manifest.json.');
         }
 
+        $manifest = $this->supportedManifest($zip);
+
         $summary = [
             'selected_parts' => $parts,
             'restored_content_types' => 0,
@@ -82,7 +79,6 @@ final class RestoreService
             'errors' => [],
         ];
 
-        $restoredTheme = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = str_replace('\\', '/', (string) $zip->getNameIndex($i));
 
@@ -93,15 +89,11 @@ final class RestoreService
 
             $target = $this->targetPath($name, $parts);
 
-            // ThemeMigration keeps this workspace's own record of renamed components.
-            if ($target === null || $name === 'site/' . ThemeMigration::ALIASES . '.json') {
+            if ($target === null) {
                 continue;
             }
 
-            // Treat legacy and migrated theme files as the same backup item.
-            $otherThemeFormatExists = ($name === 'site/theme.json' && is_file($this->workspace->path('site') . '/theme/theme.json'))
-                || (in_array($name, ['site/theme/theme.json', 'site/theme/style.css'], true) && is_file($this->workspace->path('site') . '/theme.json'));
-            if (!$overwrite && (is_file($target) || $otherThemeFormatExists)) {
+            if (!$overwrite && is_file($target)) {
                 $summary['skipped']++;
                 continue;
             }
@@ -110,11 +102,7 @@ final class RestoreService
                 mkdir(dirname($target), 0775, true);
             }
 
-            $copied = copy('zip://' . $zipPath . '#' . $name, $target);
-            if (in_array($name, ['site/theme/theme.json', 'site/theme/style.css'], true)) {
-                $restoredTheme[$name] = $copied;
-            }
-
+            copy('zip://' . $zipPath . '#' . $name, $target);
             if (str_starts_with($name, 'content-types/')) {
                 $summary['restored_content_types']++;
             } elseif (str_starts_with($name, 'content/')) {
@@ -127,16 +115,6 @@ final class RestoreService
                 $summary['restored_media_meta']++;
             } elseif (str_starts_with($name, 'site/')) {
                 $summary['restored_site']++;
-            }
-        }
-
-        // A migrated theme must replace the legacy theme too when overwriting.
-        // Otherwise an older theme.json would hide the restored tokens and CSS.
-        if ($overwrite && !empty($restoredTheme['site/theme/theme.json']) && !empty($restoredTheme['site/theme/style.css'])
-            && $zip->locateName('site/theme.json') === false) {
-            $legacyTheme = $this->workspace->path('site') . '/theme.json';
-            if (is_file($legacyTheme)) {
-                unlink($legacyTheme);
             }
         }
 
@@ -154,8 +132,6 @@ final class RestoreService
         }
 
         $zip->close();
-        (new ThemeMigration($this->workspace))->run();
-        (new SingletonMigration($this->workspace))->run();
         ApiCache::fromConfig($this->workspace)->clear();
         (new Logger())->info('backup restored', ['summary' => $summary, 'user_id' => $user['id'] ?? null]);
 
@@ -178,8 +154,8 @@ final class RestoreService
             throw new \RuntimeException('Backup ZIP is missing manifest.json.');
         }
 
-        $manifest = json_decode((string) $zip->getFromName('manifest.json'), true);
-        $manifest = is_array($manifest) ? $manifest : [];
+        $manifest = $this->supportedManifest($zip);
+
         $counts = [
             'content_types' => 0,
             'content' => 0,
@@ -292,36 +268,24 @@ final class RestoreService
                     return null;
                 }
 
-                return $target . ($prefix === 'site/' ? $this->siteTarget(substr($name, strlen($prefix))) : substr($name, strlen($prefix)));
+                return $target . substr($name, strlen($prefix));
             }
         }
 
         return null;
     }
 
-    /**
-     * Older backups keep regions, layouts and components next to the theme
-     * folder and name components by generated ids. Restore them where they
-     * live now, so they count as the same items when not overwriting.
-     * ThemeMigration then renames what is still left over.
-     */
-    private function siteTarget(string $relative): string
+    /** Reject retired backup formats before inspecting or extracting their contents. */
+    private function supportedManifest(\ZipArchive $zip): array
     {
-        $directory = strstr($relative, '/', true);
-        if (!in_array($directory, ThemeMigration::MOVED, true)) {
-            return $relative;
+        $manifest = json_decode((string) $zip->getFromName('manifest.json'), true);
+        if (!is_array($manifest) || !is_string($manifest['version'] ?? null)
+            || !preg_match('/^\d+\.\d+\.\d+(?:[-+].*)?$/', $manifest['version'])
+            || version_compare($manifest['version'], '2.0.0', '<')) {
+            $zip->close();
+            throw new \RuntimeException('Only backups from CometCMS 2.0.0 or newer are supported. Start with a fresh installation for 2.0.0.');
         }
-
-        if ($directory === 'components') {
-            $this->componentAliases ??= json_decode((string) @file_get_contents($this->workspace->path('site') . '/' . ThemeMigration::ALIASES . '.json'), true) ?: [];
-            $id = basename($relative, '.json');
-            $alias = $this->componentAliases[$id] ?? null;
-            if ($relative === 'components/' . $id . '.json' && is_string($alias) && preg_match('/^[A-Za-z0-9_-]+$/', $alias)) {
-                $relative = 'components/' . $alias . '.json';
-            }
-        }
-
-        return 'theme/' . $relative;
+        return $manifest;
     }
 
     private function normalizeParts(?array $parts): array
@@ -513,7 +477,7 @@ final class RestoreService
                 continue;
             }
 
-            $id = (string) ($role['id'] ?? $role['name'] ?? '');
+            $id = (string) ($role['id'] ?? '');
             if ($id === '') {
                 continue;
             }

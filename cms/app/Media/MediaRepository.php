@@ -35,7 +35,6 @@ final class MediaRepository
             mkdir(dirname($this->metadataPath), 0775, true);
         }
 
-        $this->removeLegacyThumbnailCache();
     }
 
     public function directory(): string
@@ -995,22 +994,6 @@ final class MediaRepository
     private function variantStorageDirectory(string $file): string
     {
         return $this->variantDir . '/' . sha1(basename($file));
-    }
-
-    private function removeLegacyThumbnailCache(): void
-    {
-        $directory = $this->workspace->root() . '/media-thumbs';
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        foreach (glob($directory . '/*') ?: [] as $path) {
-            if (is_file($path)) {
-                unlink($path);
-            }
-        }
-
-        @rmdir($directory);
     }
 
     private function deleteVariants(string $file): void

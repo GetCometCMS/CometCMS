@@ -9,6 +9,10 @@
 
 ---
 
+## Upgrading to 2.0.0
+
+Version 2.0.0 requires a fresh installation. Recreate content and website designs as needed; pre-2.0 storage and backups are unsupported. Backup inspection and restore accept only archives from version 2.0.0 or newer. Existing storage is never reset automatically. See [LEGACY.md](LEGACY.md) for the removal decisions and retained behavior.
+
 ## Why CometCMS
 
 The entire CMS is a single PHP folder you upload to your server. That's it.

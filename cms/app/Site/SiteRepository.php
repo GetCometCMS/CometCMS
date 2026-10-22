@@ -30,8 +30,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *
  * Theme files hold no save timestamps, so saving unchanged content leaves
  * them unchanged; "updated_at" comes from the file modification time.
- * Revisions live outside, in revisions/site/. ThemeMigration moves files
- * from older layouts into this structure.
+ * Revisions live outside, in revisions/site/.
  *
  * Layouts and regions that were never customized are generated from the
  * content type on the fly, so publishing a first page works without setup.
@@ -64,14 +63,7 @@ final class SiteRepository
         $this->themeStore = new JsonStore($this->workspace->path('site') . '/theme');
         $this->revisions = new JsonStore($this->workspace->path('revisions') . '/site');
 
-        $migration = new ThemeMigration($this->workspace);
-        if ($migration->needed() && $migration->run()) {
-            $this->clearCache();
-        }
-        $singletons = new SingletonMigration($this->workspace);
-        if ($singletons->needed() && $singletons->run()) {
-            $this->clearCache();
-        }
+
     }
 
     public function workspace(): WorkspaceContext
@@ -164,21 +156,16 @@ final class SiteRepository
 
     public function theme(): array
     {
-        // Older workspaces keep both tokens and CSS in site/theme.json.
-        // Read them until the next save migrates the theme into its directory.
-        $legacy = $this->store->read('theme');
-        $stored = $legacy ?? $this->themeStore->read('theme') ?? [];
+        $stored = $this->themeStore->read('theme') ?? [];
         $path = $this->themeStore->path('style') . '.css';
-        // A restored legacy backup takes precedence over the newer files.
-        if ($legacy === null && is_file($path)) {
+        if (is_file($path)) {
             $css = file_get_contents($path);
             if ($css === false) {
                 throw new \RuntimeException('Could not read the theme stylesheet.');
             }
             $stored['custom_css'] = $css;
         }
-        // Older theme files still carry their save time.
-        $updated = (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('theme') . '.json', $path);
+        $updated = self::modifiedAt($this->themeStore->path('theme') . '.json', $path);
 
         return Theme::normalize($stored) + ['updated_at' => $updated];
     }
@@ -189,7 +176,6 @@ final class SiteRepository
         $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
         $this->writeThemeStylesheet($theme['custom_css']);
         $this->themeStore->write(array_diff_key($theme, ['custom_css' => true]), 'theme');
-        $this->store->delete('theme');
         $this->clearCache();
 
         return $theme + ['updated_at' => self::modifiedAt($this->themeStore->path('theme') . '.json', $this->themeStore->path('style') . '.css')];
@@ -380,19 +366,10 @@ final class SiteRepository
         return LayoutSchema::defaultLayout($schema, $variant);
     }
 
-    /**
-     * The standard card a collection shows for entries of $type when it has
-     * no card of its own: the type's card layout from before cards lived in
-     * collections, or one generated from the type's fields.
-     */
+    /** The default card for collections without a custom card. */
     public function cardTemplate(string $type): array
     {
-        $schema = $this->requireType($type);
-        $stored = $this->themeStore->read('layouts', $type, 'card');
-
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
-            ? LayoutSchema::cardTemplate(LayoutSchema::normalize($stored['nodes'] ?? []))
-            : LayoutSchema::defaultCardTemplate($schema);
+        return LayoutSchema::defaultCardTemplate($this->requireType($type));
     }
 
     // ─── Components ──────────────────────────────────────────────────────────
@@ -429,13 +406,6 @@ final class SiteRepository
         }
 
         $stored = $this->themeStore->read('components', $id);
-        // Placements and open editors may still use an id from before
-        // components were named after their name.
-        if ($stored === null && preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id)) {
-            $alias = (string) ($this->store->read(ThemeMigration::ALIASES)[$id] ?? '');
-            $stored = $alias !== '' && LayoutSchema::key($alias) === $alias ? $this->themeStore->read('components', $alias) : null;
-        }
-
         return $this->readComponent($stored);
     }
 
@@ -455,8 +425,7 @@ final class SiteRepository
         $slug = rtrim(substr($slug, 0, 60), '-') ?: 'component';
 
         $id = $slug;
-        // Never look like a generated id, which ThemeMigration would rename.
-        for ($number = 2; $taken($id) || preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id); $number++) {
+        for ($number = 2; $taken($id); $number++) {
             $id = $slug . '-' . $number;
         }
 
@@ -523,8 +492,7 @@ final class SiteRepository
             && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
 
         foreach ($this->types() as $name => $type) {
-            // Old card layouts still render as their type's standard card.
-            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
+            foreach ($this->variantsFor($type) as $variant) {
                 if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
@@ -627,7 +595,7 @@ final class SiteRepository
         $id = $component['id'];
         $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGIONS);
         foreach ($this->types() as $name => $type) {
-            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
+            foreach ($this->variantsFor($type) as $variant) {
                 $paths[] = ['layouts', (string) $name, $variant];
             }
         }
@@ -641,7 +609,6 @@ final class SiteRepository
             $stored = $this->themeStore->read(...$path);
             if ($this->hasComponentInstance($stored, $id)) {
                 $stored['nodes'] = $this->detachComponentInstances($stored['nodes'], $component);
-                unset($stored['updated_at']);
                 $this->themeStore->write($stored, ...$path);
             }
             // Restoring an older layout must not bring back a missing component.
@@ -749,8 +716,7 @@ final class SiteRepository
             'type' => LayoutSchema::key($stored['type'] ?? ''),
             'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
             'created_at' => (string) ($stored['created_at'] ?? ''),
-            // Older component files still carry their save time.
-            'updated_at' => (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
+            'updated_at' => self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
         ];
     }
 
@@ -1014,8 +980,7 @@ final class SiteRepository
     public function forgetType(string $type): void
     {
         Security::assertSafeName($type);
-        // Including card layouts from before cards lived in collections.
-        foreach ([...LayoutSchema::VARIANTS, 'card'] as $variant) {
+        foreach (LayoutSchema::VARIANTS as $variant) {
             $this->themeStore->delete('layouts', $type, $variant);
             foreach ($this->listRevisions(['layouts', $type, $variant]) as $revision) {
                 $this->revisions->delete('layouts', $type, $variant, $revision['id']);

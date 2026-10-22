@@ -27,7 +27,7 @@ export function entryTitle(entry, locale) {
 }
 
 export function entryIdentifier(entry) {
-  return entry.uid || entry.slug || entry.id
+  return entry.uid || ''
 }
 
 export function destinationAvailable(link, types, settings, entry = null) {
@@ -39,7 +39,7 @@ export function destinationAvailable(link, types, settings, entry = null) {
   if (link.type === 'index') return !!((route?.enabled && route.index_path) || (home?.type === type.name && !home.entry))
   if (route?.enabled) return true
   if (home?.type !== type.name) return false
-  return !!home.entry && [link.entry, entry?.uid, entry?.slug, entry?.id].filter(Boolean).includes(home.entry)
+  return !!home.entry && [link.entry, entry?.uid].filter(Boolean).includes(home.entry)
 }
 
 export function anchorId(value) {
