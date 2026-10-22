@@ -929,10 +929,16 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-admin-dropdown[open] > summary > svg:last-child { rotate: 180deg; }
 .c-admin-language { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 6px; color: #cbd5e1; font-size: 12px; white-space: nowrap; }
 .c-admin-languages > summary:hover { background: #ffffff10; }
-.c-admin-dropdown-panel { position: absolute; right: 0; top: calc(100% + 10px); z-index: 1; min-width: 180px; padding: 4px; background: #111827; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 12px 28px #02061759; }
-.c-admin-dropdown-panel .c-admin-action { display: flex; justify-content: space-between; }
+.c-admin-dropdown-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 1; min-width: 192px; padding: 6px; background: #111827; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 12px 28px #02061759; }
+.c-preview-bar .c-admin-dropdown-panel .c-admin-action { display: flex; justify-content: flex-start; gap: 10px; width: 100%; min-height: 36px; padding: 8px 10px; text-align: left; }
+.c-admin-dropdown-panel .c-admin-icon { color: #94a3b8; }
+.c-admin-dropdown-panel .c-admin-action:hover .c-admin-icon { color: inherit; }
+.c-admin-languages .c-admin-dropdown-panel { min-width: 104px; }
+.c-preview-bar .c-admin-languages .c-admin-action { justify-content: space-between; }
 .c-admin-dropdown-panel .c-admin-action[aria-current] { background: #ffffff0a; color: #fbbf24; }
 .c-admin-account { flex: none; padding-left: 12px; border-left: 1px solid #ffffff14; }
+.c-admin-account > summary { gap: 8px; padding: 4px 6px; border-radius: 6px; }
+.c-admin-account > summary:hover, .c-admin-account[open] > summary { background: #ffffff0a; }
 .c-admin-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: #334155; color: #f1f5f9; font-size: 11px; font-weight: 700; }
 .c-admin-account > summary:hover .c-admin-avatar { box-shadow: 0 0 0 2px #fbbf2499; }
 .c-admin-username { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -958,8 +964,13 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 }
 /* Phones: the page shows its own title; keep every action reachable instead. */
 @media (max-width: 480px) {
+  .c-admin-shell { gap: 4px; }
+  .c-admin-brand { padding-right: 6px; }
   .c-admin-context, .c-admin-language > svg:first-child { display: none; }
-  .c-admin-meta { margin-right: auto; }
+  .c-admin-meta { gap: 4px; margin-right: auto; }
+  .c-admin-language { padding-inline: 4px; }
+  .c-admin-status { padding-inline: 5px; }
+  .c-admin-account > summary { padding-inline: 0; }
   .c-preview-bar .c-admin-action { padding: 6px; }
 }
 @media print { .c-preview-bar { display: none; } .c-site:has(> .c-preview-bar) { --c-admin-offset: 0px; } }

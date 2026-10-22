@@ -16,12 +16,14 @@ final class PreviewAdminBar
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $text = $de ? [
             'backend' => 'Zum Backend', 'adminBar' => 'Website-Verwaltung', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
-            'edit' => 'Seite bearbeiten', 'create' => 'Neu erstellen', 'entries' => 'Einträge', 'design' => 'Layout bearbeiten',
+            'edit' => 'Seite bearbeiten', 'create' => 'Neu erstellen', 'entries' => 'Einträge', 'editEntry' => 'Eintrag bearbeiten',
+            'backToBuilder' => 'Zurück zum Page Builder',
             'profile' => 'Mein Profil', 'language' => 'Vorschausprache',
             'draft' => 'Entwurf', 'protected' => 'Geschützt', 'published' => 'Veröffentlicht', 'scheduled' => 'Geplant', 'archived' => 'Archiviert',
         ] : [
             'backend' => 'Back to backend', 'adminBar' => 'Site administration', 'preview' => 'Preview', 'notice' => 'You are administering this website. Preview shows saved content, including drafts.',
-            'edit' => 'Edit page', 'create' => 'Create new', 'entries' => 'Entries', 'design' => 'Edit layout',
+            'edit' => 'Edit page', 'create' => 'Create new', 'entries' => 'Entries', 'editEntry' => 'Edit entry',
+            'backToBuilder' => 'Back to page builder',
             'profile' => 'My profile', 'language' => 'Preview language',
             'draft' => 'Draft', 'protected' => 'Protected', 'published' => 'Published', 'scheduled' => 'Scheduled', 'archived' => 'Archived',
         ];
@@ -32,14 +34,32 @@ final class PreviewAdminBar
         $entry = $state['entry'] ?? null;
         $name = (string) ($type['name'] ?? '');
         $savedEntry = $entry !== null ? $this->ctx->content->findByIdentifier($name, (string) ($entry['uid'] ?? $entry['id'])) : null;
+        $builderUrl = null;
+        $variant = $entry !== null ? 'detail' : 'index';
+        if ($type !== null && $this->ctx->isPublicType($name)
+            && in_array($variant, $this->ctx->site->variantsFor($type), true)
+            && $this->ctx->adminAllows('site.manage') && ($entry === null || $savedEntry !== null)) {
+            // The builder selects samples by their default-language slug.
+            $sample = $savedEntry !== null ? $this->ctx->content->resolveLocaleFields($savedEntry, $this->ctx->defaultLocale()) : null;
+            $builderUrl = $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($name) . '/' . $variant,
+                $sample !== null ? ['entry' => $sample['slug'] ?? $sample['id']] : []);
+        }
+        $backUrl = $builderUrl ?? $this->ctx->adminUrl('/dashboard');
+        $backLabel = $builderUrl !== null ? $text['backToBuilder'] : $text['backend'];
         // Labels may collapse to icons on narrow screens; the title keeps them discoverable.
         $link = fn(string $url, string $label, string $icon, string $class = ''): string => '<a class="c-admin-action ' . $class . '" href="' . Security::e($url) . '" title="' . Security::e($label) . '">'
             . $this->icon($icon) . '<span class="c-admin-label">' . Security::e($label) . '</span></a>';
         $actions = '';
         if ($name !== '') {
             $collection = '/content/' . rawurlencode($name);
+            $entryUrl = null;
             if ($savedEntry !== null && $this->ctx->adminAllows('content.update', $name, $savedEntry)) {
-                $actions .= $link($this->ctx->adminUrl($collection . '/' . rawurlencode((string) ($savedEntry['uid'] ?? $savedEntry['id']))), $text['edit'], 'edit', 'c-admin-action-primary');
+                $entryUrl = $this->ctx->adminUrl($collection . '/' . rawurlencode((string) ($savedEntry['uid'] ?? $savedEntry['id'])));
+            }
+            if ($builderUrl !== null) {
+                $actions .= $link($builderUrl, $text['edit'], 'layout', 'c-admin-action-primary');
+            } elseif ($entryUrl !== null) {
+                $actions .= $link($entryUrl, $text['editEntry'], 'edit', 'c-admin-action-primary');
             }
             if ($this->ctx->adminAllows('content.read', $name)) {
                 $actions .= $link($this->ctx->adminUrl($collection), $text['entries'], 'list');
@@ -47,12 +67,8 @@ final class PreviewAdminBar
             if ($this->ctx->adminAllows('content.create', $name)) {
                 $actions .= $link($this->ctx->adminUrl($collection . '/new'), $text['create'], 'plus');
             }
-            if ($this->ctx->adminAllows('site.manage')) {
-                $url = $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($name) . '/' . ($entry !== null ? 'detail' : 'index'));
-                if ($savedEntry !== null) {
-                    $url .= '&entry=' . rawurlencode((string) ($savedEntry['uid'] ?? $savedEntry['id']));
-                }
-                $actions .= $link($url, $text['design'], 'layout', 'c-admin-action-design');
+            if ($builderUrl !== null && $entryUrl !== null) {
+                $actions .= $link($entryUrl, $text['editEntry'], 'edit');
             }
         }
         $status = $unsaved ? 'preview' : ($entry['status'] ?? 'preview');
@@ -77,7 +93,7 @@ final class PreviewAdminBar
             . Security::e($text[$statusClass]) . '</span>';
 
         return '<nav class="c-preview-bar" aria-label="' . Security::e($text['adminBar']) . '"><div class="c-admin-shell">'
-            . '<a class="c-admin-brand" href="' . Security::e($this->ctx->adminUrl('/dashboard')) . '" aria-label="CometCMS · ' . Security::e($text['backend']) . '" title="' . Security::e($text['backend']) . '">'
+            . '<a class="c-admin-brand" href="' . Security::e($backUrl) . '" aria-label="CometCMS · ' . Security::e($backLabel) . '" title="' . Security::e($backLabel) . '">'
             . $this->icon('back') . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="110" height="24"></a>'
             . '<div class="c-admin-context" title="' . Security::e($workspace . ' · ' . $title) . '">'
             . '<span class="c-admin-workspace">' . Security::e($workspace) . '</span><span class="c-admin-title">' . Security::e($title) . '</span></div>'

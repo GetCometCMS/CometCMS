@@ -358,7 +358,7 @@ PHP .
             assert_same('noindex, nofollow', $headers['x-robots-tag'] ?? null);
 
             assert_true(str_contains($html, 'Back to backend'));
-            assert_true(str_contains($html, 'Edit page'));
+            assert_true(str_contains($html, 'Edit entry'));
             assert_true(str_contains($html, 'Create new'));
             assert_matches('#href="' . preg_quote($base, '#') . '/admin/content/startseite/[A-Za-z0-9_-]+\?workspace=preview-site&amp;locale=de"#', $html);
             assert_same(1, preg_match('/href="([^"]+)" lang="en"/', $html, $languageLink));
@@ -540,6 +540,61 @@ PHP .
     } finally {
         comet_test_stop_process($server);
     }
+});
+
+test('preview admin bar returns to the viewed page builder and keeps entry editing separate', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    $types = new \CometCMS\Content\ContentTypeRepository();
+    $types->save(['name' => 'posts']);
+    $type = $types->find('posts');
+    $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
+    $entry = $context->content->save('posts', ['title' => 'Original', 'slug' => 'original'], ['id' => 'admin']);
+    $context->content->save('posts', ['slug' => 'renamed', 'locale' => 'en'], ['id' => 'admin'], $entry['id']);
+    $entry = $context->content->save('posts', ['title' => 'Deutsch', 'slug' => 'deutsch', 'locale' => 'de'], ['id' => 'admin'], $entry['id']);
+    $context->locale = 'de';
+    $context->adminCan = static fn(): bool => true;
+    $bar = new \CometCMS\Site\PreviewAdminBar($context);
+    $links = static function (string $html): \DOMXPath {
+        $document = new \DOMDocument();
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        return new \DOMXPath($document);
+    };
+    $builderUrl = '/cms/admin/page-builder/builder/layout/posts/detail?workspace=default&locale=de&entry=renamed';
+    $entryUrl = '/cms/admin/content/posts/' . $entry['uid'] . '?workspace=default&locale=de';
+    foreach (['en' => ['Edit page', 'Edit entry', 'Back to page builder'], 'de' => ['Seite bearbeiten', 'Eintrag bearbeiten', 'Zurück zum Page Builder']] as $language => [$editPage, $editEntry, $back]) {
+        $context->adminUser = ['username' => 'admin', 'language' => $language];
+        $xpath = $links($bar->render(['type' => $type, 'entry' => $entry]));
+        $brand = $xpath->query('//a[@class="c-admin-brand"]')->item(0);
+        $primary = $xpath->query('//a[contains(@class,"c-admin-action-primary")]')->item(0);
+        assert_same($builderUrl, $brand->getAttribute('href'));
+        assert_same($back, $brand->getAttribute('title'));
+        assert_same($builderUrl, $primary->getAttribute('href'));
+        assert_same($editPage, $primary->textContent);
+        assert_same($entryUrl, $xpath->query('//a[@title="' . $editEntry . '"]')->item(0)->getAttribute('href'));
+        assert_same('/cms/admin/dashboard?workspace=default&locale=de', $xpath->query('//details[contains(@class,"c-admin-account")]//a[last()]')->item(0)->getAttribute('href'));
+    }
+
+    $xpath = $links($bar->render(['type' => $type, 'entry' => null]));
+    $indexBuilder = '/cms/admin/page-builder/builder/layout/posts/index?workspace=default&locale=de';
+    assert_same($indexBuilder, $xpath->query('//a[@class="c-admin-brand"]')->item(0)->getAttribute('href'));
+    assert_same($indexBuilder, $xpath->query('//a[contains(@class,"c-admin-action-primary")]')->item(0)->getAttribute('href'));
+
+    $context->adminCan = static fn(string $action): bool => $action === 'content.update';
+    $html = $bar->render(['type' => $type, 'entry' => $entry]);
+    $xpath = $links($html);
+    assert_same('/cms/admin/dashboard?workspace=default&locale=de', $xpath->query('//a[@class="c-admin-brand"]')->item(0)->getAttribute('href'));
+    assert_same($entryUrl, $xpath->query('//a[contains(@class,"c-admin-action-primary")]')->item(0)->getAttribute('href'));
+    assert_false(str_contains($html, '/page-builder/'), 'Content editors keep their entry editor without a forbidden builder link.');
+
+    $context->adminCan = static fn(string $action): bool => $action === 'site.manage';
+    $html = $bar->render(['type' => $type, 'entry' => $entry]);
+    assert_true(str_contains($html, 'c-admin-action-primary'));
+    assert_false(str_contains($html, 'Eintrag bearbeiten'), 'Builder access does not grant entry editing.');
+    $unsaved = $context->content->preview('posts', ['title' => 'New unsaved page'], ['id' => 'admin'], null);
+    $html = $bar->render(['type' => $type, 'entry' => $context->localize('posts', $unsaved)]);
+    assert_false(str_contains($html, '/page-builder/'), 'An unsaved entry cannot be selected in the builder yet.');
+    $html = $bar->render(['type' => null, 'entry' => null]);
+    assert_false(str_contains($html, '/page-builder/'), 'Pages without a content type keep the backend fallback.');
 });
 
 test('the admin bar shows one localized state for the displayed content', function (): void {
