@@ -1,7 +1,7 @@
-.c-block-acme__faq .acme-faq__item {
+.c-block-cometcms__faq .cometcms-faq__item {
   border-bottom: 1px solid var(--c-border, #e2e8f0);
 }
-.c-block-acme__faq .acme-faq__question {
+.c-block-cometcms__faq .cometcms-faq__question {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -10,10 +10,10 @@
   list-style: none;
   cursor: pointer;
 }
-.c-block-acme__faq .acme-faq__question::-webkit-details-marker {
+.c-block-cometcms__faq .cometcms-faq__question::-webkit-details-marker {
   display: none;
 }
-.c-block-acme__faq .acme-faq__question::after {
+.c-block-cometcms__faq .cometcms-faq__question::after {
   content: "";
   flex: none;
   width: 1.25rem;
@@ -21,12 +21,12 @@
   background: url(assets/chevron.svg) center / contain no-repeat;
   transition: transform 0.2s;
 }
-.c-block-acme__faq .acme-faq__item[open] .acme-faq__question::after {
+.c-block-cometcms__faq .cometcms-faq__item[open] .cometcms-faq__question::after {
   transform: rotate(180deg);
 }
-.c-block-acme__faq .acme-faq__answer {
+.c-block-cometcms__faq .cometcms-faq__answer {
   padding-bottom: 1rem;
 }
-.c-block-acme__faq .acme-faq__answer > :first-child {
+.c-block-cometcms__faq .cometcms-faq__answer > :first-child {
   margin-top: 0;
 }

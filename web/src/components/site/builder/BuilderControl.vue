@@ -150,6 +150,29 @@
       <option v-for="(child, index) in node.children" :key="child.id" :value="index + 1">{{ builder.valueFor(child, 'props', 'title') || t('site.tabs.tabTitle', { number: index + 1 }) }}</option>
     </select>
 
+    <div v-else-if="def.type === 'int' && def.control === 'slider'" class="flex items-center gap-2">
+      <input
+        :id="inputId"
+        type="range"
+        class="min-w-0 flex-1 accent-theme-600"
+        :min="def.min"
+        :max="def.max"
+        step="1"
+        :value="value ?? def.default"
+        @input="emitNumber($event.target.value)"
+      />
+      <input
+        type="number"
+        class="form-input w-20 shrink-0 rounded-lg border-slate-300 py-1.5 text-xs"
+        :aria-label="label"
+        :min="def.min"
+        :max="def.max"
+        step="1"
+        :value="value ?? def.default"
+        @input="emitNumber($event.target.value)"
+      />
+    </div>
+
     <OptionBar
       v-else-if="def.type === 'int' && numberOptions"
       :model-value="value"

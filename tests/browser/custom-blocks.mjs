@@ -12,8 +12,8 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const directory = mkdtempSync(join(tmpdir(), 'comet-blocks-browser-'));
 const install = join(directory, 'site');
 cpSync(process.env.COMET_TEST_DIST || join(root, 'dist'), install, { recursive: true });
-const example = join(root, 'examples/blocks/acme-marketing');
-const zips = { v1: join(directory, 'acme-marketing.zip'), v2: join(directory, 'acme-marketing-2.zip') };
+const example = join(root, 'examples/blocks/comet-essentials');
+const zips = { v1: join(directory, 'comet-essentials.zip'), v2: join(directory, 'comet-essentials-2.zip') };
 const assert = (ok, message) => { if (!ok) throw new Error(message); };
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const seed = spawnSync('php', [], { encoding: 'utf8', input: `<?php
@@ -31,7 +31,7 @@ foreach ([${JSON.stringify(zips.v1)} => false, ${JSON.stringify(zips.v2)} => tru
     $zip->open($target, ZipArchive::CREATE);
     foreach (\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(${JSON.stringify(example)}) as $path => $bytes) {
         if ($breaking && str_starts_with($path, 'blocks/feature/')) continue;
-        $zip->addFromString('acme-marketing/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.3.0"', '"2.0.0"', $bytes) : $bytes);
+        $zip->addFromString('comet-essentials/' . $path, $breaking && $path === 'comet-package.json' ? str_replace('"1.4.0"', '"2.0.0"', $bytes) : $bytes);
     }
     $zip->close();
 }
@@ -85,7 +85,7 @@ async function click(text, selector = 'button') {
 /** Packages with JavaScript ask before installing. */
 async function allowScripts() {
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("Allow JavaScript?")', 'script consent');
-  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("acme/stats") && dialog.innerText.includes("acme/slideshow"))'), 'Consent names the blocks with scripts');
+  assert(await evaluate('[...document.querySelectorAll(\'[role="alertdialog"]\')].some((dialog) => dialog.innerText.includes("Allow JavaScript?") && dialog.innerText.includes("cometcms/stats") && dialog.innerText.includes("cometcms/slideshow"))'), 'Consent names the blocks with scripts');
   await click('Install with JavaScript', '[role="alertdialog"] button');
   // Its overlay fades out; a drop before then would land on it.
   await waitFor('!document.querySelector(\'[role="alertdialog"]\')', 'script consent closed');
@@ -133,9 +133,9 @@ try {
   const { nodeId } = await command('DOM.querySelector', { nodeId: documentNode.nodeId, selector: '#block-package' });
   await command('DOM.setFileInputFiles', { nodeId, files: [zips.v1] });
   await allowScripts();
-  await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'example package installation');
+  await waitFor('document.body.innerText.includes("Comet Essentials installed.")', 'example package installation');
   assert(await evaluate('document.body.innerText.includes("JavaScript")'), 'Inventory marks packages with scripts');
-  assert(await evaluate('document.body.innerText.includes("acme/marketing") && document.body.innerText.includes("Pricing plan")'), 'Inventory lists the package and its blocks');
+  assert(await evaluate('document.body.innerText.includes("cometcms/essentials") && document.body.innerText.includes("Pricing plan")'), 'Inventory lists the package and its blocks');
   const asset = await evaluate(`fetch('/_site/${workspace}/blocks/${createHash('sha256').update(readFileSync(join(example, 'assets/check.svg'))).digest('hex')}.svg').then((res) => ({ status: res.status, type: res.headers.get('content-type'), csp: res.headers.get('content-security-policy'), cache: res.headers.get('cache-control') }))`);
   assert(asset.status === 200 && asset.type === 'image/svg+xml' && asset.csp.includes('sandbox') && asset.cache.includes('immutable'), 'Package asset is served safely: ' + JSON.stringify(asset));
   await command('Page.navigate', { url: `${origin}/admin/page-builder/builder/layout/home/detail` });
@@ -145,9 +145,9 @@ try {
   // Single-line text props are bindable and use the smart value editor; the multi-line message is a textarea.
   await waitFor('!!document.querySelector(\'textarea[id$="-props-message"]\')', 'generated inspector');
   await field('textarea[id$="-props-message"]', 'Custom blocks work');
-  const previewDocument = '[...document.querySelectorAll("iframe")].map((el) => el.contentDocument).find((doc) => doc?.querySelector(".acme-callout"))';
-  await waitFor(`(${previewDocument})?.querySelector('.acme-callout p')?.textContent === 'Custom blocks work'`, 'live custom block preview');
-  const preview = await evaluate(`(() => { const doc = ${previewDocument}; const el = doc.querySelector('.acme-callout'); const copy = el.cloneNode(true); copy.querySelectorAll('[draggable]').forEach((node) => node.removeAttribute('draggable')); return { html: copy.outerHTML, border: doc.defaultView.getComputedStyle(el).borderInlineStartWidth, annotated: !!el.closest('[data-kind="block:acme/callout"]'), cssCount: doc.querySelectorAll('style[data-comet-blocks]').length }; })()`);
+  const previewDocument = '[...document.querySelectorAll("iframe")].map((el) => el.contentDocument).find((doc) => doc?.querySelector(".cometcms-callout"))';
+  await waitFor(`(${previewDocument})?.querySelector('.cometcms-callout p')?.textContent === 'Custom blocks work'`, 'live custom block preview');
+  const preview = await evaluate(`(() => { const doc = ${previewDocument}; const el = doc.querySelector('.cometcms-callout'); const copy = el.cloneNode(true); copy.querySelectorAll('[draggable]').forEach((node) => node.removeAttribute('draggable')); return { html: copy.outerHTML, border: doc.defaultView.getComputedStyle(el).borderInlineStartWidth, annotated: !!el.closest('[data-kind="block:cometcms/callout"]'), cssCount: doc.querySelectorAll('style[data-comet-blocks]').length }; })()`);
   assert(preview.border === '4px', 'Preview loads block CSS');
   assert(preview.annotated && preview.cssCount === 1, 'Builder annotations and one block stylesheet');
   assert(await evaluate('!document.querySelector("style[data-comet-blocks]")'), 'Package CSS stays out of admin parent');
@@ -158,40 +158,62 @@ try {
     writeFileSync(process.env.COMET_BLOCK_SCREENSHOT.replace(/\.png$/, '-builder.png'), Buffer.from(palette.data, 'base64'));
   }
   await click('Stats');
-  await waitFor(`!!(${previewDocument})?.querySelector('.acme-stats')`, 'stats block in preview');
+  await waitFor(`!!(${previewDocument})?.querySelector('.cometcms-stats')`, 'stats block in preview');
   assert(await evaluate(`!(${previewDocument}).querySelector('[data-comet-block]') && ![...(${previewDocument}).querySelectorAll('script')].some((el) => el.textContent.includes('import mount'))`), 'Builder preview never loads block scripts');
   await click('Slideshow');
-  await waitFor(`(${previewDocument})?.querySelectorAll('.acme-slideshow [data-slide]').length === 3`, 'slideshow preview');
-  assert(await evaluate(`(${previewDocument}).querySelector('.acme-slideshow [data-controls]').hidden && [...(${previewDocument}).querySelectorAll('.acme-slideshow [data-slide]')].every((slide) => !slide.hidden)`), 'Preview keeps all slides readable without inactive controls');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.cometcms-slideshow [data-slide]').length === 3`, 'slideshow preview');
+  assert(await evaluate(`(${previewDocument}).querySelector('.cometcms-slideshow [data-controls]').hidden && [...(${previewDocument}).querySelectorAll('.cometcms-slideshow [data-slide]')].every((slide) => !slide.hidden)`), 'Preview keeps all slides readable without inactive controls');
   await click('Add item');
   await waitFor('!!document.querySelector(\'input[id$="-props-slides-3-title"]\')', 'new slide fields');
   await field('input[id$="-props-slides-3-title"]', 'A custom slide');
-  await waitFor(`(${previewDocument})?.querySelectorAll('.acme-slideshow [data-slide]')[3]?.textContent.includes('A custom slide')`, 'slide content in preview');
+  await waitFor(`(${previewDocument})?.querySelectorAll('.cometcms-slideshow [data-slide]')[3]?.textContent.includes('A custom slide')`, 'slide content in preview');
   await click('Pricing plan');
   await waitFor('[...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Add item")', 'list editor');
   await click('Add item');
   await waitFor('!!document.querySelector(\'input[id$="-props-features-3-text"]\')', 'new list item fields');
   await field('input[id$="-props-features-3-text"]', 'Custom feature');
-  await waitFor(`[...(${previewDocument})?.querySelectorAll('.acme-plan__feature') ?? []].map((el) => el.textContent).includes('Custom feature')`, 'list item in preview');
+  await waitFor(`[...(${previewDocument})?.querySelectorAll('.cometcms-plan__feature') ?? []].map((el) => el.textContent).includes('Custom feature')`, 'list item in preview');
+  await click('Maps');
+  await waitFor('!!document.querySelector(\'input[type="range"][id$="-props-zoom"]\')', 'map zoom slider');
+  await field('input[type="range"][id$="-props-zoom"]', '15');
+  await evaluate(`(() => {
+    const label = [...document.querySelectorAll('span')].find((el) => el.textContent === 'Coordinates (latitude, longitude)');
+    const editor = label.closest('.relative').querySelector('[contenteditable="true"]');
+    editor.focus();
+    const range = document.createRange(); range.selectNodeContents(editor);
+    const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  })()`);
+  await command('Input.insertText', { text: '0, 0' });
+  await waitFor(`(${previewDocument})?.querySelector('.cometcms-map__caption span')?.textContent === '0, 0'`, 'map coordinates in preview');
+  assert(await evaluate(`(${previewDocument}).querySelector('.cometcms-map [data-controls]').hidden && !(${previewDocument}).querySelector('.cometcms-map__tiles img')`), 'Map preview stays script free');
   // A selected slot block takes the next element inside it.
   await click('Card');
-  await waitFor(`!!(${previewDocument})?.querySelector('.acme-card .c-placeholder-drop')`, 'empty card slot');
+  await waitFor(`!!(${previewDocument})?.querySelector('.cometcms-card .c-placeholder-drop')`, 'empty card slot');
   await click('Heading');
-  await waitFor(`!!(${previewDocument})?.querySelector('.acme-card__body .c-el-heading')`, 'heading placed in card slot');
+  await waitFor(`!!(${previewDocument})?.querySelector('.cometcms-card__body .c-el-heading')`, 'heading placed in card slot');
   await click('Save');
   await waitFor('document.body.innerText.includes("Layout saved.") || [...document.querySelectorAll("button")].some((el) => el.textContent.trim() === "Save" && el.disabled)', 'layout saved');
   await command('Page.navigate', { url: `${origin}/` });
-  await waitFor('!!document.querySelector(".acme-callout")', 'published custom block');
-  const published = await evaluate(`({ html: document.querySelector('.acme-callout').outerHTML, border: getComputedStyle(document.querySelector('.acme-callout')).borderInlineStartWidth, annotated: !!document.querySelector('[data-node]') })`);
+  await waitFor('!!document.querySelector(".cometcms-callout")', 'published custom block');
+  const published = await evaluate(`({ html: document.querySelector('.cometcms-callout').outerHTML, border: getComputedStyle(document.querySelector('.cometcms-callout')).borderInlineStartWidth, annotated: !!document.querySelector('[data-node]') })`);
   assert(published.html === preview.html, 'Preview and published custom markup match: ' + JSON.stringify({ preview: preview.html, published: published.html }));
   assert(published.border === preview.border, 'Published CSS matches preview');
   assert(!published.annotated, 'Public output excludes editor annotations');
-  assert(await evaluate(`!!document.querySelector('.acme-card__body .c-el-heading') && [...document.querySelectorAll('.acme-plan__feature')].some((el) => el.textContent === 'Custom feature')`), 'Published slot children and list items');
-  await waitFor('!!document.querySelector(\'[data-comet-block="acme/stats"][data-mounted="true"]\')', 'block script mounted under the site CSP');
+  assert(await evaluate(`!!document.querySelector('.cometcms-card__body .c-el-heading') && [...document.querySelectorAll('.cometcms-plan__feature')].some((el) => el.textContent === 'Custom feature')`), 'Published slot children and list items');
+  await waitFor('!!document.querySelector(\'[data-comet-block="cometcms/stats"][data-mounted="true"]\')', 'block script mounted under the site CSP');
+  const map = 'document.querySelector(\'[data-comet-block="cometcms/maps"]\')';
+  await waitFor(`!!${map}?.dataset.mounted`, 'map script mounted under CSP');
+  await evaluate(`(${map}).scrollIntoView({ block: 'center' })`);
+  await waitFor(`(${map}).querySelector('[data-tiles] img')?.src.includes('/15/')`, 'map renders tiles at saved zoom');
+  assert(await evaluate(`(${map}).querySelector('[data-open]').href.includes('mlat=0&mlon=0#map=15/0/0')`), 'Zero coordinates are preserved');
+  await evaluate(`(${map}).querySelector('[data-zoom-in]').click()`);
+  await waitFor(`(${map}).querySelector('[data-status]').textContent.endsWith('16') && (${map}).querySelector('[data-tiles] img')?.src.includes('/16/')`, 'map zoom button updates tiles and status');
+  await evaluate(`(${map}).querySelector('[data-zoom-out]').click()`);
+  await waitFor(`(${map}).querySelector('[data-status]').textContent.endsWith('15')`, 'map zoom out');
   const csp = await evaluate(`fetch('/').then((res) => res.headers.get('content-security-policy'))`);
   assert(/script-src 'sha256-[^']+' 127\.0\.0\.1:\d+\/_site\/[^ ]+\/blocks\/[a-f0-9]{64}\.js/.test(csp) && !csp.includes("'self' 'sha") && !/script-src[^;]*'unsafe/.test(csp), 'CSP allows exactly the block script: ' + csp);
-  await waitFor('!!document.querySelector(\'[data-comet-block="acme/slideshow"][data-mounted="true"]\')', 'slideshow mounted under the site CSP');
-  const slideshow = 'document.querySelector(\'[data-comet-block="acme/slideshow"]\')';
+  await waitFor('!!document.querySelector(\'[data-comet-block="cometcms/slideshow"][data-mounted="true"]\')', 'slideshow mounted under the site CSP');
+  const slideshow = 'document.querySelector(\'[data-comet-block="cometcms/slideshow"]\')';
   const activeSlide = `(${slideshow}).querySelector('[data-slide]:not([hidden])')`;
   assert(await evaluate(`(${slideshow}).querySelectorAll('[data-slide]:not([hidden])').length === 1 && (${slideshow}).querySelector('[data-status]').textContent === '1 / 4'`), 'Only the first slide is active');
   await evaluate(`(${slideshow}).querySelector('[data-previous]').click()`);
@@ -227,10 +249,10 @@ try {
   await delay(2200);
   const focusState = await evaluate(`({ status: document.querySelector('#slideshow-auto [data-status]').textContent, play: document.querySelector('#slideshow-auto [data-play]').textContent, active: document.activeElement?.outerHTML, focused: document.hasFocus() })`);
   assert(focusState.status === pausedSlide && focusState.play === 'Play slideshow', 'Keyboard focus stops autoplay: ' + JSON.stringify({ pausedSlide, ...focusState }));
-  await evaluate(`document.querySelector('#slideshow-auto [data-play]').click(); document.querySelector('#slideshow-auto .acme-slideshow').dispatchEvent(new PointerEvent('pointerenter'))`);
+  await evaluate(`document.querySelector('#slideshow-auto [data-play]').click(); document.querySelector('#slideshow-auto .cometcms-slideshow').dispatchEvent(new PointerEvent('pointerenter'))`);
   await delay(2200);
   assert(await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent === ${JSON.stringify(pausedSlide)}`), 'Hover pauses autoplay after explicitly resuming');
-  await evaluate(`document.querySelector('#slideshow-auto .acme-slideshow').dispatchEvent(new PointerEvent('pointerleave'))`);
+  await evaluate(`document.querySelector('#slideshow-auto .cometcms-slideshow').dispatchEvent(new PointerEvent('pointerleave'))`);
   await waitFor(`document.querySelector('#slideshow-auto [data-status]').textContent !== ${JSON.stringify(pausedSlide)}`, 'autoplay resumes after hover');
   await evaluate(`document.querySelector('#slideshow-auto [data-play]').click()`);
   const buttonPausedSlide = await evaluate(`document.querySelector('#slideshow-auto [data-status]').textContent`);
@@ -247,11 +269,11 @@ try {
     writeFileSync(process.env.COMET_BLOCK_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
   }
   await command('Page.navigate', { url: `${origin}/admin/page-builder/blocks` });
-  await waitFor('!!document.querySelector(\'button[aria-label="Delete package: Acme marketing blocks"]\')', 'delete action');
+  await waitFor('!!document.querySelector(\'button[aria-label="Delete package: Comet Essentials"]\')', 'delete action');
   await click('Delete');
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\')', 'delete confirmation');
   await click('Cancel', '[role="alertdialog"] button');
-  assert(await evaluate('document.body.innerText.includes("acme/marketing")'), 'Cancel keeps installed package');
+  assert(await evaluate('document.body.innerText.includes("cometcms/essentials")'), 'Cancel keeps installed package');
   await click('Delete');
   await waitFor('!!document.querySelector(\'[role="alertdialog"]\')', 'delete confirmation reopened');
   await click('Delete', '[role="alertdialog"] button');
@@ -259,20 +281,20 @@ try {
   assert(await evaluate('document.body.innerText.includes("No block packages installed.")'), 'Deleted package leaves inventory');
   assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => !html.includes('Custom blocks work'))`), 'Deletion invalidates published output');
   await command('Page.navigate', { url: `${origin}/admin/page-builder/builder/layout/home/detail` });
-  await waitFor('[...document.querySelectorAll("iframe")].some((frame) => frame.contentDocument?.body?.textContent.includes("Missing block: acme/callout"))', 'placed instance preserved as missing block');
+  await waitFor('[...document.querySelectorAll("iframe")].some((frame) => frame.contentDocument?.body?.textContent.includes("Missing block: cometcms/callout"))', 'placed instance preserved as missing block');
   await command('Page.navigate', { url: `${origin}/admin/page-builder/blocks` });
   await waitFor('!!document.querySelector("#block-drop-zone")', 'drop area');
   await dropFiles([zips.v1]);
   await allowScripts();
-  await waitFor('document.body.innerText.includes("Acme marketing blocks installed.")', 'ZIP drop installation');
+  await waitFor('document.body.innerText.includes("Comet Essentials installed.")', 'ZIP drop installation');
   assert(await evaluate(`fetch('/').then((res) => res.text()).then((html) => html.includes('>Custom blocks work</p>'))`), 'Reinstall restores saved instance props');
   await dropFiles([zips.v2]);
-  await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("acme/feature is removed.")', 'breaking update confirmation');
+  await waitFor('!!document.querySelector(\'[role="alertdialog"]\') && document.body.innerText.includes("cometcms/feature is removed.")', 'breaking update confirmation');
   await click('Update anyway', '[role="alertdialog"] button');
   await allowScripts();
-  await waitFor('document.body.innerText.includes("updated from 1.3.0 to 2.0.0")', 'confirmed update');
+  await waitFor('document.body.innerText.includes("updated from 1.4.0 to 2.0.0")', 'confirmed update');
   assert(errors.length === 0, errors.join('\n'));
-  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, slideshow navigation/autoplay/reduced motion, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
+  console.log('Custom blocks browser checks passed (ZIP picker/drop, script consent and CSP, asset serving, icons, list editing, map slider/coordinates/tiles/zoom, slideshow navigation/autoplay/reduced motion, slots, palette, preview, publish, deletion, cancel, reinstall and confirmed update).');
 } finally {
   socket?.close();
   chrome.kill();

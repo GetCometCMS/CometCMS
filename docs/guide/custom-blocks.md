@@ -8,10 +8,10 @@ Blocks behave like built-in elements. They appear in the elements palette with t
 
 ## Quick start
 
-The repository includes a complete example in `examples/blocks/acme-marketing/`:
+The official **Comet Essentials** builder extension is developed in `examples/blocks/comet-essentials/`:
 
 ```text
-acme-marketing/
+comet-essentials/
   comet-package.json        # required: name, version, title
   style.css                 # optional: CSS shared by all blocks of the package
   icon.svg                  # optional: palette icon for blocks without their own
@@ -28,16 +28,19 @@ acme-marketing/
     faq/…                   # a list of questions with rich-text answers
     feature/
       icon.svg              # optional: this block's palette icon
+    maps/…                  # coordinates, a zoom slider and OpenStreetMap tiles
     pricing/…               # a list of features
     slideshow/…             # image slides, captions, links and optional autoplay
     stats/
       view.js               # optional: JavaScript for the published website
 ```
 
-1. Check the package: `npm run blocks -- validate examples/blocks/acme-marketing`
-2. Pack it: `npm run blocks -- pack examples/blocks/acme-marketing` (writes `acme-marketing-1.3.0.zip`)
+1. Check the package: `npm run blocks -- validate examples/blocks/comet-essentials`
+2. Pack it: `npm run blocks -- pack examples/blocks/comet-essentials` (writes `comet-essentials-1.4.0.zip`)
 3. As an administrator, open **Page Builder → Custom blocks** and drop the ZIP on the upload area.
-4. Open a layout. **Callout**, **Card**, **FAQ**, **Feature**, **Pricing plan**, **Slideshow** and **Stats** are in the elements palette.
+4. Open a layout. **Callout**, **Card**, **FAQ**, **Feature**, **Pricing plan**, **Maps**, **Slideshow** and **Stats** are in the elements palette.
+
+**Maps** takes coordinates in `latitude, longitude` order, such as `52.520008, 13.404954`, and an initial zoom level from 1 (world) to 19 (street). The name or address is a display label; it is not geocoded. Use decimal degrees with a dot as the decimal separator. Latitude is limited to ±85.05112878 (the Web Mercator map extent), longitude to ±180. The published map shows a pin, zoom buttons and a link to the full map. It loads visible [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) when scrolled into view, with browser caching and attribution; it needs no API key or external JavaScript library. Previews and pages without JavaScript show the name, coordinates and a placeholder. Invalid coordinates and tile failures show an editable message. For high-traffic deployments, use a suitable tile provider under its terms.
 
 **Slideshow** accepts up to 12 slides with a media image, title, caption and optional link. Edit the slides in the inspector; image alt text comes from the media library. On the published website, use the arrows, numbered selectors or Left/Right and Home/End keys to change slides. Optional autoplay uses a configurable interval and a play/pause button, pauses while hovered or the page is hidden, and stops after focus or manual navigation. Reduced motion disables automatic playback. All button labels and slide content are translatable. In previews and without JavaScript, the slides stay readable in a horizontally scrollable list.
 
@@ -48,11 +51,11 @@ Zipping the folder yourself works too. A single top-level folder inside the ZIP 
 ```json
 {
   "api_version": 1,
-  "name": "acme/marketing",
-  "title": "Acme marketing blocks",
-  "description": "A callout, an FAQ item and a feature card that work with any theme.",
-  "version": "1.0.0",
-  "author": "Acme",
+  "name": "cometcms/essentials",
+  "title": "Comet Essentials",
+  "description": "Essential builder blocks that work with any theme.",
+  "version": "1.4.0",
+  "author": "CometCMS",
   "license": "MIT"
 }
 ```
@@ -69,7 +72,7 @@ Other fields are rejected, so a typo cannot go unnoticed.
 
 ## Blocks and block.json
 
-Every folder `blocks/<name>/` is one block. Its name combines the package vendor and the folder name: `blocks/callout` in `acme/marketing` is the block **`acme/callout`**, stored in layouts as the kind `block:acme/callout`. Block folder names follow the same rules as name parts. A block name belongs to one package; installing another package that defines it is rejected.
+Every folder `blocks/<name>/` is one block. Its name combines the package vendor and the folder name: `blocks/callout` in `cometcms/essentials` is the block **`cometcms/callout`**, stored in layouts as the kind `block:cometcms/callout`. Block folder names follow the same rules as name parts. A block name belongs to one package; installing another package that defines it is rejected.
 
 ```json
 {
@@ -115,11 +118,13 @@ Every prop needs `type` and `label` (up to 120 bytes); `default` is optional.
 | `url` | `max` 1–5000 (2000) | `""` | URL field | A relative, `http(s)`, `mailto` or `tel` URL |
 | `link` | none; the default is a URL | no link | Page, entry, anchor or URL picker with "new tab"; can be bound to fields | The link's address |
 | `bool` | none | `false` | Switch | Truthy or falsy |
-| `int` | `min`, `max` within ±1,000,000 | 0, clamped | Number | The number |
+| `int` | `min`, `max` within ±1,000,000; optional `control: "slider"` | 0, clamped | Number, or a slider with an exact number field | The number |
 | `enum` | `options` (required): 1–50 values of letters, digits, `-` and `_` | the first option | Select | The option |
 | `color` | none; the default is a theme color or `""` | `""` | Theme color picker, including the workspace's custom colors | The color key, such as `primary` |
 | `media` | none; no default | no image | Media library; can be bound to fields | The image URL; `{{name.alt}}` is its alternative text |
 | `list` | `fields` (required, 1–16 item fields of any other type), `max` 1–100 (20) | `[]` | Items to add, reorder and remove | Repeated by `{{#name}}…{{/name}}` |
+
+For example, `"zoom": { "type": "int", "label": "Zoom level", "min": 1, "max": 19, "default": 13, "control": "slider" }` creates a labeled slider with integer steps and an editable numeric value. `control` accepts `"slider"` or `"number"` on integer props only, including list item fields. It changes the editor control; stored values and bounds validation stay the same.
 
 Defaults are checked against their types. Theme colors are `primary`, `secondary`, `accent`, `background`, `surface`, `text`, `muted` and `border`. List item defaults may leave out fields, which then use the field's default.
 
@@ -140,23 +145,23 @@ Templates are HTML with Mustache tags. All values are HTML-escaped.
 | `<details {{#open}}open{{/open}}>` | Inside a start tag, a section toggles one boolean attribute: `open`, `hidden`, `inert`, `disabled`, `controls`, `autoplay`, `muted`, `loop`, `playsinline` or `reversed`. |
 | `{{! comment }}` | Removed. |
 
-Elsewhere inside a start tag, tags may only appear in quoted attribute values: `class="acme-callout acme-callout--{{tone}}"`. Sections can nest 16 deep. Each section must open and close inside the same element, or inside the same attribute value, so every combination of values produces well-formed HTML. Raw output is only for `richtext` props; there are no partials and no delimiter changes, and the only dotted names are `.url` and `.alt` on media props. Lists cannot be nested.
+Elsewhere inside a start tag, tags may only appear in quoted attribute values: `class="cometcms-callout cometcms-callout--{{tone}}"`. Sections can nest 16 deep. Each section must open and close inside the same element, or inside the same attribute value, so every combination of values produces well-formed HTML. Raw output is only for `richtext` props; there are no partials and no delimiter changes, and the only dotted names are `.url` and `.alt` on media props. Lists cannot be nested.
 
 **Links.** Put a `link` prop in an `<a href="{{cta}}">`. When the editor chooses "open in new tab", CometCMS adds `target="_blank" rel="noopener noreferrer"` itself, unless the template sets its own `target`.
 
-**Colors.** A `color` prop prints its theme key, which fits theme classes such as `c-bg-{{tint}}` or your own class names. To use it in your CSS, set a custom property: `style="--acme-tint: {{tint}}"` becomes `--acme-tint: var(--c-accent)`, which follows the theme and dark mode. An empty color becomes `initial`, so `var(--acme-tint, fallback)` uses the fallback. The `style` attribute accepts nothing else.
+**Colors.** A `color` prop prints its theme key, which fits theme classes such as `c-bg-{{tint}}` or your own class names. To use it in your CSS, set a custom property: `style="--cometcms-tint: {{tint}}"` becomes `--cometcms-tint: var(--c-accent)`, which follows the theme and dark mode. An empty color becomes `initial`, so `var(--cometcms-tint, fallback)` uses the fallback. The `style` attribute accepts nothing else.
 
 ### Slots
 
 A block whose template contains `<slot></slot>` holds child elements: editors drop headings, text, buttons, images, other blocks and so on into it, on the canvas or in the layer outline, and they appear where the slot is. Inside a repeater item, a slot accepts the elements allowed there. The slot must be empty, stand inside a `<div>` or another block container, and not be inside a section. A block has at most one slot. When its package is missing, a block keeps its child elements for a reinstall.
 
 ```html
-<article class="acme-card" style="--acme-card-accent: {{accent}}">
-  {{#image}}<img class="acme-card__image" src="{{image}}" alt="{{image.alt}}" loading="lazy">{{/image}}
-  <div class="acme-card__body">
-    <h3 class="acme-card__title">{{title}}</h3>
+<article class="cometcms-card" style="--cometcms-card-accent: {{accent}}">
+  {{#image}}<img class="cometcms-card__image" src="{{image}}" alt="{{image.alt}}" loading="lazy">{{/image}}
+  <div class="cometcms-card__body">
+    <h3 class="cometcms-card__title">{{title}}</h3>
     <slot></slot>
-    {{#link}}<a class="acme-card__link" href="{{link}}">{{link_label}}</a>{{/link}}
+    {{#link}}<a class="cometcms-card__link" href="{{link}}">{{link_label}}</a>{{/link}}
   </div>
 </article>
 ```
@@ -168,13 +173,13 @@ A block whose template contains `<slot></slot>` holds child elements: editors dr
 The callout template uses most of this:
 
 ```html
-{{! The wrapper element gets the class c-block-acme__callout automatically. }}
-<aside class="acme-callout acme-callout--{{tone}}" role="note">
-  {{#tone=success}}<img class="acme-callout__icon" src="assets/check.svg" alt="" width="24" height="24">{{/tone=success}}
+{{! The wrapper element gets the class c-block-cometcms__callout automatically. }}
+<aside class="cometcms-callout cometcms-callout--{{tone}}" role="note">
+  {{#tone=success}}<img class="cometcms-callout__icon" src="assets/check.svg" alt="" width="24" height="24">{{/tone=success}}
   <div>
-    <h3 class="acme-callout__title">{{title}}</h3>
+    <h3 class="cometcms-callout__title">{{title}}</h3>
     <p>{{message}}</p>
-    {{#show_link}}{{#url}}<a class="acme-callout__link" href="{{url}}">{{link_label}}</a>{{/url}}{{/show_link}}
+    {{#show_link}}{{#url}}<a class="cometcms-callout__link" href="{{url}}">{{link_label}}</a>{{/url}}{{/show_link}}
   </div>
 </aside>
 ```
@@ -212,7 +217,7 @@ A block can have a `view.js`: one ES module whose default export runs for every 
 ```js
 // blocks/stats/view.js
 export default function mount(element, props) {
-  // element: the block's root element, with the class c-block-acme__stats
+  // element: the block's root element, with the class c-block-cometcms__stats
   // props: the block's values, as the template received them
   for (const number of element.querySelectorAll('[data-value]')) {
     // … animate number up to Number(number.dataset.value) over props.duration ms
@@ -230,10 +235,10 @@ The script is served as a content-hashed module. Each page that contains the blo
 
 ## CSS and assets
 
-Each placed block is wrapped in an element with the class `c-block-<vendor>__<block>`, for example `.c-block-acme__callout`, alongside the standard element classes. Prefix your selectors with it. Use theme variables with fallbacks, so the block adapts to any theme:
+Each placed block is wrapped in an element with the class `c-block-<vendor>__<block>`, for example `.c-block-cometcms__callout`, alongside the standard element classes. Prefix your selectors with it. Use theme variables with fallbacks, so the block adapts to any theme:
 
 ```css
-.c-block-acme__callout .acme-callout {
+.c-block-cometcms__callout .cometcms-callout {
   padding: var(--space-lg, 1.5rem);
   border-inline-start: 4px solid var(--c-primary, #2563eb);
   color: var(--c-text, #0f172a);

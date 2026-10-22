@@ -14,7 +14,7 @@ use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SiteService;
 use CometCMS\Workspaces\WorkspaceContext;
 
-const COMET_BLOCK_EXAMPLE = COMET_TEST_ROOT . '/examples/blocks/acme-marketing';
+const COMET_BLOCK_EXAMPLE = COMET_TEST_ROOT . '/examples/blocks/comet-essentials';
 
 /** The example package as path => bytes, optionally changed. */
 function comet_block_files(array $changes = []): array
@@ -104,38 +104,38 @@ function comet_block_errors(callable $callback): array
 test('block packages register their blocks without changing built-ins or crossing workspaces', function (): void {
     $blocks = BlockRegistry::active();
     $result = $blocks->installFiles(comet_block_files(), allowScripts: true);
-    assert_same(['name' => 'acme/marketing', 'title' => 'Acme marketing blocks', 'version' => '1.3.0', 'previous_version' => null,
-        'blocks' => ['acme/callout', 'acme/card', 'acme/faq', 'acme/feature', 'acme/pricing', 'acme/slideshow', 'acme/stats'], 'changes' => [], 'scripts' => ['acme/slideshow', 'acme/stats']], $result);
+    assert_same(['name' => 'cometcms/essentials', 'title' => 'Comet Essentials', 'version' => '1.4.0', 'previous_version' => null,
+        'blocks' => ['cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/feature', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats'], 'changes' => [], 'scripts' => ['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $result);
     $spec = LayoutSchema::spec(blocks: $blocks);
     assert_true(in_array('heading', $spec['elements'], true));
-    foreach (['block:acme/callout', 'block:acme/faq', 'block:acme/feature'] as $kind) {
+    foreach (['block:cometcms/callout', 'block:cometcms/faq', 'block:cometcms/feature'] as $kind) {
         assert_true(in_array($kind, $spec['elements'], true));
         assert_true(in_array($kind, $spec['item_elements'], true));
     }
-    $callout = $spec['kinds']['block:acme/callout'];
+    $callout = $spec['kinds']['block:cometcms/callout'];
     assert_same('Callout', $callout['label']);
     assert_same(['type' => 'url', 'label' => 'Link URL', 'max' => 2000, 'default' => '#details', 'localized' => true], $callout['props']['url']);
     assert_true($callout['props']['title']['localized']);
     assert_false(isset($callout['props']['tone']['localized']));
     assert_same([], $callout['children']);
-    assert_same('Something worth sharing', LayoutSchema::node('block:acme/callout')['props']['title']);
+    assert_same('Something worth sharing', LayoutSchema::node('block:cometcms/callout')['props']['title']);
     $other = new BlockRegistry(new WorkspaceContext('other'));
     assert_same([], $other->all());
-    assert_false(in_array('block:acme/callout', LayoutSchema::spec(blocks: $other)['elements'], true));
+    assert_false(in_array('block:cometcms/callout', LayoutSchema::spec(blocks: $other)['elements'], true));
     $metadata = $blocks->metadata();
     assert_same([], $metadata['errors']);
-    assert_same('acme/marketing', $metadata['packages'][0]['name']);
-    assert_same(['name' => 'acme/faq', 'title' => 'FAQ', 'description' => 'Questions that expand to their answers. Opening one closes the others in the same group.', 'icon' => 'mdi:frequently-asked-questions', 'script' => false], $metadata['packages'][0]['blocks'][2]);
-    assert_file_exists_at($blocks->directory() . '/acme/marketing/blocks/callout/template.html');
-    assert_file_exists_at($blocks->directory() . '/acme/marketing/assets/check.svg');
+    assert_same('cometcms/essentials', $metadata['packages'][0]['name']);
+    assert_same(['name' => 'cometcms/faq', 'title' => 'FAQ', 'description' => 'Questions that expand to their answers. Opening one closes the others in the same group.', 'icon' => 'mdi:frequently-asked-questions', 'script' => false], $metadata['packages'][0]['blocks'][2]);
+    assert_file_exists_at($blocks->directory() . '/cometcms/essentials/blocks/callout/template.html');
+    assert_file_exists_at($blocks->directory() . '/cometcms/essentials/assets/check.svg');
     assert_false(BlockRegistry::cssClass('a/b--c') === BlockRegistry::cssClass('a--b/c'));
 });
 
 test('block package ZIPs unwrap one top folder, skip OS clutter and reject unsafe entries', function (): void {
     $files = comet_block_files();
-    $wrapped = comet_block_zip($files + ['.DS_Store' => 'x', '__MACOSX/._comet-package.json' => 'x'], 'acme-marketing/');
+    $wrapped = comet_block_zip($files + ['.DS_Store' => 'x', '__MACOSX/._comet-package.json' => 'x'], 'comet-essentials/');
     assert_same(array_keys($files), array_keys(BlockPackage::readZip($wrapped)));
-    assert_same('acme/marketing', BlockRegistry::active()->install($wrapped, allowScripts: true)['name']);
+    assert_same('cometcms/essentials', BlockRegistry::active()->install($wrapped, allowScripts: true)['name']);
 
     $before = BlockRegistry::active()->fingerprint();
     foreach ([
@@ -151,7 +151,7 @@ test('block package ZIPs unwrap one top folder, skip OS clutter and reject unsaf
     $notZip = COMET_STORAGE . '/not-a.zip';
     file_put_contents($notZip, 'plain text');
     assert_same(['The upload is not a readable ZIP file.'], comet_block_errors(fn() => BlockPackage::readZip($notZip)));
-    assert_false(is_file(BlockRegistry::active()->directory() . '/acme/escape.txt'));
+    assert_false(is_file(BlockRegistry::active()->directory() . '/cometcms/escape.txt'));
     assert_same(['blocks/callout/lib.js: A block\'s script is blocks/<name>/view.js, one self-contained module. Bundle other files into it.'], comet_block_errors(fn() => BlockPackage::compile($files + ['blocks/callout/lib.js' => 'export default 1;'])));
 
     $link = comet_block_zip($files);
@@ -166,7 +166,7 @@ test('block package ZIPs unwrap one top folder, skip OS clutter and reject unsaf
 test('block package validation reports every problem with its file and line', function (): void {
     $errors = comet_block_errors(fn() => BlockPackage::compile(comet_block_files([
         'comet-package.json' => comet_block_manifest('comet-package.json', ['api_version' => 2, 'scripts' => ['build' => 'x']]),
-        'blocks/callout/block.json' => comet_block_manifest('blocks/callout/block.json', ['name' => 'acme/callout']),
+        'blocks/callout/block.json' => comet_block_manifest('blocks/callout/block.json', ['name' => 'cometcms/callout']),
         'blocks/faq/template.html' => "<details>\n  <summary style=\"color: red\">{{group}}</summary>\n  {{{answer}}}\n</details>",
         'blocks/feature/style.css' => ".x { background: url(images/bg.png); }",
         'blocks/empty/style.css' => '',
@@ -174,7 +174,7 @@ test('block package validation reports every problem with its file and line', fu
     assert_same([
         'comet-package.json: Unknown field "scripts". Allowed: api_version, name, title, description, version, author, license, homepage.',
         'comet-package.json: api_version must be 1.',
-        'blocks/callout/block.json: Remove "name": a block is named after its package vendor and folder, for example blocks/callout becomes acme/callout.',
+        'blocks/callout/block.json: Remove "name": a block is named after its package vendor and folder, for example blocks/callout becomes cometcms/callout.',
         'blocks/empty/block.json: Every block needs block.json.',
         'blocks/empty/template.html: Every block needs template.html.',
         'blocks/faq/template.html:3: {{{answer}}}: unknown prop "answer". Declared props: items, group.',
@@ -237,7 +237,7 @@ test('block templates compile allow-listed HTML and render only escaped values',
 test('custom blocks normalize props, keep translations and work in columns tabs repeaters and component roots', function (): void {
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
-    $block = LayoutSchema::node('block:acme/callout', ['title' => "  Hello\nworld  ", 'show_link' => 'yes', 'tone' => 'invalid', 'url' => 'javascript:alert(1)', 'unknown' => 'drop'], ['padding_y' => 'lg']);
+    $block = LayoutSchema::node('block:cometcms/callout', ['title' => "  Hello\nworld  ", 'show_link' => 'yes', 'tone' => 'invalid', 'url' => 'javascript:alert(1)', 'unknown' => 'drop'], ['padding_y' => 'lg']);
     $column = LayoutSchema::node('column', [], [], [
         $block,
         LayoutSchema::node('tabs', [], [], [LayoutSchema::node('tab', [], [], [$block])]),
@@ -252,49 +252,49 @@ test('custom blocks normalize props, keep translations and work in columns tabs 
     assert_same('#details', $saved['props']['url']);
     assert_false(isset($saved['props']['unknown']));
     foreach ([$nodes[0]['children'][1]['children'][0]['children'][0], $nodes[0]['children'][2]['children'][0], $nodes[0]['children'][3]['children'][0]['children'][0]] as $nested) {
-        assert_same('block:acme/callout', $nested['kind']);
+        assert_same('block:cometcms/callout', $nested['kind']);
     }
     assert_same($nodes, LayoutSchema::normalizeComponent($nodes, 'column', $blocks));
     assert_same([], LayoutSchema::normalize([$block], blocks: $blocks));
 
-    $translated = LayoutSchema::normalizeProps('block:acme/callout', ['title' => ['type' => 'localized', 'values' => ['en' => "Hi\nthere", 'de' => 'Hallo']]], $blocks);
+    $translated = LayoutSchema::normalizeProps('block:cometcms/callout', ['title' => ['type' => 'localized', 'values' => ['en' => "Hi\nthere", 'de' => 'Hallo']]], $blocks);
     assert_same(['en' => 'Hi there', 'de' => 'Hallo'], $translated['title']['values']);
-    $blocks->delete('acme/marketing');
-    $kept = LayoutSchema::normalizeProps('block:acme/callout', ['title' => ['type' => 'localized', 'values' => ['en' => 'Hi', 'de' => ['nested']]], 'tone' => 'success'], new BlockRegistry($blocks->workspace));
+    $blocks->delete('cometcms/essentials');
+    $kept = LayoutSchema::normalizeProps('block:cometcms/callout', ['title' => ['type' => 'localized', 'values' => ['en' => 'Hi', 'de' => ['nested']]], 'tone' => 'success'], new BlockRegistry($blocks->workspace));
     assert_same(['title' => ['type' => 'localized', 'values' => ['en' => 'Hi', 'de' => ['nested']]], 'tone' => 'success'], $kept);
 });
 
 test('block pages render package CSS once, asset URLs and identical output in previews', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
-    $callout = LayoutSchema::node('block:acme/callout', ['title' => 'Hello <world>', 'message' => 'Text & more', 'tone' => 'success', 'url' => 'https://example.test/info']);
-    comet_block_page($site, [$callout, $callout, LayoutSchema::node('block:acme/faq')]);
+    $callout = LayoutSchema::node('block:cometcms/callout', ['title' => 'Hello <world>', 'message' => 'Text & more', 'tone' => 'success', 'url' => 'https://example.test/info']);
+    comet_block_page($site, [$callout, $callout, LayoutSchema::node('block:cometcms/faq')]);
     $site = new SiteRepository();
     $entry = \CometCMS\Content\ContentRepository::make()->findByIdentifier('about', 'about');
     $ctx = comet_site_test_context($site);
     $html = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     $check = '/_site/default/blocks/' . hash_file('sha256', COMET_BLOCK_EXAMPLE . '/assets/check.svg') . '.svg';
     $chevron = '/_site/default/blocks/' . hash_file('sha256', COMET_BLOCK_EXAMPLE . '/assets/chevron.svg') . '.svg';
-    assert_same(2, substr_count($html, '<h3 class="acme-callout__title">Hello &lt;world&gt;</h3>'));
-    assert_same(2, substr_count($html, '<img class="acme-callout__icon" src="' . $check . '"'));
-    assert_same(2, substr_count($html, '<details class="acme-faq__item" name="faq">'));
-    assert_true(str_contains($html, '<div class="acme-faq__answer"><p>It uses the browser\'s native <strong>details</strong> element.</p></div>'));
+    assert_same(2, substr_count($html, '<h3 class="cometcms-callout__title">Hello &lt;world&gt;</h3>'));
+    assert_same(2, substr_count($html, '<img class="cometcms-callout__icon" src="' . $check . '"'));
+    assert_same(2, substr_count($html, '<details class="cometcms-faq__item" name="faq">'));
+    assert_true(str_contains($html, '<div class="cometcms-faq__answer"><p>It uses the browser\'s native <strong>details</strong> element.</p></div>'));
     assert_same(1, substr_count($html, '<style data-comet-blocks>'));
-    assert_same(1, substr_count($html, '--acme-accent: var(--c-primary'));
-    assert_same(1, substr_count($html, '.c-block-acme__callout .acme-callout {'));
+    assert_same(1, substr_count($html, '--cometcms-accent: var(--c-primary'));
+    assert_same(1, substr_count($html, '.c-block-cometcms__callout .cometcms-callout {'));
     assert_true(str_contains($html, 'url("' . $chevron . '")'));
-    assert_false(str_contains($html, 'acme-feature'));
+    assert_false(str_contains($html, 'cometcms-feature'));
     assert_true(str_contains($html, 'href="https://example.test/info"'));
-    assert_true(str_contains($html, 'class="c-el c-el-block-acme-callout c-block-acme__callout'));
+    assert_true(str_contains($html, 'class="c-el c-el-block-cometcms-callout c-block-cometcms__callout'));
     $ctx->preview = true;
     $ctx->annotate = true;
     $preview = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
-    assert_same(2, substr_count($preview, '<h3 class="acme-callout__title">Hello &lt;world&gt;</h3>'));
-    assert_true(str_contains($preview, 'data-kind="block:acme/callout"'));
+    assert_same(2, substr_count($preview, '<h3 class="cometcms-callout__title">Hello &lt;world&gt;</h3>'));
+    assert_true(str_contains($preview, 'data-kind="block:cometcms/callout"'));
     assert_true(str_contains($preview, "script-src 'none'"));
 
     $asset = $site->blocks()->asset(basename($check));
-    assert_same(['path' => $site->blocks()->directory() . '/acme/marketing/assets/check.svg', 'type' => 'image/svg+xml'], $asset);
+    assert_same(['path' => $site->blocks()->directory() . '/cometcms/essentials/assets/check.svg', 'type' => 'image/svg+xml'], $asset);
     assert_null($site->blocks()->asset(str_repeat('0', 64) . '.svg'));
 });
 
@@ -307,28 +307,28 @@ test('block package updates that break placed blocks need confirmation', functio
     $update = comet_block_files([
         'comet-package.json' => comet_block_manifest('comet-package.json', ['version' => '2.0.0']),
         'blocks/callout/block.json' => $manifest,
-        'blocks/callout/template.html' => '<p class="acme-callout acme-callout--{{tone}}">{{title}}</p>',
+        'blocks/callout/template.html' => '<p class="cometcms-callout cometcms-callout--{{tone}}">{{title}}</p>',
         'blocks/feature/block.json' => null, 'blocks/feature/template.html' => null, 'blocks/feature/style.css' => null,
     ]);
     try {
         $blocks->installFiles($update, allowScripts: true);
         throw new RuntimeException('Expected confirmation to be required.');
     } catch (BlockPackageChanges $e) {
-        assert_same(['acme/callout: the prop "tone" no longer offers success. Instances using them fall back to the default.',
-            'acme/callout: the prop "link_label" is removed. Its saved values are dropped the next time a layout is saved.',
-            'acme/feature is removed. Placed instances will show as missing blocks.'], $e->changes);
-        assert_same('1.3.0', $e->installedVersion);
+        assert_same(['cometcms/callout: the prop "tone" no longer offers success. Instances using them fall back to the default.',
+            'cometcms/callout: the prop "link_label" is removed. Its saved values are dropped the next time a layout is saved.',
+            'cometcms/feature is removed. Placed instances will show as missing blocks.'], $e->changes);
+        assert_same('1.4.0', $e->installedVersion);
     }
-    assert_same('1.3.0', BlockRegistry::active()->package('acme/marketing')['version']);
+    assert_same('1.4.0', BlockRegistry::active()->package('cometcms/essentials')['version']);
     $result = BlockRegistry::active()->installFiles($update, true, true);
-    assert_same('1.3.0', $result['previous_version']);
+    assert_same('1.4.0', $result['previous_version']);
     assert_same(3, count($result['changes']));
-    assert_null(BlockRegistry::active()->get('block:acme/feature'));
+    assert_null(BlockRegistry::active()->get('block:cometcms/feature'));
     $pricing = comet_block_manifest('blocks/pricing/block.json', []);
     unset($pricing['props']['features']['fields']['included']);
     $pricing['props']['features']['default'] = [['text' => 'Unlimited pages']];
     $slotless = array_replace($update, [
-        'blocks/card/template.html' => '<div class="acme-card">{{title}}</div>',
+        'blocks/card/template.html' => '<div class="cometcms-card">{{title}}</div>',
         'blocks/pricing/block.json' => json_encode($pricing),
         'blocks/pricing/template.html' => '<ul>{{#features}}<li>{{text}}</li>{{/features}}</ul>',
     ]);
@@ -336,8 +336,8 @@ test('block package updates that break placed blocks need confirmation', functio
         BlockRegistry::active()->installFiles($slotless, allowScripts: true);
         throw new RuntimeException('Expected confirmation to be required.');
     } catch (BlockPackageChanges $e) {
-        assert_same(['acme/card no longer has a slot. Elements placed inside it are removed the next time a layout is saved.',
-            'acme/pricing: the prop "features" item field "included" is removed. Its saved values are dropped the next time a layout is saved.'], $e->changes);
+        assert_same(['cometcms/card no longer has a slot. Elements placed inside it are removed the next time a layout is saved.',
+            'cometcms/pricing: the prop "features" item field "included" is removed. Its saved values are dropped the next time a layout is saved.'], $e->changes);
     }
     // Additions alone are not breaking.
     $manifest['props']['subtitle'] = ['type' => 'string', 'label' => 'Subtitle'];
@@ -347,9 +347,9 @@ test('block package updates that break placed blocks need confirmation', functio
 test('block names belong to one package and package folders must match their names', function (): void {
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
-    $other = comet_block_files(['comet-package.json' => comet_block_manifest('comet-package.json', ['name' => 'acme/other'])]);
-    assert_same(['blocks/callout/: The block acme/callout is already provided by the package acme/marketing.'], comet_block_errors(fn() => $blocks->installFiles($other, allowScripts: true)));
-    $moved = $blocks->directory() . '/acme/renamed';
+    $other = comet_block_files(['comet-package.json' => comet_block_manifest('comet-package.json', ['name' => 'cometcms/other'])]);
+    assert_same(['blocks/callout/: The block cometcms/callout is already provided by the package cometcms/essentials.'], comet_block_errors(fn() => $blocks->installFiles($other, allowScripts: true)));
+    $moved = $blocks->directory() . '/cometcms/renamed';
     mkdir($moved);
     foreach (comet_block_files() as $path => $bytes) {
         if (!is_dir(dirname($moved . '/' . $path))) mkdir(dirname($moved . '/' . $path), 0775, true);
@@ -357,8 +357,8 @@ test('block names belong to one package and package folders must match their nam
     }
     $metadata = BlockRegistry::active()->metadata();
     assert_same(1, count($metadata['packages']));
-    assert_same('acme/renamed', $metadata['errors'][0]['package']);
-    assert_matches('/installed in site\/blocks\/acme\/renamed/', $metadata['errors'][0]['message']);
+    assert_same('cometcms/renamed', $metadata['errors'][0]['package']);
+    assert_matches('/installed in site\/blocks\/cometcms\/renamed/', $metadata['errors'][0]['message']);
 });
 
 test('the compiled block index is cached until a package file changes', function (): void {
@@ -368,29 +368,29 @@ test('the compiled block index is cached until a package file changes', function
     $first = BlockRegistry::active()->all();
     assert_file_exists_at($cache);
     $stored = json_decode((string) file_get_contents($cache), true);
-    $stored['blocks']['block:acme/callout']['title'] = 'Served from cache';
+    $stored['blocks']['block:cometcms/callout']['title'] = 'Served from cache';
     file_put_contents($cache, json_encode($stored));
-    assert_same('Served from cache', BlockRegistry::active()->get('block:acme/callout')['title']);
-    file_put_contents($blocks->directory() . '/acme/marketing/blocks/callout/block.json', json_encode(comet_block_manifest('blocks/callout/block.json', ['title' => 'Edited directly'])));
-    assert_same('Edited directly', BlockRegistry::active()->get('block:acme/callout')['title']);
+    assert_same('Served from cache', BlockRegistry::active()->get('block:cometcms/callout')['title']);
+    file_put_contents($blocks->directory() . '/cometcms/essentials/blocks/callout/block.json', json_encode(comet_block_manifest('blocks/callout/block.json', ['title' => 'Edited directly'])));
+    assert_same('Edited directly', BlockRegistry::active()->get('block:cometcms/callout')['title']);
     assert_same(array_keys($first), array_keys(BlockRegistry::active()->all()));
 });
 
 test('missing or malformed packages preserve placed block values and do not disable valid packages', function (): void {
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
-    $column = LayoutSchema::node('column', [], [], [LayoutSchema::node('block:acme/callout', ['title' => 'Keep me'], ['padding_y' => 'lg'])]);
+    $column = LayoutSchema::node('column', [], [], [LayoutSchema::node('block:cometcms/callout', ['title' => 'Keep me'], ['padding_y' => 'lg'])]);
     $saved = LayoutSchema::normalizeComponent([$column], 'column', $blocks);
-    file_put_contents($blocks->directory() . '/acme/marketing/blocks/callout/block.json', '{bad');
+    file_put_contents($blocks->directory() . '/cometcms/essentials/blocks/callout/block.json', '{bad');
     $missing = BlockRegistry::active();
     assert_same([], $missing->all());
-    assert_same('acme/marketing', $missing->metadata()['errors'][0]['package']);
+    assert_same('cometcms/essentials', $missing->metadata()['errors'][0]['package']);
     assert_same('blocks/callout/block.json', $missing->metadata()['errors'][0]['file']);
     assert_same($saved, LayoutSchema::normalizeComponent($saved, 'column', $missing));
     $ctx = comet_site_test_context();
     assert_same('', (new NodeRenderer($ctx))->render($saved[0]['children']));
     $ctx->annotate = true;
-    assert_true(str_contains((new NodeRenderer($ctx))->render($saved[0]['children']), 'Missing block: acme/callout'));
+    assert_true(str_contains((new NodeRenderer($ctx))->render($saved[0]['children']), 'Missing block: cometcms/callout'));
     $missing->installFiles(comet_block_files(), allowScripts: true);
     assert_true(str_contains((new NodeRenderer(comet_site_test_context()))->render($saved[0]['children']), '>Keep me</h3>'));
 
@@ -398,26 +398,26 @@ test('missing or malformed packages preserve placed block values and do not disa
     mkdir($broken, 0775, true);
     file_put_contents($broken . '/comet-package.json', '{broken');
     $registry = BlockRegistry::active();
-    assert_same(7, count($registry->all()));
+    assert_same(8, count($registry->all()));
     assert_same('other/broken', $registry->metadata()['errors'][0]['package']);
-    $template = $blocks->directory() . '/acme/marketing/blocks/callout/template.html';
+    $template = $blocks->directory() . '/cometcms/essentials/blocks/callout/template.html';
     unlink($template);
     symlink(COMET_BLOCK_EXAMPLE . '/blocks/callout/template.html', $template);
     assert_same([], BlockRegistry::active()->all());
     // Reinstalling repairs the linked file without following it when the old package is removed.
     $blocks->installFiles(comet_block_files(), allowScripts: true);
-    assert_same(7, count(BlockRegistry::active()->all()));
+    assert_same(8, count(BlockRegistry::active()->all()));
     assert_true(is_file(COMET_BLOCK_EXAMPLE . '/blocks/callout/template.html'));
 });
 
 test('direct block edits and uploaded updates invalidate cached public output', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
-    comet_block_page($site, [LayoutSchema::node('block:acme/callout')]);
+    comet_block_page($site, [LayoutSchema::node('block:cometcms/callout')]);
     $respond = static fn(): array => (new SiteService(comet_site_test_context(new SiteRepository())))->respondCached('/', []);
     assert_true(str_contains($respond()['body'], 'Something worth sharing'));
     assert_same('HIT', $respond()['cache_status']);
-    file_put_contents($site->blocks()->directory() . '/acme/marketing/blocks/callout/template.html', '<p>Updated directly: {{title}}</p>');
+    file_put_contents($site->blocks()->directory() . '/cometcms/essentials/blocks/callout/template.html', '<p>Updated directly: {{title}}</p>');
     $updated = $respond();
     assert_same('MISS', $updated['cache_status']);
     assert_true(str_contains($updated['body'], 'Updated directly:'));
@@ -430,16 +430,16 @@ test('deleting a block package preserves layout instances, invalidates public ou
     $blocks = $site->blocks();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     (new BlockRegistry(new WorkspaceContext('other')))->installFiles(comet_block_files(), allowScripts: true);
-    comet_block_page($site, [LayoutSchema::node('block:acme/callout', ['title' => 'Restore this'])]);
+    comet_block_page($site, [LayoutSchema::node('block:cometcms/callout', ['title' => 'Restore this'])]);
     $saved = $site->layout('about', 'detail');
     $respond = static fn(): array => (new SiteService(comet_site_test_context(new SiteRepository())))->respondCached('/', []);
     assert_true(str_contains($respond()['body'], '>Restore this</h3>'));
-    assert_true($blocks->delete('acme/marketing'));
-    assert_false(is_dir($blocks->directory() . '/acme'));
+    assert_true($blocks->delete('cometcms/essentials'));
+    assert_false(is_dir($blocks->directory() . '/cometcms'));
     assert_same([], $blocks->all());
     assert_same($saved, (new SiteRepository())->layout('about', 'detail'));
-    assert_same('Callout', (new BlockRegistry(new WorkspaceContext('other')))->get('block:acme/callout')['title']);
-    assert_false($blocks->delete('acme/marketing'));
+    assert_same('Callout', (new BlockRegistry(new WorkspaceContext('other')))->get('block:cometcms/callout')['title']);
+    assert_false($blocks->delete('cometcms/essentials'));
     assert_throws(InvalidArgumentException::class, fn() => $blocks->delete('../other'));
     $deleted = $respond();
     assert_same('MISS', $deleted['cache_status']);
@@ -455,14 +455,14 @@ test('block packages survive a site backup and restore', function (): void {
     comet_test_remove_directory($blocks->directory());
     assert_same([], BlockRegistry::active()->all());
     (new \CometCMS\Backups\RestoreService())->restore(COMET_STORAGE . '/backups/' . $backup['name'], true, ['id' => 'admin'], ['site']);
-    assert_same('Callout', BlockRegistry::active()->get('block:acme/callout')['title']);
-    assert_same(comet_block_files()['assets/check.svg'], file_get_contents($blocks->directory() . '/acme/marketing/assets/check.svg'));
+    assert_same('Callout', BlockRegistry::active()->get('block:cometcms/callout')['title']);
+    assert_same(comet_block_files()['assets/check.svg'], file_get_contents($blocks->directory() . '/cometcms/essentials/assets/check.svg'));
 });
 
 test('block package uploads report every problem and ask before breaking placed blocks', function (): void {
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files()), ['allow_scripts' => '1']);
     assert_same(201, $status);
-    assert_same('acme/marketing', $body['data']['name']);
+    assert_same('cometcms/essentials', $body['data']['name']);
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files(['blocks/faq/template.html' => '<p>{{missing}}</p>', 'notes.txt' => 'x'])));
     assert_same(422, $status);
     assert_same('invalid_block_package', $body['error']['code']);
@@ -473,10 +473,10 @@ test('block package uploads report every problem and ask before breaking placed 
     [$status, $body] = comet_block_upload($update, ['allow_scripts' => '1'], $seed);
     assert_same(409, $status);
     assert_same('block_package_changes', $body['error']['code']);
-    assert_same(['acme/feature is removed. Placed instances will show as missing blocks.'], $body['error']['details']['changes']);
+    assert_same(['cometcms/feature is removed. Placed instances will show as missing blocks.'], $body['error']['details']['changes']);
     [$status, $body] = comet_block_upload($update, ['accept_changes' => '1', 'allow_scripts' => '1'], $seed);
     assert_same(201, $status);
-    assert_same(['acme/callout', 'acme/card', 'acme/faq', 'acme/pricing', 'acme/slideshow', 'acme/stats'], $body['data']['blocks']);
+    assert_same(['cometcms/callout', 'cometcms/card', 'cometcms/faq', 'cometcms/maps', 'cometcms/pricing', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['blocks']);
 });
 
 test('block inventory requires site permission and installation and deletion require an administrator and CSRF', function (): void {
@@ -493,8 +493,8 @@ test('block inventory requires site permission and installation and deletion req
     assert_same(422, $status);
     assert_same('Upload one block package as a .zip file.', $body['error']['message']);
 
-    $delete = $action . 'deleteBlock("acme", "marketing");';
-    $uri = '/admin/api/site/blocks/acme/marketing';
+    $delete = $action . 'deleteBlock("cometcms", "essentials");';
+    $uri = '/admin/api/site/blocks/cometcms/essentials';
     [$status] = comet_admin_request('ed', $seed, 'DELETE', $uri, $delete);
     assert_same(403, $status);
     [$status] = comet_admin_request('admin', '', 'DELETE', $uri, 'unset($_SERVER["HTTP_X_CSRF_TOKEN"]);' . $delete);
@@ -504,7 +504,7 @@ test('block inventory requires site permission and installation and deletion req
     $install = '\\CometCMS\\Site\\Blocks\\BlockRegistry::active()->installFiles(\\CometCMS\\Site\\Blocks\\BlockPackage::readDirectory(' . var_export(COMET_BLOCK_EXAMPLE, true) . '), allowScripts: true);';
     [$status, $body] = comet_admin_request('admin', $install, 'DELETE', $uri, $delete);
     assert_same(200, $status);
-    assert_same('acme/marketing', $body['data']['name']);
+    assert_same('cometcms/essentials', $body['data']['name']);
 });
 
 /** A one-block package around the given block.json props and template. */
@@ -529,9 +529,9 @@ test('block icons come from an icon name, the block folder or the package root',
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     $spec = LayoutSchema::spec(blocks: $blocks)['kinds'];
-    assert_same('mdi:card-text-outline', $spec['block:acme/card']['icon']);
-    assert_same('data:image/svg+xml;base64,' . base64_encode(comet_block_files()['blocks/feature/icon.svg']), $spec['block:acme/feature']['icon']);
-    assert_same('data:image/svg+xml;base64,' . base64_encode(comet_block_files()['icon.svg']), $spec['block:acme/callout']['icon']);
+    assert_same('mdi:card-text-outline', $spec['block:cometcms/card']['icon']);
+    assert_same('data:image/svg+xml;base64,' . base64_encode(comet_block_files()['blocks/feature/icon.svg']), $spec['block:cometcms/feature']['icon']);
+    assert_same('data:image/svg+xml;base64,' . base64_encode(comet_block_files()['icon.svg']), $spec['block:cometcms/callout']['icon']);
     assert_same(['blocks/feature/block.json: The block has both an "icon" name and an icon file. Keep one.'], comet_block_errors(fn() => BlockPackage::compile(comet_block_files([
         'blocks/feature/block.json' => comet_block_manifest('blocks/feature/block.json', ['icon' => 'mdi:star']),
     ]))));
@@ -617,41 +617,41 @@ test('rendered blocks resolve media, theme colors, links, lists, bindings and tr
     comet_media_test_file('hero.jpg', 'jpeg');
     (new \CometCMS\Media\MediaRepository())->updateMeta('hero.jpg', 'A hero', 'Hero');
     $entry = \CometCMS\Content\ContentRepository::make()->findByIdentifier('about', 'about');
-    $card = LayoutSchema::node('block:acme/card', [
+    $card = LayoutSchema::node('block:cometcms/card', [
         'image' => 'hero.jpg',
         'title' => ['type' => 'reference', 'source' => 'current', 'path' => ['title'], 'filters' => []],
         'accent' => 'accent',
         'link' => ['type' => 'home', 'new_tab' => true],
     ]);
     $html = comet_block_render($card, ['entry' => $entry, 'type' => $site->types()['about']]);
-    assert_true(str_contains($html, 'style="--acme-card-accent:var(--c-accent)"'));
-    assert_true(str_contains($html, '<img class="acme-card__image" src="/media/default/hero.jpg" alt="A hero" loading="lazy">'));
-    assert_true(str_contains($html, '<h3 class="acme-card__title">' . htmlspecialchars($entry['title']) . '</h3>'));
-    assert_true(str_contains($html, '<a class="acme-card__link" href="/" target="_blank" rel="noopener noreferrer">Read more</a>'));
-    assert_same('text', LayoutSchema::spec(blocks: $site->blocks())['kinds']['block:acme/card']['props']['title']['binding']);
+    assert_true(str_contains($html, 'style="--cometcms-card-accent:var(--c-accent)"'));
+    assert_true(str_contains($html, '<img class="cometcms-card__image" src="/media/default/hero.jpg" alt="A hero" loading="lazy">'));
+    assert_true(str_contains($html, '<h3 class="cometcms-card__title">' . htmlspecialchars($entry['title']) . '</h3>'));
+    assert_true(str_contains($html, '<a class="cometcms-card__link" href="/" target="_blank" rel="noopener noreferrer">Read more</a>'));
+    assert_same('text', LayoutSchema::spec(blocks: $site->blocks())['kinds']['block:cometcms/card']['props']['title']['binding']);
 
-    $plain = comet_block_render(LayoutSchema::node('block:acme/card', ['accent' => '']));
-    assert_true(str_contains($plain, 'style="--acme-card-accent:initial"'));
+    $plain = comet_block_render(LayoutSchema::node('block:cometcms/card', ['accent' => '']));
+    assert_true(str_contains($plain, 'style="--cometcms-card-accent:initial"'));
     assert_false(str_contains($plain, '<img'));
-    assert_false(str_contains($plain, 'acme-card__link'));
+    assert_false(str_contains($plain, 'cometcms-card__link'));
 
-    $pricing = comet_block_render(LayoutSchema::node('block:acme/pricing', ['note' => "Billed yearly.\nCancel anytime."]));
-    assert_same(3, substr_count($pricing, '<li class="acme-plan__feature'));
-    assert_true(str_contains($pricing, '<li class="acme-plan__feature acme-plan__feature--excluded">Priority support</li>'));
-    assert_true(str_contains($pricing, '<a class="acme-plan__cta" href="#signup">Choose plan</a>'));
-    assert_true(str_contains($pricing, '<p class="acme-plan__note">Billed yearly.<br>' . "\n" . 'Cancel anytime.</p>'));
+    $pricing = comet_block_render(LayoutSchema::node('block:cometcms/pricing', ['note' => "Billed yearly.\nCancel anytime."]));
+    assert_same(3, substr_count($pricing, '<li class="cometcms-plan__feature'));
+    assert_true(str_contains($pricing, '<li class="cometcms-plan__feature cometcms-plan__feature--excluded">Priority support</li>'));
+    assert_true(str_contains($pricing, '<a class="cometcms-plan__cta" href="#signup">Choose plan</a>'));
+    assert_true(str_contains($pricing, '<p class="cometcms-plan__note">Billed yearly.<br>' . "\n" . 'Cancel anytime.</p>'));
 
     (new \CometCMS\Localization\LanguageSettings())->save(['default_locale' => 'en', 'locales' => ['en', 'de']]);
-    $faq = LayoutSchema::node('block:acme/faq', ['items' => ['type' => 'localized', 'values' => [
+    $faq = LayoutSchema::node('block:cometcms/faq', ['items' => ['type' => 'localized', 'values' => [
         'en' => [['question' => 'Why?', 'answer' => '<p>Because.</p>']],
         'de' => [['question' => 'Warum?', 'answer' => '<p>Darum.<script>x</script></p>']],
     ]]]);
-    $faq['props'] = LayoutSchema::normalizeProps('block:acme/faq', $faq['props'], $site->blocks());
+    $faq['props'] = LayoutSchema::normalizeProps('block:cometcms/faq', $faq['props'], $site->blocks());
     assert_same('<p>Darum.</p>', $faq['props']['items']['values']['de'][0]['answer']);
     $ctx = comet_site_test_context();
     $ctx->locale = 'de';
     $translated = (new NodeRenderer($ctx))->render([$faq]);
-    assert_true(str_contains($translated, '<summary class="acme-faq__question">Warum?</summary>'));
+    assert_true(str_contains($translated, '<summary class="cometcms-faq__question">Warum?</summary>'));
     assert_false(str_contains($translated, 'Why?'));
 });
 
@@ -659,30 +659,30 @@ test('slot blocks hold child elements in layouts, repeaters and while their pack
     $blocks = BlockRegistry::active();
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     $spec = LayoutSchema::spec(blocks: $blocks)['kinds'];
-    assert_true($spec['block:acme/card']['slot']);
-    assert_false($spec['block:acme/callout']['slot']);
-    assert_true(in_array('heading', $spec['block:acme/card']['children'], true));
-    assert_true(in_array('block:acme/card', $spec['block:acme/card']['children'], true));
-    assert_false(in_array('row', $spec['block:acme/card']['children'], true));
-    assert_same([], $spec['block:acme/callout']['children']);
+    assert_true($spec['block:cometcms/card']['slot']);
+    assert_false($spec['block:cometcms/callout']['slot']);
+    assert_true(in_array('heading', $spec['block:cometcms/card']['children'], true));
+    assert_true(in_array('block:cometcms/card', $spec['block:cometcms/card']['children'], true));
+    assert_false(in_array('row', $spec['block:cometcms/card']['children'], true));
+    assert_same([], $spec['block:cometcms/callout']['children']);
 
-    $card = LayoutSchema::node('block:acme/card', [], [], [
+    $card = LayoutSchema::node('block:cometcms/card', [], [], [
         LayoutSchema::node('text', ['html' => '<p>Inside</p>']),
         LayoutSchema::node('section'),
         LayoutSchema::node('tabs'),
     ]);
-    $column = LayoutSchema::node('column', [], [], [$card, LayoutSchema::node('field', [], [], [$card]), LayoutSchema::node('block:acme/callout', [], [], [LayoutSchema::node('text')])]);
+    $column = LayoutSchema::node('column', [], [], [$card, LayoutSchema::node('field', [], [], [$card]), LayoutSchema::node('block:cometcms/callout', [], [], [LayoutSchema::node('text')])]);
     $saved = LayoutSchema::normalizeComponent([$column], 'column', $blocks)[0]['children'];
     assert_same(['text', 'tabs'], array_column($saved[0]['children'], 'kind'));
     assert_same(['text'], array_column($saved[1]['children'][0]['children'], 'kind'));
     assert_same([], $saved[2]['children']);
 
     $html = comet_block_render($saved[0]);
-    assert_true(str_contains($html, '<div class="acme-card__body">'));
-    assert_matches('~<h3 class="acme-card__title">Card heading</h3>\s*<div[^>]*c-el-text[^>]*>.*Inside~s', $html);
-    assert_true(str_contains(comet_block_render(LayoutSchema::node('block:acme/card'), [], true), 'Drop elements here'));
+    assert_true(str_contains($html, '<div class="cometcms-card__body">'));
+    assert_matches('~<h3 class="cometcms-card__title">Card heading</h3>\s*<div[^>]*c-el-text[^>]*>.*Inside~s', $html);
+    assert_true(str_contains(comet_block_render(LayoutSchema::node('block:cometcms/card'), [], true), 'Drop elements here'));
 
-    $blocks->delete('acme/marketing');
+    $blocks->delete('cometcms/essentials');
     $missing = new BlockRegistry($blocks->workspace);
     $kept = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [$saved[0]])], 'column', $missing)[0]['children'][0];
     assert_same(['text', 'tabs'], array_column($kept['children'], 'kind'));
@@ -700,9 +700,9 @@ test('block scripts are single self-contained modules with a default export', fu
         'blocks/missing/view.js: There is no block "missing" for this script. Add block.json and template.html next to it.',
     ], $errors);
     $package = BlockPackage::compile(comet_block_files(['blocks/card/view.js' => "const importantValue = 1;\nexport default function (element) { element.dataset.value = importantValue; }"]));
-    assert_same(hash('sha256', comet_block_files()['blocks/stats/view.js']) . '.js', $package['blocks']['block:acme/stats']['script']);
-    assert_true($package['blocks']['block:acme/card']['script'] !== '');
-    assert_same('', $package['blocks']['block:acme/callout']['script']);
+    assert_same(hash('sha256', comet_block_files()['blocks/stats/view.js']) . '.js', $package['blocks']['block:cometcms/stats']['script']);
+    assert_true($package['blocks']['block:cometcms/card']['script'] !== '');
+    assert_same('', $package['blocks']['block:cometcms/callout']['script']);
 });
 
 test('installing block scripts needs explicit consent and is reported in the inventory', function (): void {
@@ -711,17 +711,17 @@ test('installing block scripts needs explicit consent and is reported in the inv
         $blocks->installFiles(comet_block_files());
         throw new RuntimeException('Expected consent to be required.');
     } catch (\CometCMS\Site\Blocks\BlockPackageScripts $e) {
-        assert_same('acme/marketing', $e->package);
-        assert_same(['acme/slideshow', 'acme/stats'], $e->blocks);
+        assert_same('cometcms/essentials', $e->package);
+        assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $e->blocks);
     }
     assert_same([], BlockRegistry::active()->all());
     $blocks->installFiles(comet_block_files(), allowScripts: true);
     $metadata = BlockRegistry::active()->metadata()['packages'][0];
     assert_true($metadata['scripts']);
-    assert_same(['acme/slideshow', 'acme/stats'], array_column(array_filter($metadata['blocks'], static fn(array $block): bool => $block['script']), 'name'));
-    assert_true(LayoutSchema::spec(blocks: BlockRegistry::active())['kinds']['block:acme/stats']['script']);
+    assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], array_column(array_filter($metadata['blocks'], static fn(array $block): bool => $block['script']), 'name'));
+    assert_true(LayoutSchema::spec(blocks: BlockRegistry::active())['kinds']['block:cometcms/stats']['script']);
     // Packages without scripts install as before.
-    $plain = comet_block_files(['blocks/slideshow/view.js' => null, 'blocks/stats/view.js' => null, 'blocks/stats/block.json' => null, 'blocks/stats/template.html' => null, 'blocks/stats/style.css' => null]);
+    $plain = comet_block_files(['blocks/maps/view.js' => null, 'blocks/slideshow/view.js' => null, 'blocks/stats/view.js' => null, 'blocks/stats/block.json' => null, 'blocks/stats/template.html' => null, 'blocks/stats/style.css' => null]);
     assert_same([], BlockRegistry::active()->installFiles($plain, true)['scripts']);
     $file = hash('sha256', comet_block_files()['blocks/stats/view.js']) . '.js';
     assert_null(BlockRegistry::active()->asset($file));
@@ -732,19 +732,19 @@ test('installing block scripts needs explicit consent and is reported in the inv
 test('published pages mount block scripts through exact CSP sources, previews never run them', function (): void {
     $site = comet_site_test_setup();
     $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
-    $stats = LayoutSchema::node('block:acme/stats', ['duration' => 800]);
-    comet_block_page($site, [$stats, $stats, LayoutSchema::node('block:acme/callout')]);
+    $stats = LayoutSchema::node('block:cometcms/stats', ['duration' => 800]);
+    comet_block_page($site, [$stats, $stats, LayoutSchema::node('block:cometcms/callout')]);
     $site = new SiteRepository();
     $entry = \CometCMS\Content\ContentRepository::make()->findByIdentifier('about', 'about');
     $ctx = comet_site_test_context($site);
     $html = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     $url = '/_site/default/blocks/' . hash('sha256', comet_block_files()['blocks/stats/view.js']) . '.js';
-    $loader = \CometCMS\Site\Blocks\BlockScripts::loader('acme/stats', $url);
+    $loader = \CometCMS\Site\Blocks\BlockScripts::loader('cometcms/stats', $url);
     assert_same(1, substr_count($html, '<script type="module">' . $loader . '</script>'));
-    assert_same(2, substr_count($html, 'data-comet-block="acme/stats"'));
+    assert_same(2, substr_count($html, 'data-comet-block="cometcms/stats"'));
     assert_true(str_contains($html, 'data-comet-props="{&quot;items&quot;:[{&quot;value&quot;:250,&quot;suffix&quot;:&quot;+&quot;,&quot;label&quot;:&quot;Websites&quot;}'));
     assert_true(str_contains($html, '&quot;duration&quot;:800}"'));
-    assert_false(str_contains($html, 'data-comet-block="acme/callout"'));
+    assert_false(str_contains($html, 'data-comet-block="cometcms/callout"'));
     assert_same(["'sha256-" . base64_encode(hash('sha256', $loader, true)) . "'", 'example.test' . $url], \CometCMS\Site\Blocks\BlockScripts::cspSources($html, $ctx));
     // Only loaders that match an installed script exactly are allowed.
     $tampered = str_replace($url, '/_site/default/blocks/' . str_repeat('a', 64) . '.js', $html);
@@ -763,10 +763,10 @@ test('block package uploads with scripts ask for consent before installing', fun
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files()));
     assert_same(409, $status);
     assert_same('block_package_scripts', $body['error']['code']);
-    assert_same(['package' => 'acme/marketing', 'blocks' => ['acme/slideshow', 'acme/stats']], $body['error']['details']);
+    assert_same(['package' => 'cometcms/essentials', 'blocks' => ['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats']], $body['error']['details']);
     [$status, $body] = comet_block_upload(comet_block_zip(comet_block_files()), ['allow_scripts' => '1']);
     assert_same(201, $status);
-    assert_same(['acme/slideshow', 'acme/stats'], $body['data']['scripts']);
+    assert_same(['cometcms/maps', 'cometcms/slideshow', 'cometcms/stats'], $body['data']['scripts']);
 });
 
 test('example slideshows render translated media slides and only load their script on published pages', function (): void {
@@ -778,19 +778,19 @@ test('example slideshows render translated media slides and only load their scri
         'en' => [['title' => 'Our <story>', 'caption' => "First line\nSecond line", 'image' => 'slide.jpg', 'link' => ['type' => 'url', 'url' => 'https://example.test/story', 'new_tab' => true], 'link_label' => 'Read & explore']],
         'de' => [['title' => 'Unsere Geschichte', 'caption' => 'Mehr erfahren']],
     ]];
-    $node = LayoutSchema::node('block:acme/slideshow', ['slides' => $slides]);
-    comet_block_page($site, [$node, LayoutSchema::node('block:acme/slideshow', ['slides' => []])]);
+    $node = LayoutSchema::node('block:cometcms/slideshow', ['slides' => $slides]);
+    comet_block_page($site, [$node, LayoutSchema::node('block:cometcms/slideshow', ['slides' => []])]);
     $site = new SiteRepository();
     $ctx = comet_site_test_context($site);
     $entry = $ctx->findEntry('about', 'about');
     $html = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
-    assert_true(str_contains($html, '<h3 class="acme-slideshow__title">Our &lt;story&gt;</h3>'));
+    assert_true(str_contains($html, '<h3 class="cometcms-slideshow__title">Our &lt;story&gt;</h3>'));
     assert_true(str_contains($html, 'src="/media/default/slide.jpg" alt="A &quot;slide&quot; &amp; more"'));
     assert_true(str_contains($html, 'href="https://example.test/story" target="_blank" rel="noopener noreferrer">Read &amp; explore</a>'));
     assert_true(str_contains($html, 'Add slides to start your slideshow.'));
     assert_false(str_contains($html, 'Unsere Geschichte'));
     $script = hash_file('sha256', COMET_BLOCK_EXAMPLE . '/blocks/slideshow/view.js') . '.js';
-    $loader = \CometCMS\Site\Blocks\BlockScripts::loader('acme/slideshow', '/_site/default/blocks/' . $script);
+    $loader = \CometCMS\Site\Blocks\BlockScripts::loader('cometcms/slideshow', '/_site/default/blocks/' . $script);
     assert_same(1, substr_count($html, '<script type="module">' . $loader . '</script>'));
     assert_same(["'sha256-" . base64_encode(hash('sha256', $loader, true)) . "'", 'example.test/_site/default/blocks/' . $script], \CometCMS\Site\Blocks\BlockScripts::cspSources($html, $ctx));
 
@@ -803,4 +803,46 @@ test('example slideshows render translated media slides and only load their scri
     $translated = (new PageRenderer($ctx))->entryPage($site->types()['about'], $entry);
     assert_true(str_contains($translated, 'Unsere Geschichte'));
     assert_false(str_contains($translated, 'Our &lt;story&gt;'));
+});
+
+test('integer block controls expose sliders and preserve bounded values', function (): void {
+    $blocks = BlockRegistry::active();
+    $blocks->installFiles(comet_block_files(), allowScripts: true);
+    $zoom = LayoutSchema::spec(blocks: $blocks)['kinds']['block:cometcms/maps']['props']['zoom'];
+    assert_same('int', $zoom['type']);
+    assert_same('slider', $zoom['control']);
+    assert_same(1, LayoutSchema::normalizeProps('block:cometcms/maps', ['zoom' => -50], $blocks)['zoom']);
+    assert_same(19, LayoutSchema::normalizeProps('block:cometcms/maps', ['zoom' => 100], $blocks)['zoom']);
+    assert_same(13, LayoutSchema::normalizeProps('block:cometcms/maps', ['zoom' => 'invalid'], $blocks)['zoom']);
+    foreach ([['type' => 'string', 'control' => 'slider'], ['type' => 'int', 'control' => 'unknown']] as $change) {
+        $manifest = comet_block_manifest('blocks/maps/block.json', []);
+        $manifest['props']['zoom'] = ['label' => 'Zoom'] + $change;
+        assert_throws(BlockPackageException::class, fn() => BlockPackage::compile(comet_block_files(['blocks/maps/block.json' => $manifest])));
+    }
+    // The same integer control works in a list item's inspector.
+    $manifest = comet_block_manifest('blocks/stats/block.json', []);
+    $manifest['props']['items']['fields']['value']['control'] = 'slider';
+    $package = BlockPackage::compile(comet_block_files(['blocks/stats/block.json' => $manifest]));
+    assert_same('slider', $package['blocks']['block:cometcms/stats']['props']['items']['fields']['value']['control']);
+});
+
+test('maps render escaped location labels and keep editor previews free of scripts and tiles', function (): void {
+    $site = comet_site_test_setup();
+    $site->blocks()->installFiles(comet_block_files(), allowScripts: true);
+    $node = LayoutSchema::node('block:cometcms/maps', ['label' => 'Our <office>', 'location' => '0, 0', 'zoom' => 7]);
+    comet_block_page($site, [$node]);
+    $context = comet_site_test_context($site);
+    $type = $site->types()['about'];
+    $entry = \CometCMS\Content\ContentRepository::make()->findByIdentifier('about', 'about');
+    $html = (new PageRenderer($context))->entryPage($type, $entry);
+    assert_true(str_contains($html, '<strong>Our &lt;office&gt;</strong>'));
+    assert_true(str_contains($html, '<span>0, 0</span>'));
+    assert_true(str_contains($html, '© OpenStreetMap contributors'));
+    assert_true(str_contains($html, 'data-comet-block="cometcms/maps"'));
+    assert_true(str_contains($html, '&quot;zoom&quot;:7'));
+    $context->preview = true;
+    $preview = (new PageRenderer($context))->entryPage($type, $entry);
+    assert_true(str_contains($preview, 'The interactive map loads on the published website.'));
+    assert_false(str_contains($preview, 'import mount'));
+    assert_false(str_contains($preview, 'tile.openstreetmap.org'));
 });

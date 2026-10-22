@@ -1,6 +1,6 @@
 // Each instance owns its navigation and timer. Previews keep the scrollable HTML.
 export default function mount(element, props) {
-  const root = element.querySelector('.acme-slideshow');
+  const root = element.querySelector('.cometcms-slideshow');
   const slides = [...root.querySelectorAll('[data-slide]')];
   const controls = root.querySelector('[data-controls]');
   const selectors = root.querySelector('[data-selectors]');

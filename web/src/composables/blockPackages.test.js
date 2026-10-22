@@ -5,7 +5,7 @@ const file = (name, size = 10) => ({ name, size })
 
 describe('block package selection', () => {
   it('accepts exactly one ZIP within the size limit', () => {
-    expect(packageUploadError([file('acme-marketing.zip')])).toBeNull()
+    expect(packageUploadError([file('comet-essentials.zip')])).toBeNull()
     expect(packageUploadError([file('PACKAGE.ZIP')])).toBeNull()
   })
 

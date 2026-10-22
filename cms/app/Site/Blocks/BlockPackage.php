@@ -32,7 +32,7 @@ final class BlockPackage
     private const DOCUMENT_LIMIT = 262144;
     private const PACKAGE_FIELDS = ['api_version', 'name', 'title', 'description', 'version', 'author', 'license', 'homepage'];
     private const BLOCK_FIELDS = ['title', 'description', 'icon', 'props'];
-    private const PROP_FIELDS = ['type', 'label', 'default', 'max', 'min', 'options', 'fields'];
+    private const PROP_FIELDS = ['type', 'label', 'default', 'max', 'min', 'options', 'fields', 'control'];
     public const PROP_TYPES = ['string', 'text', 'richtext', 'url', 'link', 'bool', 'int', 'enum', 'color', 'media', 'list'];
     /** Theme colors a color prop may default to; workspaces add their own custom colors. */
     public const COLOR_KEYS = ['primary', 'secondary', 'accent', 'background', 'surface', 'text', 'muted', 'border'];
@@ -379,7 +379,7 @@ final class BlockPackage
         };
         foreach (array_diff(array_keys($manifest), self::BLOCK_FIELDS) as $unknown) {
             $error($unknown === 'name'
-                ? 'Remove "name": a block is named after its package vendor and folder, for example blocks/callout becomes acme/callout.'
+                ? 'Remove "name": a block is named after its package vendor and folder, for example blocks/callout becomes cometcms/callout.'
                 : 'Unknown field "' . $unknown . '". Allowed: ' . implode(', ', self::BLOCK_FIELDS) . '.');
         }
         self::text($manifest, 'title', 120, true, $error);
@@ -434,6 +434,13 @@ final class BlockPackage
             $fail('label is required text of at most 120 bytes.');
         }
         $prop = ['type' => $type, 'label' => trim((string) ($spec['label'] ?? ''))];
+        if (array_key_exists('control', $spec)) {
+            if ($type !== 'int' || !in_array($spec['control'], ['number', 'slider'], true)) {
+                $fail('control is only supported on int props and must be "number" or "slider".');
+            } else {
+                $prop['control'] = $spec['control'];
+            }
+        }
         $int = static fn(string $name, int $min, int $max, int $fallback) => !array_key_exists($name, $spec) ? $fallback
             : (is_int($spec[$name]) && $spec[$name] >= $min && $spec[$name] <= $max ? $spec[$name] : $fail(sprintf('%s must be an integer from %d to %d.', $name, $min, $max)));
         $allowed = match ($type) {

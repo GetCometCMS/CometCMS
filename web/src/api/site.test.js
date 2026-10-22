@@ -25,13 +25,13 @@ describe('entry preview URLs', () => {
 
 describe('block package requests', () => {
   it('deletes a package from the active workspace', async () => {
-    const fetch = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ data: { name: 'acme/marketing' } }) })
+    const fetch = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => ({ data: { name: 'cometcms/essentials' } }) })
     vi.stubGlobal('fetch', fetch)
     const { api, setActiveWorkspace } = await import('./index.js')
     setActiveWorkspace('my-website')
-    await api.blocks.delete('acme/marketing')
+    await api.blocks.delete('cometcms/essentials')
     const [url, options] = fetch.mock.calls[0]
-    expect(url).toContain('/site/blocks/acme/marketing')
+    expect(url).toContain('/site/blocks/cometcms/essentials')
     expect(options.method).toBe('DELETE')
     expect(options.headers['X-Comet-Workspace']).toBe('my-website')
   })
@@ -55,11 +55,11 @@ describe('block package requests', () => {
     vi.stubGlobal('XMLHttpRequest', FakeXhr)
     const { api, setActiveWorkspace } = await import('./index.js')
     setActiveWorkspace('my-website')
-    const error = await api.blocks.install(new File(['zip'], 'acme-marketing.zip'), { acceptChanges: true, allowScripts: true }).catch((err) => err)
+    const error = await api.blocks.install(new File(['zip'], 'comet-essentials.zip'), { acceptChanges: true, allowScripts: true }).catch((err) => err)
     expect(sent[0].method).toBe('POST')
     expect(sent[0].url).toContain('/site/blocks')
     expect(sent[0].headers['X-Comet-Workspace']).toBe('my-website')
-    expect(sent[0].body.get('package').name).toBe('acme-marketing.zip')
+    expect(sent[0].body.get('package').name).toBe('comet-essentials.zip')
     expect(sent[0].body.get('accept_changes')).toBe('1')
     expect(sent[0].body.get('allow_scripts')).toBe('1')
     expect(error.code).toBe('invalid_block_package')
