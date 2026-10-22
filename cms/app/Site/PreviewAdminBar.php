@@ -13,6 +13,10 @@ final class PreviewAdminBar
 
     public function render(array $state, bool $unsaved = false): string
     {
+        $adminTheme = strtolower((string) ($this->ctx->adminUser['theme'] ?? 'blue'));
+        if (!in_array($adminTheme, ['blue', 'green', 'purple', 'orange', 'red', 'cyan', 'dark'], true)) {
+            $adminTheme = 'blue';
+        }
         $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
         $text = $de ? [
             'backend' => 'Zum Backend', 'adminBar' => 'Website-Verwaltung', 'preview' => 'Vorschau', 'notice' => 'Du verwaltest diese Website. Die Vorschau zeigt gespeicherte Inhalte, einschließlich Entwürfen.',
@@ -85,14 +89,15 @@ final class PreviewAdminBar
             $initials .= strtoupper($first[0] ?? '');
         }
         // A 2x bar-sized copy: the full logo would add ~120 KB to every preview page.
-        $logo = base64_encode((string) file_get_contents(__DIR__ . '/assets/cometcms-white-bar.png'));
+        $logoFile = in_array($adminTheme, ['blue', 'dark'], true) ? 'cometcms-white-bar.png' : 'cometcms-' . $adminTheme . '-bar.png';
+        $logo = base64_encode((string) file_get_contents(__DIR__ . '/assets/' . $logoFile));
         $statusClass = in_array($status, ['published', 'protected', 'draft', 'preview', 'scheduled', 'archived'], true) ? $status : 'preview';
         $statusHtml = '<span class="c-admin-status c-admin-status-' . $statusClass . '"'
             . ($statusClass === 'preview' ? ' title="' . Security::e($text['notice']) . '"' : '')
             . '><span class="c-admin-status-dot" aria-hidden="true"></span>'
             . Security::e($text[$statusClass]) . '</span>';
 
-        return '<nav class="c-preview-bar" aria-label="' . Security::e($text['adminBar']) . '"><div class="c-admin-shell">'
+        return '<nav class="c-preview-bar" data-admin-theme="' . $adminTheme . '" aria-label="' . Security::e($text['adminBar']) . '"><div class="c-admin-shell">'
             . '<a class="c-admin-brand" href="' . Security::e($backUrl) . '" aria-label="CometCMS · ' . Security::e($backLabel) . '" title="' . Security::e($backLabel) . '">'
             . $this->icon('back') . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="110" height="24"></a>'
             . '<div class="c-admin-context" title="' . Security::e($workspace . ' · ' . $title) . '">'

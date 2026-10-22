@@ -418,7 +418,7 @@ $registry->all();
 (new \CometCMS\Workspaces\WorkspaceContext('default'))->ensure();
 $registry->save(['slug' => 'other-site', 'label' => 'Other site']);
 (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
-(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en']);
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'posts', 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => ['design' => ['type' => 'page']]]);
 $content = \CometCMS\Content\ContentRepository::make();
 $entry = $content->save('posts', ['title' => 'Saved English', 'slug' => 'first', 'status' => 'published', 'locale' => 'en'], ['id' => 'snapshot-admin']);
 $content->save('posts', ['title' => 'Gespeichertes Deutsch', 'locale' => 'de'], ['id' => 'snapshot-admin'], $entry['id']);
@@ -498,6 +498,26 @@ PHP .
         assert_same(401, $request($previewPath, 'GET', [], '')[0]);
         assert_same(410, $request($previewPath, 'GET', [], 'editor')[0], 'Preview links remain private to their creator.');
         assert_same(410, $request('/admin/site-preview?workspace=other-site&snapshot=' . $token)[0]);
+        $pageBody = [
+            'target' => 'entry_page', 'type' => 'posts', 'entry' => 'first', 'field' => 'design',
+            'nodes' => [comet_page_test_section('preview', [comet_page_test_heading('preview-heading', 'Unsaved page content')])],
+        ];
+        assert_same(403, $request('/admin/api/site/preview-snapshots', 'POST', $pageBody, 'editor')[0]);
+        [$status, $json] = $request('/admin/api/site/preview-snapshots', 'POST', $pageBody);
+        assert_same(200, $status);
+        $pagePath = substr(json_decode($json, true)['data']['url'], strlen('/cms'));
+        [$status, $pageHtml] = $request($pagePath);
+        assert_same(200, $status);
+        assert_true(str_contains($pageHtml, 'Unsaved page content'));
+        assert_false(str_contains($pageHtml, 'data-node='));
+        assert_false(str_contains($pageHtml, 'data-drop-root'));
+        [$status, $otherPage] = $request($pagePath . '&path=/posts/second');
+        assert_same(200, $status);
+        assert_false(str_contains($otherPage, 'Unsaved page content'));
+        [$status, $savedPage] = $request('/admin/api/content/posts/first');
+        assert_same(200, $status);
+        assert_false(str_contains($savedPage, 'Unsaved page content'));
+
         $entryBody = ['target' => 'entry', 'type' => 'posts', 'entry' => 'first', 'locale' => 'en', 'entries' => [$body['entries'][0]]];
         assert_same(403, $request('/admin/api/site/preview-snapshots', 'POST', $entryBody, 'viewer')[0]);
         [$status, $json] = $request('/admin/api/site/preview-snapshots', 'POST', $entryBody, 'editor');

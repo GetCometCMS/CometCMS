@@ -14,6 +14,8 @@ use CometCMS\Site\PageRenderer;
 use CometCMS\Site\PreviewRepository;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
+use CometCMS\Site\SiteScripts;
+use CometCMS\Site\SiteSearch;
 use CometCMS\Site\SiteService;
 use CometCMS\Site\Theme;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -760,7 +762,7 @@ final class SiteController extends BaseController
     private function applySnapshot(SiteContext $context, array $body, array $user): array
     {
         $target = (string) ($body['target'] ?? 'entry');
-        if (!in_array($target, ['entry', 'layout', 'region', 'component'], true)) {
+        if (!in_array($target, ['entry', 'entry_page', 'layout', 'region', 'component'], true)) {
             throw new ValidationException(['target' => 'Choose a valid preview target.']);
         }
         if ($target !== 'entry' || isset($body['theme']) || isset($body['menus'])) {
@@ -802,7 +804,14 @@ final class SiteController extends BaseController
             $context->overrideEntry($type, $entry, $id);
             $drafts[] = $entry;
         }
-        if ($target === 'layout') {
+        if ($target === 'entry_page') {
+            $type = (string) ($body['type'] ?? '');
+            [, $saved, $field] = $this->requirePage($type, LayoutSchema::key($body['entry'] ?? ''), (string) ($body['field'] ?? ''));
+            $entry = $context->findEntry($type, $this->content()->stableId($saved), true);
+            if ($entry === null) $this->http->notFound();
+            $entry['values'][$field] = LayoutSchema::pageValue($body['nodes'] ?? []);
+            $context->overrideEntry($type, $entry);
+        } elseif ($target === 'layout') {
             $type = (string) ($body['type'] ?? '');
             $variant = (string) ($body['variant'] ?? 'detail');
             $this->requireType($type, $variant);
@@ -840,7 +849,7 @@ final class SiteController extends BaseController
         $type = (string) ($body['type'] ?? '');
         $schema = $context->type($type);
         $target = $body['target'] ?? 'entry';
-        if ($target === 'entry' || ($target === 'layout' && ($body['variant'] ?? 'detail') === 'detail')) {
+        if ($target === 'entry' || $target === 'entry_page' || ($target === 'layout' && ($body['variant'] ?? 'detail') === 'detail')) {
             $entry = $context->findEntry($type, (string) ($body['entry'] ?? $type), true);
             if ($entry === null && $target === 'entry') {
                 $entry = isset($snapshot['entries'][0]) ? $context->localize($type, $snapshot['entries'][0]) : null;
@@ -914,6 +923,22 @@ final class SiteController extends BaseController
         $this->sendFullPreview($response['body'], $response['status']);
     }
 
+    /** Search the same drafts and snapshot as the authenticated preview. */
+    public function previewSearch(): never
+    {
+        $user = $this->requireUser();
+        $context = $this->adminPreviewContext($user);
+        $this->snapshot($context, $user);
+        $context->locale = $context->content->locale((string) ($_GET['locale'] ?? $context->locale));
+        $keys = static fn(mixed $value): array => array_values(array_filter(array_map(LayoutSchema::key(...),
+            explode(',', is_string($value) ? $value : '', 50)), static fn(string $key): bool => $key !== ''));
+        $query = is_string($_GET['q'] ?? null) ? $_GET['q'] : '';
+        $hits = (new SiteSearch($context))->search($query, $keys($_GET['types'] ?? ''), $keys($_GET['fields'] ?? ''),
+            (int) ($_GET['limit'] ?? SiteSearch::MAX_RESULTS));
+        header('Cache-Control: private, no-store');
+        $this->json(['data' => $hits]);
+    }
+
     private function adminPreviewContext(array $user): SiteContext
     {
         $context = $this->context();
@@ -932,7 +957,8 @@ final class SiteController extends BaseController
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: private, no-store');
         header('X-Robots-Tag: noindex, nofollow');
-        header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
+        header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; "
+            . SiteScripts::cspDirective($html) . "; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'");
         echo $html;
         exit;
     }

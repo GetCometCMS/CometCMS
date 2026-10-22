@@ -1,6 +1,6 @@
 const initialized = new WeakSet();
 
-/** Also installed by the trusted admin parent: preview documents run no scripts. */
+/** The trusted admin parent also installs this in the builder's script-free iframe. */
 export function initGalleryLightbox(doc) {
   if (initialized.has(doc)) return;
   initialized.add(doc);

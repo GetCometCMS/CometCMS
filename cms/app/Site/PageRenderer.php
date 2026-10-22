@@ -263,14 +263,27 @@ final class PageRenderer
             $footer = '<footer class="c-region c-footer"' . $dropRoot('footer') . '>' . $render('footer') . '</footer>';
         }
 
+        // Full-page previews behave like the website. The editor iframe keeps
+        // its parent-managed interactions and selection behavior.
+        $interactive = !$this->ctx->preview || ($this->ctx->browsePreview && !$this->ctx->annotate);
+        $markup = $header . $main . $footer;
+        $headScript = $interactive && str_contains($markup, 'data-theme-toggle')
+            ? '<script>' . ThemeToggle::script() . '</script>' : '';
+        $bodyScripts = '';
+        foreach (['data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class] as $marker => $module) {
+            if ($interactive && str_contains($markup, $marker)) {
+                $bodyScripts .= '<script type="module">' . $module::script() . '</script>';
+            }
+        }
+
         $title = Security::e((string) ($meta['title'] ?? $this->ctx->siteTitle()));
         $description = trim((string) ($meta['description'] ?? ''));
         $canonical = (string) ($meta['canonical'] ?? '');
         $noindex = ($meta['noindex'] ?? false) || $this->ctx->preview || !empty($settings['noindex']);
         $head = '<meta charset="utf-8">'
-            // Previews are shown in the admin (in an iframe, or as a page); they
-            // never run scripts even though the admin itself does.
-            . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'; base-uri \'none\'; form-action \'none\'">' : '')
+            . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="'
+                . SiteScripts::cspDirective($headScript . $bodyScripts)
+                . '; object-src \'none\'; base-uri \'none\'; form-action \'none\'">' : '')
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . $title . '</title>'
             . '<meta name="generator" content="CometCMS">';
@@ -335,9 +348,7 @@ final class PageRenderer
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
         // The theme toggle's script runs before the body, so a saved choice never flashes.
-        if (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-theme-toggle')) {
-            $head .= '<script>' . ThemeToggle::script() . '</script>';
-        }
+        $head .= $headScript;
 
         $opening = '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
             . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">';
@@ -345,14 +356,7 @@ final class PageRenderer
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
-            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-gallery-lightbox')
-                ? '<script type="module">' . GalleryLightbox::script() . '</script>' : '')
-            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-tabs=')
-                ? '<script type="module">' . Tabs::script() . '</script>' : '')
-            . (!$this->ctx->preview && str_contains($header . $main . $footer, 'data-search=')
-                ? '<script type="module">' . SiteSearch::script() . '</script>' : '')
-            . (!$this->ctx->preview && str_contains($header . $main . $footer, ' data-menu ')
-                ? '<script type="module">' . Menus::script() . '</script>' : '')
+            . $bodyScripts
             . '</body></html>';
         $banner = '';
         if ($this->ctx->previewBanner) {

@@ -195,6 +195,9 @@ final class SiteContext
     /** Where search elements look up their hits (see SiteController::search()). */
     public function searchUrl(): string
     {
+        if ($this->browsePreview) {
+            return $this->adminUrl('/api/site/preview-search', $this->previewToken !== '' ? ['snapshot' => $this->previewToken] : []);
+        }
         return $this->basePath . '/_site/search/' . rawurlencode($this->site->workspace()->slug());
     }
 
