@@ -28,7 +28,7 @@ const props = defineProps({
   selectedTemplatePart: { type: String, default: null },
 });
 
-const emit = defineEmits(["keydown", "select-template-part", "edit-field"]);
+const emit = defineEmits(["keydown", "select-template-part", "edit-field", "switch-page-area"]);
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const frameRef = ref(null);
@@ -106,6 +106,36 @@ const BUILDER_CSS = `
 .c-view-page-edit .c-page-content[data-drop-root]{
   outline:2px dashed color-mix(in srgb,#c08a1e 55%,transparent);
   outline-offset:-2px;
+}
+
+/* The entry's other page content areas: a click edits that one instead. */
+.c-view-page-edit [data-page-area]{
+  position:relative;
+  min-height:64px;
+  cursor:pointer;
+  outline:2px dashed color-mix(in srgb,#c08a1e 30%,transparent);
+  outline-offset:-2px;
+}
+
+.c-view-page-edit [data-page-area]::after{
+  content:attr(data-page-area-label);
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:12px;
+  background:rgba(255,255,255,.72);
+  color:#7a5410;
+  font:600 calc(13px * var(--cometcms-ui-scale,1))/1.4 system-ui,sans-serif;
+  text-align:center;
+  opacity:0;
+  transition:opacity .15s;
+}
+
+.c-view-page-edit [data-page-area]:empty::after,
+.c-view-page-edit [data-page-area]:hover::after{
+  opacity:1;
 }
 
 /* Hover and selection */
@@ -420,6 +450,10 @@ function prepare(document) {
   doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
+  doc.querySelectorAll("[data-page-area]").forEach((element) => {
+    const label = builder.pageFields().find((field) => field.key === element.dataset.pageArea)?.label ?? element.dataset.pageArea;
+    element.setAttribute("data-page-area-label", t("site.page.editArea", { label }));
+  });
   // The page renders hints in English; show them in the admin's language.
   doc.querySelectorAll("[data-placeholder]").forEach((element) => {
     const key = `site.placeholder.${element.dataset.placeholder}`;
@@ -559,6 +593,12 @@ function onClick(event) {
     const rect = badge.getBoundingClientRect();
     const point = toViewport(rect.left, rect.bottom + 4);
     builder.openContextMenu(builder.selectedId.value, point.x, point.y);
+    return;
+  }
+
+  const area = event.target.closest?.("[data-page-area]");
+  if (area) {
+    emit("switch-page-area", area.dataset.pageArea);
     return;
   }
 

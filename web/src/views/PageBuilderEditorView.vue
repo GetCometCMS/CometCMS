@@ -239,7 +239,7 @@
 
       <!-- Canvas -->
       <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-2 xl:p-4'">
-        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" @edit-field="editEntryField" />
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" @edit-field="editEntryField" @switch-page-area="selectPageArea" />
       </main>
 
       <div
@@ -686,7 +686,9 @@ const subheading = computed(() => {
     return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
   }
   if (target === "page") {
-    return `${builder.type.value?.label ?? name} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
+    const fields = builder.pageFields();
+    const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
+    return `${builder.type.value?.label ?? name}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
   return target === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant}`);
 });
@@ -1014,6 +1016,12 @@ function selectEntry(entry) {
   });
 }
 
+/** Edit another page content area of the entry, in place. */
+function selectPageArea(field) {
+  if (target !== "page" || saving.value || loading.value || field === pageField.value) return;
+  goToView({ key: `field:${field}`, field, to: { path: route.path, query: { ...route.query, field } } });
+}
+
 function goToView(view) {
   if (view.key === currentView.value) return;
   if (builder.isDirty.value || entryFields.isDirty.value) {
@@ -1025,6 +1033,13 @@ function goToView(view) {
 
 function switchView(view) {
   pendingView.value = null;
+  // Another area stays in this view: only its content loads.
+  if (view.field) {
+    pageField.value = view.field;
+    router.replace(view.to);
+    load();
+    return;
+  }
   bypass();
   router.push(view.to);
 }

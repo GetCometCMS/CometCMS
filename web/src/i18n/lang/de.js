@@ -1782,6 +1782,7 @@ const messages = {
   'site.page.chooseField': 'Seiteninhalt-Feld wählen',
   'site.page.noField': 'Kein Feld',
   'site.page.placeHint': 'Jeder Eintrag kann diesen Bereich im Page Builder gestalten. Abschnitte, die du hier einfügst, zeigen Einträge, bis sie das tun.',
+  'site.page.editArea': 'Klicken, um „{label}“ zu bearbeiten',
   'site.page.noFieldHint': 'Dieser Inhaltstyp hat noch kein Seiteninhalt-Feld, und du darfst keines hinzufügen. Frag jemanden, der den Inhaltstyp bearbeiten kann.',
   'site.page.notPlaced': 'Das Layout hat noch keinen Bereich „Seiteninhalt“, daher erscheint diese Gestaltung nur hier. Füge ihn dem Layout hinzu, damit sie auf der Website erscheint.',
   'site.page.editLayout': 'Gemeinsames Layout bearbeiten',

@@ -642,5 +642,11 @@ describe('builder page content', () => {
     expect(created).toEqual([{ type: 'pages', key: 'page_content', config: { type: 'page', label: 'site.page.fieldLabel' } }])
     expect(findNode(builder.nodes.value, place.id).props.field).toBe('page_content')
     expect(builder.pageFields().map((field) => field.key)).toEqual(['page_content'])
+
+    const second = builder.make('page_content')
+    expect(builder.insert(second, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created[1]).toEqual({ type: 'pages', key: 'page_content_2', config: { type: 'page', label: 'site.page.fieldLabel 2' } })
+    expect(findNode(builder.nodes.value, second.id).props.field).toBe('page_content_2')
   })
 })

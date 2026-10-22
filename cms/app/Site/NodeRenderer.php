@@ -391,6 +391,11 @@ final class NodeRenderer
             return '<div' . $this->attributes($node, $classes) . '>' . $inner . '</div>';
         }
 
+        if ($this->ctx->pageDraft !== null) {
+            // Another area of the entry being edited: the builder switches to it on click.
+            return '<div class="' . implode(' ', [...$classes, 'c-page-area']) . '" data-page-area="' . Security::e($field) . '">' . $inner . '</div>';
+        }
+
         return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
     }
 

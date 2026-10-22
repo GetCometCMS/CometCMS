@@ -1777,6 +1777,7 @@ const messages = {
     'site.page.chooseField': 'Choose a page content field',
     'site.page.noField': 'No field',
     'site.page.placeHint': 'Each entry can design this area in the page builder. Sections you add here are what entries show until they do.',
+    'site.page.editArea': 'Click to edit “{label}”',
     'site.page.noFieldHint': 'This content type has no page content field yet, and you may not add one. Ask someone who can edit the content type.',
     'site.page.notPlaced': 'The layout has no Page content area yet, so this design only shows here. Add one to the layout to show it on the website.',
     'site.page.editLayout': 'Edit shared layout',

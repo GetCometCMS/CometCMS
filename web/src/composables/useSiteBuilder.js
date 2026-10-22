@@ -339,21 +339,24 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /**
    * A new page content element shows the first page field without a place.
-   * A type without page fields gets one, when the user may change the type.
+   * When every page field has one, the type gets another, if the user may change it.
    */
   async function assignPageField(id) {
     const node = findNode(nodes.value, id)
     if (node?.kind !== PAGE_CONTENT || node.props.field) return
-    const free = pageFields().find((field) => !findPlace(field.key, id))
+    const existing = pageFields()
+    const free = existing.find((field) => !findPlace(field.key, id))
     if (free) {
       node.props.field = free.key
       return
     }
-    if (pageFields().length || !type.value || !fieldApi.create || !(fieldApi.can?.(type.value.name) ?? true)) return
+    if (!type.value || !fieldApi.create || !(fieldApi.can?.(type.value.name) ?? true)) return
     const fields = type.value.fields ?? {}
     const key = uniqueKey('page_content', new Set(Object.keys(fields)), RESERVED_FIELDS)
-    const schema = await fieldApi.create({ type: type.value.name, key, config: { type: 'page', label: t('site.page.fieldLabel') } })
-    type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: { type: 'page', label: t('site.page.fieldLabel') } } }
+    // Further areas are numbered, so entries can tell them apart.
+    const label = existing.length ? `${t('site.page.fieldLabel')} ${existing.length + 1}` : t('site.page.fieldLabel')
+    const schema = await fieldApi.create({ type: type.value.name, key, config: { type: 'page', label } })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: { type: 'page', label } } }
     types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
     const placed = findNode(nodes.value, id)
     if (placed) placed.props.field = key
