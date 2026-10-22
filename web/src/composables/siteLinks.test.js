@@ -23,13 +23,20 @@ describe('website live state', () => {
 })
 
 describe('website destinations', () => {
-  it('separates routable content and listings, retaining homepage exceptions', () => {
+  it('offers public overview types while limiting entries to routable content', () => {
     expect(eligibleTypes(types, settings, 'entry').map((type) => type.name)).toEqual(['about', 'blog'])
-    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['home', 'blog'])
+    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['about', 'home', 'blog', 'portfolio'])
     const homepage = { ...settings, homepage: { type: 'portfolio', entry: '' } }
-    expect(eligibleTypes(types, homepage, 'index').map((type) => type.name)).toEqual(['blog', 'portfolio'])
+    expect(eligibleTypes(types, homepage, 'index').map((type) => type.name)).toEqual(['about', 'home', 'blog', 'portfolio'])
     const homeEntry = { ...settings, homepage: { type: 'home', entry: 'welcome' } }
     expect(eligibleTypes(types, homeEntry, 'entry').map((type) => type.name)).toEqual(['about', 'home', 'blog'])
+  })
+
+  it('allows overview selection before routes are configured and still reports availability', () => {
+    expect(eligibleTypes(types, null, 'index')).toEqual(types.filter((type) => type.visibility !== 'private'))
+    for (const [collection, available] of [['about', false], ['home', true], ['blog', true], ['portfolio', false], ['private', false]]) {
+      expect(destinationAvailable({ type: 'index', collection }, types, settings)).toBe(available)
+    }
   })
 
   it('does not treat unrelated entries as routable when only the homepage entry is enabled', () => {

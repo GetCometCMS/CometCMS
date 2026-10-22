@@ -17,7 +17,9 @@ export function eligibleTypes(types, settings, kind) {
     const route = settings?.routes?.[type.name]
     const home = settings?.homepage
     const homepage = home?.type === type.name
-    if (kind === 'index') return !!((route?.enabled && route.index_path) || (homepage && !home.entry))
+    // Overview destinations can be configured before their website route exists.
+    // destinationAvailable reports missing routes without hiding the content type.
+    if (kind === 'index') return true
     return !!(route?.enabled || (homepage && home.entry))
   })
 }
