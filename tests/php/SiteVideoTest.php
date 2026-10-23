@@ -70,7 +70,7 @@ test('video rendering escapes labels and preserves selection without loading med
     $video['props']['video_url'] = 'https://invalid.example/';
     assert_same('', $renderer->render([$video]));
     $ctx->annotate = true;
-    assert_true(str_contains($renderer->render([$video]), 'Enter a YouTube'));
+    assert_true(str_contains($renderer->render([$video]), 'YouTube, Vimeo or direct video URL'));
 });
 
 test('direct video files render native playback options and time fragments', function (): void {
@@ -83,4 +83,30 @@ test('direct video files render native playback options and time fragments', fun
     assert_true(str_contains($html, 'controlslist="nofullscreen"'));
     assert_false(str_contains($html, ' controls '));
     assert_false(str_contains($html, '<iframe'));
+});
+
+test('library videos take precedence over URLs and use an image poster', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/clip.mp4', "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom");
+    file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40"></svg>');
+    $video = LayoutSchema::node('video', ['media' => 'clip.mp4', 'poster' => 'photo.svg', 'video_url' => 'https://youtu.be/dQw4w9WgXcQ', 'start_time' => 3]);
+    $html = (new NodeRenderer(comet_site_test_context()))->render([$video]);
+    assert_true(str_contains($html, '<video src="'), $html);
+    assert_true(str_contains($html, 'clip.mp4#t=3'));
+    assert_true(str_contains($html, 'poster="'));
+    assert_true(str_contains($html, 'photo.svg'));
+    assert_false(str_contains($html, '<iframe'));
+    $video['props']['media'] = 'photo.svg';
+    assert_true(str_contains((new NodeRenderer(comet_site_test_context()))->render([$video]), '<iframe'));
+});
+
+test('the editing canvas shows library videos without autoplay', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/clip.mp4', "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom");
+    $ctx = comet_site_test_context();
+    $ctx->preview = true;
+    $ctx->annotate = true;
+    $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('video', ['media' => 'clip.mp4', 'autoplay' => true])]);
+    assert_true(str_contains($html, '<video src="'), $html);
+    assert_false(str_contains($html, 'autoplay'));
 });

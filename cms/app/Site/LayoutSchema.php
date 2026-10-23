@@ -153,7 +153,7 @@ final class LayoutSchema
 
     public const LOCALIZED_PROPS = [
         'heading' => ['text', 'link'], 'text' => ['html'],
-        'video' => ['video_url', 'title'],
+        'video' => ['media', 'poster', 'video_url', 'title'],
         'image' => ['media', 'link', 'alt', 'caption'], 'gallery' => ['media', 'link'],
         'button' => ['label', 'link'], 'accordion' => ['title', 'html'],
         'tabs' => ['title'], 'tab' => ['title'], 'icon' => ['label', 'link'],
@@ -309,6 +309,9 @@ final class LayoutSchema
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'video' => [
+                // A library video takes precedence over the URL; the poster only applies to file playback.
+                'media' => ['type' => 'media', 'default' => ''],
+                'poster' => ['type' => 'media', 'default' => ''],
                 'video_url' => ['type' => 'string', 'max' => 2000, 'default' => ''],
                 'title' => ['type' => 'string', 'max' => 300, 'default' => 'Video'],
                 'ratio' => ['type' => 'enum', 'options' => ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], 'default' => '16:9'],

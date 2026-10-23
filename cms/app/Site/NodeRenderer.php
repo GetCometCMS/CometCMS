@@ -549,25 +549,33 @@ final class NodeRenderer
     private function video(array $node): string
     {
         $props = $node['props'];
-        // Canvas previews never load third-party frames or autoplay media. The
-        // full-page preview uses the same interactive player as the website.
-        $source = VideoEmbed::source($props);
+        // Canvas previews never load third-party sources or autoplay media; library
+        // videos are same-origin, so the canvas shows their player. The full-page
+        // preview uses the same interactive player as the website.
+        $item = ($props['media'] ?? '') !== '' ? $this->ctx->mediaItem($props['media']) : null;
+        $library = $item !== null && str_starts_with((string) ($item['mime'] ?? ''), 'video/');
+        $source = $library
+            ? ['type' => 'file', 'url' => $this->ctx->mediaUrl($item['name']) . ($props['start_time'] ? '#t=' . $props['start_time'] : '')]
+            : VideoEmbed::source($props);
+        $canvas = $this->ctx->preview && !$this->ctx->browsePreview;
         $title = Security::e($props['title'] ?: 'Video');
         $ratio = 'c-ratio c-ratio-' . str_replace(':', '-', $props['ratio']);
-        if ($source === null || ($this->ctx->preview && !$this->ctx->browsePreview)) {
+        if ($source === null || ($canvas && !$library)) {
             if (!$this->ctx->annotate && $source === null) return '';
             $key = $source === null ? 'chooseVideo' : 'videoPreview';
-            $label = $source === null ? 'Enter a YouTube, Vimeo or direct video URL' : 'Video preview: open the full-page preview to play';
+            $label = $source === null ? 'Choose a library video or enter a YouTube, Vimeo or direct video URL' : 'Video preview: open the full-page preview to play';
             return $this->element($node, '<div class="' . $ratio . ' c-video-placeholder"><div class="c-placeholder"' . $this->placeholder($key) . '>' . $label . '</div><span>' . $title . '</span></div>');
         }
         $src = Security::e($source['url']);
-        $autoplay = $props['autoplay'];
+        $autoplay = $props['autoplay'] && !$canvas;
         if ($source['type'] === 'file') {
             $attrs = ' playsinline preload="metadata"';
             foreach (['controls', 'loop'] as $key) if ($props[$key]) $attrs .= ' ' . $key;
             if ($props['muted'] || $autoplay) $attrs .= ' muted';
             if ($autoplay) $attrs .= ' autoplay';
             if (!$props['fullscreen']) $attrs .= ' controlslist="nofullscreen"';
+            $poster = ($props['poster'] ?? '') !== '' ? $this->ctx->mediaItem($props['poster']) : null;
+            if ($poster !== null && str_starts_with((string) ($poster['mime'] ?? ''), 'image/')) $attrs .= ' poster="' . Security::e($this->imageSource($poster, 1280)) . '"';
             $player = '<video src="' . $src . '" aria-label="' . $title . '"' . $attrs . '></video>';
         } else {
             $allow = 'autoplay; encrypted-media; picture-in-picture';
