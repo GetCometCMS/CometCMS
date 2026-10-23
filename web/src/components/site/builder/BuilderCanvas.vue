@@ -74,7 +74,7 @@ const BUILDER_CSS = `
 }
 
 [data-node]{
-  --builder-color:#526783;
+  --builder-color:#2563eb;
   outline:1px solid transparent;
   outline-offset:-1px;
   transition:outline-color .12s;
@@ -214,14 +214,14 @@ const BUILDER_CSS = `
   position:absolute;
   z-index:2147483646;
   pointer-events:none;
-  background:var(--builder-color,#526783);
+  background:var(--builder-color,#2563eb);
   border-radius:3px;
   box-shadow:0 0 0 2px rgba(255,255,255,.85);
 }
 
 .cometcms-drop.is-box{
-  background:color-mix(in srgb,var(--builder-color,#526783) 7%,transparent);
-  border:2px dashed var(--builder-color,#526783);
+  background:color-mix(in srgb,var(--builder-color,#2563eb) 7%,transparent);
+  border:2px dashed var(--builder-color,#2563eb);
   box-shadow:none;
   border-radius:6px;
 }
@@ -236,7 +236,7 @@ const BUILDER_CSS = `
   align-items:stretch;
   cursor:pointer;
   transform:translateY(-100%);
-  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  background:color-mix(in srgb,var(--builder-color,#2563eb) 42%,#fff);
   color:#253047;
   font:600 max(12px,calc(12px * var(--s)))/1.2 system-ui,sans-serif;
   letter-spacing:.01em;
@@ -287,7 +287,7 @@ const BUILDER_CSS = `
 .cometcms-badge:focus-visible{
   outline:calc(2px * var(--s)) solid #fff;
   outline-offset:calc(2px * var(--s));
-  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#526783);
+  box-shadow:0 0 0 calc(4px * var(--s)) var(--builder-color,#2563eb);
 }
 
 /* Column resizing: a grip on the edge under the pointer */
@@ -313,7 +313,7 @@ const BUILDER_CSS = `
   left:50%;
   width:4px;
   transform:translateX(-50%);
-  background:var(--builder-color,#526783);
+  background:var(--builder-color,#2563eb);
   border-radius:2px;
 }
 
@@ -326,7 +326,7 @@ const BUILDER_CSS = `
   height:28px;
   transform:translate(-50%,-50%);
   background:#fff;
-  border:2px solid var(--builder-color,#526783);
+  border:2px solid var(--builder-color,#2563eb);
   border-radius:4px;
   box-shadow:0 1px 3px rgba(0,0,0,.18);
 }
@@ -336,7 +336,7 @@ const BUILDER_CSS = `
   top:50%;
   left:50%;
   transform:translate(-50%,calc(-100% - 22px));
-  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  background:color-mix(in srgb,var(--builder-color,#2563eb) 42%,#fff);
   color:#253047;
   font:600 11px/1 system-ui,sans-serif;
   padding:5px 7px;
@@ -368,7 +368,7 @@ html.cometcms-resizing,html.cometcms-resizing *{
   width:calc(26px * var(--s));
   height:calc(26px * var(--s));
   transform:translate(-100%,-100%);
-  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  background:color-mix(in srgb,var(--builder-color,#2563eb) 42%,#fff);
   color:#253047;
   border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
   box-shadow:inset 0 0 0 1px var(--builder-color),0 -1px 4px rgba(0,0,0,.16);
@@ -390,7 +390,7 @@ html.cometcms-resizing,html.cometcms-resizing *{
   position:absolute;
   top:calc(100% + 6px);
   right:0;
-  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  background:color-mix(in srgb,var(--builder-color,#2563eb) 42%,#fff);
   color:#253047;
   font:600 11px/1 system-ui,sans-serif;
   padding:5px 7px;
@@ -1126,7 +1126,7 @@ function showIndicator(target) {
   const win = doc.defaultView;
   const { rect, position, horizontal } = target;
   const el = element(target.id);
-  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#526783");
+  indicator.style.setProperty("--builder-color", el ? win.getComputedStyle(el).getPropertyValue("--builder-color") : "#2563eb");
   const x = rect.left + win.scrollX;
   const y = rect.top + win.scrollY;
   indicator.classList.toggle("is-box", position === "inside");
