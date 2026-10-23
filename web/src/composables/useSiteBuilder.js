@@ -36,6 +36,26 @@ import {
 const KEY = Symbol('site-builder')
 const HISTORY_LIMIT = 100
 
+const HOVER_ANIMATION_KEYS = ['animation', 'animation_duration', 'animation_delay']
+
+/** Upgrade legacy hover triggers on entry to the editor, including restored revisions. */
+function migrateHoverAnimations(tree) {
+  const result = clone(tree ?? [])
+  walk(result, (node) => {
+    if (node.style?.animation_trigger !== 'hover') return
+    if (node.states?.hover?.style?.animation === undefined) {
+      node.states ??= {}
+      node.states.hover ??= {}
+      node.states.hover.style ??= {}
+      for (const key of HOVER_ANIMATION_KEYS) {
+        if (node.style[key] !== undefined) node.states.hover.style[key] ??= node.style[key]
+      }
+    }
+    for (const key of [...HOVER_ANIMATION_KEYS, 'animation_trigger']) delete node.style[key]
+  })
+  return result
+}
+
 /** The content of each element that can become a field of its own: the prop and the type of field it becomes. */
 const CONTENT_PROPS = {
   heading: { key: 'text', field: 'text' },
@@ -125,7 +145,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const canRedo = computed(() => future.value.length > 0)
 
   function load(tree) {
-    nodes.value = clone(tree ?? [])
+    nodes.value = migrateHoverAnimations(tree)
     savedSnapshot.value = JSON.stringify(nodes.value)
     past.value = []
     future.value = []
@@ -134,12 +154,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function loadRevision(tree) {
-    mutate(() => { nodes.value = clone(tree ?? []) })
+    mutate(() => { nodes.value = migrateHoverAnimations(tree) })
     keepSelection()
   }
 
   function markSaved(tree) {
-    nodes.value = clone(tree)
+    nodes.value = migrateHoverAnimations(tree)
     savedSnapshot.value = JSON.stringify(nodes.value)
     if (selectedId.value && !findNode(nodes.value, selectedId.value)) selectedId.value = null
   }
@@ -445,7 +465,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const kind = spec.value?.kinds?.[node?.kind]
     if (!kind) return null
     if (styleState.value !== 'normal') {
-      return kind.states?.[group]?.includes(key) ? { group: 'states', variant: styleState.value } : null
+      return (kind.states?.[group]?.includes(key) || kind.states?.variants?.[styleState.value]?.[group]?.includes(key))
+        ? { group: 'states', variant: styleState.value } : null
     }
     if (device.value !== 'desktop' && kind.responsive?.[group]?.includes(key)) return { group: 'responsive', variant: device.value }
     return null
@@ -483,6 +504,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function editValue(id, group, key, value) {
     const node = findNode(nodes.value, id)
     const target = node ? overrideTarget(node, group, key) : null
+    if (node && !editableInState(node, group, key)) return
     if (!target) return updateValue(id, group, key, value)
     if (translating.value) return
     mutate((tree) => {
@@ -498,6 +520,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       const node = findNode(tree, id)
       if (!node) return
       for (const [key, value] of Object.entries(values)) {
+        if (!editableInState(node, group, key)) continue
         const target = overrideTarget(node, group, key)
         if (target) {
           setOverride(node, target.group, target.variant, group, key, value)
@@ -523,6 +546,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const values = { ...(overrides[variant]?.[group] ?? {}) }
     if (value === '' || value === null || value === undefined) delete values[key]
     else values[key] = value
+    if (overrideGroup === 'states' && variant === 'hover' && group === 'style' && key === 'animation' && (!value || value === 'none')) {
+      for (const animationKey of HOVER_ANIMATION_KEYS) delete values[animationKey]
+    }
     overrides[variant] = { ...(overrides[variant] ?? {}), [group]: values }
     if (!Object.keys(values).length) delete overrides[variant][group]
     if (!Object.keys(overrides[variant]).length) delete overrides[variant]

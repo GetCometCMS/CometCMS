@@ -88,7 +88,7 @@ The editing canvas shows library videos with their player (autoplay is off while
 
 ### Animations
 
-Under **Style → Animation**, choose an effect and when it plays. **When scrolled into view** plays the entrance once as the element first appears in the viewport, using the theme's speed and stagger delay. **When the page opens** plays on load. **On Hover** starts from the element's current appearance, gently moves, scales, dims or blurs it, and returns when the pointer leaves. Reduced-motion preferences disable these effects.
+Under **Style → Normal → Animation**, choose an entrance effect and when it plays. **When scrolled into view** plays the entrance once as the element first appears in the viewport, using the theme's speed and stagger delay. **When the page opens** plays on load. Independently, **Style → Hover → Animation** lets you choose a hover effect with its own duration and delay. It starts from the element's current appearance, gently moves, scales, dims or blurs it, and returns when the pointer leaves. Reduced-motion preferences disable these effects.
 
 Scroll inside the preview to test entry animations. Each preview update creates a new page and restores its scroll position, so elements already in view can play immediately. In browsers without [CSS scroll-triggered animations](https://developer.chrome.com/blog/scroll-triggered-animations), entrances progress with scrolling instead; an element already fully in view then looks finished when the effect is enabled. Browsers without view timelines play entrances on page load.
 

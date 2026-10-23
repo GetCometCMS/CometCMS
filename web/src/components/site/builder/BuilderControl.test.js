@@ -9,9 +9,11 @@ import { SITE_ICONS } from '../../../composables/siteIcons.js'
 import { t } from '../../../i18n/index.js'
 
 async function renderControl(name, def, value, overrides = {}) {
+  const { styleState = 'normal', ...controlProps } = overrides
   const app = createSSRApp({ setup() {
-    createSiteBuilder({ t })
-    return () => h(BuilderControl, { node: { id: 'icon1', kind: 'icon', props: {}, style: {} }, name, def, value, ...overrides })
+    const builder = createSiteBuilder({ t })
+    builder.styleState.value = styleState
+    return () => h(BuilderControl, { node: { id: 'icon1', kind: 'icon', props: {}, style: {} }, name, def, value, ...controlProps })
   } })
   app.use(createPinia())
   return renderToString(app)
@@ -53,7 +55,7 @@ describe('builder hover effects', () => {
   it('describes movement for hover and entrances for other triggers', async () => {
     const def = { type: 'enum', options: ['none', 'fade', 'fade-left', 'zoom-in', 'blur'] }
     const hover = await renderControl('animation', def, 'fade-left', {
-      group: 'style', node: { id: 'text1', kind: 'text', style: { animation_trigger: 'hover' } },
+      group: 'style', styleState: 'hover', node: { id: 'text1', kind: 'text', style: { animation: 'fade-up', animation_trigger: 'load' } },
     })
     expect(hover).toContain('Hover effect')
     expect(hover).toContain('Move left')

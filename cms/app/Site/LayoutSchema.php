@@ -149,6 +149,9 @@ final class LayoutSchema
     /** Style a hover or focus state may change. */
     public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow', 'opacity'];
 
+    /** Additional style options available only in Hover. */
+    public const HOVER_ANIMATION_KEYS = ['animation', 'animation_duration', 'animation_delay'];
+
     /** Props a hover or focus state may change, per kind. */
     public const STATE_PROPS = [
         'button' => ['button_color', 'button_text_color', 'button_border_color'],
@@ -205,8 +208,8 @@ final class LayoutSchema
             'border_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS], 'default' => ''],
             'max_width' => ['type' => 'enum', 'options' => ['', 'narrow', 'prose'], 'default' => ''],
             'animation' => ['type' => 'enum', 'options' => ['none', 'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'zoom-in', 'zoom-out', 'blur'], 'default' => 'none'],
-            // Scroll plays as the element comes into view; load on page open; hover on pointer entry.
-            'animation_trigger' => ['type' => 'enum', 'options' => ['scroll', 'load', 'hover'], 'default' => 'scroll'],
+            // Entrance animations play on scroll or load; hover effects live in states.hover.style.
+            'animation_trigger' => ['type' => 'enum', 'options' => ['scroll', 'load'], 'default' => 'scroll'],
             'animation_duration' => ['type' => 'enum', 'options' => ['fast', 'normal', 'slow'], 'default' => 'normal'],
             // Stagger step: later steps start a little after earlier ones.
             'animation_delay' => ['type' => 'int', 'min' => 0, 'max' => 6, 'default' => 0],
@@ -495,7 +498,11 @@ final class LayoutSchema
                 'style' => self::styleKeys($kind),
                 'children' => self::childrenFor($kind, $pageContent),
                 'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
-                'states' => ['props' => self::STATE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::STATE_STYLE, self::styleKeys($kind)))],
+                'states' => [
+                    'props' => self::STATE_PROPS[$kind] ?? [],
+                    'style' => array_values(array_intersect(self::STATE_STYLE, self::styleKeys($kind))),
+                    'variants' => ['hover' => ['style' => array_values(array_intersect(self::HOVER_ANIMATION_KEYS, self::styleKeys($kind)))]],
+                ],
             ];
         }
 
@@ -1117,6 +1124,7 @@ final class LayoutSchema
                 $children = array_slice($children, 0, 1);
             }
 
+            $node = self::migrateHoverAnimation($node);
             $props = is_array($node['props'] ?? null) ? $node['props'] : [];
             $style = is_array($node['style'] ?? null) ? $node['style'] : [];
 
@@ -1216,6 +1224,27 @@ final class LayoutSchema
         return $normalized;
     }
 
+    /** Upgrade the former single hover animation without rewriting stored layouts. */
+    public static function migrateHoverAnimation(array $node): array
+    {
+        if (($node['style']['animation_trigger'] ?? '') !== 'hover') return $node;
+        $states = is_array($node['states'] ?? null) ? $node['states'] : [];
+        $hover = is_array($states['hover'] ?? null) ? $states['hover'] : [];
+        $style = is_array($hover['style'] ?? null) ? $hover['style'] : [];
+        if (!array_key_exists('animation', $style)) {
+            $node['states'] = $states;
+            $node['states']['hover'] = $hover;
+            $node['states']['hover']['style'] = $style;
+            foreach (self::HOVER_ANIMATION_KEYS as $key) {
+                if (array_key_exists($key, $node['style'])) {
+                    $node['states']['hover']['style'][$key] ??= $node['style'][$key];
+                }
+            }
+        }
+        foreach (self::ANIMATION_KEYS as $key) unset($node['style'][$key]);
+        return $node;
+    }
+
     /**
      * Tablet and mobile, or hover and focus values of a node: only keys the
      * kind offers for them, and only set values. An empty value follows the
@@ -1234,12 +1263,16 @@ final class LayoutSchema
         $normalized = [];
 
         foreach ($variants as $variant) {
+            $variantKeys = $keys;
+            if ($group === 'states' && $variant === 'hover') {
+                $variantKeys['style'] = [...$variantKeys['style'], ...self::HOVER_ANIMATION_KEYS];
+            }
             foreach (['props', 'style'] as $part) {
                 $values = $value[$variant][$part] ?? null;
                 if (!is_array($values)) {
                     continue;
                 }
-                foreach ($keys[$part] as $key) {
+                foreach ($variantKeys[$part] as $key) {
                     if (!array_key_exists($key, $values) || ($part === 'style' && !in_array($key, $styleKeys, true))) {
                         continue;
                     }
@@ -1251,6 +1284,19 @@ final class LayoutSchema
             }
         }
 
+        if ($group === 'states' && isset($normalized['hover']['style'])) {
+            $hover = &$normalized['hover']['style'];
+            if (($hover['animation'] ?? 'none') === 'none') {
+                foreach (self::HOVER_ANIMATION_KEYS as $key) unset($hover[$key]);
+            } else {
+                foreach (['animation_duration', 'animation_delay'] as $key) {
+                    if (($hover[$key] ?? null) === $specs['style'][$key]['default']) unset($hover[$key]);
+                }
+            }
+            unset($hover);
+            if ($normalized['hover']['style'] === []) unset($normalized['hover']['style']);
+            if ($normalized['hover'] === []) unset($normalized['hover']);
+        }
         return $normalized;
     }
 

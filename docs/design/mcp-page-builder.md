@@ -48,7 +48,11 @@ Every layout response identifies collection, variant and whole-layout revision.
 `responsive` (`{tablet?, mobile?: {props?, style?}}`) and `states`
 (`{hover?, focus?: {props?, style?}}`) hold values that differ on smaller
 screens or while hovered or focused; `get_builder_schema(kind)` lists the keys
-each accepts, and a patch replaces the whole map. Omitted IDs are
+each accepts, and a patch replaces the whole map. Common state keys are listed in
+`states.style` and `states.props`; additional state-specific keys are listed in
+`states.variants[state]`. Hover supports independent `animation`,
+`animation_duration`, and `animation_delay` values in `states.hover.style`,
+alongside normal load/scroll animation settings. Omitted IDs are
 server-generated; supplied IDs must be unique and valid. Property/style maps
 merge at the property-key level: supplying an object-valued property replaces
 that property, including localized maps. Read it first to preserve translations.

@@ -817,3 +817,68 @@ describe('builder device and state overrides', () => {
     expect(node().responsive.tablet.style.padding_top).toBe('sm')
   })
 })
+
+
+describe('independent hover animations', () => {
+  it('edits, resets and restores hover settings independently of entrance animations', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.style = { animation: { default: 'none' }, animation_duration: { default: 'normal' }, animation_delay: { default: 0 } }
+    builder.spec.value.kinds.heading.style = ['animation', 'animation_duration', 'animation_delay', 'animation_trigger']
+    builder.spec.value.kinds.heading.states = { props: [], style: [], variants: { hover: { style: ['animation', 'animation_duration', 'animation_delay'] } } }
+    const heading = builder.make('heading', {}, { animation: 'fade-up', animation_trigger: 'load', animation_duration: 'slow', animation_delay: 1 })
+    builder.load([heading])
+    const node = () => builder.nodes.value[0]
+    const entrance = { ...node().style }
+    builder.styleState.value = 'hover'
+    expect(builder.viewValue(node(), 'style', 'animation')).toBe('')
+    expect(builder.editableInState(node(), 'style', 'animation')).toBe(true)
+    expect(builder.editableInState(node(), 'style', 'animation_trigger')).toBe(false)
+    builder.editValues(heading.id, 'style', { animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 })
+    expect(node().style).toEqual(entrance)
+    expect(node().states.hover.style).toEqual({ animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 })
+    builder.undo()
+    expect(node().states).toBeUndefined()
+    builder.redo()
+    expect(node().states.hover.style.animation).toBe('zoom-in')
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'animation_duration')
+    expect(node().states.hover.style.animation_duration).toBeUndefined()
+    builder.undo()
+    expect(node().states.hover.style.animation_duration).toBe('fast')
+    builder.markSaved(JSON.parse(JSON.stringify(builder.nodes.value)))
+    expect(builder.isDirty.value).toBe(false)
+    expect(node().states.hover.style.animation_delay).toBe(2)
+    builder.styleState.value = 'focus'
+    expect(builder.editableInState(node(), 'style', 'animation')).toBe(false)
+    builder.editValue(heading.id, 'style', 'animation', 'blur')
+    builder.editValues(heading.id, 'style', { animation: 'blur' })
+    expect(node().style).toEqual(entrance)
+    expect(node().states.focus).toBeUndefined()
+    builder.styleState.value = 'hover'
+    builder.editValue(heading.id, 'style', 'animation', 'none')
+    expect(node().states).toBeUndefined()
+    expect(node().style).toEqual(entrance)
+    builder.undo()
+    expect(node().states.hover.style.animation).toBe('zoom-in')
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'animation')
+    expect(node().states).toBeUndefined()
+  })
+
+  it('migrates nested legacy hover effects on load and revision restore without mutating input', async () => {
+    const builder = await builderFixture()
+    const legacy = builder.make('heading', {}, { animation: 'zoom-in', animation_trigger: 'hover', animation_duration: 'fast', animation_delay: 2 })
+    const tree = [builder.make('section', {}, {}, [legacy])]
+    builder.load(tree)
+    expect(tree[0].children[0].style.animation_trigger).toBe('hover')
+    expect(builder.nodes.value[0].children[0]).toMatchObject({ style: {}, states: { hover: { style: { animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 } } } })
+    expect(builder.isDirty.value).toBe(false)
+    legacy.states = { hover: { style: { animation: 'blur' } } }
+    builder.loadRevision(tree)
+    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'blur' })
+    builder.undo()
+    expect(builder.nodes.value[0].children[0].states.hover.style.animation).toBe('zoom-in')
+    legacy.states.hover.style.animation = 'none'
+    builder.markSaved(tree)
+    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'none' })
+    expect(builder.nodes.value[0].children[0].style).toEqual({})
+  })
+})

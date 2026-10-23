@@ -1223,12 +1223,13 @@ test('entrance animations keep their timing only while an animation is set', fun
 
     assert_same(['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 6], $nodes[0]['style'], 'Delay steps are clamped.');
     assert_same([], $nodes[0]['children'][0]['style'], 'Unknown animations and their orphaned timing are dropped.');
-    assert_same(['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'fast', 'animation_delay' => 2], $nodes[0]['children'][1]['style'], 'Hover and its timing survive normalization.');
+    assert_same([], $nodes[0]['children'][1]['style']);
+    assert_same(['animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 2], $nodes[0]['children'][1]['states']['hover']['style'], 'Legacy hover settings move to their own state.');
     assert_same([], $nodes[0]['children'][2]['style'], 'Hover is dropped without an animation.');
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
     assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-6'));
-    assert_true(str_contains($html, 'c-anim c-anim-zoom-in c-anim-hover c-anim-fast c-anim-d-2'));
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-zoom-in c-hover-anim-fast c-hover-anim-d-2'));
     assert_true(str_contains(Theme::stylesheet([]), '@keyframes c-anim-fade-up'));
 });
 
@@ -1289,4 +1290,50 @@ PHP;
         if ($expected === null) assert_null($json['data']['homepage_editor']);
         else assert_matches($expected, (string) $json['data']['homepage_editor']);
     }
+});
+
+
+test('hover animations are independent, validated and restricted to hover', function (): void {
+    $section = LayoutSchema::node('section', [], ['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 1], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Animated'])])])]);
+    $section['states'] = [
+        'hover' => ['style' => ['animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 99, 'animation_trigger' => 'load', 'background' => 'primary']],
+        'focus' => ['style' => ['animation' => 'blur', 'animation_duration' => 'slow', 'animation_delay' => 2, 'background' => 'accent']],
+    ];
+    $nodes = LayoutSchema::normalize([$section]);
+    assert_same(['background' => 'primary', 'animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 6], $nodes[0]['states']['hover']['style']);
+    assert_same(['background' => 'accent'], $nodes[0]['states']['focus']['style']);
+    assert_same($section['style'], $nodes[0]['style']);
+    assert_same($nodes, LayoutSchema::normalize($nodes), 'Save/reload is stable.');
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-1'), $html);
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-zoom-in c-hover-anim-fast c-hover-anim-d-6'), $html);
+    $spec = LayoutSchema::spec();
+    assert_same(['scroll', 'load'], $spec['style']['animation_trigger']['options']);
+    assert_same(LayoutSchema::HOVER_ANIMATION_KEYS, $spec['kinds']['section']['states']['variants']['hover']['style']);
+    assert_false(in_array('animation', $spec['kinds']['section']['states']['style'], true));
+
+    foreach (['none', 'spin', null] as $effect) {
+        $section['states']['hover']['style'] = ['animation' => $effect, 'animation_duration' => 'slow', 'animation_delay' => 3, 'opacity' => '75'];
+        $node = LayoutSchema::normalize([$section])[0];
+        assert_false(isset($node['states']['hover']['style']['animation']));
+        assert_false(isset($node['states']['hover']['style']['animation_duration']));
+        assert_false(isset($node['states']['hover']['style']['animation_delay']));
+    }
+    $section['states']['hover']['style'] = ['animation' => 'blur', 'animation_duration' => 'invalid', 'animation_delay' => -5];
+    assert_same(['animation' => 'blur'], LayoutSchema::normalize([$section])[0]['states']['hover']['style']);
+});
+
+test('legacy hover migration preserves explicit hover settings and works without saving', function (): void {
+    $section = LayoutSchema::node('section', [], ['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'slow', 'animation_delay' => 3], [LayoutSchema::node('heading', ['text' => 'Legacy'])]);
+    $section['states'] = ['hover' => ['style' => ['animation' => 'fade-up', 'animation_duration' => 'fast']]];
+    $node = LayoutSchema::normalize([$section])[0];
+    assert_same([], $node['style']);
+    assert_same(['animation' => 'fade-up', 'animation_duration' => 'fast'], $node['states']['hover']['style']);
+    $html = (new NodeRenderer(comet_site_test_context()))->render([$section]);
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-fade-up c-hover-anim-fast'));
+    assert_false(str_contains($html, 'c-anim-zoom-in'));
+    $section['states']['hover']['style'] = ['animation' => 'none'];
+    assert_false(isset(LayoutSchema::normalize([$section])[0]['states']));
+    $section['states'] = 'invalid';
+    assert_same('zoom-in', LayoutSchema::normalize([$section])[0]['states']['hover']['style']['animation']);
 });

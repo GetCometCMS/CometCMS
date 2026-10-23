@@ -373,7 +373,7 @@ const inputId = computed(() => `builder-${props.node.id}-${props.group}-${props.
 /** The design being edited, so new custom colors and classes are offered right away. */
 const siteTheme = computed(() => site.draft?.theme ?? site.data?.theme ?? null);
 const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css ?? ""));
-const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && props.node.style?.animation_trigger === "hover");
+const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && builder.styleState.value === "hover");
 const label = computed(() => {
   if (isHoverAnimation.value) return t("site.style.hover_effect");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");

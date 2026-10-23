@@ -127,6 +127,7 @@ final class NodeRenderer
 
     private function node(array $node, array $state, ?int $order = null): string
     {
+        $node = LayoutSchema::migrateHoverAnimation($node);
         foreach ($node['props'] ?? [] as $key => $value) if (LocalizedValue::is($value)) $node['_localized'][$key] = true;
         $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
@@ -1739,6 +1740,13 @@ final class NodeRenderer
                 }
             }
         }
+        $hover = $node['states']['hover']['style'] ?? [];
+        if (($hover['animation'] ?? 'none') !== 'none') {
+            $classes[] = 'c-hover-anim';
+            $classes[] = 'c-hover-anim-' . $hover['animation'];
+            if (($hover['animation_duration'] ?? 'normal') !== 'normal') $classes[] = 'c-hover-anim-' . $hover['animation_duration'];
+            if (($hover['animation_delay'] ?? 0) > 0) $classes[] = 'c-hover-anim-d-' . $hover['animation_delay'];
+        }
         if (($node['states'] ?? []) !== []) {
             $classes[] = 'c-stateful';
         }
@@ -1793,7 +1801,7 @@ final class NodeRenderer
         if (($style['animation'] ?? 'none') !== 'none') {
             $classes[] = 'c-anim';
             $classes[] = 'c-anim-' . $style['animation'];
-            if (in_array($style['animation_trigger'] ?? 'scroll', ['load', 'hover'], true)) {
+            if (($style['animation_trigger'] ?? 'scroll') === 'load') {
                 $classes[] = 'c-anim-' . $style['animation_trigger'];
             }
             if (($style['animation_duration'] ?? 'normal') !== 'normal') {

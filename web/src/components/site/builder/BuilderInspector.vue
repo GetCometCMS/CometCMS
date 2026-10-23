@@ -330,7 +330,7 @@ const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) =>
 const node = computed(() => builder.selected.value);
 const kindSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind] ?? {});
 /** Hover and focus edit only their own values, so each element starts in its normal state. */
-const hasStates = computed(() => !isInstance.value && ["props", "style"].some((part) => kindSpec.value.states?.[part]?.length));
+const hasStates = computed(() => !isInstance.value && ["props", "style"].some((part) => (kindSpec.value.states?.[part]?.length || kindSpec.value.states?.variants?.hover?.[part]?.length)));
 watch(() => node.value?.id, () => { builder.styleState.value = "normal"; });
 const stateOptions = computed(() => ["normal", "hover", "focus"].map((value) => ({
   value,
@@ -435,7 +435,8 @@ function styleVisible(key) {
   if (style.background_gradient?.type && ["background_image", ...BACKGROUND_IMAGE_OPTIONS].includes(key)) return false;
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
-  if (ANIMATION_OPTIONS.includes(key) && (style.animation ?? "none") === "none") return false;
+  if (key === "animation_trigger" && builder.styleState.value !== "normal") return false;
+  if (ANIMATION_OPTIONS.includes(key) && (builder.viewValue(node.value, "style", "animation") || "none") === "none") return false;
   if (FREE_OPTIONS.includes(key) && builder.viewValue(node.value, "style", "position") !== "absolute") return false;
   return key !== "background_repeat" || (style.background_size ?? styleSpec.value.background_size?.default) !== "cover";
 }
