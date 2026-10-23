@@ -1747,7 +1747,7 @@ final class NodeRenderer
         return $classes;
     }
 
-    /** A positioned node's offsets as unitless pixel variables, per device. */
+    /** A free node's offsets in tenths of a percent of the page width, per device. */
     private function offsetStyle(array $node): string
     {
         $declarations = [];

@@ -50,7 +50,7 @@ let resizeEdge = null;
 let resizing = null;
 let moveHandle = null;
 let moveLabel = null;
-/** Running move of a free element: { el, id, startX, startY, x, y, startOffsetX, startOffsetY, bounds }. */
+/** Running move of a free element: { el, id, startX, startY, x, y, startOffsetX, startOffsetY, bounds, unit }. */
 let moving = null;
 /** Running inline text edit: { target, id, key, rich, original, abort }. */
 let inlineEdit = null;
@@ -998,10 +998,10 @@ function onMoveStart(event) {
   const offset = (key) => Number(builder.viewValue(node, "style", key)) || 0;
   const x = offset("offset_x");
   const y = offset("offset_y");
-  moving = { el, id: node.id, startX: event.clientX, startY: event.clientY, x, y, startOffsetX: x, startOffsetY: y, bounds: moveBounds(el) };
+  moving = { el, id: node.id, startX: event.clientX, startY: event.clientY, x, y, startOffsetX: x, startOffsetY: y, bounds: moveBounds(el), unit: offsetUnit(el) };
   moveHandle.setPointerCapture(event.pointerId);
   doc.documentElement.classList.add("cometcms-moving");
-  moveLabel.textContent = t("site.builder.moveBy", { x, y });
+  moveLabel.textContent = moveText(x, y);
   moveLabel.hidden = false;
 }
 
@@ -1015,29 +1015,76 @@ function onMoveMove(event) {
     if (Math.abs(dx) > Math.abs(dy)) dy = 0;
     else dx = 0;
   }
-  const clamp = (value) => Math.max(-2000, Math.min(2000, Math.round(value)));
-  moving.x = clamp(moving.startOffsetX + dx);
-  moving.y = clamp(moving.startOffsetY + dy);
+  moving.x = clampOffset(moving.startOffsetX + dx / moving.unit);
+  moving.y = clampOffset(moving.startOffsetY + dy / moving.unit);
 
   // Preview right away; the saved offsets re-render the page (see the positioning rules in site.css).
   moving.el.style.setProperty("--c-x", String(moving.x));
   moving.el.style.setProperty("--c-y", String(moving.y));
-  moveLabel.textContent = t("site.builder.moveBy", { x: moving.x, y: moving.y });
+  moveLabel.textContent = moveText(moving.x, moving.y);
   applySelection(false);
 }
 
 function onMoveEnd(event) {
   if (!moving) return;
-  const { el, id, x, y, startOffsetX, startOffsetY } = moving;
+  const { el, id, x, y, startOffsetX, startOffsetY, unit } = moving;
   moving = null;
   if (moveHandle.hasPointerCapture(event.pointerId)) moveHandle.releasePointerCapture(event.pointerId);
   doc.documentElement.classList.remove("cometcms-moving");
   moveLabel.hidden = true;
+
+  if (x === startOffsetX && y === startOffsetY) {
+    el.style.removeProperty("--c-x");
+    el.style.removeProperty("--c-y");
+    return;
+  }
+  // Measured where the preview left it, before the re-render.
+  const values = nearestPin(el, unit);
   el.style.removeProperty("--c-x");
   el.style.removeProperty("--c-y");
+  builder.editValues(id, "style", values);
+}
 
-  if (x === startOffsetX && y === startOffsetY) return;
-  builder.editValues(id, "style", { offset_x: x, offset_y: y });
+/** Pixels per offset step: a tenth of a percent of the page width (see site.css). */
+function offsetUnit(el) {
+  const width = parseFloat(doc.defaultView.getComputedStyle(el).getPropertyValue("--c-sw")) || (el.offsetParent ?? doc.body).clientWidth;
+  return width / 1000 || 1;
+}
+
+function clampOffset(value) {
+  return Math.max(-1000, Math.min(1000, Math.round(value)));
+}
+
+function moveText(x, y) {
+  return t("site.builder.moveBy", { x: (x / 10).toFixed(1), y: (y / 10).toFixed(1) });
+}
+
+const PIN_NAMES = [["top-left", "top", "top-right"], ["left", "center", "right"], ["bottom-left", "bottom", "bottom-right"]];
+
+/**
+ * The pin point nearest to where the element was dropped, with the offsets
+ * that keep it there: an element near the right edge stays with that edge
+ * as the section narrows.
+ */
+function nearestPin(el, unit) {
+  const parent = el.offsetParent ?? doc.body;
+  const outer = parent.getBoundingClientRect();
+  const left = outer.left + parent.clientLeft;
+  const top = outer.top + parent.clientTop;
+  const width = parent.clientWidth;
+  const height = parent.clientHeight;
+  const rect = el.getBoundingClientRect();
+  const third = (position, size) => (position < size / 3 ? 0 : position > (size * 2) / 3 ? 2 : 1);
+  const column = third(rect.left + rect.width / 2 - left, width);
+  const row = third(rect.top + rect.height / 2 - top, height);
+  // The pin point of the element sits on the same point of the section; the offset is the rest.
+  const ax = column / 2;
+  const ay = row / 2;
+  return {
+    pin: PIN_NAMES[row][column],
+    offset_x: clampOffset((rect.left - left - ax * (width - rect.width)) / unit),
+    offset_y: clampOffset((rect.top - top - ay * (height - rect.height)) / unit),
+  };
 }
 
 /** The node under the pointer and where a drop would go relative to it. */

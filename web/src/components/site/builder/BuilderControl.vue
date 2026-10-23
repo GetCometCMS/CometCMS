@@ -164,7 +164,7 @@
         class="min-w-0 flex-1 accent-theme-600"
         :min="def.min"
         :max="def.slider_max ?? def.max"
-        :step="node.kind === 'icon' ? 1 : SIZE_STEP"
+        :step="node.kind === 'icon' || def.scale ? 1 : SIZE_STEP"
         :value="value ?? 0"
         :aria-label="label"
         @input="emitNumber($event.target.value)"
@@ -173,12 +173,13 @@
         <input
           :id="inputId"
           type="number"
-          :min="def.min"
-          :max="def.max"
-          :value="value || ''"
-          :placeholder="t('site.builder.spanAuto')"
+          :min="def.min / (def.scale ?? 1)"
+          :max="def.max / (def.scale ?? 1)"
+          :step="1 / (def.scale ?? 1)"
+          :value="value ? value / (def.scale ?? 1) : ''"
+          :placeholder="def.scale ? '0' : t('site.builder.spanAuto')"
           class="form-input w-full rounded-lg border-slate-300 py-1.5 pr-7 text-xs"
-          @change="emitNumber($event.target.value || 0)"
+          @change="emitNumber(($event.target.value || 0) * (def.scale ?? 1))"
         />
         <span class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-slate-400">{{ def.unit }}</span>
       </span>

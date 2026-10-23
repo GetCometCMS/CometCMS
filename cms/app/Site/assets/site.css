@@ -1086,8 +1086,12 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-video-placeholder { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .5rem; width: 100%; }
 .c-video-badge { display: inline-flex; align-items: center; gap: .4rem; font-size: .875rem; font-weight: 600; }
 
-/* Positioning. Offsets are unitless pixels per device (see NodeRenderer::offsetStyle);
-   they and the pin point stay on their own element instead of passing to nested ones. */
+/* Positioning. Offsets are tenths of a percent of the section's width per device (see
+   NodeRenderer::offsetStyle); they and the pin point stay on their own element instead of passing
+   to nested ones. Sections span the page, so the page width stands in for theirs: a size
+   container on them would trap the fixed menu drawer and lightbox inside. */
+@property --c-sw { syntax: '<length>'; inherits: true; initial-value: 0px; }
+:root { --c-sw: 100vw; }
 @property --c-ox { syntax: '*'; inherits: false; }
 @property --c-oy { syntax: '*'; inherits: false; }
 @property --c-t-ox { syntax: '*'; inherits: false; }
@@ -1106,7 +1110,7 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
    background image), then moves by the offsets. */
 .c-pos-absolute {
   position: absolute; z-index: 1; margin: 0;
-  left: calc(var(--c-ax, 0) * 100% + var(--c-x) * 1px); top: calc(var(--c-ay, 0) * 100% + var(--c-y) * 1px);
+  left: calc(var(--c-ax, 0) * 100% + var(--c-x) * var(--c-sw) / 1000); top: calc(var(--c-ay, 0) * 100% + var(--c-y) * var(--c-sw) / 1000);
   translate: calc(var(--c-ax, 0) * -100%) calc(var(--c-ay, 0) * -100%);
 }
 .c-pin-top-left { --c-ax: 0; --c-ay: 0; }

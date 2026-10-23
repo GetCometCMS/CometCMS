@@ -1728,7 +1728,7 @@ const messages = {
     'site.builder.columnLayoutHint': 'Columns always stack on phones. Content of removed columns moves into the last column.',
     'site.builder.spanOf': '{span} of 12',
     'site.builder.moveHint': 'Drag to move · Shift keeps one direction',
-    'site.builder.moveBy': '{x}, {y} px',
+    'site.builder.moveBy': '{x} %, {y} %',
     'site.builder.spanAuto': 'Auto',
     'site.builder.spanAutoHint': 'Same width as on the next smaller device',
     'site.builder.hideOnDevice': 'Hide on {device}',

@@ -1733,7 +1733,7 @@ const messages = {
   'site.builder.columnLayoutHint': 'Auf Smartphones stehen Spalten immer untereinander. Inhalte entfernter Spalten wandern in die letzte Spalte.',
   'site.builder.spanOf': '{span} von 12',
   'site.builder.moveHint': 'Ziehen zum Verschieben · Umschalt hält eine Richtung',
-  'site.builder.moveBy': '{x}, {y} px',
+  'site.builder.moveBy': '{x} %, {y} %',
   'site.builder.spanAuto': 'Auto',
   'site.builder.spanAutoHint': 'Gleiche Breite wie auf dem nächstkleineren Gerät',
   'site.builder.hideOnDevice': 'Auf {device} ausblenden',

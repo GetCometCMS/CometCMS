@@ -214,8 +214,9 @@ final class LayoutSchema
             // Static only matters as a device override back to the flow.
             'position' => ['type' => 'enum', 'options' => ['', 'static', 'absolute'], 'default' => ''],
             'pin' => ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'top-left'],
-            'offset_x' => ['type' => 'int', 'min' => -2000, 'max' => 2000, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
-            'offset_y' => ['type' => 'int', 'min' => -2000, 'max' => 2000, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
+            // Tenths of a percent of the page width on both axes, so the layout scales with it (see site.css).
+            'offset_x' => ['type' => 'int', 'min' => -1000, 'max' => 1000, 'unit' => '%', 'scale' => 10, 'default' => 0],
+            'offset_y' => ['type' => 'int', 'min' => -1000, 'max' => 1000, 'unit' => '%', 'scale' => 10, 'default' => 0],
             'z_index' => ['type' => 'enum', 'options' => ['', 'behind', '1', '2', '3', '4', '5'], 'default' => ''],
             'opacity' => ['type' => 'enum', 'options' => ['', '0', '10', '25', '50', '75', '90'], 'default' => ''],
             'overflow' => ['type' => 'enum', 'options' => ['', 'visible', 'hidden', 'auto'], 'default' => ''],
