@@ -61,6 +61,17 @@ final class NodeRenderer
         'shadow' => 'sh-',
         'max_width' => 'mw-',
         'border_color' => 'bdc-',
+        'position' => 'pos-',
+        'pin' => 'pin-',
+        'z_index' => 'z-',
+        'opacity' => 'op-',
+    ];
+
+    /** Offset variables of each device; site.css resolves them, mobile following tablet. */
+    private const OFFSET_VARIABLES = [
+        'normal' => ['offset_x' => '--c-ox', 'offset_y' => '--c-oy'],
+        'tablet' => ['offset_x' => '--c-t-ox', 'offset_y' => '--c-t-oy'],
+        'mobile' => ['offset_x' => '--c-m-ox', 'offset_y' => '--c-m-oy'],
     ];
 
     /** Utility class of each prop a device may change on the node's own element. */
@@ -1690,6 +1701,7 @@ final class NodeRenderer
     private function attributes(array $node, array $classes, string $style = ''): string
     {
         $classes = [...$classes, ...$this->overrideClasses($node)];
+        $style = implode(';', array_filter([$style, $this->offsetStyle($node)]));
         $attributes = ' class="' . Security::e(implode(' ', array_unique(array_filter($classes)))) . '"';
 
         if (($node['style']['anchor'] ?? '') !== '') {
@@ -1732,6 +1744,23 @@ final class NodeRenderer
         }
 
         return $classes;
+    }
+
+    /** A positioned node's offsets as unitless pixel variables, per device. */
+    private function offsetStyle(array $node): string
+    {
+        $declarations = [];
+
+        foreach (self::OFFSET_VARIABLES as $device => $variables) {
+            $values = $device === 'normal' ? $node['style'] : ($node['responsive'][$device]['style'] ?? []);
+            foreach ($variables as $key => $variable) {
+                if (is_int($values[$key] ?? null) && ($device !== 'normal' || $values[$key] !== 0)) {
+                    $declarations[] = $variable . ':' . $values[$key];
+                }
+            }
+        }
+
+        return implode(';', $declarations);
     }
 
     private function styleClasses(array $style): array

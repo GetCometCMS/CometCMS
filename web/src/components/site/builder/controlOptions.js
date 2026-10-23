@@ -32,6 +32,7 @@ const ICONS = {
   },
   'style.animation_trigger': { scroll: 'mdi:gesture-swipe-up', load: 'mdi:play-outline', hover: 'mdi:cursor-default-outline' },
   'style.animation_duration': { fast: 'mdi:speedometer', normal: 'mdi:speedometer-medium', slow: 'mdi:speedometer-slow' },
+  'style.position': { static: 'mdi:format-align-justify', absolute: 'mdi:pin-outline' },
   'style.overlay': { none: 'mdi:image-outline', light: 'mdi:brightness-5', dark: 'mdi:brightness-3' },
 }
 

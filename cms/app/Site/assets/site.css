@@ -1085,3 +1085,52 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-video-embed > iframe, .c-video-embed > video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .c-video-placeholder { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .5rem; width: 100%; }
 .c-video-badge { display: inline-flex; align-items: center; gap: .4rem; font-size: .875rem; font-weight: 600; }
+
+/* Positioning. Offsets are unitless pixels per device (see NodeRenderer::offsetStyle);
+   they and the pin point stay on their own element instead of passing to nested ones. */
+@property --c-ox { syntax: '*'; inherits: false; }
+@property --c-oy { syntax: '*'; inherits: false; }
+@property --c-t-ox { syntax: '*'; inherits: false; }
+@property --c-t-oy { syntax: '*'; inherits: false; }
+@property --c-m-ox { syntax: '*'; inherits: false; }
+@property --c-m-oy { syntax: '*'; inherits: false; }
+@property --c-x { syntax: '*'; inherits: false; }
+@property --c-y { syntax: '*'; inherits: false; }
+@property --c-ax { syntax: '*'; inherits: false; }
+@property --c-ay { syntax: '*'; inherits: false; }
+:where([class*="pos-"]) { --c-x: var(--c-ox, 0); --c-y: var(--c-oy, 0); }
+@media (max-width: 1023px) { :where([class*="pos-"]) { --c-x: var(--c-t-ox, var(--c-ox, 0)); --c-y: var(--c-t-oy, var(--c-oy, 0)); } }
+@media (max-width: 767px) { :where([class*="pos-"]) { --c-x: var(--c-m-ox, var(--c-t-ox, var(--c-ox, 0))); --c-y: var(--c-m-oy, var(--c-t-oy, var(--c-oy, 0))); } }
+.c-pos-static { position: static; translate: none; }
+/* Free: the pin point of the element sits on the same point of its section (or of a container with a
+   background image), then moves by the offsets. */
+.c-pos-absolute {
+  position: absolute; z-index: 1; margin: 0;
+  left: calc(var(--c-ax, 0) * 100% + var(--c-x) * 1px); top: calc(var(--c-ay, 0) * 100% + var(--c-y) * 1px);
+  translate: calc(var(--c-ax, 0) * -100%) calc(var(--c-ay, 0) * -100%);
+}
+.c-pin-top-left { --c-ax: 0; --c-ay: 0; }
+.c-pin-top { --c-ax: .5; --c-ay: 0; }
+.c-pin-top-right { --c-ax: 1; --c-ay: 0; }
+.c-pin-left { --c-ax: 0; --c-ay: .5; }
+.c-pin-center { --c-ax: .5; --c-ay: .5; }
+.c-pin-right { --c-ax: 1; --c-ay: .5; }
+.c-pin-bottom-left { --c-ax: 0; --c-ay: 1; }
+.c-pin-bottom { --c-ax: .5; --c-ay: 1; }
+.c-pin-bottom-right { --c-ax: 1; --c-ay: 1; }
+/* Layering needs a position on elements; rows and columns are grid and flex items, which layer
+   without one and so stay out of the way of free elements. Behind stays above the parent's background. */
+:where(.c-el:is(.c-z-behind, .c-z-1, .c-z-2, .c-z-3, .c-z-4, .c-z-5)) { position: relative; }
+:where(:has(> .c-z-behind, > .c-t-z-behind, > .c-m-z-behind)) { isolation: isolate; }
+.c-z-behind { z-index: -1; }
+.c-z-1 { z-index: 1; }
+.c-z-2 { z-index: 2; }
+.c-z-3 { z-index: 3; }
+.c-z-4 { z-index: 4; }
+.c-z-5 { z-index: 5; }
+.c-op-0 { opacity: 0; }
+.c-op-10 { opacity: .1; }
+.c-op-25 { opacity: .25; }
+.c-op-50 { opacity: .5; }
+.c-op-75 { opacity: .75; }
+.c-op-90 { opacity: .9; }

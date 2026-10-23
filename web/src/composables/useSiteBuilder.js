@@ -491,6 +491,24 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     }, { coalesce: `${id}:${target.group}:${target.variant}:${group}:${key}` })
   }
 
+  /** Several edits as one step, e.g. both offsets of a moved element; each goes where editValue() would put it. */
+  function editValues(id, group, values) {
+    if (translating.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node) return
+      for (const [key, value] of Object.entries(values)) {
+        const target = overrideTarget(node, group, key)
+        if (target) {
+          setOverride(node, target.group, target.variant, group, key, value)
+          continue
+        }
+        node[group] = { ...(node[group] ?? {}), [key]: value }
+        if (group === 'style' && isDefaultStyle(key, value)) delete node.style[key]
+      }
+    })
+  }
+
   function resetOverride(id, overrideGroup, variant, group, key) {
     if (translating.value) return
     mutate((tree) => {
@@ -1096,7 +1114,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
     updateValue, renameNode, insert,
-    device, styleState, overrideTarget, editableInState, viewValue, overridesOf, editValue, resetOverride, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
+    device, styleState, overrideTarget, editableInState, viewValue, overridesOf, editValue, editValues, resetOverride, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,

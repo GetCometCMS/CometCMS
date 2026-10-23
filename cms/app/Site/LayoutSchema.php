@@ -131,8 +131,11 @@ final class LayoutSchema
     /** Entrance animation and its timing; the timing only applies to an animation. */
     private const ANIMATION_KEYS = ['animation', 'animation_trigger', 'animation_duration', 'animation_delay'];
 
-    /** Style a tablet or mobile override may change: values that render as a class. */
-    public const RESPONSIVE_STYLE = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left', 'background', 'text_color', 'link_color', 'align', 'font_size', 'font_weight', 'font_family', 'text_shadow', 'radius', 'shadow', 'max_width'];
+    /** Taking an element out of the flow, pinned to a point of its section. */
+    private const POSITION_KEYS = ['position', 'pin', 'offset_x', 'offset_y'];
+
+    /** Style a tablet or mobile override may change: values that render as a class, and the offsets (see NodeRenderer::offsetStyle). */
+    public const RESPONSIVE_STYLE = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left', 'background', 'text_color', 'link_color', 'align', 'font_size', 'font_weight', 'font_family', 'text_shadow', 'radius', 'shadow', 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity'];
 
     /** Props a tablet or mobile override may change, per kind. */
     public const RESPONSIVE_PROPS = [
@@ -144,7 +147,7 @@ final class LayoutSchema
     ];
 
     /** Style a hover or focus state may change. */
-    public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow'];
+    public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow', 'opacity'];
 
     /** Props a hover or focus state may change, per kind. */
     public const STATE_PROPS = [
@@ -207,6 +210,14 @@ final class LayoutSchema
             'animation_duration' => ['type' => 'enum', 'options' => ['fast', 'normal', 'slow'], 'default' => 'normal'],
             // Stagger step: later steps start a little after earlier ones.
             'animation_delay' => ['type' => 'int', 'min' => 0, 'max' => 6, 'default' => 0],
+            // Absolute takes the element out of the flow, pinned to a point of its section.
+            // Static only matters as a device override back to the flow.
+            'position' => ['type' => 'enum', 'options' => ['', 'static', 'absolute'], 'default' => ''],
+            'pin' => ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'top-left'],
+            'offset_x' => ['type' => 'int', 'min' => -2000, 'max' => 2000, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
+            'offset_y' => ['type' => 'int', 'min' => -2000, 'max' => 2000, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
+            'z_index' => ['type' => 'enum', 'options' => ['', 'behind', '1', '2', '3', '4', '5'], 'default' => ''],
+            'opacity' => ['type' => 'enum', 'options' => ['', '0', '10', '25', '50', '75', '90'], 'default' => ''],
             'hide_on' => ['type' => 'set', 'options' => ['mobile', 'tablet', 'desktop'], 'default' => []],
             'class' => ['type' => 'class', 'default' => ''],
             'anchor' => ['type' => 'key', 'default' => ''],
@@ -217,11 +228,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
-            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
+            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
             self::COMPONENT, self::PAGE_CONTENT => [],
-            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'class', 'hide_on'],
-            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on'],
+            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 

@@ -48,6 +48,10 @@ let resizeLabel = null;
 let resizeEdge = null;
 /** Running resize: { el, id, side, startX, start, span, unit, device }. */
 let resizing = null;
+let moveHandle = null;
+let moveLabel = null;
+/** Running move of a free element: { el, id, startX, startY, x, y, startOffsetX, startOffsetY, bounds }. */
+let moving = null;
 /** Running inline text edit: { target, id, key, rich, original, abort }. */
 let inlineEdit = null;
 
@@ -351,6 +355,54 @@ html.cometcms-resizing,html.cometcms-resizing *{
   cursor:col-resize!important;
   user-select:none!important;
 }
+
+/* Move grip of a free element, on its top right corner */
+.cometcms-move{
+  all:initial;
+  --s:var(--cometcms-ui-scale,1);
+  position:absolute;
+  z-index:2147483647;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:calc(26px * var(--s));
+  height:calc(26px * var(--s));
+  transform:translate(-100%,-100%);
+  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  color:#253047;
+  border-radius:calc(5px * var(--s)) calc(5px * var(--s)) 0 0;
+  box-shadow:inset 0 0 0 1px var(--builder-color),0 -1px 4px rgba(0,0,0,.16);
+  cursor:move;
+  touch-action:none;
+}
+.cometcms-move[hidden]{display:none;}
+.cometcms-move.is-inside{
+  transform:translate(-100%,0);
+  border-radius:0 0 0 calc(5px * var(--s));
+}
+.cometcms-move svg{
+  width:calc(16px * var(--s));
+  height:calc(16px * var(--s));
+  fill:currentColor;
+  pointer-events:none;
+}
+.cometcms-move-label{
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  background:color-mix(in srgb,var(--builder-color,#526783) 42%,#fff);
+  color:#253047;
+  font:600 11px/1 system-ui,sans-serif;
+  padding:5px 7px;
+  border-radius:5px;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.cometcms-move-label[hidden]{display:none;}
+html.cometcms-moving,html.cometcms-moving *{
+  cursor:move!important;
+  user-select:none!important;
+}
 `;
 
 /** Distance in px from a column edge within which its resize grip appears. */
@@ -400,14 +452,29 @@ function attach(document) {
   resizeLabel.className = "cometcms-resize-label";
   resizeLabel.hidden = true;
   resizeHandle.append(resizeLabel);
-  for (const overlay of [indicator, badge, resizeHandle, templateHighlight]) overlay.setAttribute(PREVIEW_KEEP, "");
+  moveHandle = doc.createElement("div");
+  moveHandle.className = "cometcms-move";
+  moveHandle.hidden = true;
+  moveHandle.title = t("site.builder.moveHint");
+  moveHandle.setAttribute("aria-hidden", "true");
+  moveHandle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 6v5h5V7.75L22.25 12 18 16.25V13h-5v5h3.25L12 22.25 7.75 18H11v-5H6v3.25L1.75 12 6 7.75V11h5V6H7.75L12 1.75 16.25 6H13z"/></svg>';
+  moveLabel = doc.createElement("span");
+  moveLabel.className = "cometcms-move-label";
+  moveLabel.hidden = true;
+  moveHandle.append(moveLabel);
+  for (const overlay of [indicator, badge, resizeHandle, moveHandle, templateHighlight]) overlay.setAttribute(PREVIEW_KEEP, "");
   resizeEdge = null;
   resizing = null;
+  moving = null;
 
   resizeHandle.addEventListener("pointerdown", onResizeStart);
   resizeHandle.addEventListener("pointermove", onResizeMove);
   resizeHandle.addEventListener("pointerup", onResizeEnd);
   resizeHandle.addEventListener("pointercancel", onResizeEnd);
+  moveHandle.addEventListener("pointerdown", onMoveStart);
+  moveHandle.addEventListener("pointermove", onMoveMove);
+  moveHandle.addEventListener("pointerup", onMoveEnd);
+  moveHandle.addEventListener("pointercancel", onMoveEnd);
 
   doc.addEventListener("click", onClick, true);
   doc.addEventListener("dblclick", onDoubleClick);
@@ -453,7 +520,7 @@ function prepare(document) {
   if (document !== doc) return;
   // An update replaced the element being edited; keep what was typed.
   if (inlineEdit && !inlineEdit.target.isConnected) finishInlineEdit(true);
-  doc.body.append(indicator, badge, resizeHandle, templateHighlight);
+  doc.body.append(indicator, badge, resizeHandle, moveHandle, templateHighlight);
 
   doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
@@ -510,6 +577,7 @@ function applySelection(scroll) {
 
   if (!el) {
     if (badge) badge.hidden = true;
+    if (moveHandle) moveHandle.hidden = true;
     return;
   }
 
@@ -528,6 +596,7 @@ function applySelection(scroll) {
   const inside = top < badge.offsetHeight;
   badge.classList.toggle("is-inside", inside);
   badge.style.top = `${Math.max(0, top)}px`;
+  placeMoveHandle(el, rect);
 
   if (scroll) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
@@ -604,8 +673,8 @@ function onClick(event) {
   if (!event.target.closest?.('.c-accordion-title')) event.preventDefault();
   event.stopPropagation();
 
-  // Releasing a resize grip keeps the column selected.
-  if (event.target.closest?.(".cometcms-resize")) return;
+  // Releasing a resize or move grip keeps the element selected.
+  if (event.target.closest?.(".cometcms-resize, .cometcms-move")) return;
 
   // The badge on the selection opens its menu.
   if (event.target.closest?.(".cometcms-badge") && builder.selectedId.value) {
@@ -807,7 +876,7 @@ function showResizeEdge(edge) {
 }
 
 function onPointerMove(event) {
-  if (resizing || event.target === resizeHandle) return;
+  if (resizing || moving || event.target === resizeHandle || moveHandle?.contains(event.target)) return;
   showResizeEdge(builder.drag.value ? null : resizableEdgeAt(event.target, event.clientX));
 }
 
@@ -878,6 +947,97 @@ function onResizeEnd(event) {
   }
   const node = findNode(builder.nodes.value, id);
   if (node) builder.updateValue(id, "props", "span", { ...(node.props?.span ?? {}), [device]: span });
+}
+
+/** Whether the node is free on the previewed device, so the move grip applies. */
+function isPositioned(node) {
+  return !!node && builder.viewValue(node, "style", "position") === "absolute";
+}
+
+/**
+ * How far the element may move each way and stay inside the section it is
+ * pinned to; an element already sticking out may still move back in.
+ */
+function moveBounds(el) {
+  const parent = el.offsetParent ?? doc.body;
+  const outer = parent.getBoundingClientRect();
+  const inner = el.getBoundingClientRect();
+  const left = outer.left + parent.clientLeft;
+  const top = outer.top + parent.clientTop;
+  const right = left + parent.clientWidth;
+  const bottom = top + parent.clientHeight;
+  return {
+    minX: Math.min(0, left - inner.left),
+    maxX: Math.max(0, right - inner.right),
+    minY: Math.min(0, top - inner.top),
+    maxY: Math.max(0, bottom - inner.bottom),
+  };
+}
+
+/** The move grip sits on the selected element's top right corner, inside it without room above. */
+function placeMoveHandle(el, rect) {
+  const node = findNode(builder.nodes.value, el.dataset.node);
+  moveHandle.hidden = !isPositioned(node) || builder.translating.value || builder.styleState.value !== "normal";
+  if (moveHandle.hidden) return;
+  const win = doc.defaultView;
+  const top = rect.top + win.scrollY;
+  moveHandle.style.setProperty("--builder-color", win.getComputedStyle(el).getPropertyValue("--builder-color"));
+  moveHandle.style.left = `${rect.right + win.scrollX}px`;
+  moveHandle.classList.toggle("is-inside", top < moveHandle.offsetHeight);
+  moveHandle.style.top = `${Math.max(0, top)}px`;
+}
+
+function onMoveStart(event) {
+  const el = element(builder.selectedId.value);
+  const node = el && findNode(builder.nodes.value, el.dataset.node);
+  if (!isPositioned(node) || event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  builder.closeContextMenu();
+
+  const offset = (key) => Number(builder.viewValue(node, "style", key)) || 0;
+  const x = offset("offset_x");
+  const y = offset("offset_y");
+  moving = { el, id: node.id, startX: event.clientX, startY: event.clientY, x, y, startOffsetX: x, startOffsetY: y, bounds: moveBounds(el) };
+  moveHandle.setPointerCapture(event.pointerId);
+  doc.documentElement.classList.add("cometcms-moving");
+  moveLabel.textContent = t("site.builder.moveBy", { x, y });
+  moveLabel.hidden = false;
+}
+
+function onMoveMove(event) {
+  if (!moving) return;
+  const { minX, maxX, minY, maxY } = moving.bounds;
+  let dx = Math.max(minX, Math.min(maxX, event.clientX - moving.startX));
+  let dy = Math.max(minY, Math.min(maxY, event.clientY - moving.startY));
+  // Shift keeps the direction that moved the most.
+  if (event.shiftKey) {
+    if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+    else dx = 0;
+  }
+  const clamp = (value) => Math.max(-2000, Math.min(2000, Math.round(value)));
+  moving.x = clamp(moving.startOffsetX + dx);
+  moving.y = clamp(moving.startOffsetY + dy);
+
+  // Preview right away; the saved offsets re-render the page (see the positioning rules in site.css).
+  moving.el.style.setProperty("--c-x", String(moving.x));
+  moving.el.style.setProperty("--c-y", String(moving.y));
+  moveLabel.textContent = t("site.builder.moveBy", { x: moving.x, y: moving.y });
+  applySelection(false);
+}
+
+function onMoveEnd(event) {
+  if (!moving) return;
+  const { el, id, x, y, startOffsetX, startOffsetY } = moving;
+  moving = null;
+  if (moveHandle.hasPointerCapture(event.pointerId)) moveHandle.releasePointerCapture(event.pointerId);
+  doc.documentElement.classList.remove("cometcms-moving");
+  moveLabel.hidden = true;
+  el.style.removeProperty("--c-x");
+  el.style.removeProperty("--c-y");
+
+  if (x === startOffsetX && y === startOffsetY) return;
+  builder.editValues(id, "style", { offset_x: x, offset_y: y });
 }
 
 /** The node under the pointer and where a drop would go relative to it. */
@@ -984,6 +1144,7 @@ watch(
 );
 watch(() => builder.hoverId.value, applyHover);
 watch([() => builder.styleState.value, () => builder.selectedId.value], applyStatePreview);
+watch([() => builder.device.value, () => builder.styleState.value], () => applySelection(false));
 watch(() => props.selectedTemplatePart, applyTemplatePartHover);
 // Labels follow the arrangement (Column ↔ Row) before the preview re-renders.
 watch(() => builder.nodeLabel(builder.selected.value), () => applySelection(false));

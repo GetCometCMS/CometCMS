@@ -310,7 +310,8 @@ const STYLE_GROUPS = [
   { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
   { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
-  { key: "shape", keys: ["radius", "shadow", "border", "border_width", "border_style", "border_color", "max_width"] },
+  { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
+  { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
@@ -426,6 +427,8 @@ const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "bac
 /** How a border looks only matters once a side is picked; timing only once there is an animation. */
 const BORDER_OPTIONS = ["border_width", "border_style", "border_color"];
 const ANIMATION_OPTIONS = ["animation_trigger", "animation_duration", "animation_delay"];
+/** The pin point and offsets only apply to an element taken out of the flow. */
+const FREE_OPTIONS = ["pin", "offset_x", "offset_y"];
 
 function styleVisible(key) {
   const style = node.value?.style ?? {};
@@ -433,6 +436,7 @@ function styleVisible(key) {
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;
   if (ANIMATION_OPTIONS.includes(key) && (style.animation ?? "none") === "none") return false;
+  if (FREE_OPTIONS.includes(key) && builder.viewValue(node.value, "style", "position") !== "absolute") return false;
   return key !== "background_repeat" || (style.background_size ?? styleSpec.value.background_size?.default) !== "cover";
 }
 

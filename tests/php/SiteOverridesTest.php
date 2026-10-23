@@ -107,3 +107,27 @@ test('mcp builder reads and writes device and state overrides', function (): voi
     assert_same(['size', 'full_width'], $schema['data']['responsive']['props']);
     assert_same(['hover', 'focus'], $schema['data']['states']['states']);
 });
+
+test('positioned elements render their pin, layer and per-device offsets', function (): void {
+    comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context());
+    $heading = LayoutSchema::node('heading', [], ['position' => 'absolute', 'pin' => 'bottom-right', 'offset_x' => -24, 'offset_y' => 12, 'z_index' => '2', 'opacity' => '75']);
+    $heading['responsive'] = ['tablet' => ['style' => ['offset_x' => 0]], 'mobile' => ['style' => ['position' => 'static']]];
+    $heading['states'] = ['hover' => ['style' => ['opacity' => '50', 'offset_x' => 5]]];
+    $nodes = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], ['offset_x' => 10], [$heading])], 'column');
+
+    // Columns offer layering but are not moved; hover cannot move an element.
+    assert_false(isset($nodes[0]['style']['offset_x']));
+    assert_same(['hover' => ['style' => ['opacity' => '50']]], $nodes[0]['children'][0]['states']);
+    $html = $renderer->render($nodes);
+    foreach (['c-pos-absolute', 'c-pin-bottom-right', 'c-z-2', 'c-op-75', 'c-m-pos-static', 'c-h-op-50'] as $class) {
+        assert_true(str_contains($html, $class), $class);
+    }
+    // A tablet offset of 0 still resets the desktop one.
+    assert_true(str_contains($html, 'style="--c-ox:-24;--c-oy:12;--c-t-ox:0"'));
+
+    $css = StyleVariants::css(Theme::baseStylesheet());
+    assert_true(str_contains($css, '.c-t-pos-absolute{'));
+    assert_true(str_contains($css, '.c-m-pin-center{'));
+    assert_true(str_contains($css, '.c-h-op-50:is(:hover,.c-preview-hover){'));
+});
