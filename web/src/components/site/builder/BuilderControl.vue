@@ -385,6 +385,7 @@ const label = computed(() => {
 });
 
 const hint = computed(() => {
+  if (props.node.kind === "video" && ["video_url", "autoplay", "controls", "start_time", "fullscreen"].includes(props.name)) return t(`site.video.${props.name}Hint`);
   if (props.name === "class") return t("site.builder.classHint");
   if (props.node.kind === "theme_toggle" && props.name === "label" && !value.value) return t("site.themeToggle.labelHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");

@@ -154,6 +154,7 @@ final class NodeRenderer
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
             'image' => $this->image($node, $state),
+            'video' => $this->video($node),
             'gallery' => $this->gallery($node, $state),
             'button' => $this->button($node, $state),
             'accordion' => $this->accordion($node),
@@ -543,6 +544,38 @@ final class NodeRenderer
         if ($link !== null) $html = $this->anchor($link, $html, 'c-icon-link');
 
         return $this->element($node, $html);
+    }
+
+    private function video(array $node): string
+    {
+        $props = $node['props'];
+        // Canvas previews never load third-party frames or autoplay media. The
+        // full-page preview uses the same interactive player as the website.
+        $source = VideoEmbed::source($props);
+        $title = Security::e($props['title'] ?: 'Video');
+        $ratio = 'c-ratio c-ratio-' . str_replace(':', '-', $props['ratio']);
+        if ($source === null || ($this->ctx->preview && !$this->ctx->browsePreview)) {
+            if (!$this->ctx->annotate && $source === null) return '';
+            $key = $source === null ? 'chooseVideo' : 'videoPreview';
+            $label = $source === null ? 'Enter a YouTube, Vimeo or direct video URL' : 'Video preview: open the full-page preview to play';
+            return $this->element($node, '<div class="' . $ratio . ' c-video-placeholder"><div class="c-placeholder"' . $this->placeholder($key) . '>' . $label . '</div><span>' . $title . '</span></div>');
+        }
+        $src = Security::e($source['url']);
+        $autoplay = $props['autoplay'];
+        if ($source['type'] === 'file') {
+            $attrs = ' playsinline preload="metadata"';
+            foreach (['controls', 'loop'] as $key) if ($props[$key]) $attrs .= ' ' . $key;
+            if ($props['muted'] || $autoplay) $attrs .= ' muted';
+            if ($autoplay) $attrs .= ' autoplay';
+            if (!$props['fullscreen']) $attrs .= ' controlslist="nofullscreen"';
+            $player = '<video src="' . $src . '" aria-label="' . $title . '"' . $attrs . '></video>';
+        } else {
+            $allow = 'autoplay; encrypted-media; picture-in-picture';
+            if ($props['fullscreen']) $allow .= '; fullscreen';
+            $player = '<iframe src="' . $src . '" title="' . $title . '" loading="' . ($autoplay ? 'eager' : 'lazy') . '" allow="' . $allow . '"'
+                . ($props['fullscreen'] ? ' allowfullscreen' : '') . ' referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+        }
+        return $this->element($node, '<div class="' . $ratio . ' c-video-embed">' . $player . '</div>');
     }
 
     private function image(array $node, array $state): string

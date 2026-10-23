@@ -1078,3 +1078,9 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
   .c-header, .c-footer, .c-menu, .c-skip-link, .c-pagination, .c-list-filters, .c-el-search, .c-el-theme_toggle { display: none !important; }
   body { background: #fff; color: #000; }
 }
+
+/* External video players fill the chosen ratio without affecting column width. */
+.c-ratio-9-16 { aspect-ratio: 9 / 16; }
+.c-video-embed { width: 100%; }
+.c-video-embed > iframe, .c-video-embed > video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.c-video-placeholder { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; }

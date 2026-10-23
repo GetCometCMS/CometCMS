@@ -1061,6 +1061,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         const names = (props.collections ?? []).map((name) => types.value.find((item) => item.name === name)?.label ?? name)
         return names.length ? names.join(', ') : t('site.search.allTypes')
       }
+      case 'video':
+        return props.video_url || t('site.placeholder.chooseVideo')
       case 'image':
         return smartSummary(props.media) || t('site.builder.noImage')
       case 'gallery':
