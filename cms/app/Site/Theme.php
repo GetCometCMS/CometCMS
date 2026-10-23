@@ -186,7 +186,7 @@ final class Theme
             $root['--space-' . $token] = self::number($px / 16) . 'rem';
         }
 
-        foreach (['sm' => -1, 'base' => 0, 'lg' => 1, 'xl' => 2, '2xl' => 3, '3xl' => 4, '4xl' => 5, '5xl' => 6] as $step => $power) {
+        foreach (['sm' => -1, 'base' => 0, 'lg' => 1, 'xl' => 2, '2xl' => 3, '3xl' => 4, '4xl' => 5, '5xl' => 6, '6xl' => 7, '7xl' => 8, '8xl' => 9, '9xl' => 10] as $step => $power) {
             $root['--fs-' . $step] = self::number(pow($scale, $power)) . 'rem';
         }
 
