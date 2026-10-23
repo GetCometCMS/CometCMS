@@ -202,6 +202,9 @@ test('mcp builder stable defaults can be edited and empty layouts are explicit',
     [, $empty] = comet_test_mcp_tool($token, 'set_layout', ['collection' => 'pages', 'variant' => 'detail', 'revision' => $updated['data']['revision'], 'sections' => []]);
     assert_same([], $empty['data']['sections']);
     assert_same([], (new SiteRepository())->layout('pages', 'detail'));
+    [, $unlisted] = comet_test_mcp_tool($token, 'get_layout', ['collection' => 'pages', 'variant' => 'index']);
+    assert_true(isset($unlisted['error']) && str_contains(json_encode($unlisted), 'no list page'), 'List pages that are off do not exist for MCP either.');
+    (new SiteRepository())->saveSettings(['routes' => ['pages' => ['index_enabled' => true]]]);
     [, $index] = comet_test_mcp_tool($token, 'get_layout', ['collection' => 'pages', 'variant' => 'index']);
     assert_true(count($index['data']['sections']) > 0);
 });
