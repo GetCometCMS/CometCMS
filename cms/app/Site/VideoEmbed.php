@@ -7,7 +7,7 @@ namespace CometCMS\Site;
 /** Resolve supported video links locally; never fetch arbitrary URLs or accept embed HTML. */
 final class VideoEmbed
 {
-    /** @return array{type: string, url: string}|null */
+    /** @return array{type: string, provider: string, url: string}|null */
     public static function source(array $props): ?array
     {
         $url = trim((string) ($props['video_url'] ?? ''));
@@ -33,7 +33,7 @@ final class VideoEmbed
             if (!is_string($id) || !preg_match('/^[A-Za-z0-9_-]{11}$/', $id)) return null;
             $params = ['autoplay' => (int) $autoplay, 'mute' => (int) $muted, 'controls' => (int) $controls, 'loop' => (int) $loop, 'fs' => (int) $fullscreen, 'playsinline' => 1, 'start' => $start];
             if ($loop) $params['playlist'] = $id;
-            return ['type' => 'iframe', 'url' => 'https://www.youtube-nocookie.com/embed/' . $id . '?' . http_build_query($params)];
+            return ['type' => 'iframe', 'provider' => 'youtube', 'url' => 'https://www.youtube-nocookie.com/embed/' . $id . '?' . http_build_query($params)];
         }
         if (in_array($host, ['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'], true)) {
             if (!preg_match('~^/(?:video/)?([0-9]+)(?:/([a-fA-F0-9]+))?/?$~', $path, $match)) return null;
@@ -41,11 +41,11 @@ final class VideoEmbed
             // Unlisted links carry a privacy hash in either the path or query.
             $hash = $match[2] ?? ($query['h'] ?? '');
             if (is_string($hash) && preg_match('/^[a-fA-F0-9]+$/', $hash)) $params['h'] = $hash;
-            return ['type' => 'iframe', 'url' => 'https://player.vimeo.com/video/' . $match[1] . '?' . http_build_query($params) . ($start ? '#t=' . $start . 's' : '')];
+            return ['type' => 'iframe', 'provider' => 'vimeo', 'url' => 'https://player.vimeo.com/video/' . $match[1] . '?' . http_build_query($params) . ($start ? '#t=' . $start . 's' : '')];
         }
         if (preg_match('/\.(?:mp4|webm|ogv)$/i', $path) && strtolower($parts['scheme']) === 'https') {
             // Keep signed query strings, but replace any existing media fragment.
-            return ['type' => 'file', 'url' => explode('#', $url, 2)[0] . ($start ? '#t=' . $start : '')];
+            return ['type' => 'file', 'provider' => 'file', 'url' => explode('#', $url, 2)[0] . ($start ? '#t=' . $start : '')];
         }
         return null;
     }

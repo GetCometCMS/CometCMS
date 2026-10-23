@@ -546,6 +546,13 @@ final class NodeRenderer
         return $this->element($node, $html);
     }
 
+    /** Provider marks for canvas placeholders, so editors can tell what will play without loading it. */
+    private const VIDEO_BADGES = [
+        'youtube' => '<span class="c-video-badge"><svg viewBox="0 0 28 20" width="28" height="20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#f00"/><path d="M11 5.5v9l8-4.5z" fill="#fff"/></svg>YouTube</span>',
+        'vimeo' => '<span class="c-video-badge"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><rect width="20" height="20" rx="4" fill="#1ab7ea"/><path d="M4 7.5l1 1.2c1-.8 1.5-1 1.8-.3l1.9 6.3c.6 1.3 1.3 1.6 2.6.4C13.8 12.6 16 9.4 16 7c0-2.2-2.6-2.4-4.3-.2 2-.8 2.4.6 1 2.7-1.5 2.2-2.2 2.1-2.6.4L9.3 6.2C8.8 4.6 7.5 4.8 4 7.5z" fill="#fff"/></svg>Vimeo</span>',
+        'file' => '<span class="c-video-badge"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><rect width="20" height="20" rx="4" fill="#64748b"/><path d="M8 6v8l6-4z" fill="#fff"/></svg>Video file</span>',
+    ];
+
     private function video(array $node): string
     {
         $props = $node['props'];
@@ -564,7 +571,8 @@ final class NodeRenderer
             if (!$this->ctx->annotate && $source === null) return '';
             $key = $source === null ? 'chooseVideo' : 'videoPreview';
             $label = $source === null ? 'Choose a library video or enter a YouTube, Vimeo or direct video URL' : 'Video preview: open the full-page preview to play';
-            return $this->element($node, '<div class="' . $ratio . ' c-video-placeholder"><div class="c-placeholder"' . $this->placeholder($key) . '>' . $label . '</div><span>' . $title . '</span></div>');
+            $badge = $source === null ? '' : self::VIDEO_BADGES[$source['provider']];
+            return $this->element($node, '<div class="' . $ratio . ' c-video-placeholder">' . $badge . '<div class="c-placeholder"' . $this->placeholder($key) . '>' . $label . '</div><span>' . $title . '</span></div>');
         }
         $src = Security::e($source['url']);
         $autoplay = $props['autoplay'] && !$canvas;

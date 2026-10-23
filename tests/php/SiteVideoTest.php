@@ -63,6 +63,8 @@ test('video rendering escapes labels and preserves selection without loading med
     $html = $renderer->render([$video]);
     assert_true(str_contains($html, 'data-node="' . $video['id'] . '"'));
     assert_true(str_contains($html, 'Video preview:'));
+    assert_true(str_contains($html, 'c-video-badge'));
+    assert_true(str_contains($html, 'YouTube</span>'));
     assert_false(str_contains($html, '<iframe'));
     $ctx->annotate = false;
     $ctx->browsePreview = true;
