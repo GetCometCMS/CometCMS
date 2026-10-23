@@ -128,7 +128,6 @@ const actions = computed(() => {
         disabled: !builder.clipboard.value || builder.translating.value,
         action: () => builder.paste(current.id),
       },
-      !instance && { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
       !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
     ],
     [

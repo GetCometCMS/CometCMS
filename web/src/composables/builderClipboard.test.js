@@ -23,16 +23,16 @@ describe('builder clipboard', () => {
     const storage = memoryStorage()
     const first = clipboardFor(storage)
     const other = clipboardFor(storage)
-    first.node.value = heading
-    first.style.value = { background: 'accent' }
+    const copiedHeading = { ...heading, style: { background: 'accent' } }
+    first.copy(copiedHeading)
 
-    expect(clipboardFor(storage).node.value).toEqual(heading)
+    expect(clipboardFor(storage).node.value).toEqual(copiedHeading)
     expect(clipboardFor(storage).style.value).toEqual({ background: 'accent' })
     expect(clipboardFor(storage, 'two').node.value).toBeNull()
 
     expect(other.node.value).toBeNull()
     other.refresh()
-    expect(other.node.value).toEqual(heading)
+    expect(other.node.value).toEqual(copiedHeading)
 
     first.node.value = null
     first.style.value = null
@@ -49,8 +49,9 @@ describe('builder clipboard', () => {
 
     const full = { ...memoryStorage(), setItem: () => { throw new Error('QuotaExceededError') } }
     const clipboard = clipboardFor(full)
-    clipboard.node.value = heading
+    clipboard.copy(heading)
     expect(clipboard.node.value).toEqual(heading)
+    expect(clipboard.style.value).toEqual({})
     expect(clipboardFor(null).node.value).toBeNull()
   })
 })

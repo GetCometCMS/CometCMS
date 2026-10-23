@@ -1688,7 +1688,6 @@ const messages = {
     'site.menu.copy': 'Copy',
     'site.menu.paste': 'Paste after',
     'site.menu.pasteInside': 'Paste inside',
-    'site.menu.copyStyle': 'Copy style',
     'site.menu.pasteStyle': 'Paste style',
     'site.menu.addColumn': 'Add column',
     'site.menu.addRow': 'Add row',

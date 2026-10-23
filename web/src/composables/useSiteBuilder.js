@@ -680,7 +680,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   function copy(id = selectedId.value) {
     const node = id ? findNode(nodes.value, id) : null
-    if (node) clipboard.value = clone(node)
+    if (node) sharedClipboard.copy(clone(node))
   }
 
   /** Paste the copied node after `id` (or inside it when it is a container). */
@@ -694,11 +694,6 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       if (item.kind === PAGE_CONTENT && !fields.has(item.props?.field)) item.props = { ...item.props, field: '' }
     })
     return insert(node, id)
-  }
-
-  function copyStyle(id = selectedId.value) {
-    const node = id ? findNode(nodes.value, id) : null
-    if (node) styleClipboard.value = clone(node.style ?? {})
   }
 
   /** Apply the copied style, keeping only what the target kind supports. */
@@ -1101,7 +1096,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     updateValue, renameNode, insert,
     device, styleState, overrideTarget, editableInState, viewValue, overridesOf, editValue, resetOverride, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
-    clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
+    clipboard, styleClipboard, contextMenu, copy, paste, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,

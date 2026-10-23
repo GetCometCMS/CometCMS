@@ -52,6 +52,34 @@ async function builderFixture() {
   return builder
 }
 
+describe('builder copy and paste', () => {
+  it('copies content and style together and pastes only supported styles without changing content', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    const column = section.children[0].children[0]
+    const text = column.children[0]
+    section.style = { background: 'accent', padding_top: { desktop: 'lg', mobile: 'sm' } }
+    builder.spec.value.kinds.text.style = ['background']
+
+    builder.copy(section.id)
+    section.style.background = 'muted'
+    expect(builder.styleClipboard.value.background).toBe('accent')
+    builder.pasteStyle(text.id)
+    expect(findNode(builder.nodes.value, text.id)).toMatchObject({ props: text.props, style: { background: 'accent' } })
+    builder.paste(section.id)
+    const pasted = builder.selected.value
+    expect(pasted.id).not.toBe(section.id)
+    expect(pasted.children[0].children[0].children[0].props).toEqual(text.props)
+    expect(pasted.style).toEqual({ background: 'accent', padding_top: { desktop: 'lg', mobile: 'sm' } })
+
+    // Each new copy replaces the style too, including elements without styling.
+    builder.copy(column.id)
+    expect(builder.styleClipboard.value).toEqual({})
+    builder.pasteStyle(text.id)
+    expect(findNode(builder.nodes.value, text.id).style).toEqual({})
+  })
+})
+
 describe('builder spacing', () => {
   it('splits paired padding in one undo step and resets individual edges to the default', async () => {
     const builder = await builderFixture()
@@ -664,7 +692,6 @@ describe('builder page content', () => {
     expect(source.insert(place, null)).toBe(true)
     await Promise.resolve()
     source.copy(place.id)
-    source.copyStyle(source.nodes.value[0].id)
 
     const target = await pageFixture({ fields: { layout: { type: 'page', label: 'Layout' } }, clipboardStorage })
     expect(target.clipboard.value.kind).toBe('page_content')

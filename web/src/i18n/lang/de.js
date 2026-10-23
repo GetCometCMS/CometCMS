@@ -1693,7 +1693,6 @@ const messages = {
   'site.menu.copy': 'Kopieren',
   'site.menu.paste': 'Danach einfügen',
   'site.menu.pasteInside': 'Darin einfügen',
-  'site.menu.copyStyle': 'Stil kopieren',
   'site.menu.pasteStyle': 'Stil einfügen',
   'site.menu.addColumn': 'Spalte hinzufügen',
   'site.menu.addRow': 'Zeile hinzufügen',

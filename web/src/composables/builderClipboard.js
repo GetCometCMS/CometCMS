@@ -25,7 +25,7 @@ export function useBuilderClipboard({ storage, workspace = getActiveWorkspace } 
   }
 
   function write(change) {
-    // On top of what is stored, so copying a style here keeps the element another tab copied.
+    // Preserve the other value when updating a saved copy (for example, detaching a component).
     refresh()
     copied.value = { ...copied.value, ...change }
     if (!storage) return
@@ -51,5 +51,10 @@ export function useBuilderClipboard({ storage, workspace = getActiveWorkspace } 
   globalThis.addEventListener?.('storage', onStorage)
   onScopeDispose(() => globalThis.removeEventListener?.('storage', onStorage))
 
-  return { node, style, refresh }
+  /** Save the node and its style together, so both paste actions use the same copy. */
+  function copy(value) {
+    write({ node: value, style: value.style ?? {} })
+  }
+
+  return { node, style, copy, refresh }
 }
