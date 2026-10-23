@@ -11,11 +11,11 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useLinkEntries } from '../../composables/useLinkEntries.js'
-import { anchorId, destinationAvailable, linkSummary } from '../../composables/siteLinks.js'
+import { anchorId, destinationAvailable, linkSummary, menuDefaultLabel } from '../../composables/siteLinks.js'
 import { effectiveStatus, statusPillClass } from '../../composables/contentDisplay.js'
 import { useI18n } from '../../i18n/index.js'
 const props = defineProps({ link: { type: Object, default: null }, types: { type: Array, default: () => [] }, settings: { type: Object, default: null }, context: { type: String, default: '' }, verbose: { type: Boolean, default: false }, explainUnavailable: { type: Boolean, default: false } })
-const emit = defineEmits(['resolved'])
+const emit = defineEmits(['resolved', 'default-label'])
 const { t } = useI18n()
 const link = computed(() => props.link ?? {})
 const target = computed(() => {
@@ -41,5 +41,6 @@ const warning = computed(() => {
   return t('site.link.unavailableRoute')
 })
 const unavailable = computed(() => !destinationAvailable(link.value, props.types, props.settings, selected.value))
+watch(() => menuDefaultLabel(link.value, props.types, props.settings, selectedTitle.value, t), (label) => emit('default-label', label), { immediate: true, flush: 'sync' })
 watch(selected, (entry) => { if (entry) emit('resolved', entry) })
 </script>

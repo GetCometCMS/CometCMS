@@ -34,7 +34,8 @@
           <ul v-else ref="tree" role="tree" :aria-label="t('site.menus.structure')" class="space-y-1">
             <MenuTreeNode v-for="item in selected.items" :key="item.id" :item="item" :items="selected.items"
               :selected-id="selectedId" :expanded-ids="expandedIds" :types="site.data.types" :settings="site.draft.settings" :limits="limits" :drag-id="dragId"
-              @action="rowAction" @select="selectItem" @toggle="toggle" @navigate="navigate" @drag="dragId = $event" @move="move" />
+              @action="rowAction" @select="selectItem" @toggle="toggle" @navigate="navigate" @drag="dragId = $event" @move="move"
+              @default-label="(id, value) => defaultLabels[id] = value" />
           </ul>
           <div v-if="dragId" class="mt-3 rounded-lg border-2 border-dashed p-3 text-center text-xs"
             :class="rootOver ? 'border-theme-500 bg-theme-50 text-theme-700' : 'border-slate-300 text-slate-500'"
@@ -95,12 +96,14 @@ const rootOver = ref(false)
 const tree = ref(null)
 const inspector = ref(null)
 const announcement = ref('')
+const defaultLabels = ref({})
 const selected = computed(() => menus.value.find((menu) => menu.name === selectedName.value) ?? null)
 const selectedItem = computed(() => findNode(selected.value?.items ?? [], selectedId.value))
 watch(() => menus.value.map((menu) => menu.name), (names) => {
   if (!names.includes(selectedName.value)) selectedName.value = names[0] ?? ''
 })
 watch(() => `${site.data.workspace}:${selected.value?.name}`, () => {
+  defaultLabels.value = {}
   const ids = new Set()
   const visit = (items) => items.forEach((item) => { if (item.children.length) ids.add(item.id); visit(item.children) })
   visit(selected.value?.items ?? [])
@@ -111,7 +114,7 @@ watch(() => `${site.data.workspace}:${selected.value?.name}`, () => {
   addOpen.value = false
 }, { immediate: true })
 watch(dragId, () => { rootOver.value = false })
-function itemLabel(item) { return resolveLocalized(item.label, site.draft.settings.default_locale, site.draft.settings.default_locale) || t('site.menus.untitled') }
+function itemLabel(item) { return resolveLocalized(item.label, site.draft.settings.default_locale, site.draft.settings.default_locale) || defaultLabels.value[item.id] || t('site.menus.untitled') }
 function chooseMenu(element) {
   if (element.value === '__create__') { createMenuOpen.value = true; element.value = `menu:${selectedName.value}` }
   else selectedName.value = element.value.slice(5)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
+import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuDefaultLabel, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
 const types = [
   { name: 'about', label: 'About' },
   { name: 'home' },
@@ -10,6 +10,25 @@ const settings = { homepage: { type: 'home', entry: '' }, routes: {
   about: { enabled: true }, blog: { enabled: true, index_path: '/blog' },
   portfolio: { enabled: false }, private: { enabled: true },
 } }
+
+describe('automatic menu labels', () => {
+  const t = (key) => key === 'site.link.home' ? 'Home' : key
+
+  it('uses the resolved page title and leaves missing pages without a fabricated label', () => {
+    const link = { type: 'entry', collection: 'about', entry: 'about' }
+    expect(menuDefaultLabel(link, types, settings, 'About us', t)).toBe('About us')
+    expect(menuDefaultLabel(link, types, settings, '', t)).toBe('')
+  })
+
+  it('matches website defaults for home, listings, URLs, anchors, and groups', () => {
+    expect(menuDefaultLabel({ type: 'home' }, types, settings, 'Landing Page', t)).toBe('Home')
+    expect(menuDefaultLabel({ type: 'index', collection: 'about' }, types, settings, '', t)).toBe('About')
+    expect(menuDefaultLabel({ type: 'index', collection: 'blog' }, types, { routes: { blog: { index_title: 'Latest posts' } } }, '', t)).toBe('Latest posts')
+    expect(menuDefaultLabel({ type: 'url', url: '/contact' }, types, settings, '', t)).toBe('/contact')
+    expect(menuDefaultLabel({ type: 'anchor', anchor: 'team' }, types, settings, '', t)).toBe('#team')
+    expect(menuDefaultLabel({ type: 'none' }, types, settings, '', t)).toBe('')
+  })
+})
 
 describe('website live state', () => {
   it('is live with a public homepage or public frontend pages, and headless otherwise', () => {

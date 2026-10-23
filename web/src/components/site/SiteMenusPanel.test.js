@@ -23,10 +23,10 @@ beforeEach(() => {
   api.content.get.mockResolvedValue({ data: { uid: 'about', title: 'About' } })
 })
 
-async function renderMenus(link, defaultLocale = 'en') {
+async function renderMenus(link, defaultLocale = 'en', label = 'Home') {
   const pinia = createPinia()
   const site = useSiteStore(pinia)
-  const item = { id: 'home', label: 'Home', link, children: [] }
+  const item = { id: 'home', label, link, children: [] }
   site.data = {
     workspace: 'menus-test', types: [],
     settings: { default_locale: defaultLocale, locales: [defaultLocale] },
@@ -42,6 +42,17 @@ async function renderMenus(link, defaultLocale = 'en') {
 }
 
 describe('menus page destinations', () => {
+  it('uses the destination default in the inspector heading without filling in display text', async () => {
+    const html = await renderMenus({ type: 'url', url: '/about' }, 'en', '')
+    expect(html).toMatch(/<h2[^>]*>\/about<\/h2>/)
+    expect(html).toMatch(/<input[^>]*id="menu-item-home"[^>]*value=""/)
+  })
+
+  it('keeps custom display text ahead of the destination default', async () => {
+    const html = await renderMenus({ type: 'url', url: '/about' }, 'en', 'Our team')
+    expect(html).toMatch(/<h2[^>]*>Our team<\/h2>/)
+  })
+
   it('renders the inspector before workspace languages finish loading', async () => {
     // The workspace is German, but LocalizedInput initially uses English.
     const html = await renderMenus({ type: 'localized', values: { de: { type: 'none' } } }, 'de')

@@ -29,7 +29,7 @@
           <span v-if="item.children.length" class="shrink-0 rounded bg-slate-100 px-1.5 text-xs text-slate-500" :title="t('site.menus.descendants')">{{ itemCount(item.children) }}</span>
           <Icon v-if="linkIssue(link, label)" icon="mdi:alert-circle-outline" class="h-4 w-4 shrink-0 text-amber-600" :title="t(`site.link.${linkIssue(link, label)}`)" />
         </div>
-        <MenuLinkSummary explain-unavailable :link="link" :types="types" :settings="settings" :context="item.id" />
+        <MenuLinkSummary explain-unavailable :link="link" :types="types" :settings="settings" :context="item.id" @default-label="setDefaultLabel" />
       </div>
       <details class="relative shrink-0" @click.stop @keydown.esc.stop.prevent="$event.currentTarget.open = false; $event.currentTarget.querySelector('summary').focus()" @focusout="closeActions">
         <summary class="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded text-slate-500 hover:bg-slate-100 [&::-webkit-details-marker]:hidden" :aria-label="t('site.menus.itemActions', { name: label || t('site.menus.untitled') })">
@@ -52,7 +52,8 @@
       <MenuTreeNode v-for="child in item.children" :key="child.id" :item="child" :depth="depth + 1"
         :selected-id="selectedId" :expanded-ids="expandedIds" :types="types" :settings="settings" :items="items" :limits="limits" :drag-id="dragId"
         @action="(id, action) => $emit('action', id, action)" @select="(id, edit) => $emit('select', id, edit)" @toggle="$emit('toggle', $event)" @navigate="(id, key) => $emit('navigate', id, key)"
-        @drag="$emit('drag', $event)" @move="(id, target, position) => $emit('move', id, target, position)" />
+        @drag="$emit('drag', $event)" @move="(id, target, position) => $emit('move', id, target, position)"
+        @default-label="(id, value) => $emit('default-label', id, value)" />
     </ul>
   </li>
 </template>
@@ -70,10 +71,15 @@ const props = defineProps({
   selectedId: { type: String, default: '' }, expandedIds: { type: Set, required: true },
   types: { type: Array, required: true }, settings: { type: Object, required: true }, limits: { type: Object, required: true }, dragId: { type: String, default: '' },
 })
-const emit = defineEmits(['select', 'toggle', 'navigate', 'drag', 'move', 'action'])
+const emit = defineEmits(['select', 'toggle', 'navigate', 'drag', 'move', 'action', 'default-label'])
 const { t } = useI18n()
 const link = computed(() => resolveLocalized(props.item.link, props.settings.default_locale, props.settings.default_locale) ?? {})
-const label = computed(() => resolveLocalized(props.item.label, props.settings.default_locale, props.settings.default_locale))
+const defaultLabel = ref('')
+const label = computed(() => resolveLocalized(props.item.label, props.settings.default_locale, props.settings.default_locale) || defaultLabel.value)
+function setDefaultLabel(value) {
+  defaultLabel.value = value
+  emit('default-label', props.item.id, value)
+}
 const expanded = computed(() => props.expandedIds.has(props.item.id))
 const dropPosition = ref('')
 watch(() => props.dragId, () => { dropPosition.value = '' })

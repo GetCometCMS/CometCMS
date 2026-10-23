@@ -30,6 +30,18 @@ export function entryIdentifier(entry) {
   return entry.uid || ''
 }
 
+/** Match the website's automatic menu labels without storing a title override. */
+export function menuDefaultLabel(link, types, settings, title, t) {
+  switch (link?.type) {
+    case 'home': return t('site.link.home')
+    case 'entry': return title || ''
+    case 'index': return settings?.routes?.[link.collection]?.index_title || types.find((type) => type.name === link.collection)?.label || ''
+    case 'url': return link.url || ''
+    case 'anchor': return `#${anchorId(link.anchor)}`
+    default: return ''
+  }
+}
+
 export function destinationAvailable(link, types, settings, entry = null) {
   if (!['entry', 'index'].includes(link.type) || !link.collection) return true
   const type = types.find((type) => type.name === link.collection)
