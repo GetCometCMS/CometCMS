@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dropPlacement, subtreeKeys, treeRows } from './entryTree.js'
+import { applyMove, dropPlacement, gapTarget, isCurrentPlace, subtreeKeys, treeRows } from './entryTree.js'
 
 const page = (uid, parent = '', position = 0) => ({ uid, id: uid, slug: uid, parent, position })
 const entries = [
@@ -39,5 +39,33 @@ describe('entry tree', () => {
     expect(dropPlacement(entries, byUid.about, byUid.contact, 'after')).toEqual({ parent: '', index: 1 })
     expect(dropPlacement(entries, byUid.about, byUid.berlin, 'inside')).toBeNull()
     expect(dropPlacement(entries, byUid.about, byUid.about, 'before')).toBeNull()
+  })
+
+  it('resolves gaps between rows by the requested nesting level', () => {
+    const rows = treeRows(entries)
+    const pick = (index, depth) => {
+      const drop = gapTarget(rows, index, depth)
+      return drop && [drop.target.uid, drop.zone, drop.depth]
+    }
+    expect(pick(-1, 3)).toEqual(['about', 'before', 0])
+    // Between a page and its first child the drop always goes into the page.
+    expect(pick(0, 0)).toEqual(['team', 'before', 1])
+    // Below the last child of a branch the level picks the ancestor.
+    expect(pick(3, 5)).toEqual(['history', 'after', 1])
+    expect(pick(3, 0)).toEqual(['about', 'after', 0])
+    expect(pick(2, 0)).toEqual(['team', 'after', 1])
+    expect(pick(4, 0)).toEqual(['contact', 'after', 0])
+  })
+
+  it('recognises drops that would not move the page', () => {
+    const byUid = Object.fromEntries(entries.map((entry) => [entry.uid, entry]))
+    expect(isCurrentPlace(entries, byUid.history, { parent: 'about', index: 1 })).toBe(true)
+    expect(isCurrentPlace(entries, byUid.history, { parent: 'about', index: 0 })).toBe(false)
+    expect(isCurrentPlace(entries, byUid.history, { parent: '', index: 1 })).toBe(false)
+  })
+
+  it('applies a move locally like the server', () => {
+    const moved = applyMove(entries, 'contact', { parent: 'about', index: 1 })
+    expect(treeRows(moved).map((row) => row.entry.uid)).toEqual(['about', 'team', 'berlin', 'contact', 'history'])
   })
 })

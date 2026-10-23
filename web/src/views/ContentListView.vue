@@ -225,12 +225,12 @@
                   </EmptyState>
                 </td>
               </tr>
-              <tr v-for="{ entry, depth, hasChildren, path } in displayRows" :key="entry.id" class="cursor-pointer group" :class="[
+              <tr v-for="({ entry, depth, hasChildren, path }, rowIndex) in displayRows" :key="entry.id" class="cursor-pointer group" :class="[
                 selectedIds.has(entry.id) ? '!bg-theme-50 hover:!bg-theme-100' : '',
-                dropZone?.key === entryKey(entry) ? `tree-drop-${dropZone.zone}` : '',
+                dropZone?.rowKey === entryKey(entry) ? `tree-drop-${dropZone.visual}` : '',
                 dragKey === entryKey(entry) ? 'opacity-50' : '',
               ]" @click="router.push(`/content/${collection}/${entry.uid || entry.id}`)"
-                @dragover="treeDragOver($event, entry)" @dragleave="treeDragLeave($event, entry)" @drop.prevent="treeDrop(entry)">
+                @dragover="treeDragOver($event, rowIndex)" @dragleave="treeDragLeave($event, entry)" @drop.prevent="treeDrop">
                 <td v-if="canSelectEntries" class="w-10 !px-3" @click.stop>
                   <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
@@ -241,7 +241,7 @@
                 </td>
                 <td v-for="column in displayedColumns" :key="column.key"
                   :class="[cellClass(column), treeMode && column.key === 'title' ? 'tree-title-cell' : '']"
-                  :style="treeMode && column.key === 'title' ? { '--tree-drop-indent': `${depth * 26 + 38}px` } : undefined">
+                  :style="treeMode && column.key === 'title' ? { '--tree-drop-indent': `${treeIndent(dropZone?.rowKey === entryKey(entry) ? dropZone.depth : depth)}px` } : undefined">
                   <ContentListCell :column="column" :entry="entry" :users="users"
                     :saving="savingCell === cellSaveKey(entry.id, column)" @save="handleInlineSave">
                     <template v-if="column.kind === 'core'">
@@ -464,10 +464,10 @@
         :style="{ left: `${dragPointer.x}px`, top: `${dragPointer.y}px` }"
         role="status" aria-live="polite" aria-atomic="true">
         <Icon :icon="dropZone.zone === 'inside' ? 'mdi:subdirectory-arrow-right' : 'mdi:swap-vertical'"
-          class="mt-0.5 h-4 w-4 shrink-0 text-theme-600" />
+          class="h-3.5 w-3.5 shrink-0 text-theme-600" />
         <div class="min-w-0">
           <div class="truncate font-semibold">{{ dropPreview.action }}</div>
-          <div class="truncate text-xs text-slate-500">{{ dropPreview.destination }}</div>
+          <div class="truncate text-[11px] text-slate-500">{{ dropPreview.destination }}</div>
         </div>
       </div>
     </Teleport>
@@ -522,7 +522,7 @@ import {
   orderLocales,
   statusPillClass,
 } from "../composables/contentDisplay.js";
-import { dropPlacement, entryKey, treeRows } from "../composables/entryTree.js";
+import { applyMove, dropPlacement, entryKey, gapTarget, isCurrentPlace, treeRows } from "../composables/entryTree.js";
 import {
   getFileIcon,
   isImageFile,
@@ -974,6 +974,8 @@ const dragKey = ref("");
 // { key, zone }: the row and where the dragged page would go.
 const dropZone = ref(null);
 const dragPointer = ref({ x: 0, y: 0 });
+// Expands a collapsed page after hovering over its middle for a moment.
+let expandTimer = null;
 const dropPreview = computed(() => {
   if (!dropZone.value) return null;
   const target = (col.value.entries ?? []).find((entry) => entryKey(entry) === dropZone.value.key);
@@ -999,54 +1001,97 @@ function toggleCollapsed(entry) {
   collapsed.value = next;
 }
 
+/** Left offset of the title of a row at `depth`: drag handle plus one guide per level. */
+const treeIndent = (depth) => depth * 26 + 38;
+
 function treeDragStart(event, entry) {
   dragKey.value = entryKey(entry);
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", dragKey.value);
+  // Drag the whole row rather than just the handle.
+  const row = event.currentTarget.closest("tr");
+  if (row) event.dataTransfer.setDragImage(row, 24, row.offsetHeight / 2);
 }
 
 function treeDragEnd() {
   dragKey.value = "";
   dropZone.value = null;
+  clearTimeout(expandTimer);
+  expandTimer = null;
 }
 
 function draggedEntry() {
   return (col.value.entries ?? []).find((entry) => entryKey(entry) === dragKey.value) ?? null;
 }
 
-/** The move request for dropping on `target`, or null when not allowed. */
+/** The move request for dropping on `target`, or null when not allowed or a no-op. */
 function placementFor(target, zone) {
   const dragged = draggedEntry();
   if (!dragged) return null;
-  return dropPlacement(col.value.entries ?? [], dragged, target, zone);
+  const entries = col.value.entries ?? [];
+  const placement = dropPlacement(entries, dragged, target, zone);
+  return placement && !isCurrentPlace(entries, dragged, placement) ? placement : null;
 }
 
-function treeDragOver(event, target) {
+/**
+ * Where the pointer would drop: the middle of a row nests into it, its top and
+ * bottom edges are the gaps around it, where the horizontal position picks the
+ * nesting level.
+ */
+function dropAt(event, rowIndex) {
+  const rows = displayRows.value;
+  const { entry, depth } = rows[rowIndex];
+  const rect = event.currentTarget.getBoundingClientRect();
+  const ratio = (event.clientY - rect.top) / rect.height;
+  if (ratio >= 0.25 && ratio <= 0.75) return { rowKey: entryKey(entry), visual: "inside", depth: depth + 1, key: entryKey(entry), zone: "inside" };
+  const visual = ratio < 0.25 ? "before" : "after";
+  const cell = event.currentTarget.querySelector(".tree-title-cell");
+  const pointerDepth = cell ? (event.clientX - cell.getBoundingClientRect().left - treeIndent(0)) / 26 : depth;
+  const gap = gapTarget(rows, visual === "before" ? rowIndex - 1 : rowIndex, pointerDepth);
+  if (!gap) return null;
+  return { rowKey: entryKey(entry), visual, depth: gap.depth, key: entryKey(gap.target), zone: gap.zone };
+}
+
+function treeDragOver(event, rowIndex) {
   if (!dragKey.value) return;
   // Keep the preview beside the cursor and within the viewport.
   dragPointer.value = {
-    x: Math.max(8, Math.min(event.clientX + 18, window.innerWidth - 296)),
-    y: Math.max(8, Math.min(event.clientY + 18, window.innerHeight - 88)),
+    x: Math.max(8, Math.min(event.clientX + 18, window.innerWidth - 256)),
+    y: Math.max(8, Math.min(event.clientY + 18, window.innerHeight - 56)),
   };
-  const rect = event.currentTarget.getBoundingClientRect();
-  const ratio = (event.clientY - rect.top) / rect.height;
-  const zone = ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "inside";
-  const valid = placementFor(target, zone) !== null;
-  dropZone.value = valid ? { key: entryKey(target), zone } : null;
+  const drop = dropAt(event, rowIndex);
+  const target = drop && (col.value.entries ?? []).find((entry) => entryKey(entry) === drop.key);
+  const valid = !!target && placementFor(target, drop.zone) !== null;
+  const next = valid ? drop : null;
+  const current = dropZone.value;
+  if (next?.rowKey !== current?.rowKey || next?.visual !== current?.visual || next?.key !== current?.key || next?.depth !== current?.depth) {
+    dropZone.value = next;
+    clearTimeout(expandTimer);
+    expandTimer = null;
+    if (next?.zone === "inside" && collapsed.value.has(next.key)) {
+      expandTimer = setTimeout(() => {
+        if (dropZone.value?.key === next.key && dropZone.value.zone === "inside") toggleCollapsed(target);
+      }, 700);
+    }
+  }
   event.dataTransfer.dropEffect = valid ? "move" : "none";
   if (valid) event.preventDefault();
 }
 
 function treeDragLeave(event, target) {
-  if (!event.currentTarget.contains(event.relatedTarget) && dropZone.value?.key === entryKey(target)) dropZone.value = null;
+  if (!event.currentTarget.contains(event.relatedTarget) && dropZone.value?.rowKey === entryKey(target)) dropZone.value = null;
 }
 
-async function treeDrop(target) {
+async function treeDrop() {
   const dragged = draggedEntry();
-  const placement = dropZone.value ? placementFor(target, dropZone.value.zone) : null;
+  const zone = dropZone.value;
+  const target = zone && (col.value.entries ?? []).find((entry) => entryKey(entry) === zone.key);
+  const placement = target ? placementFor(target, zone.zone) : null;
   treeDragEnd();
   if (!dragged || !placement) return;
   if (placement.parent) collapsed.value = new Set([...collapsed.value].filter((key) => key !== placement.parent));
+  // Show the new order right away; the reload below confirms it.
+  col.value.entries = applyMove(col.value.entries ?? [], entryKey(dragged), placement);
   try {
     await api.content.move(collection.value, entryKey(dragged), placement);
   } catch (err) {

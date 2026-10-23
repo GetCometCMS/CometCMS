@@ -83,3 +83,44 @@ export function dropPlacement(entries, dragged, target, zone) {
   const index = siblings.findIndex((entry) => entryKey(entry) === entryKey(target));
   return { parent, index: zone === "after" ? index + 1 : index };
 }
+
+/**
+ * The drop target for the gap below `rows[index]` (-1: above the first row)
+ * when the pointer asks for nesting level `depth`. A gap between a page and
+ * its first visible child only leads into that page; elsewhere the level can
+ * range from the page below to the page above, so a page dropped below the
+ * last child of a branch can be placed after any of its ancestors.
+ * @returns {{ target: object, zone: "before" | "after", depth: number } | null}
+ */
+export function gapTarget(rows, index, depth) {
+  const above = rows[index];
+  const below = rows[index + 1];
+  if (!above) return below ? { target: below.entry, zone: "before", depth: below.depth } : null;
+  if (below && below.depth > above.depth) return { target: below.entry, zone: "before", depth: below.depth };
+  const level = Math.max(below?.depth ?? 0, Math.min(above.depth, Math.round(depth)));
+  for (let i = index; i >= 0; i--) {
+    if (rows[i].depth === level) return { target: rows[i].entry, zone: "after", depth: level };
+  }
+  return null;
+}
+
+/** Whether `placement` would leave `dragged` where it already is. */
+export function isCurrentPlace(entries, dragged, placement) {
+  const known = new Set(entries.map(entryKey));
+  const parent = known.has(entryParent(dragged)) ? entryParent(dragged) : "";
+  if (placement.parent !== parent) return false;
+  const siblings = childrenByParent(entries).get(parent) ?? [];
+  return siblings.findIndex((entry) => entryKey(entry) === entryKey(dragged)) === placement.index;
+}
+
+/** Entries with `key` moved to `placement`, sibling positions renumbered as the server does. */
+export function applyMove(entries, key, placement) {
+  const moved = entries.find((entry) => entryKey(entry) === key);
+  if (!moved) return entries;
+  const siblings = (childrenByParent(entries).get(placement.parent) ?? []).filter((entry) => entry !== moved);
+  siblings.splice(Math.max(0, Math.min(placement.index, siblings.length)), 0, moved);
+  const positions = new Map(siblings.map((entry, position) => [entry, position]));
+  return entries.map((entry) => entry === moved
+    ? { ...entry, parent: placement.parent, position: positions.get(entry) }
+    : positions.has(entry) ? { ...entry, position: positions.get(entry) } : entry);
+}
