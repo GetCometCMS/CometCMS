@@ -39,7 +39,7 @@ final class PreviewAdminBar
         $builderUrl = null;
         $variant = $entry !== null ? 'detail' : 'index';
         if ($type !== null && $this->ctx->isPublicType($name)
-            && in_array($variant, $this->ctx->site->variantsFor($type), true)
+            && in_array($variant, $this->ctx->site->enabledVariantsFor($type), true)
             && $this->ctx->adminAllows('site.manage') && ($entry === null || $savedEntry !== null)) {
             $entryId = $savedEntry !== null ? (string) ($savedEntry['uid'] ?? $savedEntry['id']) : '';
             $builderUrl = $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($name) . '/' . $variant,

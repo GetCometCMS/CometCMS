@@ -148,7 +148,7 @@ final class SiteService
                 continue;
             }
 
-            if ($route['index_path'] !== '' && $route['index_path'] === $path) {
+            if ($route['index_enabled'] && $route['index_path'] !== '' && $route['index_path'] === $path) {
                 return $this->html($renderer->indexPage($type, $page));
             }
         }
@@ -236,7 +236,7 @@ final class SiteService
             return $entry !== null ? $this->html($renderer->entryPage($type, $entry, $page)) : ($this->ctx->locale === $this->ctx->defaultLocale() ? $this->html($renderer->autoHome()) : $this->notFound($renderer, '/'));
         }
 
-        return $this->html($renderer->indexPage($type, $page));
+        return $this->ctx->hasListPage($home['type']) ? $this->html($renderer->indexPage($type, $page)) : $this->html($renderer->autoHome());
     }
 
     /** @return array{0: string, 1: string} locale ('' for the default) and the remaining path */

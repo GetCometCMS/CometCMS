@@ -392,7 +392,7 @@ final class SiteContext
         $home = $this->settings()['homepage'] ?? [];
         $schema = $this->type($type);
 
-        if ($schema === null || !$this->isPublicType($type)) {
+        if ($schema === null || !$this->isPublicType($type) || !$this->hasListPage($type)) {
             return null;
         }
 
@@ -403,6 +403,12 @@ final class SiteContext
         $route = $this->route($type);
 
         return $route !== null && $route['index_path'] !== '' ? $route['index_path'] : null;
+    }
+
+    /** Whether the type has its optional list page turned on. */
+    public function hasListPage(string $type): bool
+    {
+        return !empty($this->settings()['routes'][$type]['index_enabled']);
     }
 
     public function indexUrl(string $type, ?string $locale = null): ?string

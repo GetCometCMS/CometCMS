@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuDefaultLabel, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
+import { destinationAvailable, eligibleTypes, hasListPage, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuDefaultLabel, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
 const types = [
   { name: 'about', label: 'About' },
   { name: 'home' },
@@ -7,8 +7,9 @@ const types = [
   { name: 'private', visibility: 'private' },
 ]
 const settings = { homepage: { type: 'home', entry: '' }, routes: {
-  about: { enabled: true }, blog: { enabled: true, index_path: '/blog' },
-  portfolio: { enabled: false }, private: { enabled: true },
+  about: { enabled: true, index_path: '/about' }, home: { enabled: false, index_enabled: true },
+  blog: { enabled: true, index_enabled: true, index_path: '/blog' },
+  portfolio: { enabled: false, index_enabled: true }, private: { enabled: true },
 } }
 
 describe('automatic menu labels', () => {
@@ -49,6 +50,15 @@ describe('website destinations', () => {
     expect(eligibleTypes(types, homepage, 'index').map((type) => type.name)).toEqual(['blog', 'portfolio'])
     const homeEntry = { ...settings, homepage: { type: 'home', entry: 'welcome' } }
     expect(eligibleTypes(types, homeEntry, 'entry').map((type) => type.name)).toEqual(['about', 'home', 'blog'])
+  })
+
+  it('hides list pages that are not turned on, even with a URL or as the homepage', () => {
+    const off = { ...settings, homepage: { type: 'blog', entry: '' }, routes: { ...settings.routes, blog: { enabled: true, index_enabled: false, index_path: '/blog' } } }
+    expect(eligibleTypes(types, off, 'index').map((type) => type.name)).toEqual([])
+    expect(destinationAvailable({ type: 'index', collection: 'blog' }, types, off)).toBe(false)
+    expect(destinationAvailable({ type: 'index', collection: 'about' }, types, settings)).toBe(false)
+    expect(hasListPage(settings, 'blog')).toBe(true)
+    expect(hasListPage(settings, 'about')).toBe(false)
   })
 
   it('does not treat unrelated entries as routable when only the homepage entry is enabled', () => {

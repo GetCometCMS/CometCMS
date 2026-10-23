@@ -13,6 +13,7 @@
           </span>
 
           <SplitButton
+            v-if="hasListPage"
             variant="secondary"
             :menu-label="t('site.collection.templates')"
             :items="templateMenuItems"
@@ -22,6 +23,17 @@
             <Icon :icon="COLLECTION_TEMPLATES[0].icon" class="h-4 w-4" />
             {{ t('site.variant.index') }}
           </SplitButton>
+          <!-- Without a list page, the entry page is the only template. -->
+          <button
+            v-else
+            type="button"
+            class="btn-secondary"
+            :title="t('site.collection.editTemplate', { template: t('site.variant.detail') })"
+            @click="editCollectionTemplate('detail')"
+          >
+            <Icon :icon="COLLECTION_TEMPLATES[1].icon" class="h-4 w-4" />
+            {{ t('site.variant.detail') }}
+          </button>
         </nav>
 
         <router-link
@@ -566,6 +578,8 @@ function editCollectionTemplate(variant) {
     query: { back: route.fullPath },
   });
 }
+
+const hasListPage = computed(() => !!websiteStatus.value?.types?.[collection.value]?.index_enabled);
 
 const canEditTemplates = computed(() =>
   contentTypeSchema.value

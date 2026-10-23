@@ -41,7 +41,7 @@
         <div v-if="homeType">
           <label class="form-label" for="site-home-entry">{{ t("site.overview.homepageEntry") }}</label>
           <select id="site-home-entry" v-model="settings.homepage.entry" class="form-select w-full rounded-lg border-slate-300 text-sm" :disabled="loadingEntries">
-            <option v-for="option in homeEntryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            <option v-for="option in homeEntryOptions" :key="option.value" :value="option.value" :disabled="option.disabled">{{ option.label }}</option>
           </select>
         </div>
       </div>
@@ -105,7 +105,7 @@ import { api } from "../../api/index.js";
 import { LOCALE_OPTIONS, localeLabel } from "../../composables/localeOptions.js";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
-import { entryIdentifier } from "../../composables/siteLinks.js";
+import { entryIdentifier, hasListPage } from "../../composables/siteLinks.js";
 
 const site = useSiteStore();
 const { t } = useI18n();
@@ -126,8 +126,11 @@ const loadingEntries = ref(false);
 
 const publicTypes = computed(() => site.data.types.filter((type) => type.visibility !== "private"));
 const homeType = computed(() => publicTypes.value.find((type) => type.name === settings.value.homepage.type) ?? null);
+// The list of all entries is offered only when the type has its list page turned on.
 const homeEntryOptions = computed(() => [
-  { value: "", label: t("site.overview.homepageList") },
+  hasListPage(settings.value, homeType.value?.name)
+    ? { value: "", label: t("site.overview.homepageList") }
+    : { value: "", label: t("site.overview.homepageChooseEntry"), disabled: true },
   ...homeEntries.value,
 ]);
 const domainsText = computed({

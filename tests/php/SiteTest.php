@@ -327,6 +327,28 @@ test('website settings reject reserved, malformed and duplicate URLs', function 
     assert_same('/posts/{slug}', $saved['routes']['blog']['pattern']);
 });
 
+test('list pages are optional and only exist once turned on', function (): void {
+    comet_site_test_setup(['blog' => ['enabled' => true, 'index_enabled' => false], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']]);
+    $site = new SiteRepository();
+    assert_false($site->settings()['routes']['blog']['index_enabled']);
+    assert_false($site->settings()['routes']['about']['index_enabled'], 'Routes saved without a list URL keep having no list page.');
+    assert_same(['detail'], $site->enabledVariantsFor($site->types()['blog']));
+    assert_same(404, comet_site_test_get('/blog')['status']);
+    assert_same(200, comet_site_test_get('/blog/hello')['status']);
+    assert_null(comet_site_test_context()->indexUrl('blog'));
+    assert_false(str_contains(comet_site_test_get('/sitemap.xml')['body'], 'example.test/blog<'), 'The sitemap omits list pages that are turned off.');
+
+    // A list page cannot be the homepage until it is turned on.
+    assert_throws(ValidationException::class, fn() => $site->saveSettings(['homepage' => ['type' => 'blog', 'entry' => ''], 'routes' => ['blog' => ['enabled' => true, 'index_enabled' => false]]]));
+    // The URL of a list page that is off is neither validated nor claimed.
+    $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => false, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']]]);
+    assert_throws(ValidationException::class, fn() => $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => true, 'index_path' => '']]]), 'A list page that is on needs a URL.');
+
+    $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => true, 'index_path' => '/blog']]]);
+    assert_same(200, comet_site_test_get('/blog')['status']);
+    assert_same(['detail', 'index'], (new SiteRepository())->enabledVariantsFor($site->types()['blog']));
+});
+
 test('website renders published entries with escaped content and sanitized markdown', function (): void {
     comet_site_test_setup();
     $response = comet_site_test_get('/blog/hello');

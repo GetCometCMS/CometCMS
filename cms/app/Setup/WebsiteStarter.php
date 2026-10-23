@@ -104,8 +104,8 @@ final class WebsiteStarter
         $site->saveSettings([
             'homepage' => ['type' => 'pages', 'entry' => $home['id']],
             'routes' => [
-                'pages' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '', 'seo_description_field' => 'intro'],
-                ...($includeEvents ? ['events' => ['enabled' => true, 'seo_description_field' => 'intro']] : []),
+                'pages' => ['enabled' => true, 'pattern' => '/{slug}', 'index_enabled' => false, 'index_path' => '', 'seo_description_field' => 'intro'],
+                ...($includeEvents ? ['events' => ['enabled' => true, 'index_enabled' => true, 'seo_description_field' => 'intro']] : []),
             ],
         ]);
         $site->saveMenus([

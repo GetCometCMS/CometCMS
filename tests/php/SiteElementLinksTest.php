@@ -4,8 +4,63 @@ declare(strict_types=1);
 
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\NodeRenderer;
+use CometCMS\Site\PageRenderer;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SmartValue;
+
+test('shared region buttons stay visible without destinations across pages and builders', function (): void {
+    $site = comet_site_test_setup();
+    foreach (['header', 'footer'] as $region) {
+        $buttons = [];
+        foreach (['none', 'current', 'home'] as $destination) {
+            $button = LayoutSchema::node('button', [
+                'label' => $region . '-' . $destination,
+                'link' => ['type' => $destination],
+            ]);
+            $button['id'] = $region . '-' . $destination;
+            $buttons[] = $button;
+        }
+        $site->saveRegion($region, [LayoutSchema::node('section', [], [], [
+            LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], $buttons)]),
+        ])]);
+    }
+
+    foreach ([false, true] as $editing) {
+        $ctx = comet_site_test_context($site);
+        $ctx->preview = $editing;
+        $ctx->annotate = $editing;
+        $renderer = new PageRenderer($ctx);
+        $type = $ctx->type('blog');
+        $entry = $ctx->findEntry('blog', 'hello');
+        $pages = $editing ? [
+            'index' => $renderer->layoutPreview($type, 'index', null),
+            'detail' => $renderer->layoutPreview($type, 'detail', $entry),
+            'page' => $renderer->pagePreview($type, $entry, 'body'),
+            'header' => $renderer->regionPreview('header'),
+            'footer' => $renderer->regionPreview('footer'),
+        ] : [
+            'index' => $renderer->indexPage($type),
+            'detail' => $renderer->entryPage($type, $entry),
+        ];
+        foreach ($pages as $page => $html) {
+            $dom = new DOMDocument();
+            @$dom->loadHTML($html);
+            $xpath = new DOMXPath($dom);
+            foreach (['header', 'footer'] as $region) {
+                foreach (['none', 'current', 'home'] as $destination) {
+                    $label = $region . '-' . $destination;
+                    $buttons = $xpath->query('//' . $region . '//*[contains(concat(" ", normalize-space(@class), " "), " c-button ")][span[@class="c-button-label" and text()="' . $label . '"]]');
+                    assert_same(1, $buttons->length, $label . ' remains visible on ' . $page);
+                    $button = $buttons->item(0);
+                    $linked = $destination === 'home' || ($destination === 'current' && in_array($page, ['detail', 'page'], true));
+                    assert_same($linked ? 'a' : 'span', $button->tagName);
+                    assert_same($linked, $button->hasAttribute('href'));
+                }
+                assert_same($editing && $page === $region, str_contains($html, 'data-node="' . $region . '-none"'));
+            }
+        }
+    }
+});
 
 test('field and gallery link toggles migrate to structured destinations throughout saved trees', function (): void {
     $legacy = [];

@@ -79,6 +79,7 @@ final class PageBuilderTools
             throw new McpError('Content type not found.', 404, ['code' => 'not_found', 'collection' => $collection], [], ['Use list_content_types to find a collection, or create_content_type to create one first.']);
         }
         $site = new SiteRepository($this->workspace);
+        if (!in_array($variant, $site->enabledVariantsFor($site->types()[$collection] ?? ['name' => $collection]), true)) $this->invalid('variant', 'This collection has no list page. Turn it on in the content type settings, or use detail.');
         $nodes = $site->layout($collection, $variant);
         $revision = LocalizedValue::hash($nodes);
         $target = ['collection' => $collection, 'variant' => $variant];

@@ -43,7 +43,7 @@ final class SiteController extends BaseController
 
         $layouts = [];
         foreach ($this->site->types() as $name => $type) {
-            foreach ($this->site->variantsFor($type) as $variant) {
+            foreach ($this->site->enabledVariantsFor($type) as $variant) {
                 $layouts[$name][$variant] = $this->site->layoutCustomized($name, $variant);
             }
         }
@@ -82,6 +82,7 @@ final class SiteController extends BaseController
                 'pages_enabled' => $route['enabled'],
                 'routed' => $route['enabled'] || ($settings['homepage']['type'] ?? '') === $name,
                 'pattern' => $route['pattern'],
+                'index_enabled' => $route['index_enabled'],
                 'index_path' => $route['index_path'],
             ];
         }
@@ -1034,7 +1035,7 @@ final class SiteController extends BaseController
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Content type not found.']], 404);
         }
 
-        if (!in_array($variant, $this->site->variantsFor($schema), true)) {
+        if (!in_array($variant, $this->site->enabledVariantsFor($schema), true)) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Unknown layout variant.']], 404);
         }
 

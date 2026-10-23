@@ -138,6 +138,8 @@ final class SiteRepository
         return [
             'enabled' => false,
             'pattern' => '/' . $name . '/{slug}',
+            // List pages are opt-in; without one the type only has entry pages.
+            'index_enabled' => false,
             'index_path' => '/' . $name,
             'index_title' => '',
             'seo_description_field' => '',
@@ -492,7 +494,7 @@ final class SiteRepository
             && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
 
         foreach ($this->types() as $name => $type) {
-            foreach ($this->variantsFor($type) as $variant) {
+            foreach ($this->enabledVariantsFor($type) as $variant) {
                 if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
@@ -568,7 +570,7 @@ final class SiteRepository
         };
 
         foreach ($this->types() as $name => $type) {
-            foreach ($this->variantsFor($type) as $variant) {
+            foreach ($this->enabledVariantsFor($type) as $variant) {
                 if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
                     $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
                 }
@@ -826,6 +828,14 @@ final class SiteRepository
         return LayoutSchema::VARIANTS;
     }
 
+    /** Variants that exist for editors: the list page only when it is turned on. */
+    public function enabledVariantsFor(array $type): array
+    {
+        $listed = !empty($this->settings()['routes'][(string) ($type['name'] ?? '')]['index_enabled']);
+
+        return array_values(array_filter($this->variantsFor($type), static fn(string $variant): bool => $variant !== 'index' || $listed));
+    }
+
     public function themeRevisions(): array
     {
         return $this->listRevisions(['theme']);
@@ -1021,6 +1031,7 @@ final class SiteRepository
     {
         $types = $this->types();
         $routes = [];
+        $storedHome = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
 
         foreach ($types as $name => $type) {
             $route = is_array($input['routes'][$name] ?? null) ? $input['routes'][$name] : [];
@@ -1028,6 +1039,12 @@ final class SiteRepository
             $routes[$name] = [
                 'enabled' => (bool) ($route['enabled'] ?? $default['enabled']),
                 'pattern' => $this->localized($route['pattern'] ?? $default['pattern'], self::normalizePath(...)),
+                // Settings saved before list pages became optional keep the list
+                // pages they had: a list URL, or the list as the homepage.
+                'index_enabled' => (bool) ($route['index_enabled'] ?? (
+                    ($route !== [] && array_filter((array) ($route['index_path'] ?? $default['index_path']), static fn(mixed $path): bool => is_string($path) && trim($path, '/ ') !== '') !== [])
+                    || (($storedHome['type'] ?? '') === $name && empty($storedHome['entry']))
+                )),
                 'index_path' => $this->localized($route['index_path'] ?? $default['index_path'], self::normalizePath(...)),
                 'index_title' => $this->localized($route['index_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
                 'seo_description_field' => LayoutSchema::key($route['seo_description_field'] ?? ''),
@@ -1110,8 +1127,11 @@ final class SiteRepository
                 $patterns[$pattern] = $type['label'];
             }
 
-            $index = $route['index_path'];
-            if ($index !== '') {
+            $index = $route['index_enabled'] ? $route['index_path'] : '';
+            $homeList = ($settings['homepage']['type'] ?? '') === $name && ($settings['homepage']['entry'] ?? '') === '';
+            if ($route['index_enabled'] && $index === '' && !$homeList) {
+                $errors[$key . '.index_path'] = 'Enter a URL for the list page.';
+            } elseif ($index !== '') {
                 if ($error = $this->pathError($index)) {
                     $errors[$key . '.index_path'] = $error;
                 } elseif (str_contains($index, '{')) {
@@ -1127,6 +1147,8 @@ final class SiteRepository
         $home = $settings['homepage']['type'];
         if ($home !== '' && (($types[$home]['visibility'] ?? 'public') === 'private')) {
             $errors['homepage.type'] = 'Private content types cannot be used as the homepage.';
+        } elseif ($home !== '' && $settings['homepage']['entry'] === '' && empty($settings['routes'][$home]['index_enabled'])) {
+            $errors['homepage.entry'] = 'Choose an entry: ' . $types[$home]['label'] . ' has no list page.';
         }
 
         if ($errors !== []) {
@@ -1175,7 +1197,7 @@ final class SiteRepository
             foreach ($this->types() as $name => $type) {
                 $route = $resolved['routes'][$name] ?? null;
                 if (empty($route['enabled'])) continue;
-                $claim($route['index_path'], 'index:' . $name);
+                if ($route['index_enabled']) $claim($route['index_path'], 'index:' . $name);
                 $entries = $content->all($name);
                 if (($candidate['collection'] ?? '') === $name) {
                     $entries = array_values(array_filter($entries, static fn(array $entry): bool => $entry['id'] !== $candidate['id']));

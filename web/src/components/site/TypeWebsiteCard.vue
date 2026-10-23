@@ -36,19 +36,34 @@
           <p v-if="fullUrl(route.pattern)" class="mt-2 break-all font-mono text-xs text-slate-600">{{ fullUrl(route.pattern) }}</p>
         </div>
 
-        <div>
-          <LocalizedInput
-            id="type-route-index"
-            :label="t('site.pages.listUrl')"
-            :model-value="route.index_path"
-            class="w-full"
-            :invalid="!!errors.index_path"
-            :placeholder="t('site.pages.listUrlNone')"
-            @update:model-value="(value) => update({ index_path: value })"
-          />
-          <p v-if="errors.index_path" class="mt-1 text-xs text-red-600">{{ errors.index_path }}</p>
-          <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.listUrlHint") }}</p>
-          <p v-if="fullUrl(route.index_path)" class="mt-2 break-all font-mono text-xs text-slate-600">{{ fullUrl(route.index_path) }}</p>
+        <!-- List pages are optional: without one, the type has entry pages only. -->
+        <div class="space-y-3">
+          <div>
+            <label class="flex items-center gap-3 text-sm font-medium text-slate-700">
+              <ToggleSwitch
+                id="type-route-index-enabled"
+                :model-value="!!route.index_enabled"
+                :aria-label="t('site.pages.listPage')"
+                aria-describedby="type-route-index-enabled-help"
+                @update:model-value="setListPage"
+              />
+              {{ t("site.pages.listPage") }}
+            </label>
+            <p id="type-route-index-enabled-help" class="mt-1 text-xs text-slate-500">{{ t("site.pages.listPageHint") }}</p>
+          </div>
+          <div v-if="route.index_enabled">
+            <LocalizedInput
+              id="type-route-index"
+              :label="t('site.pages.listUrl')"
+              :model-value="route.index_path"
+              class="w-full"
+              :invalid="!!errors.index_path"
+              @update:model-value="(value) => update({ index_path: value })"
+            />
+            <p v-if="errors.index_path" class="mt-1 text-xs text-red-600">{{ errors.index_path }}</p>
+            <p v-else class="mt-1 text-xs text-slate-500">{{ t("site.pages.listUrlHint") }}</p>
+            <p v-if="fullUrl(route.index_path)" class="mt-2 break-all font-mono text-xs text-slate-600">{{ fullUrl(route.index_path) }}</p>
+          </div>
         </div>
       </div>
 
@@ -58,7 +73,7 @@
           {{ t("site.pages.seo") }}
         </summary>
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div>
+          <div v-if="route.index_enabled">
             <label class="form-label" for="type-route-index-title">{{ t("site.pages.listTitle") }}</label>
             <LocalizedInput id="type-route-index-title" :model-value="route.index_title" class="w-full" :placeholder="label" @update:model-value="(value) => update({ index_title: value })" />
           </div>
@@ -128,7 +143,7 @@ function fullUrl(value) {
 const summary = computed(() => {
   if (props.visibility === "private") return t("site.typeCard.private");
   if (route.value.enabled || route.value.pages_enabled) {
-    const where = [fullUrl(route.value.index_path), fullUrl(route.value.pattern)].filter(Boolean).join(" · ");
+    const where = [route.value.index_enabled ? fullUrl(route.value.index_path) : "", fullUrl(route.value.pattern)].filter(Boolean).join(" · ");
     return `${t("site.typeCard.published")} ${where}`;
   }
   return t("site.typeCard.notPublished");
@@ -137,6 +152,11 @@ const summary = computed(() => {
 function update(patch) {
   emit("update:modelValue", { ...props.modelValue, ...patch });
   if ("pattern" in patch || "index_path" in patch) emit("touched");
+}
+
+/** Turning the list page on suggests a URL when none is set yet. */
+function setListPage(enabled) {
+  update({ index_enabled: enabled, ...(enabled && !pathText(route.value.index_path) && props.name ? { index_path: `/${props.name}` } : {}) });
 }
 
 function fieldsOf(types) {

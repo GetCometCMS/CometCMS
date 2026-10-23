@@ -11,13 +11,18 @@ export function isSiteLive(settings, types) {
   return Object.entries(settings?.routes ?? {}).some(([name, route]) => route?.enabled && isPublic(name))
 }
 
+/** List pages are optional; a type without one has no list page anywhere. */
+export function hasListPage(settings, name) {
+  return !!settings?.routes?.[name]?.index_enabled
+}
+
 export function eligibleTypes(types, settings, kind) {
   return types.filter((type) => {
     if (type.visibility === 'private') return false
     const route = settings?.routes?.[type.name]
     const home = settings?.homepage
     const homepage = home?.type === type.name
-    if (kind === 'index') return !!((route?.enabled && route.index_path) || (homepage && !home.entry))
+    if (kind === 'index') return hasListPage(settings, type.name) && !!((route?.enabled && route.index_path) || (homepage && !home.entry))
     return !!(route?.enabled || (homepage && home.entry))
   })
 }
@@ -48,7 +53,7 @@ export function destinationAvailable(link, types, settings, entry = null) {
   if (!type || type.visibility === 'private') return false
   const route = settings?.routes?.[type.name]
   const home = settings?.homepage
-  if (link.type === 'index') return !!((route?.enabled && route.index_path) || (home?.type === type.name && !home.entry))
+  if (link.type === 'index') return hasListPage(settings, type.name) && !!((route?.enabled && route.index_path) || (home?.type === type.name && !home.entry))
   if (route?.enabled) return true
   if (home?.type !== type.name) return false
   return !!home.entry && [link.entry, entry?.uid].filter(Boolean).includes(home.entry)

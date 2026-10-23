@@ -386,6 +386,7 @@ function defaultRoute(name) {
   return {
     enabled: isNew.value,
     pattern: `/${name}/{slug}`,
+    index_enabled: false,
     index_path: `/${name}`,
     index_title: "",
     seo_description_field: "",
@@ -441,7 +442,8 @@ async function saveWebsiteRoute(name) {
         .filter(([key]) => key.startsWith(prefix))
         .map(([key, message]) => [key.slice(prefix.length), message]),
     );
-    toast.error(t("site.typeCard.saveFailed", { message: Object.values(websiteErrors.value)[0] ?? err.message }));
+    // Other settings can object too, e.g. a homepage that shows this type's list page.
+    toast.error(t("site.typeCard.saveFailed", { message: Object.values(websiteErrors.value)[0] ?? Object.values(err.fields ?? {})[0] ?? err.message }));
     return false;
   }
 }

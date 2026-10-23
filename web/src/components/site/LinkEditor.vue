@@ -79,7 +79,7 @@ const collections = computed(() => eligibleTypes(props.types, props.settings, mo
 const modes = computed(() => [
   { value: 'home', label: t('site.link.home'), icon: 'mdi:home-outline', enabled: props.allow.includes('home') },
   { value: 'entry', label: t(props.taskFocused ? 'site.menus.page' : 'site.link.content'), icon: 'mdi:database-outline', enabled: props.allow.includes('entry') },
-  { value: 'index', label: t(props.taskFocused ? 'site.menus.overview' : 'site.link.listing'), icon: 'mdi:format-list-bulleted', enabled: props.allow.includes('index') },
+  { value: 'index', label: t(props.taskFocused ? 'site.menus.overview' : 'site.link.listing'), icon: 'mdi:format-list-bulleted', enabled: props.allow.includes('index') && (mode.value === 'index' || eligibleTypes(props.types, props.settings, 'index').length > 0) },
   { value: 'url', label: t('site.link.custom'), icon: 'mdi:link', enabled: props.allow.includes('url') },
   { value: 'anchor', label: t('site.link.section'), icon: 'mdi:pound', enabled: props.allow.includes('anchor') },
   { value: 'current', label: t('site.link.current'), icon: 'mdi:file-link-outline', enabled: props.allow.includes('current') },

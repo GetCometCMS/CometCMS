@@ -353,6 +353,7 @@ import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { resolveLocalized } from "../composables/localizedValues.js";
+import { hasListPage } from "../composables/siteLinks.js";
 import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
@@ -712,7 +713,7 @@ const views = computed(() => {
       icon: "mdi:file-document-outline",
       to: { path: `/page-builder/builder/layout/${name.value}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
     },
-    { key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name.value}/index`, query: { ...(entry ? { entry } : {}), ...back } } },
+    ...(hasListPage(builder.settings.value, name.value) ? [{ key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name.value}/index`, query: { ...(entry ? { entry } : {}), ...back } } }] : []),
   ];
 });
 const currentView = computed(() => (target.value === "page" ? "page" : variant.value));
@@ -913,6 +914,11 @@ async function load(next = requested) {
     if (moved) leftView();
   } catch (err) {
     if (current !== loadSequence) return;
+    // A list page that is turned off does not exist: open the entry page instead.
+    if (target === "layout" && variant === "index" && err.status === 404) {
+      router.replace({ path: `/page-builder/builder/layout/${name}/detail`, query: route.query });
+      return;
+    }
     loadError.value = err.message;
     // The error stands for the requested page: nothing of the previous one may be saved there.
     shown.value = next;

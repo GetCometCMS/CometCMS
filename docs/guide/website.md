@@ -13,7 +13,10 @@ Expand **Website settings** under **Website** in the admin sidebar (permission `
 | Setting       | Example         | Description                                                       |
 | ------------- | --------------- | ----------------------------------------------------------------- |
 | Entry URL     | `/blog/{slug}`  | Where each entry lives. Needs exactly one `{slug}`.               |
-| List page URL | `/blog`         | Optional page listing all entries of a collection, with paging.   |
+| List page     | on / off        | Adds a page listing all entries of a collection, with paging. Off by default. |
+| List page URL | `/blog`         | Where the list page lives. Shown while the list page is on.       |
+
+List pages are optional. While a type's list page is off, it does not exist anywhere: its URL is not served, it has no list page layout in the builder or the entry list's template button, and it cannot be chosen as the homepage or as a link destination. Turning it off keeps a customized list layout stored, so turning it back on restores it. Websites created before list pages became optional keep the list pages they had.
 
 `/admin`, `/api`, `/mcp`, `/media`, `/media-thumbs`, `/_site` and `/site-preview` are reserved and cannot be used. **Private** content types are never published, and only `published` (or due `scheduled`) entries are visible — exactly like the public API.
 
@@ -21,14 +24,14 @@ The **Page Builder** column in the content types table shows which types have th
 
 Each content type needs its own entry URL pattern. The website starter serves its **Pages** collection at `/{slug}`, so its entries live at addresses like `/about`.
 
-The homepage can be one entry, a collection's list page, or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Pages for content types with the Page Builder enabled remain accessible at their own URLs. Set the homepage to **None** and disable the Page Builder for all content types to return to a fully headless setup.
+The homepage can be one entry, a collection's list page (when that list page is on), or **None**. Without a homepage, the site root shows a CometCMS placeholder with a starfield and subtle comet animation. Pages for content types with the Page Builder enabled remain accessible at their own URLs. Set the homepage to **None** and disable the Page Builder for all content types to return to a fully headless setup.
 
 ## Layouts and the builder
 
 The **Content types** table shows which types have the Page Builder enabled. Open a content type’s **Page Builder** card to configure its URLs and edit its layouts. Every content type has up to two layouts:
 
 - **Entry design** — a single entry.
-- **List page** — the page at the list URL.
+- **List page** — the page at the list URL, when the type's list page is on.
 
 How entries look inside an entry list is designed in that list itself (see [Entry cards](#entry-cards)).
 

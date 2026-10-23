@@ -309,7 +309,7 @@ final class LayoutSchema
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             'text' => [
-                'html' => ['type' => 'html', 'default' => '<p>Text</p>'],
+                'html' => ['type' => 'html', 'default' => '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>'],
             ],
             'image' => [
                 'alt' => ['type' => 'string', 'max' => 1000, 'default' => ''],
@@ -368,7 +368,7 @@ final class LayoutSchema
             ],
             'accordion' => [
                 'title' => ['type' => 'string', 'max' => 300, 'default' => 'Accordion title'],
-                'html' => ['type' => 'html', 'default' => '<p>Accordion content</p>'],
+                'html' => ['type' => 'html', 'default' => '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>'],
                 'open' => ['type' => 'bool', 'default' => false],
             ],
             'tabs' => [

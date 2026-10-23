@@ -738,7 +738,9 @@ final class NodeRenderer
         }
 
         if ($link === null) {
-            return $this->annotating() ? $this->element($node, '<span class="' . $classes . '">' . $label . '</span>') : '';
+            // A missing destination removes the link, not the button's content.
+            // Shared regions must render the same inside and outside their builder.
+            return $this->element($node, '<span class="' . $classes . '">' . $label . '</span>');
         }
 
         return $this->element($node, $this->anchor($link, $label, $classes));

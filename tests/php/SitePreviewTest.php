@@ -600,6 +600,7 @@ test('preview admin bar returns to admin and keeps current page editing separate
     $types = new \CometCMS\Content\ContentTypeRepository();
     $types->save(['name' => 'posts']);
     $type = $types->find('posts');
+    (new \CometCMS\Site\SiteRepository())->saveSettings(['routes' => ['posts' => ['index_enabled' => true]]]);
     $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
     $entry = $context->content->save('posts', ['title' => 'Original', 'slug' => 'original'], ['id' => 'admin']);
     $context->content->save('posts', ['slug' => 'renamed', 'locale' => 'en'], ['id' => 'admin'], $entry['id']);
@@ -855,6 +856,10 @@ test('preview edit page opens the entry page tab by stable ID with locale and fi
         'design' => ['type' => 'page'], 'aside' => ['type' => 'page'],
     ]]);
     $type = $types->find('pages');
+    $unlisted = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
+    $unlisted->adminCan = static fn(): bool => true;
+    assert_false(str_contains((new \CometCMS\Site\PreviewAdminBar($unlisted))->render(['type' => $type, 'entry' => null]), '/layout/pages/index'), 'Types without a list page offer no list page builder.');
+    (new \CometCMS\Site\SiteRepository())->saveSettings(['routes' => ['pages' => ['index_enabled' => true]]]);
     $context = \CometCMS\Site\SiteContext::make(new \CometCMS\Site\SiteRepository(), '/cms');
     $entry = $context->content->save('pages', ['title' => 'English', 'slug' => 'original', 'locale' => 'en'], ['id' => 'admin']);
     $context->content->save('pages', ['slug' => 'renamed', 'locale' => 'en'], ['id' => 'admin'], $entry['id']);
