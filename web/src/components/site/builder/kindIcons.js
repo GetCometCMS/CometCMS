@@ -6,6 +6,7 @@ export const KIND_ICONS = {
   field: 'mdi:form-textbox',
   heading: 'mdi:format-header-pound',
   text: 'mdi:text',
+  video: 'mdi:play-box-outline',
   image: 'mdi:image-outline',
   gallery: 'mdi:image-multiple-outline',
   button: 'mdi:gesture-tap-button',

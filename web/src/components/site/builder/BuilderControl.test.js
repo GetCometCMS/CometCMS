@@ -193,3 +193,19 @@ describe('builder list filters', () => {
     expect(html).not.toContain('Cover')
   })
 })
+
+describe('builder video controls', () => {
+  it('explains supported links, provider UI limits and muted autoplay', async () => {
+    for (const [name, type, value, expected] of [
+      ['video_url', 'string', '', 'HTTPS MP4/WebM/OGV'],
+      ['controls', 'bool', true, 'Provider branding may remain visible'],
+      ['autoplay', 'bool', false, 'Automatically mutes audio'],
+    ]) {
+      const html = await renderControl(name, { type, default: value }, value, {
+        node: { id: 'video1', kind: 'video', props: {}, style: {} },
+      })
+      expect(html).toContain(expected)
+      expect(html).not.toContain('site.video.')
+    }
+  })
+})

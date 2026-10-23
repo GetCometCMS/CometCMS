@@ -61,6 +61,7 @@ final class LayoutSchema
         'heading',
         'text',
         'image',
+        'video',
         'gallery',
         'button',
         'accordion',
@@ -78,7 +79,7 @@ final class LayoutSchema
     ];
 
     /** Elements allowed inside a repeater field's item template. */
-    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'gallery', 'button', 'accordion', 'icon', 'spacer', 'divider'];
+    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'video', 'gallery', 'button', 'accordion', 'icon', 'spacer', 'divider'];
 
     public const SYSTEM_FIELDS = ['title', 'published_at', 'created_at', 'updated_at'];
 
@@ -152,6 +153,7 @@ final class LayoutSchema
 
     public const LOCALIZED_PROPS = [
         'heading' => ['text', 'link'], 'text' => ['html'],
+        'video' => ['media', 'poster', 'video_url', 'title'],
         'image' => ['media', 'link', 'alt', 'caption'], 'gallery' => ['media', 'link'],
         'button' => ['label', 'link'], 'accordion' => ['title', 'html'],
         'tabs' => ['title'], 'tab' => ['title'], 'icon' => ['label', 'link'],
@@ -305,6 +307,20 @@ final class LayoutSchema
                 'min_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
                 'max_width' => ['type' => 'int', 'min' => 0, 'max' => self::MAX_IMAGE_WIDTH, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
+            ],
+            'video' => [
+                // A library video takes precedence over the URL; the poster only applies to file playback.
+                'media' => ['type' => 'media', 'default' => ''],
+                'poster' => ['type' => 'media', 'default' => ''],
+                'video_url' => ['type' => 'string', 'max' => 2000, 'default' => ''],
+                'title' => ['type' => 'string', 'max' => 300, 'default' => 'Video'],
+                'ratio' => ['type' => 'enum', 'options' => ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], 'default' => '16:9'],
+                'autoplay' => ['type' => 'bool', 'default' => false],
+                'muted' => ['type' => 'bool', 'default' => false],
+                'loop' => ['type' => 'bool', 'default' => false],
+                'controls' => ['type' => 'bool', 'default' => true],
+                'fullscreen' => ['type' => 'bool', 'default' => true],
+                'start_time' => ['type' => 'int', 'min' => 0, 'max' => 86400, 'unit' => 's', 'default' => 0],
             ],
             'gallery' => [
                 'media' => ['type' => 'media_list', 'default' => []],

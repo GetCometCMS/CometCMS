@@ -51,6 +51,7 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 | Heading      | Static text, field references, or a mixture of both.                           |
 | Text         | Rich text.                                                                    |
 | Image        | An image from the media library or a bound media field.                        |
+| Video        | A media library video, YouTube, Vimeo or an external MP4/WebM/OGV file, with responsive aspect ratio and playback controls. |
 | Gallery      | Selected media in a custom order, or media from a bound entry field, in a responsive grid with crop, spacing, and caption controls. |
 | Button       | A link to this entry, another entry, a list page, the homepage or any URL.    |
 | Accordion    | An expandable title and rich text content, optionally open on load. Duplicate it for more items or use it in a repeater template. |
@@ -76,6 +77,14 @@ Drag elements from **Add** onto the preview or into the **Outline**, or click th
 Give elements descriptive names to find your way around larger layouts. In the **Outline**, double-click an element's label or click its pencil button to rename it. Press <kbd>Enter</kbd> or click away to apply, or <kbd>Esc</kbd> to cancel. Clear the name to restore its automatic label. Names are saved with the layout and support undo/redo; they also appear in the inspector and canvas selection without changing the website's content.
 
 If a field is renamed or removed, elements bound to it render nothing and the builder marks them.
+
+### Videos
+
+Add **Video** from **Add → Elements** and paste a YouTube or Vimeo watch, share or embed URL, or a direct HTTPS MP4/WebM/OGV URL. Alternatively pick a **Library video** from the media library; it takes precedence over the URL and can show a **Poster image** before playback (posters also apply to direct file URLs, not to YouTube or Vimeo). Unlisted Vimeo links retain their privacy hash. Set an accessible **Title**, **Aspect ratio** (including portrait 9:16), **Autoplay**, **Mute audio**, **Loop**, **Show player controls**, **Allow fullscreen** and **Start at (seconds)**. Start time is controlled by the inspector; timestamps in pasted URLs are not imported.
+
+Autoplay also mutes audio to accommodate browser playback policies. Hiding controls does not remove provider branding; some Vimeo options depend on the video owner's plan. For direct files, disabling fullscreen requests that the browser hide its fullscreen button. Provider restrictions, including embedding permissions, still apply.
+
+The editing canvas shows library videos with their player (autoplay is off while editing), and a selectable placeholder for external sources without loading their players; use the full-page **Preview** to test playback. Published pages load YouTube through its privacy-enhanced domain and Vimeo with its do-not-track parameter. Frames are restricted to these providers by the site's Content Security Policy; arbitrary iframe HTML is not accepted.
 
 ### Animations
 
