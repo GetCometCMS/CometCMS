@@ -11,6 +11,7 @@ use CometCMS\Auth\PermissionService;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Content\ExternalReadPolicy;
 use CometCMS\Core\ApiResponder;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
@@ -85,7 +86,7 @@ final class ApiController
     {
         $principal = $this->tokenPrincipal();
         $types = array_values(array_filter($this->types->all(), function (array $type) use ($principal): bool {
-            if (empty($type['api_enabled'])) {
+            if (!ExternalReadPolicy::apiEnabled($type)) {
                 return false;
             }
             if (($type['visibility'] ?? 'public') !== 'private') {
@@ -111,7 +112,7 @@ final class ApiController
         }
 
         $schema = $this->types->find($name);
-        if (empty($schema['api_enabled'])) {
+        if (!ExternalReadPolicy::apiEnabled($schema)) {
             $this->response->error('not_found', 'Content type is not exposed through the API.', 404);
         }
 
@@ -206,7 +207,7 @@ final class ApiController
             $result = $this->content->query($collection, $_GET, $admin);
             $include = $this->includeFields();
             $locale = (string) ($_GET['locale'] ?? '');
-            $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
+            $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale, fn(array $target): bool => $this->canReadRelatedEntry($target)), $result['data']);
 
             return [
                 'data' => array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data'])),
@@ -252,7 +253,7 @@ final class ApiController
 
         $entry = $this->content->resolveLocaleFields($entry, $locale, $user === null);
 
-        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields(), $locale);
+        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields(), $locale, fn(array $target): bool => $this->canReadRelatedEntry($target));
         $body = ['data' => $this->publicEntry($entry, $collection, $user !== null)];
         $user ? $this->http->json($body) : $this->publicCached($body);
     }
@@ -366,8 +367,11 @@ final class ApiController
             }
 
             $original = (string) ($file['name'] ?? 'upload');
-            $extension = pathinfo($original, PATHINFO_EXTENSION);
-            $ext = $extension !== '' ? '.' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', $extension)) : '';
+            try {
+                $ext = '.' . MimeDetector::validatedExtension($mime, $original);
+            } catch (\InvalidArgumentException $e) {
+                $this->response->error('file_type_not_allowed', $e->getMessage(), 422);
+            }
             $base = Security::slug(pathinfo($original, PATHINFO_FILENAME)) ?: 'upload';
             $name = $base;
             $suffix = 2;
@@ -604,7 +608,7 @@ final class ApiController
 
     private function requireCollection(string $collection): void
     {
-        if (!$this->types->exists($collection) || empty($this->types->find($collection)['api_enabled'])) {
+        if (!$this->types->exists($collection) || !ExternalReadPolicy::apiEnabled($this->types->find($collection))) {
             $this->response->error('not_found', 'Content collection not found.', 404);
         }
     }
@@ -874,29 +878,16 @@ final class ApiController
 
     private function publicRelationValue(mixed $value, string $target, bool $admin): mixed
     {
-        if ($target !== '' && !$this->canExposeCollection($target)) {
-            return null;
-        }
-
         if (is_array($value)) {
-            return $this->publicValue($value, $admin);
+            if (isset($value['collection'], $value['id'])) return $this->publicValue($value, $admin);
+            return array_values(array_filter(array_map(fn(mixed $item): mixed => $this->publicRelationValue($item, $target, $admin), $value), static fn(mixed $item): bool => $item !== null));
         }
-
-        if ($target === '' || $value === null || $value === '') {
-            return $value;
-        }
-
-        $entry = $this->content->findByIdentifier($target, (string) $value);
-
-        if ($entry === null) {
-            return (string) $value;
-        }
-
-        if (!$admin && !$this->content->isPubliclyVisible($entry)) {
-            return null;
-        }
-
-        return $this->content->stableId($entry);
+        if ($target === '' || $value === null || $value === '') return $value;
+        $locale = $this->content->locale((string) ($_GET['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($target, (string) $value, false, $locale);
+        if ($entry === null) return null;
+        $entry = $this->content->resolveLocaleFields($entry, $locale, !$admin);
+        return $this->canReadRelatedEntry($entry) ? $this->content->stableId($entry) : null;
     }
 
     private function publicValue(mixed $value, bool $admin): mixed
@@ -906,7 +897,7 @@ final class ApiController
         }
 
         if (isset($value['collection'], $value['id'])) {
-            if (!$this->canExposeCollection((string) $value['collection'])) {
+            if (!$this->canReadRelatedEntry($value)) {
                 return null;
             }
 
@@ -926,26 +917,9 @@ final class ApiController
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
     }
 
-    private function canExposeCollection(string $collection): bool
+    private function canReadRelatedEntry(array $entry): bool
     {
-        if (!$this->types->exists($collection)) {
-            return false;
-        }
-
-        $schema = $this->types->find($collection);
-        if (empty($schema['api_enabled'])) {
-            return false;
-        }
-        if (($schema['visibility'] ?? 'public') !== 'private') {
-            return true;
-        }
-
-        return $this->readPrincipal !== null && $this->permissions->allows($this->readPrincipal, 'content.read', [
-            'type' => 'content',
-            'collection' => $collection,
-            'principal' => $this->readPrincipal,
-            'workspace' => $this->workspace->slug(),
-        ]);
+        return ExternalReadPolicy::allowsEntry($entry, $this->content, $this->types, $this->workspace, $this->readPrincipal);
     }
 
     private function optionalTokenWithPermission(string $action, array $context = []): ?array

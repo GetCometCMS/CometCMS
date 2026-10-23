@@ -92,8 +92,11 @@ final class MediaController extends BaseController
             }
 
             $original = (string) ($file['name'] ?? 'upload');
-            $extension = pathinfo($original, PATHINFO_EXTENSION);
-            $ext = $extension !== '' ? '.' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', $extension)) : '';
+            try {
+                $ext = '.' . MimeDetector::validatedExtension($mime, $original);
+            } catch (\InvalidArgumentException $e) {
+                $this->json(['error' => ['code' => 'file_type_not_allowed', 'message' => $e->getMessage()]], 422);
+            }
             $base = Security::slug(pathinfo($original, PATHINFO_FILENAME)) ?: 'upload';
             $name = $base;
             $suffix = 2;

@@ -273,7 +273,15 @@ final class ContentRepository
         );
     }
 
-    public function restoreRevision(string $collection, string $id, string $revisionId, array $user): ?array
+    public function restoreRevision(string $collection, string $id, string $revisionId, array $user, ?callable $authorize = null): ?array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(
+            fn(): ?array => $this->restoreRevisionUnlocked($collection, $id, $revisionId, $user, $authorize),
+            'routing',
+        );
+    }
+
+    private function restoreRevisionUnlocked(string $collection, string $id, string $revisionId, array $user, ?callable $authorize): ?array
     {
         Security::assertSafeName($collection);
         Security::assertSafeName($id);
@@ -285,8 +293,11 @@ final class ContentRepository
             return null;
         }
 
-        $current = $this->find($collection, $id, true);
-        $entry = $this->normalizeStoredEntry($revision['entry']);
+        $current = $this->find($collection, $id);
+        if ($current === null) return null;
+        // History restores content, never ownership or creation metadata.
+        $historical = $this->normalizeStoredEntry($revision['entry']);
+        $entry = $this->normalizeStoredEntry(array_replace($this->stored($current), array_intersect_key($historical, array_flip(['values', 'publication']))));
         $entry['collection'] = $collection;
         $entry['id'] = $id;
         // Preserve the current entry's immutable uid
@@ -305,6 +316,10 @@ final class ContentRepository
 
         $entry['revision'] = bin2hex(random_bytes(12));
 
+        if ($authorize !== null) $authorize($current, $entry, $this->revisionChanges($current, $entry));
+        $site = new \CometCMS\Site\SiteRepository($this->workspace);
+        $site->validateEntryUrls($site->settings(), $entry);
+
         if ($current !== null) {
             if ($id !== $entry['id']) {
                 $this->moveRevisionHistory($collection, $id, (string) $entry['id']);
@@ -322,6 +337,41 @@ final class ContentRepository
         $this->afterWrite('content.updated', $collection, (string) $entry['id'], $user);
 
         return $this->normalizeStoredEntry($entry);
+    }
+
+    /** Raw override changes matter even when their resolved values agree. */
+    private function revisionChanges(array $current, array $restored): array
+    {
+        $changes = [];
+        foreach (array_unique(array_merge(array_keys($current['values']), array_keys($restored['values']))) as $field) {
+            $before = $current['values'][$field] ?? null;
+            $after = $restored['values'][$field] ?? null;
+            if ($before === $after && array_key_exists($field, $current['values']) === array_key_exists($field, $restored['values'])) continue;
+            if ($before === null && $after === null) {
+                $changes[''][] = $field;
+                continue;
+            }
+            if ((LocalizedValue::is($before) || $before === null) && (LocalizedValue::is($after) || $after === null)) {
+                $before ??= ['values' => []];
+                $after ??= ['values' => []];
+                foreach (array_unique(array_merge(array_keys($before['values']), array_keys($after['values']), array_keys($before['sources'] ?? []), array_keys($after['sources'] ?? []))) as $locale) {
+                    if (($before['values'][$locale] ?? null) !== ($after['values'][$locale] ?? null)
+                        || array_key_exists($locale, $before['values']) !== array_key_exists($locale, $after['values'])
+                        || ($before['sources'][$locale] ?? null) !== ($after['sources'][$locale] ?? null)) {
+                        $changes[$locale][] = $field;
+                    }
+                }
+            } else {
+                // Shared fields (including page content) require a global grant.
+                $changes[''][] = $field;
+            }
+        }
+        foreach (array_unique(array_merge(array_keys($current['publication']), array_keys($restored['publication']))) as $locale) {
+            $before = $current['publication'][$locale] ?? [];
+            $after = $restored['publication'][$locale] ?? [];
+            if ($before !== $after) $changes[$locale] = array_merge($changes[$locale] ?? [], ['status', 'published_at']);
+        }
+        return $changes;
     }
 
     public function softDelete(string $collection, string $id, ?array $user = null): void
@@ -484,7 +534,7 @@ final class ContentRepository
         ];
     }
 
-    public function expandRelations(array $entry, string $collection, array $include, string $locale = ''): array
+    public function expandRelations(array $entry, string $collection, array $include, string $locale = '', ?callable $authorize = null): array
     {
         if ($include === []) {
             return $entry;
@@ -507,9 +557,9 @@ final class ContentRepository
             }
 
             if ($config['multiple'] ?? false) {
-                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($this->findByIdentifier($target, (string) $id), $locale), (array) $entry[$field])));
+                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($this->findByIdentifier($target, (string) $id, false, $locale), $locale, $authorize), (array) $entry[$field])));
             } else {
-                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($this->findByIdentifier($target, (string) $entry[$field]), $locale) : null;
+                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($this->findByIdentifier($target, (string) $entry[$field], false, $locale), $locale, $authorize) : null;
             }
         }
 
@@ -792,11 +842,13 @@ final class ContentRepository
         return $publication + ['locale' => $locale] + $resolved;
     }
 
-    private function resolveRelationLocale(?array $entry, string $locale): ?array
+    private function resolveRelationLocale(?array $entry, string $locale, ?callable $authorize = null): ?array
     {
         if ($entry === null) return null;
         $locale = $this->locale($locale);
-        return $this->isPubliclyVisible($entry, $locale) ? $this->resolveLocaleFields($entry, $locale, true) : null;
+        if (!$this->isPubliclyVisible($entry, $locale)) return null;
+        $entry = $this->resolveLocaleFields($entry, $locale, true);
+        return $authorize === null || $authorize($entry) ? $entry : null;
     }
 
     private function normalizeDateTime(mixed $value): ?string

@@ -87,6 +87,14 @@ final class UsersController extends BaseController
             $this->json(['error' => ['code' => 'not_found', 'message' => 'User not found.']], 404);
         }
 
+        // Editing an account can change its credentials or login identity. The
+        // actor must cover its existing privileges even when role is omitted.
+        $this->requireDelegable(
+            $actor,
+            $this->permissions->capabilities($target)['permissions'],
+            'You cannot manage an account with permissions you do not have yourself.',
+        );
+
         if (isset($body['role']) && (string) $body['role'] !== (string) ($target['role'] ?? '')) {
             $this->requireAssignableRole($actor, (string) $body['role']);
         }

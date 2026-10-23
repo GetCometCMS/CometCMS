@@ -9,6 +9,7 @@ use CometCMS\Auth\PermissionService;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Content\ExternalReadPolicy;
 use CometCMS\Core\Http;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
@@ -260,7 +261,7 @@ final class McpServer
     private function listContentTypes(): array
     {
         $this->requirePermission('list_content_types', []);
-        return ['data' => array_values(array_filter($this->types->all(), fn(array $type): bool => $this->principal !== [] || ($type['visibility'] ?? 'public') !== 'private'))];
+        return ['data' => array_values(array_filter($this->types->all(), fn(array $type): bool => $this->principal !== [] || (ExternalReadPolicy::apiEnabled($type) && ($type['visibility'] ?? 'public') !== 'private')))];
     }
 
     private function getContentType(array $args): array
@@ -344,7 +345,7 @@ final class McpServer
         $result = $this->content->query($collection, $params, $admin);
         $include = $this->includeFields($params['include']);
         $locale = $params['locale'];
-        $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
+        $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale, fn(array $target): bool => $this->canReadRelatedEntry($target)), $result['data']);
         $result['data'] = array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data']));
 
         return $this->pageInfo($result);
@@ -369,7 +370,7 @@ final class McpServer
         $this->requirePermission('get_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $entry]);
         $entry = $this->content->resolveLocaleFields($entry, $locale, !$admin);
 
-        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale);
+        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale, fn(array $target): bool => $this->canReadRelatedEntry($target));
 
         return ['data' => $this->publicEntry($entry, $collection, $admin)];
     }
@@ -734,7 +735,7 @@ final class McpServer
             }
 
             if (array_key_exists($field, $entry)) {
-                $fields[$field] = $this->publicValue($entry[$field], is_array($config) ? $config : [], $admin);
+                $fields[$field] = $this->publicValue($entry[$field], is_array($config) ? $config : [], $admin, (string) $entry['locale']);
             }
         }
 
@@ -755,7 +756,7 @@ final class McpServer
         ], static fn(mixed $value): bool => $value !== null);
     }
 
-    private function publicValue(mixed $value, array $config, bool $admin): mixed
+    private function publicValue(mixed $value, array $config, bool $admin, string $locale = ''): mixed
     {
         if (($config['type'] ?? '') === 'media') {
             if (!is_array($value)) {
@@ -765,8 +766,30 @@ final class McpServer
             return array_values(array_filter(array_map(fn(mixed $file): ?string => $this->mediaUrl((string) $file), $value)));
         }
 
-        if (($config['type'] ?? '') === 'repeater' && $admin) {
-            return is_array($value) ? $value : [];
+        if (($config['type'] ?? '') === 'relation' && !(is_array($value) && isset($value['collection'], $value['id']))) {
+            if (is_array($value)) {
+                return array_values(array_filter(array_map(fn(mixed $item): mixed => $this->publicValue($item, $config, $admin, $locale), $value), static fn(mixed $item): bool => $item !== null));
+            }
+            if ($value === null || $value === '') return $value;
+            $target = (string) ($config['target'] ?? '');
+            if ($target === '' || !$this->types->exists($target)) return null;
+            $related = $this->content->findByIdentifier($target, (string) $value, false, $locale);
+            if ($related === null) return null;
+            $related = $this->content->resolveLocaleFields($related, $this->content->locale($locale), !$admin);
+            return $this->canReadRelatedEntry($related) ? $value : null;
+        }
+
+        if (($config['type'] ?? '') === 'repeater' && is_array($value)) {
+            $subfields = [];
+            foreach ((array) ($config['subfields'] ?? []) as $subfield) {
+                if (is_array($subfield) && isset($subfield['key'])) $subfields[(string) $subfield['key']] = $subfield;
+            }
+            return array_map(function (mixed $row) use ($subfields, $admin, $locale): mixed {
+                if (!is_array($row)) return $row;
+                $mapped = [];
+                foreach ($row as $key => $item) $mapped[$key] = $this->publicValue($item, $subfields[$key] ?? [], $admin, $locale);
+                return $mapped;
+            }, $value);
         }
 
         if (!is_array($value)) {
@@ -774,7 +797,7 @@ final class McpServer
         }
 
         if (isset($value['collection'], $value['id'])) {
-            if (!$admin && (!$this->content->isPubliclyVisible($value) || ($this->types->find((string) $value['collection'])['visibility'] ?? 'public') === 'private')) {
+            if (!$this->canReadRelatedEntry($value)) {
                 return null;
             }
 
@@ -783,10 +806,15 @@ final class McpServer
 
         $mapped = [];
         foreach ($value as $key => $item) {
-            $mapped[$key] = $admin ? $item : $this->publicValue($item, [], $admin);
+            $mapped[$key] = $this->publicValue($item, [], $admin, $locale);
         }
 
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
+    }
+
+    private function canReadRelatedEntry(array $entry): bool
+    {
+        return ExternalReadPolicy::allowsEntry($entry, $this->content, $this->types, $this->workspace, $this->principal ?: null, true);
     }
 
     private function publicMediaItem(array $file): array
@@ -895,7 +923,7 @@ final class McpServer
 
     private function requireCollection(string $collection, string $message): void
     {
-        if (!$this->types->exists($collection)) {
+        if (!$this->types->exists($collection) || ($this->principal === [] && !ExternalReadPolicy::apiEnabled($this->types->find($collection)))) {
             throw new McpError($message, 404, ['code' => 'not_found']);
         }
     }

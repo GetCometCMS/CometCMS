@@ -11,6 +11,8 @@ The bundled CMS limit is 1 GiB per file, and the admin upload request has no bro
 
 ![Media library view in the CometCMS admin](../screenshots/view-media.png)
 
+Admin, API, and public form uploads validate detected MIME types against a shared safe extension map. Executable/configuration suffixes and MIME/extension mismatches are rejected. Renaming preserves the original file type; names with additional suffixes such as `file.php.gif` are rejected. Storage must remain inaccessible directly and must never execute scripts; serve files through `/media/{workspace}/{filename}`.
+
 ## Organising with categories
 
 Use a file's menu or detail panel to assign it to a category. Categories help you keep large libraries organised. Categories can be nested for finer-grained organisation, for example `Brand / Logos` or `Products / Campaigns`.

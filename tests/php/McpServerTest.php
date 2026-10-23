@@ -75,7 +75,7 @@ test('anonymous mcp rejects every write tool before execution', function (): voi
 
 test('anonymous mcp reads public schemas and published entries only', function (): void {
     $types = new ContentTypeRepository();
-    $types->save(['name' => 'posts', 'fields' => ['title' => ['type' => 'text']]]);
+    $types->save(['name' => 'posts', 'api_enabled' => true, 'fields' => ['title' => ['type' => 'text']]]);
     $types->save(['name' => 'members', 'visibility' => 'private']);
     $content = ContentRepository::make();
     $user = ['id' => 'tester'];
@@ -89,7 +89,7 @@ test('anonymous mcp reads public schemas and published entries only', function (
     assert_same('posts', $payload['data']['name']);
     foreach (['get_content_type', 'list_entries', 'get_entry'] as $name) {
         [, $payload] = comet_test_mcp_tool(null, $name, ['collection' => 'members', 'identifier' => 'missing']);
-        assert_same(401, $payload['error']['status']);
+        assert_same($name === 'get_content_type' ? 401 : 404, $payload['error']['status']);
     }
     [, $payload] = comet_test_mcp_tool(null, 'list_entries', ['collection' => 'posts', 'filters' => ['status' => 'draft']]);
     assert_same([], $payload['data']);
@@ -126,8 +126,8 @@ test('anonymous mcp media listings and category counts exclude private files', f
 test('anonymous mcp omits private and unpublished expanded relations', function (): void {
     $types = new ContentTypeRepository();
     $types->save(['name' => 'members', 'visibility' => 'private']);
-    $types->save(['name' => 'posts']);
-    $types->save(['name' => 'pages', 'fields' => [
+    $types->save(['name' => 'posts', 'api_enabled' => true]);
+    $types->save(['name' => 'pages', 'api_enabled' => true, 'fields' => [
         'member' => ['type' => 'relation', 'target' => 'members'],
         'posts' => ['type' => 'relation', 'target' => 'posts', 'multiple' => true],
     ]]);
