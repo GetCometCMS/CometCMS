@@ -135,7 +135,7 @@ final class LayoutSchema
     private const POSITION_KEYS = ['position', 'pin', 'offset_x', 'offset_y'];
 
     /** Style a tablet or mobile override may change: values that render as a class, and the offsets (see NodeRenderer::offsetStyle). */
-    public const RESPONSIVE_STYLE = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left', 'background', 'text_color', 'link_color', 'align', 'font_size', 'font_weight', 'font_family', 'text_shadow', 'radius', 'shadow', 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity'];
+    public const RESPONSIVE_STYLE = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left', 'background', 'text_color', 'link_color', 'align', 'font_size', 'font_weight', 'font_family', 'text_shadow', 'radius', 'shadow', 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', 'overflow'];
 
     /** Props a tablet or mobile override may change, per kind. */
     public const RESPONSIVE_PROPS = [
@@ -218,6 +218,7 @@ final class LayoutSchema
             'offset_y' => ['type' => 'int', 'min' => -2000, 'max' => 2000, 'slider_max' => 1000, 'unit' => 'px', 'default' => 0],
             'z_index' => ['type' => 'enum', 'options' => ['', 'behind', '1', '2', '3', '4', '5'], 'default' => ''],
             'opacity' => ['type' => 'enum', 'options' => ['', '0', '10', '25', '50', '75', '90'], 'default' => ''],
+            'overflow' => ['type' => 'enum', 'options' => ['', 'visible', 'hidden', 'auto'], 'default' => ''],
             'hide_on' => ['type' => 'set', 'options' => ['mobile', 'tablet', 'desktop'], 'default' => []],
             'class' => ['type' => 'class', 'default' => ''],
             'anchor' => ['type' => 'key', 'default' => ''],
@@ -228,11 +229,11 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
-            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
+            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'overflow', 'class', 'anchor', 'hide_on'],
+            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'overflow', 'class', 'anchor', 'hide_on'],
             self::COMPONENT, self::PAGE_CONTENT => [],
-            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on'],
-            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'overflow', 'class', 'hide_on'],
+            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', 'overflow', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
     }
 

@@ -108,6 +108,26 @@ test('mcp builder reads and writes device and state overrides', function (): voi
     assert_same(['hover', 'focus'], $schema['data']['states']['states']);
 });
 
+test('overflow survives saving and renders with device overrides', function (): void {
+    comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context());
+    foreach (['', 'visible', 'hidden', 'auto'] as $value) {
+        $column = LayoutSchema::node('column', [], ['overflow' => $value, 'radius' => 'lg']);
+        $column['responsive'] = ['tablet' => ['style' => ['overflow' => 'hidden']], 'mobile' => ['style' => ['overflow' => 'visible']]];
+        $nodes = LayoutSchema::normalizeComponent([$column], 'column');
+        assert_same($value, $nodes[0]['style']['overflow'] ?? '');
+        assert_same($nodes, LayoutSchema::normalizeComponent($nodes, 'column'));
+        $html = $renderer->render($nodes);
+        assert_true(str_contains($html, 'c-t-overflow-hidden'));
+        assert_true(str_contains($html, 'c-m-overflow-visible'));
+        if ($value !== '') assert_true(str_contains($html, 'c-overflow-' . $value));
+        else assert_false(str_contains($html, ' c-overflow-'));
+    }
+    $css = StyleVariants::css(Theme::baseStylesheet());
+    assert_true(str_contains($css, '.c-t-overflow-hidden{overflow: hidden;}'));
+    assert_true(str_contains($css, '.c-m-overflow-visible{overflow: visible;}'));
+});
+
 test('positioned elements render their pin, layer and per-device offsets', function (): void {
     comet_site_test_setup();
     $renderer = new NodeRenderer(comet_site_test_context());

@@ -72,6 +72,15 @@ export function barOptions(group, name, values, { title, theme = null, kind = ''
     title: [title(value), tokenHint(key, value, kind, theme)].filter(Boolean).join(' · '),
   })
 
+  // Show every layer preset together, with numbers for the higher layers.
+  if (key === 'style.z_index') {
+    return values.map((value) => {
+      if (value === '') return { ...describe(value), icon: DEFAULT_ICON }
+      if (value === 'behind') return { ...describe(value), icon: 'mdi:arrange-send-to-back' }
+      return { ...describe(value), label: value }
+    })
+  }
+
   // Icons where they say more than a word; size tokens keep their short label.
   if (ICONS[key] && values.every((value) => value === '' || ICONS[key][value] || value in SCALE)) {
     return values.map((value) => {

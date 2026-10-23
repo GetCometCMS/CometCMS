@@ -65,6 +65,7 @@ final class NodeRenderer
         'pin' => 'pin-',
         'z_index' => 'z-',
         'opacity' => 'op-',
+        'overflow' => 'overflow-',
     ];
 
     /** Offset variables of each device; site.css resolves them, mobile following tablet. */

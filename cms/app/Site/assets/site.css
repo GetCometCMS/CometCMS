@@ -1134,3 +1134,8 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-op-50 { opacity: .5; }
 .c-op-75 { opacity: .75; }
 .c-op-90 { opacity: .9; }
+
+/* Explicit overflow takes precedence over clipping from rounded corners and cards. */
+:is(.c-section, .c-row, .c-col, .c-el).c-overflow-visible { overflow: visible; }
+:is(.c-section, .c-row, .c-col, .c-el).c-overflow-hidden { overflow: hidden; }
+:is(.c-section, .c-row, .c-col, .c-el).c-overflow-auto { overflow: auto; }

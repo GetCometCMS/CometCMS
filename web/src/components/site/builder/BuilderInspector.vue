@@ -313,7 +313,7 @@ const STYLE_GROUPS = [
   { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
-  { key: "advanced", keys: ["hide_on", "anchor", "class"] },
+  { key: "advanced", keys: ["overflow", "hide_on", "anchor", "class"] },
 ];
 
 const builder = useSiteBuilder();
