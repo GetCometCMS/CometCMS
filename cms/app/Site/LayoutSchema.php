@@ -33,6 +33,12 @@ final class LayoutSchema
 
     public const REGIONS = ['header', 'footer'];
 
+    /** Standalone pages edited like regions, but rendered as the main content of their own response. */
+    public const SPECIAL_PAGES = ['not_found'];
+
+    /** Everything stored and edited as a region document. */
+    public const REGION_DOCUMENTS = [...self::REGIONS, ...self::SPECIAL_PAGES];
+
     public const STRUCTURE = ['section', 'row', 'column'];
 
     /**
@@ -484,6 +490,7 @@ final class LayoutSchema
             'max_row_depth' => self::MAX_ROW_DEPTH,
             'max_node_name_length' => self::MAX_NODE_NAME_LENGTH,
             'regions' => self::REGIONS,
+            'special_pages' => self::SPECIAL_PAGES,
             'link_types' => self::LINK_TYPES,
             'devices' => array_keys(StyleVariants::DEVICES),
             'states' => StyleVariants::STATES,
@@ -932,6 +939,20 @@ final class LayoutSchema
 
     private static function buildDefaultRegion(string $region): array
     {
+        if ($region === 'not_found') {
+            return [
+                self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
+                    self::node('row', [], [], [
+                        self::node('column', [], [], [
+                            self::node('heading', ['text' => 'Page not found', 'level' => 'h1']),
+                            self::node('text', ['html' => '<p>The page you are looking for does not exist or has moved.</p>']),
+                            self::node('button', ['label' => 'Back to the homepage', 'link' => ['type' => 'home']]),
+                        ]),
+                    ]),
+                ]),
+            ];
+        }
+
         if ($region === 'header') {
             return [
                 self::node('section', ['width' => 'contained'], ['padding_y' => 'sm', 'border' => ['bottom'], 'background' => 'background'], [

@@ -200,7 +200,8 @@ export const useSiteStore = defineStore('site', () => {
   function markCustomized(target, name, variant, customized) {
     if (!data.value) return
     if (target === 'region') {
-      data.value.regions[name] = customized
+      if (data.value.special_pages && name in data.value.special_pages) data.value.special_pages[name] = customized
+      else data.value.regions[name] = customized
     } else if (data.value.layouts?.[name]) {
       data.value.layouts[name][variant] = customized
     }

@@ -75,6 +75,7 @@ const props = defineProps({
 });
 
 const REGION_ICONS = { header: "mdi:page-layout-header", footer: "mdi:page-layout-footer" };
+const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline" };
 
 const route = useRoute();
 const router = useRouter();
@@ -111,6 +112,17 @@ const allGroups = computed(() => [
       icon: REGION_ICONS[region] ?? "mdi:page-layout-body",
       path: `/page-builder/builder/region/${region}`,
       current: props.target === "region" && props.name === region,
+    })),
+  },
+  {
+    key: "other",
+    label: t("site.builder.other"),
+    items: Object.keys(site.data?.special_pages ?? SPECIAL_PAGE_ICONS).map((page) => ({
+      key: `region:${page}`,
+      label: t(`site.region.${page}`),
+      icon: SPECIAL_PAGE_ICONS[page] ?? "mdi:file-outline",
+      path: `/page-builder/builder/region/${page}`,
+      current: props.target === "region" && props.name === page,
     })),
   },
   {

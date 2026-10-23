@@ -92,20 +92,6 @@
       ></textarea>
     </section>
 
-    <!-- 404 -->
-    <section class="card space-y-4 p-6">
-      <h2 class="card-title">{{ t("site.overview.notFound") }}</h2>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label class="form-label" for="site-404-title">{{ t("site.overview.notFoundTitle") }}</label>
-          <LocalizedInput id="site-404-title" v-model="settings.not_found_title" class="w-full"  />
-        </div>
-        <div>
-          <label class="form-label" for="site-404-message">{{ t("site.overview.notFoundMessage") }}</label>
-          <LocalizedInput id="site-404-message" v-model="settings.not_found_message" class="w-full" />
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 

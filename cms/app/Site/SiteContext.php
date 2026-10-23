@@ -147,6 +147,12 @@ final class SiteContext
         return $this->overridden('region:' . $region) ?? $this->site->region($region);
     }
 
+    /** A region document's nodes when it is being edited or was customized, else null. */
+    public function customRegion(string $region): ?array
+    {
+        return $this->overridden('region:' . $region) ?? ($this->site->regionCustomized($region) ? $this->site->region($region) : null);
+    }
+
     public function layout(string $type, string $variant): array
     {
         return $this->overridden('layout:' . $type . ':' . $variant) ?? $this->site->layout($type, $variant);

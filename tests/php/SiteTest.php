@@ -345,6 +345,21 @@ test('website renders published entries with escaped content and sanitized markd
     assert_true(str_contains($html, '/_site/default/style.css?v='));
 });
 
+test('a 404 page built in the Page Builder replaces the default message', function (): void {
+    $site = comet_site_test_setup();
+    assert_true(str_contains(comet_site_test_get('/nothing/here')['body'], 'Page not found'), 'The default 404 message is used until the page is customized.');
+
+    $site->saveRegion('not_found', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Lost in space', 'level' => 'h1'])])])])]);
+    $response = comet_site_test_get('/nothing/here');
+    assert_same(404, $response['status']);
+    assert_true(str_contains($response['body'], 'Lost in space'));
+    assert_true(str_contains($response['body'], 'c-header'), 'Header and footer still surround the custom 404 page.');
+    assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'Lost in space'), 'The 404 page is not shown on other pages.');
+
+    $site->resetRegion('not_found');
+    assert_false(str_contains(comet_site_test_get('/nothing/here')['body'], 'Lost in space'));
+});
+
 test('website hides drafts, private types and unknown paths', function (): void {
     comet_site_test_setup();
 

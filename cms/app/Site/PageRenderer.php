@@ -100,22 +100,27 @@ final class PageRenderer
     public function notFound(string $path): string
     {
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->notFound($path);
-        $settings = $this->ctx->settings();
-        foreach (['not_found_title', 'not_found_message'] as $key) if ($settings[$key] === '' && empty($settings['_localized'][$key])) $settings[$key] = Messages::get($key, $this->ctx->htmlLang());
+        $title = Messages::get('not_found_title', $this->ctx->htmlLang());
         $state = $this->state(null, null, $path, 1, []);
-        $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
-            . '<div class="c-el"><h1 class="c-heading">' . Security::e($settings['not_found_title']) . '</h1></div>'
-            . '<div class="c-el"><p>' . Security::e($settings['not_found_message']) . '</p></div>'
-            . '<div class="c-el"><a class="c-button c-button-primary c-button-md" href="' . Security::e($this->ctx->homeUrl()) . '">' . Security::e($this->homeLabel()) . '</a></div>'
-            . '</div></section>';
-
-        return $this->document([
-            'title' => $this->pageTitle($settings['not_found_title']),
+        $meta = [
+            'title' => $this->pageTitle($title),
             'description' => '',
             'canonical' => '',
             'noindex' => true,
             'body_class' => 'c-view-404',
-        ], $main, $state);
+        ];
+        // A 404 page built in the Page Builder replaces the default message.
+        $custom = $this->ctx->customRegion('not_found');
+        if ($custom !== null) {
+            return $this->document($meta, $this->nodes->render($custom, $state), $state, true, $this->ctx->annotate);
+        }
+        $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
+            . '<div class="c-el"><h1 class="c-heading">' . Security::e($title) . '</h1></div>'
+            . '<div class="c-el"><p>' . Security::e(Messages::get('not_found_message', $this->ctx->htmlLang())) . '</p></div>'
+            . '<div class="c-el"><a class="c-button c-button-primary c-button-md" href="' . Security::e($this->ctx->homeUrl()) . '">' . Security::e($this->homeLabel()) . '</a></div>'
+            . '</div></section>';
+
+        return $this->document($meta, $main, $state);
     }
 
     /**

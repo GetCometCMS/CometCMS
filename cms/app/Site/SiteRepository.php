@@ -498,7 +498,7 @@ final class SiteRepository
                 }
             }
         }
-        foreach (LayoutSchema::REGIONS as $region) {
+        foreach (LayoutSchema::REGION_DOCUMENTS as $region) {
             if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
@@ -574,7 +574,7 @@ final class SiteRepository
                 }
             }
         }
-        foreach (LayoutSchema::REGIONS as $region) {
+        foreach (LayoutSchema::REGION_DOCUMENTS as $region) {
             if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
@@ -593,7 +593,7 @@ final class SiteRepository
     {
         $component = $this->requireComponent($id);
         $id = $component['id'];
-        $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGIONS);
+        $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGION_DOCUMENTS);
         foreach ($this->types() as $name => $type) {
             foreach ($this->variantsFor($type) as $variant) {
                 $paths[] = ['layouts', (string) $name, $variant];
@@ -1075,8 +1075,6 @@ final class SiteRepository
             'description' => $this->localized($input['description'] ?? '', static fn(mixed $v): string => self::line($v, 300)),
             'og_image' => $this->localized($input['og_image'] ?? '', self::media(...)),
             'noindex' => (bool) ($input['noindex'] ?? false),
-            'not_found_title' => $this->localized($input['not_found_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
-            'not_found_message' => $this->localized($input['not_found_message'] ?? '', static fn(mixed $v): string => self::line($v, 500)),
             'routes' => $routes,
             'updated_at' => (string) ($input['updated_at'] ?? ''),
             'revision' => (string) ($input['revision'] ?? ''),
@@ -1326,7 +1324,7 @@ final class SiteRepository
 
     private function assertRegion(string $region): void
     {
-        if (!in_array($region, LayoutSchema::REGIONS, true)) {
+        if (!in_array($region, LayoutSchema::REGION_DOCUMENTS, true)) {
             throw new \InvalidArgumentException('Unknown region.');
         }
     }

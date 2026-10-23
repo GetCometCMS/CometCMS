@@ -746,7 +746,8 @@ const subheading = computed(() => {
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
-  return target.value === "region" ? t("site.builder.regionSubtitle") : t(`site.variant.${variant.value}`);
+  if (target.value === "region") return t(name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
+  return t(`site.variant.${variant.value}`);
 });
 
 const saveStatus = computed(() => {
@@ -774,7 +775,7 @@ const overview = computed(() => {
     return {
       title: heading.value,
       description: t(`site.region.${name.value}Hint`),
-      icon: name.value === "footer" ? "mdi:page-layout-footer" : "mdi:page-layout-header",
+      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline" }[name.value] ?? "mdi:page-layout-header",
     };
   }
   const type = builder.type.value?.label ?? name.value;

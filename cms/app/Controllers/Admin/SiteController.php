@@ -55,6 +55,7 @@ final class SiteController extends BaseController
             'menus_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->menus()),
             'menu_limits' => SiteRepository::MENU_LIMITS,
             'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
+            'special_pages' => array_combine(LayoutSchema::SPECIAL_PAGES, array_map(fn(string $page): bool => $this->site->regionCustomized($page), LayoutSchema::SPECIAL_PAGES)),
             'layouts' => $layouts,
             'types' => array_values($this->site->types()),
             'available_locales' => $this->site->availableLocales(),
@@ -652,7 +653,8 @@ final class SiteController extends BaseController
             }
             $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
 
-            $this->json(['data' => ['html' => $renderer->regionPreview($region)]]);
+            $html = in_array($region, LayoutSchema::SPECIAL_PAGES, true) ? $renderer->notFound($context->homeUrl()) : $renderer->regionPreview($region);
+            $this->json(['data' => ['html' => $html]]);
         }
 
         if ($target === 'component') {
@@ -1041,7 +1043,7 @@ final class SiteController extends BaseController
 
     private function requireRegion(string $region): void
     {
-        if (!in_array($region, LayoutSchema::REGIONS, true)) {
+        if (!in_array($region, LayoutSchema::REGION_DOCUMENTS, true)) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Unknown region.']], 404);
         }
     }
