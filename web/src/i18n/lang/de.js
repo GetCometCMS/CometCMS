@@ -707,7 +707,11 @@ const messages = {
   'contentList.expand': 'Seiten unter {title} anzeigen',
   'contentList.collapse': 'Seiten unter {title} ausblenden',
   'contentList.addChild': 'Seite unter {title} hinzufügen',
-  'contentList.dropTopLevel': 'Hier ablegen, um sie auf die oberste Ebene zu verschieben',
+  'contentList.dropBefore': 'Vor „{title}“ einordnen',
+  'contentList.dropAfter': 'Nach „{title}“ einordnen',
+  'contentList.dropInside': 'Als Unterseite von „{title}“ einordnen',
+  'contentList.dropParent': 'Unterseite von „{title}“',
+  'contentList.dropRoot': 'Seite auf oberster Ebene',
   'contentList.moveFailed': 'Die Seite konnte nicht verschoben werden.',
   'contentList.inlineSaveFailed': 'Änderung konnte nicht gespeichert werden.',
 
