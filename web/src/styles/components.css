@@ -411,14 +411,20 @@
     @apply px-4 py-3;
   }
 
-  /* Page hierarchy in content lists: one guide per level, drop indicators while dragging. */
+  /* Page hierarchy: indent each level and point from the parent down to its child. */
   .tree-guide {
     @apply relative w-5 shrink-0 self-stretch;
   }
 
-  .tree-guide::before {
-    @apply absolute -inset-y-3 left-2.5 border-l border-slate-200;
+  .tree-guide-branch::before {
+    @apply absolute -top-3 left-2.5 bottom-1/2 right-0 rounded-bl border-b border-l border-slate-300;
     content: "";
+  }
+
+  .tree-guide-branch::after {
+    @apply absolute right-0 top-1/2 h-1.5 w-1.5 border-r border-t border-slate-300;
+    content: "";
+    transform: translateY(calc(-50% - 0.5px)) rotate(45deg);
   }
 
   /* Cells left of the title stay clear so the line starts at the nesting level. */

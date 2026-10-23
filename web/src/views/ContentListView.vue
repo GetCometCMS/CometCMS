@@ -255,7 +255,8 @@
                               @click.stop @dragstart.stop="treeDragStart($event, entry)" @dragend="treeDragEnd">
                               <Icon icon="mdi:drag-vertical" class="h-4 w-4" />
                             </button>
-                            <span v-for="level in depth" :key="level" class="tree-guide" aria-hidden="true"></span>
+                            <span v-for="level in depth" :key="level" class="tree-guide"
+                              :class="{ 'tree-guide-branch': level === depth }" aria-hidden="true"></span>
                             <button v-if="hasChildren" type="button"
                               class="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                               :aria-expanded="!collapsed.has(entryKey(entry))"
