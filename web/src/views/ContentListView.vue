@@ -459,18 +459,6 @@
       </div>
       </div>
     </template>
-    <Teleport to="body">
-      <div v-if="dropPreview" class="tree-drop-preview"
-        :style="{ left: `${dragPointer.x}px`, top: `${dragPointer.y}px` }"
-        role="status" aria-live="polite" aria-atomic="true">
-        <Icon :icon="dropZone.zone === 'inside' ? 'mdi:subdirectory-arrow-right' : 'mdi:swap-vertical'"
-          class="h-3.5 w-3.5 shrink-0 text-theme-600" />
-        <div class="min-w-0">
-          <div class="truncate font-semibold">{{ dropPreview.action }}</div>
-          <div class="truncate text-[11px] text-slate-500">{{ dropPreview.destination }}</div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -973,25 +961,8 @@ const displayRows = computed(() => treeMode.value
 const dragKey = ref("");
 // { key, zone }: the row and where the dragged page would go.
 const dropZone = ref(null);
-const dragPointer = ref({ x: 0, y: 0 });
 // Expands a collapsed page after hovering over its middle for a moment.
 let expandTimer = null;
-const dropPreview = computed(() => {
-  if (!dropZone.value) return null;
-  const target = (col.value.entries ?? []).find((entry) => entryKey(entry) === dropZone.value.key);
-  if (!target) return null;
-  const placement = placementFor(target, dropZone.value.zone);
-  if (!placement) return null;
-  const parent = (col.value.entries ?? []).find((entry) => entryKey(entry) === placement.parent);
-  return {
-    action: t(`contentList.drop${dropZone.value.zone === 'inside' ? 'Inside' : dropZone.value.zone === 'before' ? 'Before' : 'After'}`, {
-      title: target.title || target.slug || target.id,
-    }),
-    destination: parent
-      ? t('contentList.dropParent', { title: parent.title || parent.slug || parent.id })
-      : t('contentList.dropRoot'),
-  };
-});
 
 function toggleCollapsed(entry) {
   const next = new Set(collapsed.value);
@@ -1054,11 +1025,6 @@ function dropAt(event, rowIndex) {
 
 function treeDragOver(event, rowIndex) {
   if (!dragKey.value) return;
-  // Keep the preview beside the cursor and within the viewport.
-  dragPointer.value = {
-    x: Math.max(8, Math.min(event.clientX + 18, window.innerWidth - 256)),
-    y: Math.max(8, Math.min(event.clientY + 18, window.innerHeight - 56)),
-  };
   const drop = dropAt(event, rowIndex);
   const target = drop && (col.value.entries ?? []).find((entry) => entryKey(entry) === drop.key);
   const valid = !!target && placementFor(target, drop.zone) !== null;

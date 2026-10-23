@@ -700,11 +700,6 @@
     bottom: 0;
   }
 
-  .tree-drop-preview {
-    @apply fixed z-50 flex items-center gap-1.5 rounded-md border border-theme-200 bg-white px-2 py-1 text-xs text-slate-800 shadow-md;
-    max-width: min(240px, calc(100vw - 16px));
-    pointer-events: none;
-  }
 
   /* ---------------------------------------------------------------------- */
   /* Sticky editor header                                                    */
