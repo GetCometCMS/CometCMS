@@ -101,6 +101,8 @@
       @update:model-value="emitValue"
     />
 
+    <ShadowEditor v-else-if="def.type === 'shadow'" :id="inputId" :model-value="value || ''" :text="def.text ?? false" :options="colorOptions" @update:model-value="emitValue" />
+
     <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
 
     <template v-else-if="def.type === 'enum' || def.type === 'display'">
@@ -326,6 +328,7 @@ import SegmentedControl from "../SegmentedControl.vue";
 import OptionBar from "./OptionBar.vue";
 import CssClassInput from "./CssClassInput.vue";
 import ThemeColorPicker from "./ThemeColorPicker.vue";
+import ShadowEditor from "./ShadowEditor.vue";
 import GradientEditor from "./GradientEditor.vue";
 import { themeCssClasses } from "../../../composables/cssClasses.js";
 import { themeColorOptions } from "../../../composables/themeColors.js";

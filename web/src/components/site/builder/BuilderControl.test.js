@@ -211,3 +211,15 @@ describe('builder video controls', () => {
     }
   })
 })
+
+describe('builder shadow controls', () => {
+  it('routes box and text shadows to the compact editor with palette colors', async () => {
+    for (const name of ['shadow', 'text_shadow']) {
+      const html = await renderControl(name, { type: 'shadow', text: name === 'text_shadow', options: ['primary', 'accent'], default: '' }, 'hard', { group: 'style' })
+      expect(html).toContain(`id="builder-icon1-style-${name}"`)
+      expect(html).toContain('Hard / block')
+      expect(html).toContain('Customize')
+      expect(html).toContain(name === 'shadow' ? 'box-shadow:6px 6px 0px 0px' : 'text-shadow:3px 3px 0px')
+    }
+  })
+})

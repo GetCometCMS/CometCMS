@@ -1,0 +1,53 @@
+@layer components {
+  /* ---------------------------------------------------------------------- */
+  /* API endpoint footer                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  .api-endpoint-footer {
+    background-color: rgb(var(--color-surface) / 0.88);
+    border-color: rgb(var(--color-slate-200));
+    color: rgb(var(--color-slate-600));
+    box-shadow: 0 -8px 24px rgb(16 24 40 / 0.04);
+  }
+
+  .api-endpoint-footer-link,
+  .api-endpoint-footer-icon,
+  .api-endpoint-footer-dismiss {
+    color: rgb(var(--color-slate-500));
+  }
+
+  .api-endpoint-footer-link:hover,
+  .api-endpoint-footer-dismiss:hover {
+    color: rgb(var(--color-theme-700));
+  }
+
+  .api-endpoint-footer-dismiss:hover {
+    background-color: rgb(var(--color-slate-100));
+  }
+
+  .api-endpoint-footer-badge {
+    background-color: rgb(var(--color-theme-50));
+    color: rgb(var(--color-theme-700));
+    --tw-ring-color: rgb(var(--color-theme-200));
+  }
+
+  .api-endpoint-footer-url {
+    background-color: rgb(var(--color-slate-50));
+    border-color: rgb(var(--color-slate-200));
+    color: rgb(var(--color-slate-800));
+  }
+
+  .api-endpoint-footer-method {
+    color: rgb(var(--color-theme-700));
+  }
+
+  .api-endpoint-footer-url .btn-secondary {
+    background-color: rgb(var(--color-surface));
+  }
+
+  .api-endpoint-footer-url .btn-secondary:hover {
+    background-color: rgb(var(--color-theme-50));
+    border-color: rgb(var(--color-theme-200));
+    color: rgb(var(--color-theme-700));
+  }
+}

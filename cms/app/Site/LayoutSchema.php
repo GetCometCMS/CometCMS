@@ -147,7 +147,7 @@ final class LayoutSchema
     ];
 
     /** Style a hover or focus state may change. */
-    public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow', 'opacity'];
+    public const STATE_STYLE = ['background', 'text_color', 'link_color', 'border_color', 'shadow', 'text_shadow', 'opacity'];
 
     /** Additional style options available only in Hover. */
     public const HOVER_ANIMATION_KEYS = ['animation', 'animation_duration', 'animation_delay'];
@@ -199,9 +199,9 @@ final class LayoutSchema
             'font_size' => ['type' => 'enum', 'options' => ['', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl'], 'default' => ''],
             'font_weight' => ['type' => 'enum', 'options' => ['', 'normal', 'medium', 'semibold', 'bold'], 'default' => ''],
             'font_family' => ['type' => 'font', 'options' => ['', 'body', 'heading'], 'default' => ''],
-            'text_shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
+            'text_shadow' => ['type' => 'shadow', 'text' => true, 'options' => Theme::COLOR_KEYS, 'default' => ''],
             'radius' => ['type' => 'enum', 'options' => ['', 'none', 'theme', 'sm', 'md', 'lg', 'full'], 'default' => ''],
-            'shadow' => ['type' => 'enum', 'options' => ['', 'none', 'sm', 'md', 'lg'], 'default' => ''],
+            'shadow' => ['type' => 'shadow', 'options' => Theme::COLOR_KEYS, 'default' => ''],
             'border' => ['type' => 'set', 'options' => ['left', 'top', 'right', 'bottom'], 'default' => []],
             'border_width' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 1],
             'border_style' => ['type' => 'enum', 'options' => ['solid', 'dashed', 'dotted', 'double'], 'default' => 'solid'],
@@ -1306,6 +1306,7 @@ final class LayoutSchema
 
         return match ($spec['type']) {
             'gradient' => Gradient::normalize($value),
+            'shadow' => Shadow::normalize($value, $spec['text'] ?? false),
             'color' => is_string($value) && (in_array($value, $spec['options'], true) || Theme::isCustomColorKey($value)) ? $value : $default,
             'enum', 'icon' => is_scalar($value) && in_array((string) $value, $spec['options'], true) ? (string) $value : $default,
             'set' => array_values(array_intersect($spec['options'], array_map('strval', is_array($value) ? $value : []))),

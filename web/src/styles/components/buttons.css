@@ -1,0 +1,66 @@
+@layer components {
+  /* ---------------------------------------------------------------------- */
+  /* Buttons. Every variant carries a 1px border so primary and secondary    */
+  /* buttons line up at the same height.                                     */
+  /* ---------------------------------------------------------------------- */
+
+  .btn {
+    @apply inline-flex cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-medium leading-5 transition-[color,background-color,border-color,box-shadow] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply btn border-theme-600 bg-theme-600 text-white hover:border-theme-700 hover:bg-theme-700 focus-visible:ring-theme-500;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 1px 2px rgb(16 24 40 / 0.08);
+  }
+
+  .btn-secondary {
+    @apply btn border-slate-200 bg-white text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-400;
+  }
+
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-400;
+  }
+
+  .btn-danger {
+    @apply btn border-red-600 bg-red-600 text-white hover:border-red-700 hover:bg-red-700 focus-visible:ring-red-500;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 1px 2px rgb(16 24 40 / 0.08);
+  }
+
+  /* Routine destructive actions in lists and toolbars; solid .btn-danger is
+     reserved for the final confirmation so it is never the loudest element. */
+  .btn-danger-subtle {
+    @apply btn border-red-200 bg-white text-red-600 shadow-xs hover:border-red-300 hover:bg-red-50 focus-visible:ring-red-500;
+  }
+
+  .btn-sm {
+    @apply gap-1 rounded-md px-2.5 py-1 text-xs leading-5;
+  }
+
+  .btn-icon {
+    @apply px-2;
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-ghost:disabled,
+  .btn-danger:disabled,
+  .btn-danger-subtle:disabled {
+    @apply cursor-not-allowed opacity-60 shadow-none;
+  }
+
+  .btn-primary:disabled {
+    @apply border-slate-200 bg-slate-200 text-slate-500 hover:border-slate-200 hover:bg-slate-200;
+  }
+
+  .btn-secondary:disabled {
+    @apply border-slate-200 bg-slate-50 text-slate-400 hover:bg-slate-50;
+  }
+
+  .btn-danger:disabled {
+    @apply border-red-300 bg-red-300 text-red-50 hover:bg-red-300;
+  }
+}

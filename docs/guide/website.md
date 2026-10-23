@@ -92,13 +92,17 @@ Under **Style → Normal → Animation**, choose an entrance effect and when it 
 
 Scroll inside the preview to test entry animations. Each preview update creates a new page and restores its scroll position, so elements already in view can play immediately. In browsers without [CSS scroll-triggered animations](https://developer.chrome.com/blog/scroll-triggered-animations), entrances progress with scrolling instead; an element already fully in view then looks finished when the effect is enabled. Browsers without view timelines play entrances on page load.
 
+### Shadows
+
+**Shadow** and **Text shadow** offer soft sizes, a colored **Hard / block** effect and **Glow**; box shadows also offer **Inset**. Choose a preset, then expand **Customize** to adjust its palette color, horizontal and vertical offset, blur and opacity. Box shadows also have spread and an inset toggle. Editing a value switches to **Custom**, which keeps the settings visible. For block-style depth, use zero blur and an offset with a contrasting color; for a glow, use zero offset and increase blur. Colors follow the site's light and dark palettes. **None** explicitly removes a shadow, including on a device or state override; **Default** follows the normal or larger-screen value.
+
 ### Tablet and mobile values
 
 Switch the top bar's device to **Tablet** or **Mobile** to change how a page looks on smaller screens. Options with a tablet or phone icon beside their name then change only that device: spacing, colors, link color, alignment, font size, weight and family, text shadow, corners, shadow and maximum width, plus a few layout options (row gap and alignment, column alignment and spacing, section vertical alignment, button size and full width, spacer size). A highlighted icon means the device has its own value; click the reset button beside it to follow the larger screen again. Tablet values also apply to phones unless mobile has its own. On desktop, a small grey icon beside an option shows that it differs on another device. Options without an icon apply to every device.
 
 ### Hover and focus
 
-Elements whose look can react to the visitor have **Normal**, **Hover** and **Focus** at the top of the **Style** tab. Hover applies while the pointer is over the element; focus while it, or a link in it, has keyboard focus. These states can change the background, text, link and border colors and the shadow; a button can also change its own **Button color**, **Label color** and **Border color**. **Default** keeps the normal value. While a state is selected, the preview shows it on the selected element.
+Elements whose look can react to the visitor have **Normal**, **Hover** and **Focus** at the top of the **Style** tab. Hover applies while the pointer is over the element; focus while it, or a link in it, has keyboard focus. These states can change the background, text, link and border colors, box shadow and text shadow; a button can also change its own **Button color**, **Label color** and **Border color**. **Default** keeps the normal value. While a state is selected, the preview shows it on the selected element.
 
 ### Button icons
 

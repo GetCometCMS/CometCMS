@@ -1,0 +1,164 @@
+/* ------------------------------------------------------------------------ */
+/* Dark theme utility remaps. Slate utilities follow the inverted variables  */
+/* automatically; only white surfaces, status tints and accent text need     */
+/* remapping here. :where() keeps each rule at the utility's own specificity  */
+/* so state variants (hover:, focus:) on the same element still apply.       */
+/* ------------------------------------------------------------------------ */
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-shell {
+  background-color: rgb(var(--color-app-bg));
+  color: rgb(var(--color-slate-700));
+}
+
+:root[data-theme="dark"] main {
+  background:
+    radial-gradient(60rem 30rem at 100% -10%, rgb(var(--color-theme-500) / 0.09), transparent 70%),
+    radial-gradient(40rem 24rem at -10% 110%, rgb(139 92 246 / 0.05), transparent 70%),
+    rgb(var(--color-app-bg));
+}
+
+:root[data-theme="dark"] ::selection {
+  background-color: rgb(var(--color-theme-500) / 0.35);
+}
+
+/* White surfaces */
+:where(:root[data-theme="dark"]) .bg-white,
+:where(:root[data-theme="dark"]) .bg-white\/90,
+:where(:root[data-theme="dark"]) .hover\:bg-white:hover {
+  background-color: rgb(var(--color-surface));
+}
+
+:where(:root[data-theme="dark"]) .hover\:bg-white\/70:hover,
+:where(:root[data-theme="dark"]) .hover\:bg-white\/60:hover {
+  background-color: rgb(var(--color-raised) / 0.8);
+}
+
+:where(:root[data-theme="dark"]) .ring-white {
+  --tw-ring-color: rgb(var(--color-surface));
+}
+
+/* Status tints */
+:where(:root[data-theme="dark"]) :is(.bg-amber-50, .bg-amber-100, .bg-yellow-100) {
+  background-color: rgb(245 158 11 / 0.12);
+}
+
+:where(:root[data-theme="dark"]) :is(.bg-green-50, .bg-green-100, .bg-emerald-50, .bg-emerald-50\/60, .bg-emerald-100, .hover\:bg-emerald-50:hover) {
+  background-color: rgb(16 185 129 / 0.12);
+}
+
+:where(:root[data-theme="dark"]) :is(.bg-sky-50, .bg-sky-100, .bg-blue-50) {
+  background-color: rgb(14 165 233 / 0.12);
+}
+
+:where(:root[data-theme="dark"]) :is(.bg-red-50, .bg-red-100, .hover\:bg-red-50:hover) {
+  background-color: rgb(239 68 68 / 0.12);
+}
+
+:where(:root[data-theme="dark"]) .hover\:bg-red-100:hover {
+  background-color: rgb(239 68 68 / 0.2);
+}
+
+:where(:root[data-theme="dark"]) :is(.bg-purple-100, .bg-violet-50, .bg-violet-100, .hover\:bg-violet-50:hover) {
+  background-color: rgb(139 92 246 / 0.15);
+}
+
+:where(:root[data-theme="dark"]) :is(.border-amber-200, .ring-amber-200) {
+  border-color: rgb(245 158 11 / 0.3);
+  --tw-ring-color: rgb(245 158 11 / 0.3);
+}
+
+:where(:root[data-theme="dark"]) :is(.border-green-200, .border-emerald-200, .ring-emerald-200) {
+  border-color: rgb(16 185 129 / 0.3);
+  --tw-ring-color: rgb(16 185 129 / 0.3);
+}
+
+:where(:root[data-theme="dark"]) :is(.border-red-200, .ring-red-200) {
+  border-color: rgb(248 113 113 / 0.3);
+  --tw-ring-color: rgb(248 113 113 / 0.3);
+}
+
+:where(:root[data-theme="dark"]) :is(.border-blue-200, .ring-blue-200, .ring-sky-100, .ring-sky-200) {
+  border-color: rgb(56 189 248 / 0.3);
+  --tw-ring-color: rgb(56 189 248 / 0.3);
+}
+
+:where(:root[data-theme="dark"]) :is(.border-violet-200, .ring-violet-200) {
+  border-color: rgb(167 139 250 / 0.3);
+  --tw-ring-color: rgb(167 139 250 / 0.3);
+}
+
+/* Status text */
+:where(:root[data-theme="dark"]) :is(.text-amber-900, .text-amber-800, .text-amber-700, .text-amber-600, .text-yellow-700, .text-yellow-600, .hover\:text-amber-900:hover) {
+  color: rgb(252 211 77);
+}
+
+:where(:root[data-theme="dark"]) :is(.text-green-900, .text-green-800, .text-green-700, .text-green-600, .text-emerald-800, .text-emerald-700, .text-emerald-600) {
+  color: rgb(110 231 183);
+}
+
+:where(:root[data-theme="dark"]) :is(.text-sky-800, .text-sky-700, .text-blue-800, .text-blue-600) {
+  color: rgb(125 211 252);
+}
+
+:where(:root[data-theme="dark"]) :is(.text-red-700, .text-red-600, .hover\:text-red-700:hover, .hover\:text-red-600:hover, .hover\:text-red-500:hover) {
+  color: rgb(252 165 165);
+}
+
+:where(:root[data-theme="dark"]) :is(.text-purple-700, .text-violet-700) {
+  color: rgb(196 181 253);
+}
+
+/* Accent text: the dark theme's 600-900 shades are tuned for filled buttons,
+   so text that uses them switches to a light accent instead. */
+:where(:root[data-theme="dark"]) :is(
+  .text-theme-900, .text-theme-800, .text-theme-700, .text-theme-600, .text-theme-500,
+  .hover\:text-theme-800:hover, .hover\:text-theme-700:hover, .hover\:text-theme-600:hover, .hover\:text-theme-500:hover
+) {
+  color: rgb(var(--color-theme-text));
+}
+
+/* Page builder: a darker, dotted stage keeps the previewed page in focus. */
+:root[data-theme="dark"] .builder-shell {
+  background-color: rgb(var(--color-app-bg));
+}
+
+:root[data-theme="dark"] .builder-stage {
+  background:
+    radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.05) 1px, transparent 0) 0 0 / 20px 20px,
+    radial-gradient(70% 60% at 50% 0%, rgb(var(--color-theme-500) / 0.06), transparent 70%),
+    rgb(var(--color-app-bg));
+}
+
+/* Rich text editor */
+:where(:root[data-theme="dark"]) .tiptap-content .ProseMirror pre {
+  background-color: rgb(var(--color-inset));
+  box-shadow: inset 0 0 0 1px rgb(var(--color-slate-200));
+}
+
+:where(:root[data-theme="dark"]) :is(.shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl) {
+  --tw-shadow-color: rgb(0 0 0 / 0.45);
+  --tw-shadow: var(--tw-shadow-colored);
+}
+
+/* Status badges compose their tints with @apply, so the utility remaps above
+   do not reach them. */
+:where(:root[data-theme="dark"]) .badge-published {
+  background-color: rgb(16 185 129 / 0.12);
+  color: rgb(110 231 183);
+}
+
+:where(:root[data-theme="dark"]) .badge-scheduled {
+  background-color: rgb(var(--color-theme-500) / 0.14);
+  color: rgb(var(--color-theme-text));
+}
+
+:where(:root[data-theme="dark"]) .badge-protected {
+  background-color: rgb(139 92 246 / 0.15);
+  color: rgb(196 181 253);
+}
+
+:where(:root[data-theme="dark"]) .badge-archived {
+  background-color: rgb(245 158 11 / 0.12);
+  color: rgb(252 211 77);
+}

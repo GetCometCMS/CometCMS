@@ -1,0 +1,31 @@
+@layer base {
+  :root[data-theme="orange"] {
+    --color-theme-50: 255 247 237;
+    --color-theme-100: 255 237 213;
+    --color-theme-200: 254 215 170;
+    --color-theme-300: 253 186 116;
+    --color-theme-400: 251 146 60;
+    --color-theme-500: 249 115 22;
+    --color-theme-600: 234 88 12;
+    --color-theme-700: 194 65 12;
+    --color-theme-800: 154 52 18;
+    --color-theme-900: 124 45 18;
+    --color-app-bg: 249 247 245;
+    --color-sidebar: 255 255 255;
+    --color-sidebar-hover: 255 247 237;
+    --color-sidebar-border: 234 226 218;
+    --color-sidebar-border-alpha: 1;
+    --color-sidebar-text: 55 65 81;
+    --color-sidebar-muted: 107 114 128;
+    --color-sidebar-heading: 140 146 158;
+    --color-sidebar-footer: 107 114 128;
+    --color-sidebar-hover-text: 17 24 39;
+    --color-sidebar-active-text: 154 52 18;
+    --sidebar-active-bg: rgb(var(--color-theme-50));
+    --sidebar-hover-bg: rgb(0 0 0 / 0.035);
+    --sidebar-indicator: rgb(var(--color-theme-500));
+    --sidebar-surface: rgb(0 0 0 / 0.02);
+    --sidebar-surface-border: rgb(234 226 218);
+    --sidebar-kbd: rgb(0 0 0 / 0.05);
+  }
+}

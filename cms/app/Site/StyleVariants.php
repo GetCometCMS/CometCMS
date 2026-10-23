@@ -44,7 +44,7 @@ final class StyleVariants
     private const DEVICE_TOKENS = '(?:p[trbl]|m[trbl]|bg(?!-(?:size|pos)-|-(?:no-)?repeat\b)|fg|lc|ta|fs|fw|ff|ts|r|sh|mw|pos|pin|z|op|v|gap|items|self|stack|flow-justify|flow-align|spacer)-[A-Za-z0-9_-]+|button-(?:sm|md|lg|block|inline)';
 
     /** Utility classes states may change. */
-    private const STATE_TOKENS = '(?:bg(?!-(?:size|pos)-|-(?:no-)?repeat\b)|fg|lc|bdc|sh|op|btn-(?:bg|fg|bdc))-[A-Za-z0-9_-]+';
+    private const STATE_TOKENS = '(?:bg(?!-(?:size|pos)-|-(?:no-)?repeat\b)|fg|lc|bdc|sh|ts|op|btn-(?:bg|fg|bdc))-[A-Za-z0-9_-]+';
 
     /** Rules for every device and state, from the stylesheet built so far. */
     public static function css(string $stylesheet): string
@@ -62,7 +62,7 @@ final class StyleVariants
             $css .= self::variant($rules, self::STATE_TOKENS, self::PREFIXES[$state], self::PSEUDO[$state], self::LINK_PSEUDO[$state]);
         }
 
-        return "\n/* Device and state overrides */\n.c-stateful{transition:background-color .2s,color .2s,border-color .2s,box-shadow .2s,opacity .2s;}" . $css;
+        return "\n/* Device and state overrides */\n.c-stateful{transition:background-color .2s,color .2s,border-color .2s,box-shadow .2s,text-shadow .2s,opacity .2s;}" . $css;
     }
 
     /**

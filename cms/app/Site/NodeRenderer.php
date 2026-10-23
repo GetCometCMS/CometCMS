@@ -1702,7 +1702,7 @@ final class NodeRenderer
     private function attributes(array $node, array $classes, string $style = ''): string
     {
         $classes = [...$classes, ...$this->overrideClasses($node)];
-        $style = implode(';', array_filter([$style, $this->offsetStyle($node)]));
+        $style = implode(';', array_filter([$style, $this->offsetStyle($node), $this->shadowStyle($node)]));
         $attributes = ' class="' . Security::e(implode(' ', array_unique(array_filter($classes)))) . '"';
 
         if (($node['style']['anchor'] ?? '') !== '') {
@@ -1733,6 +1733,9 @@ final class NodeRenderer
             foreach ($node[$group] ?? [] as $variant => $values) {
                 foreach (['props', 'style'] as $part) {
                     foreach ($values[$part] ?? [] as $key => $value) {
+                        if ($part === 'style' && in_array($key, ['shadow', 'text_shadow'], true) && is_array($value)) {
+                            $classes[] = StyleVariants::PREFIXES[$variant] . $tokens[$part][$key] . 'custom-' . $variant;
+                        }
                         if (isset($tokens[$part][$key]) && is_string($value) && $value !== '') {
                             $classes[] = StyleVariants::PREFIXES[$variant] . $tokens[$part][$key] . $value;
                         }
@@ -1752,6 +1755,25 @@ final class NodeRenderer
         }
 
         return $classes;
+    }
+
+    /** Each variant owns its variable, so its settings never overwrite another variant. */
+    private function shadowStyle(array $node): string
+    {
+        $declarations = [];
+        $variants = ['normal' => $node['style'] ?? []];
+        foreach (['responsive', 'states'] as $group) {
+            foreach ($node[$group] ?? [] as $variant => $values) $variants[$variant] = $values['style'] ?? [];
+        }
+        foreach ($variants as $variant => $style) {
+            foreach (['shadow' => 'sh', 'text_shadow' => 'ts'] as $key => $token) {
+                if (is_array($style[$key] ?? null)) {
+                    $css = Shadow::css($style[$key], $key === 'text_shadow');
+                    if ($css !== '') $declarations[] = '--c-' . $token . '-custom-' . $variant . ':' . $css;
+                }
+            }
+        }
+        return implode(';', $declarations);
     }
 
     /** A free node's offsets in tenths of a percent of the page width, per device. */
@@ -1777,7 +1799,7 @@ final class NodeRenderer
 
         foreach (self::STYLE_TOKENS as $key => $token) {
             if ($key !== 'border_color' && ($style[$key] ?? '') !== '') {
-                $classes[] = 'c-' . $token . $style[$key];
+                $classes[] = 'c-' . $token . (is_array($style[$key]) ? 'custom-normal' : $style[$key]);
             }
         }
 

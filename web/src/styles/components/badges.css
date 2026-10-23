@@ -1,0 +1,35 @@
+@layer components {
+  /* ---------------------------------------------------------------------- */
+  /* Badges: a soft tint plus a hairline ring, with a status dot.            */
+  /* ---------------------------------------------------------------------- */
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ring-transparent;
+  }
+
+  .badge-dot::before,
+  :is(.badge-draft, .badge-published, .badge-scheduled, .badge-protected, .badge-archived)::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background-color: currentColor;
+    opacity: 0.85;
+  }
+
+  .badge-draft {
+    @apply badge bg-slate-100 text-slate-600 ring-slate-500/15;
+  }
+  .badge-published {
+    @apply badge bg-emerald-50 text-emerald-700 ring-emerald-600/20;
+  }
+  .badge-scheduled {
+    @apply badge bg-theme-50 text-theme-700 ring-theme-600/20;
+  }
+  .badge-protected {
+    @apply badge bg-violet-50 text-violet-700 ring-violet-600/20;
+  }
+  .badge-archived {
+    @apply badge bg-amber-50 text-amber-700 ring-amber-600/20;
+  }
+}

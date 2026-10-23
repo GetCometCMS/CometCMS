@@ -1,0 +1,46 @@
+@layer base {
+  /* Dark: an inverted, slightly cool neutral scale plus distinct elevation
+     levels (app < sidebar < surface < raised) so panels read as layers. */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-theme-50: 14 36 56;
+    --color-theme-100: 17 51 80;
+    --color-theme-200: 27 79 117;
+    --color-theme-300: 74 150 200;
+    --color-theme-400: 56 189 248;
+    --color-theme-500: 14 165 233;
+    --color-theme-600: 2 132 199;
+    --color-theme-700: 3 105 161;
+    --color-theme-800: 7 89 133;
+    --color-theme-900: 12 74 110;
+    --color-theme-text: 125 211 252;
+    --color-app-bg: 9 11 16;
+    --color-surface: 19 23 31;
+    --color-raised: 27 32 43;
+    --color-inset: 13 16 22;
+    --color-sidebar: 13 16 22;
+    --color-sidebar-hover: 27 32 43;
+    --color-sidebar-border: 148 163 184;
+    --color-sidebar-border-alpha: 0.1;
+    --color-sidebar-text: 200 208 222;
+    --color-sidebar-muted: 140 150 168;
+    --color-sidebar-heading: 104 114 134;
+    --color-sidebar-footer: 104 114 134;
+    --color-sidebar-hover-text: 248 250 252;
+    --color-sidebar-active-text: 255 255 255;
+    --sidebar-active-bg: rgb(255 255 255 / 0.06);
+    --sidebar-indicator: rgb(var(--color-theme-400));
+
+    --color-slate-50: 24 28 38;
+    --color-slate-100: 31 36 48;
+    --color-slate-200: 42 48 62;
+    --color-slate-300: 56 63 80;
+    --color-slate-400: 112 122 142;
+    --color-slate-500: 146 156 174;
+    --color-slate-600: 174 183 199;
+    --color-slate-700: 205 212 224;
+    --color-slate-800: 226 231 239;
+    --color-slate-900: 240 243 248;
+    --color-slate-950: 248 250 252;
+  }
+}

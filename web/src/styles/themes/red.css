@@ -1,0 +1,17 @@
+@layer base {
+  :root[data-theme="red"] {
+    --color-theme-50: 254 242 242;
+    --color-theme-100: 254 226 226;
+    --color-theme-200: 254 202 202;
+    --color-theme-300: 252 165 165;
+    --color-theme-400: 248 113 113;
+    --color-theme-500: 239 68 68;
+    --color-theme-600: 220 38 38;
+    --color-theme-700: 185 28 28;
+    --color-theme-800: 153 27 27;
+    --color-theme-900: 127 29 29;
+    --color-app-bg: 249 246 246;
+    --color-sidebar: 44 14 16;
+    --color-sidebar-hover: 66 24 27;
+  }
+}

@@ -1,0 +1,58 @@
+@layer components {
+  /* ---------------------------------------------------------------------- */
+  /* Page structure                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  .page-header {
+    @apply mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-slate-900;
+  }
+
+  .page-description {
+    @apply mt-1 max-w-3xl text-sm text-slate-500;
+  }
+
+  .page-eyebrow {
+    @apply mb-2 flex flex-wrap items-center gap-1.5 text-sm text-slate-500;
+  }
+
+  .page-eyebrow a {
+    @apply inline-flex items-center gap-1 rounded transition-colors hover:text-slate-900;
+  }
+
+  .page-header-actions {
+    @apply flex shrink-0 flex-wrap items-center gap-2;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-xs;
+  }
+
+  .card-header {
+    @apply flex items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4;
+  }
+
+  .card-title {
+    @apply text-[15px] font-semibold leading-6 text-slate-900;
+  }
+
+  .card-description {
+    @apply mt-0.5 text-sm text-slate-500;
+  }
+
+  .section-title {
+    @apply text-[15px] font-semibold leading-6 text-slate-900;
+  }
+
+  /* Square, bordered icon-only button (back links, toolbars). */
+  .icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-500 focus-visible:ring-offset-2;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[11px] font-medium text-slate-500;
+  }
+}
