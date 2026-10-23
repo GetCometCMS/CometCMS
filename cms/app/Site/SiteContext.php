@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Content\ContentRepository;
+use CometCMS\Content\PageTree;
 use CometCMS\Media\MediaRepository;
 use CometCMS\Localization\LocalizedValue;
 
@@ -53,6 +54,7 @@ final class SiteContext
     private bool $overridesRead = false;
     private array $mediaItems = [];
     private array $entries = [];
+    private array $trees = [];
     private array $components = [];
     private array $cardTemplates = [];
     private ?FormRepository $forms = null;
@@ -313,7 +315,64 @@ final class SiteContext
             return null;
         }
 
+        if ($this->isHierarchical($type)) {
+            $path = $this->treePath($type, $entry);
+            return $path === null ? null : str_replace('{slug}', PageTree::encode($path), $route['pattern']);
+        }
+
         return str_replace('{slug}', rawurlencode($slug), $route['pattern']);
+    }
+
+    public function isHierarchical(string $type): bool
+    {
+        return !empty($this->type($type)['hierarchical']);
+    }
+
+    /**
+     * The slugs from the top-level page down to $entry (already resolved for
+     * the current locale), or null when a parent page is not public.
+     */
+    private function treePath(string $type, array $entry): ?string
+    {
+        $tree = $this->tree($type);
+        $locale = $this->locale ?: $this->defaultLocale();
+        $segments = [(string) ($entry['slug'] ?? '')];
+        foreach (PageTree::ancestors($tree, $entry) as $uid) {
+            $ancestor = $tree[$uid];
+            if (!$this->preview && !$this->browsePreview && !$this->content->isPubliclyVisible($ancestor, $locale)) return null;
+            array_unshift($segments, (string) $this->content->resolveLocaleFields($ancestor, $locale)['slug']);
+        }
+        return implode('/', $segments);
+    }
+
+    /** @return array<string, array> saved entries of a hierarchical type by uid */
+    private function tree(string $type): array
+    {
+        return $this->trees[$type] ??= PageTree::byUid($this->content->all($type));
+    }
+
+    /** A visible entry of a hierarchical type by its full slug path, e.g. "about/team". */
+    public function findEntryByPath(string $type, string $path): ?array
+    {
+        $slugs = explode('/', $path);
+        $candidates = $this->tree($type);
+        $locale = $this->locale ?: $this->defaultLocale();
+        $parent = '';
+        $match = null;
+        // Walk down from the top level, one slug per level.
+        foreach ($slugs as $slug) {
+            $match = null;
+            foreach ($candidates as $uid => $candidate) {
+                if (PageTree::parent($candidate) === $parent && (string) $this->content->resolveLocaleFields($candidate, $locale)['slug'] === $slug) {
+                    $match = (string) $uid;
+                    break;
+                }
+            }
+            if ($match === null) return null;
+            $parent = $match;
+        }
+        $entry = $this->findEntry($type, $match);
+        return $entry !== null && $this->entryPath($type, $entry) !== null ? $entry : null;
     }
 
     public function entryUrl(string $type, array $entry, ?string $locale = null): ?string

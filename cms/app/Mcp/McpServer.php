@@ -747,6 +747,8 @@ final class McpServer
             'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
+            'parent' => !empty($schema['hierarchical']) ? \CometCMS\Content\PageTree::parent($entry) : null,
+            'position' => !empty($schema['hierarchical']) ? (int) ($entry['position'] ?? 0) : null,
             'published_at' => $entry['published_at'] ?? null,
             'created_at' => (string) ($entry['created_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),

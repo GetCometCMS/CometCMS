@@ -13,7 +13,8 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * Maps a request path to a website response.
  *
  * Matching order: robots.txt / sitemap.xml, an optional locale prefix, the
- * homepage, list pages, then collection patterns with a {slug}. Anything
+ * homepage, list pages, then collection patterns with a {slug} (a slug path
+ * like about/team for hierarchical types). Anything
  * else renders the site's 404 page.
  */
 final class SiteService
@@ -158,10 +159,13 @@ final class SiteService
                 continue;
             }
 
-            $regex = '#^' . str_replace(preg_quote('{slug}', '#'), '([A-Za-z0-9_-]+)', preg_quote($route['pattern'], '#')) . '$#';
+            // Pages of hierarchical types sit below their parents: {slug} spans several segments.
+            $hierarchical = $this->ctx->isHierarchical($name);
+            $slug = $hierarchical ? '([A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*)' : '([A-Za-z0-9_-]+)';
+            $regex = '#^' . str_replace(preg_quote('{slug}', '#'), $slug, preg_quote($route['pattern'], '#')) . '$#';
             if (preg_match($regex, $path, $match)) {
-                $entry = $this->ctx->findEntry($name, $match[1]);
-                if ($entry !== null && ($entry['slug'] ?? '') === $match[1]) {
+                $entry = $hierarchical ? $this->ctx->findEntryByPath($name, $match[1]) : $this->ctx->findEntry($name, $match[1]);
+                if ($entry !== null && ($hierarchical || ($entry['slug'] ?? '') === $match[1])) {
                     return $this->html($renderer->entryPage($type, $entry, $page));
                 }
             }

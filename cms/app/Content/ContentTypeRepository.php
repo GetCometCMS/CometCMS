@@ -207,6 +207,8 @@ final class ContentTypeRepository
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
         foreach ($fields as $key => &$config) {
             if (in_array($key, ['values', 'publication', 'revision', 'reset_fields', 'locale', 'translations'], true)) throw new ValidationException(['fields' => 'This field key is reserved: ' . $key]);
+            // Hierarchical entries keep their place in the tree under these keys.
+            if (!empty($schema['hierarchical']) && in_array($key, ['parent', 'position'], true)) throw new ValidationException(['fields' => 'This field key is reserved for page hierarchies: ' . $key]);
             $config = $this->fieldMetadata($config, $languages['locales']);
         }
         unset($config);
@@ -217,6 +219,7 @@ final class ContentTypeRepository
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
             'api_enabled' => (bool) ($schema['api_enabled'] ?? false),
             'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
+            'hierarchical' => (bool) ($schema['hierarchical'] ?? false),
             'allow_submissions' => (bool) ($schema['allow_submissions'] ?? false),
             'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),

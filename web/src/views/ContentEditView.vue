@@ -212,6 +212,24 @@
             <p v-if="fieldErrors.slug" class="mt-1 text-xs text-red-600">{{ fieldErrors.slug }}</p>
           </div>
 
+          <div v-if="contentTypeSchema?.hierarchical">
+            <label for="content-parent" class="form-label">{{ t("contentEdit.parent") }}</label>
+            <select
+              id="content-parent"
+              v-model="parentUid"
+              :disabled="isReadOnly"
+              class="form-select w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.parent }"
+              :aria-invalid="!!fieldErrors.parent || undefined"
+            >
+              <option value="">{{ t("contentEdit.noParent") }}</option>
+              <option v-for="option in parentOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <p v-if="fieldErrors.parent" class="mt-1 text-xs text-red-600">{{ fieldErrors.parent }}</p>
+          </div>
+
 
           <div>
             <label for="content-status" class="form-label">{{ t("contentEdit.status") }}</label>
@@ -724,6 +742,7 @@ import {
   contentEntryEndpoint,
 } from "../composables/apiEndpoint.js";
 import { orderLocales } from "../composables/contentDisplay.js";
+import { entryKey, subtreeKeys, treeRows } from "../composables/entryTree.js";
 
 const users = ref([]);
 const userMap = computed(() =>
@@ -737,6 +756,31 @@ async function loadUsers() {
     users.value = (await api.users.list()).data;
   } catch {
     users.value = [];
+  }
+}
+
+// ── Page hierarchy ────────────────────────────────────────────────────────────
+// The parent is shared by all languages, so it lives outside the per-language form.
+const parentUid = ref("");
+const parentBaseline = ref("");
+const siblingPages = ref([]);
+const parentOptions = computed(() => {
+  // A page cannot move below itself or its own children.
+  const self = fullEntry.value ? entryKey(fullEntry.value) : "";
+  const excluded = self ? subtreeKeys(siblingPages.value, self) : new Set();
+  return treeRows(siblingPages.value)
+    .filter(({ entry }) => !excluded.has(entryKey(entry)))
+    .map(({ entry, depth }) => ({
+      value: entryKey(entry),
+      label: `${"\u00a0\u00a0\u00a0".repeat(depth)}${entry.title || entry.slug}`,
+    }));
+});
+
+async function loadSiblingPages() {
+  try {
+    siblingPages.value = (await api.content.list(collection, { limit: 10000, locale: defaultLocale.value || undefined })).data ?? [];
+  } catch {
+    siblingPages.value = [];
   }
 }
 
@@ -1044,6 +1088,7 @@ const formLoaded = ref(false);
 const newEntryBaseline = ref(null);
 const isDirty = computed(() => {
   if (!formLoaded.value) return false;
+  if (parentUid.value !== parentBaseline.value) return true;
   const base = liveEntryBeforeRestore.value ?? fullEntry.value;
   const drafts = {
     ...localeDrafts.value,
@@ -1202,6 +1247,10 @@ onMounted(async () => {
       ),
     );
     contentTypeLocales.value = typeRes.data.locales ?? [];
+    if (typeRes.data.hierarchical) {
+      loadSiblingPages();
+      if (isNew.value && typeof route.query.parent === "string") parentUid.value = parentBaseline.value = route.query.parent;
+    }
 
     if (isNew.value) {
       if (defaultLocale.value) {
@@ -1232,6 +1281,7 @@ onMounted(async () => {
       currentLocale.value = initLocale;
 
       form.value = formFromEntry(entry, initLocale);
+      parentUid.value = parentBaseline.value = entry.parent || "";
     } catch (err) {
       loadError.value = err.message;
     }
@@ -1274,7 +1324,11 @@ async function handleSave() {
 
   try {
     if (isNew.value) {
-      const res = await api.content.create(collection, payloadForSave());
+      const res = await api.content.create(collection, {
+        ...payloadForSave(),
+        ...(contentTypeSchema.value?.hierarchical ? { parent: parentUid.value } : {}),
+      });
+      parentBaseline.value = parentUid.value;
       toast.success(t("contentEdit.entryCreated"));
       newEntryBaseline.value = cloneLocaleValue(form.value);
       router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
@@ -1294,6 +1348,13 @@ async function handleSave() {
           throw error;
         }
       }
+      if (contentTypeSchema.value?.hierarchical && parentUid.value !== (latest.parent || "")) {
+        latest = (await api.content.update(collection, latest.uid || latest.id, {
+          parent: parentUid.value, locale: currentLocale.value || undefined, revision: latest.revision,
+        })).data;
+        fullEntry.value = latest;
+      }
+      parentBaseline.value = parentUid.value = latest.parent || "";
       const res = { data: latest };
       localeDrafts.value = {};
       toast.success(t("contentEdit.entrySaved"));
@@ -1391,7 +1452,7 @@ function errorMessage(err) {
   const fields = Object.entries(err.fields ?? {});
   if (!fields.length) return err.message;
   const label = (name) => {
-    if (["title", "slug", "status"].includes(name)) return t(`contentEdit.${name}`);
+    if (["title", "slug", "status", "parent"].includes(name)) return t(`contentEdit.${name}`);
     if (name === "published_at") return t("contentEdit.publishedAt");
     const config = contentTypeSchema.value?.fields?.[name];
     return resolveLocalized(config?.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || name;

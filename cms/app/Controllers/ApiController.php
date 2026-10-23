@@ -308,7 +308,11 @@ final class ApiController
         }
 
         $user = $this->requireToken('content.delete', ['type' => 'content', 'collection' => $collection, 'entry' => $entry]);
-        $this->content->softDelete($collection, (string) $entry['id'], $user);
+        try {
+            $this->content->softDelete($collection, (string) $entry['id'], $user);
+        } catch (ValidationException $e) {
+            $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
+        }
         $this->response->data(['ok' => true]);
     }
 
@@ -649,6 +653,9 @@ final class ApiController
             'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
+            // Hierarchical types: the parent's id ('' at the top level) and the order among siblings.
+            'parent' => !empty($schema['hierarchical']) ? \CometCMS\Content\PageTree::parent($entry) : null,
+            'position' => !empty($schema['hierarchical']) ? (int) ($entry['position'] ?? 0) : null,
             'published_at' => $entry['published_at'] ?? null,
             'created_at' => (string) ($entry['created_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),

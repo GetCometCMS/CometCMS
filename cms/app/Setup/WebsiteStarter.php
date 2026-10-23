@@ -28,6 +28,7 @@ final class WebsiteStarter
             'name' => 'pages',
             'label' => 'Pages',
             'icon' => 'mdi:file-document-multiple-outline',
+            'hierarchical' => true,
             'fields' => $fields + ['page_content' => ['type' => 'page', 'label' => 'Page content']],
         ]);
         if ($includeEvents) {
