@@ -1,29 +1,10 @@
 @import "@fontsource-variable/inter";
-@import "./styles/tailwind.css";
+
+/* Base includes Tailwind, global styles, and the default blue theme. */
 @import "./styles/base.css";
-
-/* Theme tokens: blue is the fallback; defaults supplies shared neutral/sidebar
-   values. Other themes override only what changes. To add a theme, import its
-   tokens here and register its name/logo in theme.js. Keep component rules in
-   styles/components and theme-specific exceptions alongside the theme. */
-@import "./styles/themes/blue.css";
-@import "./styles/themes/defaults.css";
-@import "./styles/themes/green.css";
-@import "./styles/themes/purple.css";
-@import "./styles/themes/orange.css";
-@import "./styles/themes/cyan.css";
-@import "./styles/themes/red.css";
-@import "./styles/themes/dark/tokens.css";
-
-@import "./styles/components/shell.css";
-@import "./styles/components/layout.css";
-@import "./styles/components/api-footer.css";
-@import "./styles/components/buttons.css";
-@import "./styles/components/forms.css";
-@import "./styles/components/tables.css";
-@import "./styles/components/editor.css";
-@import "./styles/components/badges.css";
-@import "./styles/themes/dark/components.css";
-
-/* Keep these unlayered overrides after utilities to preserve the cascade. */
-@import "./styles/themes/dark/overrides.css";
+/* Color variations override the base tokens. Register new themes in theme.js. */
+@import "./styles/themes.css";
+@import "./styles/components.css";
+/* Dark tokens, component adjustments, and utility overrides stay together.
+   Keep this last so unlayered overrides follow Tailwind utilities. */
+@import "./styles/dark.css";
