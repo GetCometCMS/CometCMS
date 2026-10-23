@@ -381,10 +381,12 @@ const label = computed(() => {
   if (props.name === "label" && props.node.kind === "theme_toggle") return t("site.prop.toggleLabel");
   if (props.name === "icon_position" && props.node.kind === "button") return t("site.prop.buttonIconPosition");
   if (props.name === "media" && props.node.kind === "gallery") return t("site.prop.galleryImages");
+  if (props.name === "media" && props.node.kind === "video") return t("site.prop.videoFile");
   return t(`site.${props.group === "style" ? "style" : "prop"}.${props.name}`);
 });
 
 const hint = computed(() => {
+  if (props.node.kind === "video" && ["media", "poster", "video_url", "autoplay", "controls", "start_time", "fullscreen"].includes(props.name)) return t(`site.video.${props.name}Hint`);
   if (props.name === "class") return t("site.builder.classHint");
   if (props.node.kind === "theme_toggle" && props.name === "label" && !value.value) return t("site.themeToggle.labelHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");

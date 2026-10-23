@@ -178,8 +178,37 @@ final class ContentController extends BaseController
 
         $user = $this->requirePermission('content.delete', ['type' => 'content', 'collection' => $collection, 'entry' => $entry]);
         $this->verifyCsrf();
-        $this->content->softDelete($collection, (string) $entry['id'], $user);
+
+        try {
+            $this->content->softDelete($collection, (string) $entry['id'], $user);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => (string) (array_values($e->fields())[0] ?? $e->getMessage()), 'fields' => $e->fields()]], 422);
+        }
+
         $this->json(['data' => ['ok' => true]]);
+    }
+
+    /** Move an entry of a hierarchical type: body {parent: uid or '', index}. */
+    public function move(string $collection, string $id): never
+    {
+        $this->requireCollection($collection);
+        $existing = $this->content->findByIdentifier($collection, $id);
+
+        if ($existing === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
+        }
+
+        $body = $this->requestJson();
+        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => ['parent', 'position']]);
+        $this->verifyCsrf();
+
+        try {
+            $entry = $this->content->move($collection, (string) $existing['id'], is_string($body['parent'] ?? null) ? $body['parent'] : '', (int) ($body['index'] ?? 0), $user);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => (string) (array_values($e->fields())[0] ?? $e->getMessage()), 'fields' => $e->fields()]], 422);
+        }
+
+        $this->json(['data' => $entry]);
     }
 
     public function bulkDelete(string $collection): never
@@ -199,8 +228,8 @@ final class ContentController extends BaseController
         $failed  = 0;
         $errors  = [];
 
-        foreach ($ids as $id) {
-            $id = (string) $id;
+        // Children first, so selecting a whole branch deletes it.
+        foreach ($this->content->deepestFirst($collection, array_map('strval', $ids)) as $id) {
             $entry = $this->content->find($collection, $id);
 
             if ($entry === null) {
@@ -218,6 +247,9 @@ final class ContentController extends BaseController
             try {
                 $this->content->softDelete($collection, (string) $entry['id'], $user);
                 $deleted++;
+            } catch (ValidationException $e) {
+                $failed++;
+                $errors[$id] = (string) (array_values($e->fields())[0] ?? $e->getMessage());
             } catch (\Throwable $e) {
                 $failed++;
                 $errors[$id] = 'The entry could not be deleted.';

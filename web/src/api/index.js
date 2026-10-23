@@ -347,6 +347,7 @@ export const api = {
     revisions:   (col, id)                   => request('GET',    `/content/${col}/${id}/revisions`),
     restoreRevision: (col, id, revisionId)   => request('POST',   `/content/${col}/${id}/revisions/${revisionId}/restore`),
     duplicate:       (col, id)               => request('POST',   `/content/${col}/${id}/duplicate`),
+    move:            (col, id, placement)    => request('POST',   `/content/${col}/${id}/move`, placement),
     deleteTranslation: (col, id, locale)     => request('DELETE', `/content/${col}/${id}/translations/${locale}`),
   },
 

@@ -1181,10 +1181,12 @@ final class SiteRepository
                     $entries = array_values(array_filter($entries, static fn(array $entry): bool => $entry['id'] !== $candidate['id']));
                     $entries[] = $candidate;
                 }
+                $tree = !empty($type['hierarchical']) ? \CometCMS\Content\PageTree::byUid($entries) : null;
+                $slugOf = static fn(array $entry): string => (string) $content->resolveLocaleFields($entry, $locale)['slug'];
                 foreach ($entries as $entry) {
                     if (!isset($entry['publication'][$locale])) continue;
-                    $entry = $content->resolveLocaleFields($entry, $locale);
-                    $claim(str_replace('{slug}', rawurlencode((string) $entry['slug']), $route['pattern']), 'entry:' . $name . ':' . $entry['id']);
+                    $slug = $tree !== null ? \CometCMS\Content\PageTree::encode(\CometCMS\Content\PageTree::path($tree, $entry, $slugOf)) : rawurlencode($slugOf($entry));
+                    $claim(str_replace('{slug}', $slug, $route['pattern']), 'entry:' . $name . ':' . $entry['id']);
                 }
             }
         }

@@ -238,6 +238,84 @@ final class ContentRepository
         return $this->save($collection, $data, $user, $existing['id'], true, array_keys($data));
     }
 
+    public function isHierarchical(string $collection): bool
+    {
+        return !empty($this->types->find($collection)['hierarchical']);
+    }
+
+    /** @return list<array> the direct children of $parentUid ('' for top-level pages), in their saved order */
+    public function children(string $collection, string $parentUid): array
+    {
+        $children = array_values(array_filter($this->all($collection), static fn(array $entry): bool => PageTree::parent($entry) === $parentUid));
+        usort($children, static fn(array $a, array $b): int => [(int) ($a['position'] ?? 0), (string) $a['created_at']] <=> [(int) ($b['position'] ?? 0), (string) $b['created_at']]);
+        return $children;
+    }
+
+    /**
+     * Place an entry of a hierarchical type under $parent ('' for top level)
+     * at $index among its new siblings, renumbering the siblings in between.
+     */
+    public function move(string $collection, string $id, string $parent, int $index, array $user): array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($collection, $id, $parent, $index, $user): array {
+            if (!$this->isHierarchical($collection)) throw new ValidationException(['parent' => 'This content type has no page hierarchy.']);
+            $existing = $this->find($collection, $id);
+            if ($existing === null) throw new \RuntimeException('Entry not found.');
+            $siblings = array_values(array_filter($this->children($collection, $parent), static fn(array $entry): bool => $entry['id'] !== $existing['id']));
+            $index = max(0, min($index, count($siblings)));
+            // Save in a language the entry has, so moving never adds a translation.
+            $locale = isset($existing['publication'][$this->locale()]) ? $this->locale() : (string) (array_key_first($existing['publication']) ?? $this->locale());
+            $saved = $this->saveUnlocked($collection, ['parent' => $parent, 'position' => $index, 'locale' => $locale], $user, (string) $existing['id'], true, ['parent', 'position']);
+            array_splice($siblings, $index, 0, [null]);
+            foreach ($siblings as $position => $sibling) {
+                if ($sibling === null || (int) ($sibling['position'] ?? 0) === $position) continue;
+                // Reordering is not a content change: no revision, date or webhook.
+                $sibling['position'] = $position;
+                $this->store->write($this->stored($sibling), $collection, (string) $sibling['id']);
+            }
+            $this->cache->clear();
+            return $saved;
+        }, 'routing');
+    }
+
+    /** Entry ids ordered so that children come before their parents, e.g. for deleting a whole branch. */
+    public function deepestFirst(string $collection, array $ids): array
+    {
+        if (!$this->isHierarchical($collection)) return $ids;
+        $byUid = PageTree::byUid($this->all($collection));
+        $depth = [];
+        foreach ($byUid as $entry) $depth[(string) $entry['id']] = count(PageTree::ancestors($byUid, $entry));
+        usort($ids, static fn(string $a, string $b): int => ($depth[$b] ?? 0) <=> ($depth[$a] ?? 0));
+        return $ids;
+    }
+
+    private function nextPosition(string $collection, string $parentUid): int
+    {
+        $children = $this->children($collection, $parentUid);
+        return $children === [] ? 0 : max(array_map(static fn(array $entry): int => (int) ($entry['position'] ?? 0), $children)) + 1;
+    }
+
+    /** The parent's uid, or '' with an error in $errors when it cannot hold $entry. */
+    private function validParent(string $collection, mixed $value, array $entry, array &$errors): string
+    {
+        $identifier = is_string($value) ? trim($value) : '';
+        if ($identifier === '') return '';
+        $byUid = PageTree::byUid($this->all($collection));
+        $parent = $byUid[$identifier] ?? (preg_match('/^[A-Za-z0-9_-]+$/', $identifier) ? $this->findByIdentifier($collection, $identifier) : null);
+        if ($parent === null) {
+            $errors['parent'] = 'Choose an existing entry of this type.';
+            return PageTree::parent($entry);
+        }
+        $uid = (string) $parent['uid'];
+        $ancestors = PageTree::ancestors($byUid, $parent);
+        if ($uid === $entry['uid'] || in_array($entry['uid'], $ancestors, true)) {
+            $errors['parent'] = 'A page cannot be placed below itself.';
+        } elseif (count($ancestors) + 2 + PageTree::height($byUid, (string) $entry['uid']) > PageTree::MAX_DEPTH) {
+            $errors['parent'] = 'Pages can be nested at most ' . PageTree::MAX_DEPTH . ' levels deep.';
+        }
+        return isset($errors['parent']) ? PageTree::parent($entry) : $uid;
+    }
+
     public function duplicate(string $collection, string $id, array $user): ?array
     {
         $existing = $this->find($collection, $id, true);
@@ -249,12 +327,14 @@ final class ContentRepository
         $entry['created_at'] = $entry['updated_at'] = Security::now();
         $entry['author_id'] = $entry['updated_by'] = $user['id'] ?? null;
         unset($entry['deleted_at'], $entry['deleted_by']);
+        $siblingsOf = $this->isHierarchical($collection) ? PageTree::parent($entry) : null;
+        if ($siblingsOf !== null) $entry['position'] = $this->nextPosition($collection, $siblingsOf);
         foreach ($entry['publication'] as $locale => &$publication) {
             $publication = ['status' => 'draft', 'published_at' => null];
             $title = LocalizedValue::resolve($entry['values']['title'], $locale, $locale);
             $entry['values']['title'] = LocalizedValue::set($entry['values']['title'], $locale, 'Copy of ' . $title, $this->locale());
             $slug = (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $locale);
-            $entry['values']['slug'] = LocalizedValue::set($entry['values']['slug'], $locale, $this->uniqueSlug($collection, $slug, '', $locale), $this->locale());
+            $entry['values']['slug'] = LocalizedValue::set($entry['values']['slug'], $locale, $this->uniqueSlug($collection, $slug, '', $locale, $siblingsOf), $this->locale());
         }
         unset($publication);
         $this->store->write($this->stored($entry), $collection, $entry['id']);
@@ -382,6 +462,10 @@ final class ContentRepository
             return;
         }
 
+        if ($this->isHierarchical($collection) && $this->children($collection, (string) $entry['uid']) !== []) {
+            throw new ValidationException(['parent' => 'Move or delete its child pages first.']);
+        }
+
         $entry['deleted_at'] = Security::now();
         $entry['deleted_by'] = $user['id'] ?? null;
         $this->store->write($this->stored($entry), $collection, $id);
@@ -402,6 +486,11 @@ final class ContentRepository
         }
 
         unset($entry['deleted_at'], $entry['deleted_by']);
+        // A page whose parent is gone comes back as a top-level page.
+        if (PageTree::parent($entry) !== '' && !isset(PageTree::byUid($this->all($collection))[PageTree::parent($entry)])) {
+            $entry['parent'] = '';
+            $entry['position'] = $this->nextPosition($collection, '');
+        }
         $entry['updated_at'] = Security::now();
         $entry['revision'] = bin2hex(random_bytes(12));
         $site = new \CometCMS\Site\SiteRepository($this->workspace);
@@ -614,7 +703,7 @@ final class ContentRepository
 
     private function stored(array $entry): array
     {
-        return array_intersect_key($entry, array_flip(['id', 'uid', 'collection', 'values', 'publication', 'revision', 'created_at', 'updated_at', 'author_id', 'updated_by', 'deleted_at', 'deleted_by']));
+        return array_intersect_key($entry, array_flip(['id', 'uid', 'collection', 'parent', 'position', 'values', 'publication', 'revision', 'created_at', 'updated_at', 'author_id', 'updated_by', 'deleted_at', 'deleted_by']));
     }
 
     private function normalizeAndValidate(string $collection, array $payload, array $user, ?array $existing, bool $autoResolveSlugConflicts, ?array $validateOnlyFields = null): array
@@ -638,6 +727,17 @@ final class ContentRepository
         if (!is_array($resets)) throw new ValidationException(['reset_fields' => 'Expected a list of field keys.']);
         foreach ($resets as $name) if (!is_string($name) || !array_key_exists($name, $schema['fields'])) throw new ValidationException(['reset_fields' => 'Choose an existing localized field.']);
         $slugField = $schema['slug_field'] ?? 'slug';
+        $hierarchical = !empty($schema['hierarchical']);
+        $siblingsOf = null;
+        if ($hierarchical) {
+            $previousParent = PageTree::parent($entry);
+            $entry['parent'] = array_key_exists('parent', $payload) ? $this->validParent($collection, $payload['parent'], $entry, $errors) : $previousParent;
+            $entry['position'] = array_key_exists('position', $payload)
+                ? max(0, (int) $payload['position'])
+                : ($existing !== null && $entry['parent'] === $previousParent ? (int) ($entry['position'] ?? 0) : $this->nextPosition($collection, $entry['parent']));
+            // Slugs only need to be unique among the pages that share a parent.
+            $siblingsOf = $entry['parent'];
+        }
         $fields = $schema['fields'];
         foreach ($fields as $name => $config) {
             $localized = in_array($name, ['title', 'slug', $slugField], true) || ($config['localized'] ?? true) !== false;
@@ -659,7 +759,7 @@ final class ContentRepository
             if ($name === $slugField || $name === 'slug') {
                 $source = $payload[$schema['slug_source'] ?? 'title'] ?? $resolved['title'] ?? '';
                 $value = Security::slug((string) ($value ?: $source));
-                $unique = $this->uniqueSlug($collection, $value, (string) ($existing['id'] ?? ''), $locale);
+                $unique = $this->uniqueSlug($collection, $value, (string) ($existing['id'] ?? ''), $locale, $siblingsOf);
                 if ($unique !== $value && $provided) $errors[$name] = 'Slug must be unique in this language.';
                 elseif ($autoResolveSlugConflicts) $value = $unique;
             }
@@ -671,8 +771,17 @@ final class ContentRepository
         // Slugs are explicit for every locale, even when its other content inherits.
         if (!isset($entry['values'][$slugField]['values'][$locale])) {
             $source = (string) ($payload['title'] ?? $resolved['title'] ?? $collection);
-            $slug = $this->uniqueSlug($collection, Security::slug($source), (string) ($existing['id'] ?? ''), $locale);
+            $slug = $this->uniqueSlug($collection, Security::slug($source), (string) ($existing['id'] ?? ''), $locale, $siblingsOf);
             $entry['values'][$slugField] = LocalizedValue::set($entry['values'][$slugField] ?? null, $locale, $slug, $default);
+        }
+        if ($hierarchical && $existing !== null && $entry['parent'] !== $previousParent && !isset($errors['parent'])) {
+            foreach (array_keys($entry['publication']) as $other) {
+                $slug = (string) LocalizedValue::resolve($entry['values'][$slugField] ?? null, $other, $default);
+                if ($this->uniqueSlug($collection, $slug, (string) $existing['id'], $other, $entry['parent']) !== $slug) {
+                    $errors['parent'] = 'A page with the same slug already exists there.';
+                    break;
+                }
+            }
         }
         if ($slugField !== 'slug') $entry['values']['slug'] = $entry['values'][$slugField];
         if ($errors !== []) throw new ValidationException($errors);
@@ -815,11 +924,13 @@ final class ContentRepository
         }, $value);
     }
 
-    private function uniqueSlug(string $collection, string $slug, string $ignoreId = '', string $locale = ''): string
+    /** $siblingsOf limits the check to the children of one parent ('' for top-level pages). */
+    private function uniqueSlug(string $collection, string $slug, string $ignoreId = '', string $locale = '', ?string $siblingsOf = null): string
     {
         $locale = $this->locale($locale);
         $used = [];
         foreach ($this->all($collection, true) as $entry) {
+            if ($siblingsOf !== null && PageTree::parent($entry) !== $siblingsOf) continue;
             if ($entry['id'] !== $ignoreId && isset($entry['publication'][$locale])) $used[] = $this->resolveLocaleFields($entry, $locale)['slug'];
         }
         $candidate = $slug;

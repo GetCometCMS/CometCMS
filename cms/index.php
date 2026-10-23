@@ -181,6 +181,7 @@ $routes = [
     ['PUT',    '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')$#',                                                [ContentController::class, 'update']],
     ['DELETE', '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')$#',                                                [ContentController::class, 'destroy']],
     ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/duplicate$#',                                      [ContentController::class, 'duplicate']],
+    ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/move$#',                                           [ContentController::class, 'move']],
     ['GET',    '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/revisions$#',                                      [ContentController::class, 'revisions']],
     ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/revisions/(' . SEG . ')/restore$#',               [ContentController::class, 'revisionRestore']],
     ['DELETE', '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/translations/(' . SEG . ')$#',                    [ContentController::class, 'destroyTranslation']],

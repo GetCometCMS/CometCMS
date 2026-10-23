@@ -76,6 +76,8 @@ final class ContentQuery
             'updated_by',
             'title',
             'slug',
+            'parent',
+            'position',
         ], $fields)));
     }
 

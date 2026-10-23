@@ -191,13 +191,13 @@
                 </th>
                 <th v-for="column in displayedColumns" :key="column.key" :class="[
                   'select-none whitespace-nowrap',
-                  column.sortKey
+                  column.sortKey && !treeMode
                     ? 'cursor-pointer hover:text-slate-700'
                     : 'cursor-default',
-                ]" @click="column.sortKey ? setSort(column.sortKey) : undefined">
+                ]" @click="column.sortKey && !treeMode ? setSort(column.sortKey) : undefined">
                   <span class="inline-flex items-center gap-1">
                     {{ column.label }}
-                    <template v-if="column.sortKey">
+                    <template v-if="column.sortKey && !treeMode">
                       <Icon v-if="sortKey === column.sortKey" :icon="sortDir === 'asc' ? 'mdi:arrow-up' : 'mdi:arrow-down'
                         " class="w-3.5 h-3.5" />
                       <Icon v-else icon="mdi:unfold-more-horizontal" class="w-3.5 h-3.5 opacity-30" />
@@ -225,10 +225,12 @@
                   </EmptyState>
                 </td>
               </tr>
-              <tr v-for="entry in sortedEntries" :key="entry.id" class="cursor-pointer group" :class="selectedIds.has(entry.id)
-                ? '!bg-theme-50 hover:!bg-theme-100'
-                : ''
-                " @click="router.push(`/content/${collection}/${entry.uid || entry.id}`)">
+              <tr v-for="{ entry, depth, hasChildren, path } in displayRows" :key="entry.id" class="cursor-pointer group" :class="[
+                selectedIds.has(entry.id) ? '!bg-theme-50 hover:!bg-theme-100' : '',
+                dropZone?.key === entryKey(entry) ? `tree-drop-${dropZone.zone}` : '',
+                dragKey === entryKey(entry) ? 'opacity-50' : '',
+              ]" @click="router.push(`/content/${collection}/${entry.uid || entry.id}`)"
+                @dragover="treeDragOver($event, entry)" @dragleave="treeDragLeave($event, entry)" @drop.prevent="treeDrop(entry)">
                 <td v-if="canSelectEntries" class="w-10 !px-3" @click.stop>
                   <input type="checkbox"
                     :aria-label="t('contentList.selectEntry', { title: entry.title || entry.slug })"
@@ -242,13 +244,45 @@
                     :saving="savingCell === cellSaveKey(entry.id, column)" @save="handleInlineSave">
                     <template v-if="column.kind === 'core'">
                       <template v-if="column.key === 'title'">
-                        <span class="inline-flex items-center gap-1.5">
-                          {{ entry.title ?? entry.id }}
-                          <Icon v-if="homepageEntry && [entry.uid, entry.id, entry.slug].includes(homepageEntry)"
-                            icon="mdi:home" class="h-4 w-4 shrink-0 text-theme-600"
-                            role="img" :aria-label="t('site.overview.homepage')"
-                            :title="t('site.overview.homepage')" />
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                          <template v-if="treeMode">
+                            <button v-if="canMoveEntries" type="button" draggable="true"
+                              class="-ml-2 shrink-0 cursor-grab rounded p-0.5 text-slate-300 opacity-0 hover:bg-slate-100 hover:text-slate-500 focus-visible:opacity-100 active:cursor-grabbing group-hover:opacity-100"
+                              :aria-label="t('contentList.dragEntry', { title: entry.title || entry.slug })"
+                              :title="t('contentList.dragEntry', { title: entry.title || entry.slug })"
+                              @click.stop @dragstart.stop="treeDragStart($event, entry)" @dragend="treeDragEnd">
+                              <Icon icon="mdi:drag-vertical" class="h-4 w-4" />
+                            </button>
+                            <span v-for="level in depth" :key="level" class="tree-guide" aria-hidden="true"></span>
+                            <button v-if="hasChildren" type="button"
+                              class="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                              :aria-expanded="!collapsed.has(entryKey(entry))"
+                              :aria-label="t(collapsed.has(entryKey(entry)) ? 'contentList.expand' : 'contentList.collapse', { title: entry.title || entry.slug })"
+                              @click.stop="toggleCollapsed(entry)">
+                              <Icon icon="mdi:chevron-right" class="h-4 w-4 transition-transform duration-150"
+                                :class="collapsed.has(entryKey(entry)) ? '' : 'rotate-90'" />
+                            </button>
+                            <span v-else class="w-5 shrink-0" aria-hidden="true"></span>
+                          </template>
+                          <span class="min-w-0">
+                            <span class="inline-flex items-center gap-1.5">
+                              {{ entry.title ?? entry.id }}
+                              <Icon v-if="homepageEntry && [entry.uid, entry.id, entry.slug].includes(homepageEntry)"
+                                icon="mdi:home" class="h-4 w-4 shrink-0 text-theme-600"
+                                role="img" :aria-label="t('site.overview.homepage')"
+                                :title="t('site.overview.homepage')" />
+                            </span>
+                            <span v-if="treeMode" class="block truncate text-xs font-normal text-slate-400">/{{ path }}</span>
+                          </span>
+                          <router-link v-if="treeMode && canContent('content.create', collection)"
+                            :to="{ path: `/content/${collection}/new`, query: { parent: entryKey(entry) } }"
+                            class="ml-auto shrink-0 rounded p-1 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-theme-600 focus-visible:opacity-100 group-hover:opacity-100"
+                            :aria-label="t('contentList.addChild', { title: entry.title || entry.slug })"
+                            :title="t('contentList.addChild', { title: entry.title || entry.slug })"
+                            @click.stop>
+                            <Icon icon="mdi:plus" class="h-4 w-4" />
+                          </router-link>
+                        </div>
                       </template>
                       <template v-else-if="column.key === 'status'">
                         <span :class="statusPillClass(effectiveStatus(entry))">
@@ -401,8 +435,14 @@
           </table>
         </div>
 
+      <div v-if="treeMode && dragKey" class="m-3 rounded-lg border-2 border-dashed p-3 text-center text-xs"
+        :class="dropZone?.key === '' ? 'border-theme-500 bg-theme-50 text-theme-700' : 'border-slate-200 text-slate-500'"
+        @dragover="treeDragOver($event, null)" @dragleave="dropZone = null" @drop.prevent="treeDrop(null)">
+        {{ t("contentList.dropTopLevel") }}
+      </div>
+
       <!-- Pagination -->
-      <div class="flex flex-wrap gap-2 items-center justify-between border-t border-slate-200 px-4 py-2.5 text-sm text-slate-500">
+      <div v-if="!treeMode" class="flex flex-wrap gap-2 items-center justify-between border-t border-slate-200 px-4 py-2.5 text-sm text-slate-500">
         <span>
           {{ t("contentList.showingPrefix") }} {{ pageStart }}-
           <InlinePageSizeSelect v-model="pageSize" :display-value="pageEnd" :options="pageSizeOptions"
@@ -474,6 +514,7 @@ import {
   orderLocales,
   statusPillClass,
 } from "../composables/contentDisplay.js";
+import { dropPlacement, entryKey, treeRows } from "../composables/entryTree.js";
 import {
   getFileIcon,
   isImageFile,
@@ -573,7 +614,7 @@ const bulkApplying = ref(false);
 const bulkDeleting = ref(false);
 const showBulkDeleteModal = ref(false);
 
-const pageEntryIds = computed(() => sortedEntries.value.map((e) => e.id));
+const pageEntryIds = computed(() => displayRows.value.map((row) => row.entry.id));
 const allPageSelected = computed(
   () =>
     pageEntryIds.value.length > 0 &&
@@ -913,6 +954,82 @@ const route = useRoute();
 const router = useRouter();
 const collection = computed(() => route.params.collection);
 
+// ── Page hierarchy ────────────────────────────────────────────────────────────
+// Hierarchical types list all pages as a tree; a search shows matches flat.
+const treeMode = computed(() => !!contentTypeSchema.value?.hierarchical && !hasActiveFilters.value);
+const canMoveEntries = computed(() => canContent("content.update", collection.value));
+const collapsed = ref(new Set());
+const displayRows = computed(() => treeMode.value
+  ? treeRows(col.value.entries ?? [], collapsed.value)
+  : sortedEntries.value.map((entry) => ({ entry, depth: 0, hasChildren: false, path: entry.slug ?? "" })));
+const dragKey = ref("");
+// { key, zone }: the row ('' for the top-level area) and where the dragged page would go.
+const dropZone = ref(null);
+
+function toggleCollapsed(entry) {
+  const next = new Set(collapsed.value);
+  const key = entryKey(entry);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  collapsed.value = next;
+}
+
+function treeDragStart(event, entry) {
+  dragKey.value = entryKey(entry);
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", dragKey.value);
+}
+
+function treeDragEnd() {
+  dragKey.value = "";
+  dropZone.value = null;
+}
+
+function draggedEntry() {
+  return (col.value.entries ?? []).find((entry) => entryKey(entry) === dragKey.value) ?? null;
+}
+
+/** The move request for dropping on `target` (null: the top-level area), or null when not allowed. */
+function placementFor(target, zone) {
+  const dragged = draggedEntry();
+  if (!dragged) return null;
+  const entries = col.value.entries ?? [];
+  if (target) return dropPlacement(entries, dragged, target, zone);
+  return { parent: "", index: entries.filter((entry) => !entry.parent && entryKey(entry) !== dragKey.value).length };
+}
+
+function treeDragOver(event, target) {
+  if (!dragKey.value) return;
+  let zone = "inside";
+  if (target) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    zone = ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "inside";
+  }
+  const valid = placementFor(target, zone) !== null;
+  dropZone.value = valid ? { key: target ? entryKey(target) : "", zone } : null;
+  event.dataTransfer.dropEffect = valid ? "move" : "none";
+  if (valid) event.preventDefault();
+}
+
+function treeDragLeave(event, target) {
+  if (!event.currentTarget.contains(event.relatedTarget) && dropZone.value?.key === entryKey(target)) dropZone.value = null;
+}
+
+async function treeDrop(target) {
+  const dragged = draggedEntry();
+  const placement = dropZone.value ? placementFor(target, dropZone.value.zone) : null;
+  treeDragEnd();
+  if (!dragged || !placement) return;
+  if (placement.parent) collapsed.value = new Set([...collapsed.value].filter((key) => key !== placement.parent));
+  try {
+    await api.content.move(collection.value, entryKey(dragged), placement);
+  } catch (err) {
+    toast.error(err.message ?? t("contentList.moveFailed"));
+  }
+  await load();
+}
+
 const savingCell = ref(null);
 
 function cellSaveKey(entryId, column) {
@@ -1022,12 +1139,15 @@ async function loadTrashCount() {
 }
 
 async function load() {
-  const params = {
-    limit: pageSize.value,
-    offset: pageOffset.value,
-    sort: apiSortKey(sortKey.value),
-    order: sortDir.value,
-  };
+  // A tree needs every page: children may sit anywhere in a paged list.
+  const params = treeMode.value
+    ? { limit: 10000, offset: 0 }
+    : {
+      limit: pageSize.value,
+      offset: pageOffset.value,
+      sort: apiSortKey(sortKey.value),
+      order: sortDir.value,
+    };
   const query = filters.value.q.trim();
   if (query) params.q = query;
   // Pass default_locale so the backend resolves translated titles (avoids showing
@@ -1036,7 +1156,7 @@ async function load() {
   await store.fetchList(collection.value, params);
 
   const total = col.value.meta.total ?? 0;
-  if (total > 0 && pageOffset.value >= total) {
+  if (!treeMode.value && total > 0 && pageOffset.value >= total) {
     pageOffset.value =
       Math.floor((total - 1) / pageSize.value) * pageSize.value;
     await store.fetchList(collection.value, {
@@ -1216,6 +1336,7 @@ watch(
     pageOffset.value = 0;
     resetSort();
     deselectAll();
+    collapsed.value = new Set();
     await loadContentType();
     load();
     loadTrashCount();

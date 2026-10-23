@@ -132,6 +132,15 @@
             <p v-if="submissionError" class="mt-1 text-xs text-red-600" role="alert">{{ submissionError }}</p>
             <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.submissionsHint") }}</p>
           </div>
+
+          <div class="col-span-1">
+            <label for="content-type-hierarchical" class="form-label">{{ t("contentTypeEdit.hierarchy") }}</label>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <ToggleSwitch id="content-type-hierarchical" v-model="form.hierarchical" aria-describedby="content-type-hierarchical-help" />
+              {{ t("contentTypeEdit.hierarchical") }}
+            </label>
+            <p id="content-type-hierarchical-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.hierarchicalHint") }}</p>
+          </div>
         </div>
       </div>
 
@@ -288,6 +297,7 @@ const form = ref({
   icon: defaultIcon,
   visibility: "public",
   api_enabled: false,
+  hierarchical: false,
   allow_submissions: false,
   submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
   fields: {},
