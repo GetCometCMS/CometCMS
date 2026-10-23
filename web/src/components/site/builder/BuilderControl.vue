@@ -427,7 +427,6 @@ const flagSample = computed(() => {
 });
 
 function optionLabel(option) {
-  if (props.group === "style" && props.name === "overflow") return t(`site.overflow.${option || "default"}`);
   if (option === "") return t(props.group === "style" ? "site.option.default" : "site.option.auto");
   if (/^h[1-6]$/.test(option)) return option.toUpperCase();
   if (/^\d+:\d+$/.test(option)) return option;
