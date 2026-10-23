@@ -475,8 +475,8 @@ const historyScope = ref("layout");
 /** Bumped after saving so an open history list shows the version the save kept. */
 const historyVersion = ref(0);
 const panels = computed(() => [
-  { value: "inspector", label: t("site.builder.inspector"), icon: "mdi:tune-variant" },
   { value: "add", label: t("site.builder.add"), icon: "mdi:plus-box-outline" },
+  { value: "inspector", label: t("site.builder.inspector"), icon: "mdi:tune-variant" },
   { value: "outline", label: t("site.builder.outline"), icon: "mdi:file-tree-outline" },
   ...(hasEntryFields.value ? [{ value: "fields", label: t("site.builder.entryFields"), icon: "mdi:file-document-edit-outline", dirty: entryFields.isDirty.value }] : []),
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", dirty: themeDirty.value && !cssOnlyDirty.value },
