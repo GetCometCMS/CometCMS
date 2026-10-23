@@ -97,7 +97,7 @@ const allGroups = computed(() => [
     items: builder.pageTypes.value.map((type) => ({
       key: `layout:${type.name}`,
       label: type.label ?? type.name,
-      icon: "mdi:file-multiple-outline",
+      icon: type.icon || "mdi:file-multiple-outline",
       path: `/page-builder/builder/layout/${type.name}/detail`,
       current: ["layout", "page"].includes(props.target) && props.name === type.name,
       isHomepage: builder.settings.value?.homepage?.type === type.name,
