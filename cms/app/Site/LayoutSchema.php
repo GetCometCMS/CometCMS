@@ -33,8 +33,8 @@ final class LayoutSchema
 
     public const REGIONS = ['header', 'footer'];
 
-    /** Standalone pages edited like regions, but rendered as the main content of their own response. */
-    public const SPECIAL_PAGES = ['not_found'];
+    /** Special page templates edited and stored like regions. */
+    public const SPECIAL_PAGES = ['not_found', 'modal'];
 
     /** Everything stored and edited as a region document. */
     public const REGION_DOCUMENTS = [...self::REGIONS, ...self::SPECIAL_PAGES];
@@ -55,6 +55,9 @@ final class LayoutSchema
      * in a collection's card, and each page field has one place.
      */
     public const PAGE_CONTENT = 'page_content';
+
+    /** The selected page inside the shared modal template. */
+    public const SITE_CONTENT = 'site_content';
 
     public const ELEMENTS = [
         'field',
@@ -286,6 +289,9 @@ final class LayoutSchema
             self::PAGE_CONTENT => [
                 'field' => ['type' => 'page_field', 'default' => ''],
             ],
+            self::SITE_CONTENT => [
+                'content_height' => ['type' => 'int', 'min' => 200, 'max' => 1600, 'unit' => 'px', 'default' => 640],
+            ],
             'field' => [
                 'source' => ['type' => 'reference', 'default' => ''],
                 'display' => ['type' => 'display', 'default' => ''],
@@ -482,12 +488,13 @@ final class LayoutSchema
     /**
      * Everything the admin builder needs to draw palettes and inspectors.
      * With $pageContent (detail layouts) the page content place is offered.
+     * With $siteContent (modal templates) the selected page's slot is offered.
      */
-    public static function spec(bool $pageContent = false): array
+    public static function spec(bool $pageContent = false, bool $siteContent = false): array
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT, self::SITE_CONTENT] as $kind) {
             $props = self::propSpec($kind);
             foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
@@ -496,7 +503,7 @@ final class LayoutSchema
             $kinds[$kind] = [
                 'props' => $props,
                 'style' => self::styleKeys($kind),
-                'children' => self::childrenFor($kind, $pageContent),
+                'children' => self::childrenFor($kind, $pageContent, $siteContent),
                 'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
                 'states' => [
                     'props' => self::STATE_PROPS[$kind] ?? [],
@@ -515,9 +522,9 @@ final class LayoutSchema
             'format_version' => self::FORMAT_VERSION,
             'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES, 'style_properties' => SmartValue::STYLE_PROPERTIES],
             'kinds' => $kinds,
-            'root' => self::childrenFor('root', $pageContent),
+            'root' => self::childrenFor('root', $pageContent, $siteContent),
             'style' => $style,
-            'elements' => $pageContent ? [...self::ELEMENTS, self::PAGE_CONTENT] : self::ELEMENTS,
+            'elements' => [...self::ELEMENTS, ...($pageContent ? [self::PAGE_CONTENT] : []), ...($siteContent ? [self::SITE_CONTENT] : [])],
             'item_elements' => self::ITEM_ELEMENTS,
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
@@ -537,21 +544,42 @@ final class LayoutSchema
      * values are dropped rather than rejected so an older or hand-edited
      * layout keeps rendering what is still valid.
      */
-    public static function normalize(mixed $nodes, bool $pageContent = false): array
+    public static function normalize(mixed $nodes, bool $pageContent = false, bool $siteContent = false): array
     {
         $count = 0;
         $seen = [];
         $places = $pageContent ? [] : null;
 
-        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $places);
+        return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $places, $siteContent);
     }
 
-    /** Kinds a node of $parent may contain, with the page content place where it is allowed. */
-    private static function childrenFor(string $parent, bool $pageContent): array
+    public static function normalizeRegion(string $region, mixed $nodes, bool $requireContent = false): array
+    {
+        $nodes = self::normalize($nodes, false, $region === 'modal');
+        if ($region === 'modal' && $requireContent) {
+            $count = 0;
+            $visit = static function (array $nodes) use (&$visit, &$count): void {
+                foreach ($nodes as $node) {
+                    if ($node['kind'] === self::SITE_CONTENT) $count++;
+                    $visit($node['children']);
+                }
+            };
+            $visit($nodes);
+            if ($count !== 1) throw new \CometCMS\Core\ValidationException(['nodes' => 'The modal template must contain exactly one Site content element.']);
+        }
+        return $nodes;
+    }
+
+    /** Kinds a node may contain, including content slots for the document being edited. */
+    private static function childrenFor(string $parent, bool $pageContent, bool $siteContent = false): array
     {
         $children = self::allowedChildren($parent);
 
-        return $pageContent && in_array($parent, ['root', 'column', 'tab'], true) ? [...$children, self::PAGE_CONTENT] : $children;
+        if (in_array($parent, ['root', 'column', 'tab'], true)) {
+            if ($pageContent) $children[] = self::PAGE_CONTENT;
+            if ($siteContent) $children[] = self::SITE_CONTENT;
+        }
+        return $children;
     }
 
     /**
@@ -974,6 +1002,11 @@ final class LayoutSchema
 
     private static function buildDefaultRegion(string $region): array
     {
+        if ($region === 'modal') {
+            return [self::node('section', ['width' => 'full'], ['padding_y' => 'md', 'background' => 'background'], [
+                self::node('row', [], [], [self::node('column', [], [], [self::node(self::SITE_CONTENT)])]),
+            ])];
+        }
         if ($region === 'not_found') {
             return [
                 self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
@@ -1071,9 +1104,9 @@ final class LayoutSchema
      * columns. $places collects the page fields that already have a place
      * (null where no page content place may go).
      */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null): array
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $siteContent = false): array
     {
-        $allowed = self::childrenFor($parent, $places !== null);
+        $allowed = self::childrenFor($parent, $places !== null, $siteContent);
         $normalized = [];
 
         foreach (array_values($nodes) as $node) {
@@ -1118,7 +1151,7 @@ final class LayoutSchema
             // Cards, item templates and the default content hold no page content place.
             $childPlaces = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true) ? null : $places;
             $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces, $siteContent && !in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true))
                 : [];
             if ($childPlaces !== null) {
                 $places = $childPlaces;

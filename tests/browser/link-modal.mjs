@@ -1,4 +1,5 @@
 // Run with: node tests/browser/link-modal.mjs (requires PHP and Chrome/Chromium).
+// Add --builder after npm run build to exercise the template editor too.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,7 +14,9 @@ const directory = mkdtempSync(join(tmpdir(), 'cometcms-link-modal-'));
 let php, browser;
 try {
   for (const path of ['app', 'config', 'index.php']) cpSync(join(root, 'cms', path), join(directory, path), { recursive: true });
+  if (process.argv.includes('--builder')) cpSync(join(root, 'dist/admin'), join(directory, 'admin'), { recursive: true });
   writeFileSync(join(directory, 'router.php'), `<?php
+if (str_starts_with($_SERVER['REQUEST_URI'], '/admin/assets/') && is_file(__DIR__ . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))) return false;
 $_SERVER['SCRIPT_NAME'] = str_starts_with($_SERVER['REQUEST_URI'], '/cms/') ? '/cms/index.php' : '/index.php';
 require __DIR__ . '/index.php';`);
   writeFileSync(join(directory, 'seed.php'), `<?php
@@ -48,6 +51,7 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
   browser = await chromium.launch({ executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   page.setDefaultTimeout(10000);
+  page.on('pageerror', (error) => console.error(error));
   for (const base of ['', '/cms']) {
     const source = origin + base + '/posts/source';
     const response = await page.goto(source);
@@ -69,7 +73,7 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
     assert(await opener.evaluate((element) => element === document.activeElement), 'Escape from the frame restores focus');
-    assert.equal(await page.locator('.c-link-modal-frame').getAttribute('src'), 'about:blank');
+    await page.waitForFunction(() => document.querySelector('.c-link-modal-frame').getAttribute('src') === 'about:blank');
 
     for (const label of ['List modal', 'Home modal', 'Current modal']) {
       await page.getByRole('link', { name: label, exact: true }).click();
@@ -112,12 +116,60 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
     await page.waitForURL(origin + base + '/posts/target');
   }
 
+  // A custom template applies to every link while retaining the selected page's URL and scripts.
+  writeFileSync(join(directory, 'customize.php'), `<?php
+require __DIR__ . '/app/bootstrap.php';
+$node = \\CometCMS\\Site\\LayoutSchema::node(...);
+(new \\CometCMS\\Site\\SiteRepository())->saveRegion('modal', [$node('section', ['width' => 'full'], ['background' => 'surface'], [$node('row', [], [], [$node('column', [], [], [
+    $node('heading', ['text' => 'Shared modal frame']),
+    $node('site_content', ['content_height' => 420]),
+])])])]);`);
+  execFileSync('php', [join(directory, 'customize.php')]);
+  await page.goto(origin + '/posts/source');
+  await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
+  await page.getByRole('dialog').getByRole('heading', { name: 'Shared modal frame' }).waitFor();
+  await page.frameLocator('.c-link-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
+  assert.equal(await page.locator('.c-site-content').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '420px');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+
   await page.context().addCookies([{ name: 'cometcms_admin', value: 'modal-browser-session', url: origin }]);
   await page.goto(origin + '/cms/admin/site-preview/posts/source?workspace=default');
   await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
   await page.frameLocator('.c-link-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
   assert.match(await page.locator('.c-link-modal-frame').getAttribute('src'), /\/cms\/admin\/site-preview\?/);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
+  if (process.argv.includes('--builder')) {
+    await page.addInitScript(() => localStorage.setItem('cometcms-builder-guide-seen', '1'));
+    await page.goto(origin + '/admin/page-builder/builder/layout/posts/detail');
+    await page.locator('.page-switcher-trigger').click();
+    await page.getByRole('menuitem', { name: 'Modal', exact: true }).click();
+    await page.waitForURL('**/page-builder/builder/region/modal');
+    const canvas = page.frameLocator('.builder-stage iframe');
+    await canvas.locator('[data-kind="site_content"] .c-modal-content-placeholder').waitFor();
+    assert.equal(await canvas.locator('iframe').count(), 0, 'The builder shows a placeholder rather than a live embedded page');
+    await canvas.locator('[data-kind="site_content"]').click();
+    const height = page.getByRole('spinbutton', { name: 'Content height', exact: true });
+    await height.fill('480');
+    await height.press('Tab');
+    const saved = page.waitForResponse((response) => response.url().includes('/api/site/regions/modal') && response.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    assert.equal((await saved).status(), 200);
+    await page.reload();
+    await canvas.locator('[data-kind="site_content"]').waitFor();
+    assert.equal(await canvas.locator('[data-kind="site_content"]').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '480px');
+    await page.locator('header').getByRole('button', { name: 'More actions', exact: true }).click();
+    const popup = page.waitForEvent('popup');
+    await page.getByRole('menuitem', { name: 'Preview', exact: true }).click();
+    const preview = await popup;
+    await preview.locator('.c-link-modal-preview[open] .c-modal-content-placeholder').waitFor();
+    assert.equal(await preview.locator('iframe').count(), 0, 'Full-page previews retain the content placeholder');
+    await preview.close();
+    await page.goto(origin + '/posts/source');
+    await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
+    assert.equal(await page.locator('.c-site-content').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '480px', 'Saving in the builder updates the live modal');
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    console.log('Modal template editor checks passed (header dropdown, content placeholder, height editing, save, reload and live rendering).');
+  }
   console.log('Link modal browser checks passed (internal destinations, external links, focus, Escape, backdrop, mobile, nested interactions, root/subdirectory installs, preview and real CSP).');
 } finally {
   await browser?.close();

@@ -279,7 +279,7 @@ final class SiteRepository
         $this->assertRegion($region);
         $stored = $this->themeStore->read('regions', $region);
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
     }
 
     public function regionCustomized(string $region): bool
@@ -300,7 +300,7 @@ final class SiteRepository
     private function saveRegionUnlocked(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $this->assertRegion($region);
-        $nodes = LayoutSchema::normalize($nodes);
+        $nodes = LayoutSchema::normalizeRegion($region, $nodes, true);
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'regions', $region);
         $this->clearCache();

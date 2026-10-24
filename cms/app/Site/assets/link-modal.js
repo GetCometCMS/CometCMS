@@ -13,15 +13,12 @@ export function initLinkModal(doc) {
     dialog.close();
   }
 
-  function create() {
-    dialog = doc.createElement('dialog');
-    dialog.className = 'c-link-modal';
-    dialog.innerHTML = '<div class="c-link-modal-bar"><a class="c-link-modal-title"></a>'
-      + '<button type="button" class="c-link-modal-close" autofocus><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M6 6l12 12M6 18L18 6"/></svg></button></div>'
-      + '<iframe class="c-link-modal-frame"></iframe>';
-    frame = dialog.querySelector('iframe');
-    title = dialog.querySelector('a');
-    close = dialog.querySelector('button');
+  function prepare() {
+    dialog = doc.querySelector('[data-link-modal-dialog]');
+    frame = dialog?.querySelector('iframe[data-modal-content]');
+    if (!frame) { dialog = null; return false; }
+    title = dialog.querySelector('.c-link-modal-title');
+    close = dialog.querySelector('.c-link-modal-close');
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('keydown', escape);
     dialog.addEventListener('click', (event) => {
@@ -41,7 +38,7 @@ export function initLinkModal(doc) {
       frame.src = 'about:blank';
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     });
-    doc.body.append(dialog);
+    return true;
   }
 
   doc.addEventListener('click', (event) => {
@@ -50,9 +47,9 @@ export function initLinkModal(doc) {
     if (typeof doc.defaultView?.HTMLDialogElement?.prototype.showModal !== 'function') return;
     const url = new URL(trigger.href, doc.baseURI);
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== doc.location.origin) return;
+    if (!dialog?.isConnected && !prepare()) return;
     event.preventDefault();
-    if (!dialog?.isConnected) create();
-    opener = trigger;
+    if (!dialog.open) opener = trigger;
     const label = trigger.getAttribute('aria-label') || trigger.textContent.trim() || trigger.querySelector('img')?.alt || url.pathname;
     dialog.setAttribute('aria-label', label);
     close.setAttribute('aria-label', trigger.dataset.modalClose);

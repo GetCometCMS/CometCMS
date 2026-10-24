@@ -882,3 +882,29 @@ describe('independent hover animations', () => {
     expect(builder.nodes.value[0].children[0].style).toEqual({})
   })
 })
+
+
+describe('modal content placement', () => {
+  it('keeps a single content slot, prevents duplication and allows remove and undo', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.kinds.column.children.push('site_content')
+    builder.spec.value.kinds.site_content = { props: { content_height: { default: 640 } }, children: [] }
+    const section = builder.nodes.value[0]
+    const column = section.children[0].children[0]
+    const slot = builder.make('site_content')
+    expect(builder.insert(slot, column.id)).toBe(true)
+    expect(builder.insert(builder.make('site_content'), column.id)).toBe(false)
+    builder.duplicate(slot.id)
+    expect(builder.nodes.value[0].children[0].children[0].children.filter((node) => node.kind === 'site_content')).toHaveLength(1)
+    builder.duplicate(section.id)
+    expect(builder.nodes.value).toHaveLength(1)
+    builder.updateValue(slot.id, 'props', 'content_height', 420)
+    expect(findNode(builder.nodes.value, slot.id).props.content_height).toBe(420)
+    builder.undo()
+    expect(findNode(builder.nodes.value, slot.id).props.content_height).toBe(640)
+    builder.remove(slot.id)
+    expect(findNode(builder.nodes.value, slot.id)).toBeNull()
+    builder.undo()
+    expect(findNode(builder.nodes.value, slot.id).kind).toBe('site_content')
+  })
+})

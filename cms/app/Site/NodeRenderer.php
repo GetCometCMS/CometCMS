@@ -162,6 +162,7 @@ final class NodeRenderer
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
             LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
+            LayoutSchema::SITE_CONTENT => $this->siteContent($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -322,7 +323,7 @@ final class NodeRenderer
         }
         // Spacers contribute height without text or media, including inside nested rows.
         $hasSpacer = preg_match('/class="[^"]*\bc-spacer\b/', $inner) === 1;
-        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
+        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><iframe><hr><svg><input>')) === '' && !$this->annotating()) {
             // The entry builder renders shared rows without annotations. Keep
             // rows around empty page areas so their drop targets and area
             // switchers survive, including all enclosing rows and sections.
@@ -460,6 +461,16 @@ final class NodeRenderer
         }
 
         return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
+    }
+
+    private function siteContent(array $node, array $state): string
+    {
+        $height = (int) $node['props']['content_height'];
+        $inner = !empty($state['modal_preview'])
+            ? '<div class="c-modal-content-placeholder c-placeholder"' . $this->placeholder('siteContent') . '>' . Security::e(Messages::get('site_content_placeholder', $this->ctx->htmlLang())) . '</div>'
+            : '<iframe class="c-link-modal-frame" data-modal-content title="' . Security::e(Messages::get('site_content', $this->ctx->htmlLang())) . '"></iframe>';
+
+        return $this->element($node, $inner, ['c-site-content'], '--c-modal-content-height:' . $height . 'px');
     }
 
     private function componentPlaceholder(array $node, string $key, string $message): string

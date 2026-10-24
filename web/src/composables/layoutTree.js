@@ -52,6 +52,7 @@ export const COMPONENT = 'component'
 
 /** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
 export const PAGE_CONTENT = 'page_content'
+export const SITE_CONTENT = 'site_content'
 
 /** The kind a node is placed as: a component instance counts as its root kind. */
 export function placementKind(node) {

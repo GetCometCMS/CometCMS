@@ -605,7 +605,7 @@ const entryFields = useBuilderEntry({
 
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
-  if (target.value === "component") return null;
+  if (target.value === "component" || (target.value === "region" && name.value === "modal")) return null;
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
@@ -619,6 +619,7 @@ const liveUrl = computed(() => {
 });
 /** Why the live page cannot be opened, shown on the disabled menu item. */
 const liveHint = computed(() => {
+  if (target.value === "region" && name.value === "modal") return t("site.modal.noPage");
   if (target.value === "component") return t("site.builder.componentNoPage");
   if (target.value === "region") return t("site.builder.siteOff");
   if (variant.value === "index") return t("site.builder.noLiveIndex");
@@ -747,7 +748,7 @@ const subheading = computed(() => {
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
-  if (target.value === "region") return t(name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
+  if (target.value === "region") return t(name.value === "modal" ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
   return t(`site.variant.${variant.value}`);
 });
 
@@ -776,7 +777,7 @@ const overview = computed(() => {
     return {
       title: heading.value,
       description: t(`site.region.${name.value}Hint`),
-      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline" }[name.value] ?? "mdi:page-layout-header",
+      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline", modal: "mdi:application-outline" }[name.value] ?? "mdi:page-layout-header",
     };
   }
   const type = builder.type.value?.label ?? name.value;

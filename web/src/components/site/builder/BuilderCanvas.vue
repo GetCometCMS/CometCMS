@@ -100,7 +100,7 @@ const BUILDER_CSS = `
 }
 
 /* Each entry replaces this area with its own content, so it stays marked. */
-[data-kind="page_content"]{
+[data-kind="page_content"], [data-kind="site_content"]{
   --builder-color:#217f98;
   outline:2px dashed color-mix(in srgb,var(--builder-color) 75%,transparent);
   outline-offset:-2px;

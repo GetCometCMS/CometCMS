@@ -72,6 +72,8 @@ npm --workspace web run test:watch
 
 Run `node tests/browser/link-modal.mjs` with PHP and Chrome/Chromium installed to check internal link modals, external links, keyboard and focus behavior, mobile sizing, previews and root/subdirectory installs under the real content security policy. Set `CHROME_BIN` to override the browser executable. The test uses an isolated temporary installation.
 
+After `npm run build`, add `--builder` to also check the **Modal** template in the builder's header dropdown, its content placeholder, editing and saving its height, reloading, full-page previews and the resulting live modal.
+
 ## Local reset
 
 To wipe all data and return to the setup screen, just delete the storage folder. If you want to keep users and roles but reset content, media, sessions, logs, and settings, run:

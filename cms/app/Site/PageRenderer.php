@@ -185,12 +185,20 @@ final class PageRenderer
 
     public function regionPreview(string $region): string
     {
+        if ($region === 'modal') return $this->modalPreview();
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->regionPreview($region);
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
             . '<div class="c-preview-main" data-placeholder="regionMain">Page content</div></div></section>';
 
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
+    }
+
+    public function modalPreview(): string
+    {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->modalPreview();
+        return $this->document(['title' => Messages::get('modal', $this->ctx->htmlLang()), 'noindex' => true, 'body_class' => 'c-view-modal-preview'],
+            LinkModal::markup($this->ctx, true, $this->nodes), $this->state(null, null, $this->ctx->homeUrl(), 1, []), false);
     }
 
     /**
@@ -272,6 +280,8 @@ final class PageRenderer
         // its parent-managed interactions and selection behavior.
         $interactive = !$this->ctx->preview || ($this->ctx->browsePreview && !$this->ctx->annotate);
         $markup = $header . $main . $footer;
+        $modal = $interactive && str_contains($markup, ' data-link-modal ') ? LinkModal::markup($this->ctx, false, $this->nodes) : '';
+        $markup .= $modal;
         $headScript = $interactive && str_contains($markup, 'data-theme-toggle')
             ? '<script>' . ThemeToggle::script() . '</script>' : '';
         $bodyScripts = '';
@@ -361,6 +371,7 @@ final class PageRenderer
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
+            . $modal
             . $bodyScripts
             . '</body></html>';
         $banner = '';

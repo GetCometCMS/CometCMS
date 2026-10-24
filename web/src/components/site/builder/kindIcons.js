@@ -25,6 +25,7 @@ export const KIND_ICONS = {
   theme_toggle: 'mdi:theme-light-dark',
   component: 'mdi:puzzle-outline',
   page_content: 'mdi:file-document-edit-outline',
+  site_content: 'mdi:application-import',
 }
 
 /** Column sets arranged underneath each other read as rows. */

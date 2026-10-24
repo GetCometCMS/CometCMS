@@ -336,7 +336,13 @@ html:has(.c-lightbox[open], .c-link-modal[open]) { overflow: hidden; }
 .c-link-modal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-link-modal-close { display: flex; flex: none; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: var(--radius-box); background: transparent; color: inherit; cursor: pointer; }
 .c-link-modal-close:hover { background: var(--c-surface); }
-.c-link-modal-frame { flex: 1; min-height: 0; width: 100%; border: 0; }
+.c-link-modal-bar { flex: none; }
+.c-link-modal-body { flex: 1; min-height: 0; overflow: auto; }
+.c-link-modal-frame, .c-modal-content-placeholder { display: block; width: 100%; height: min(var(--c-modal-content-height, 640px), 70dvh); border: 0; }
+.c-modal-content-placeholder { display: grid; place-content: center; text-align: center; border: 2px dashed var(--c-border); }
+.c-view-modal-preview .c-main { background: rgb(0 0 0 / 0.65); padding: 1rem 0; }
+.c-link-modal-preview { position: relative; inset: auto; margin: 0 auto; height: calc(100dvh - 2rem); }
+.c-view-modal-preview:has(.c-preview-bar) .c-link-modal-preview { height: calc(100dvh - 6rem); }
 .c-lightbox {
   position: fixed;
   inset: 0;

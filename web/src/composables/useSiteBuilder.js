@@ -6,6 +6,7 @@ import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
   PAGE_CONTENT,
+  SITE_CONTENT,
   ancestors,
   applyColumnPreset,
   clone,
@@ -348,6 +349,17 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (!result || (rootKind.value && result.parentId === null)) return false
     const places = []
     walk([result.node], (node) => { if (node.kind === PAGE_CONTENT) places.push(node) })
+    const slots = []
+    walk([result.node], (node) => { if (node.kind === SITE_CONTENT) slots.push(node) })
+    if (slots.length) {
+      if (slots.length > 1) return false
+      const slotParent = result.parentId ? findNode(nodes.value, result.parentId) : null
+      const chain = slotParent ? [...ancestors(nodes.value, slotParent.id), slotParent] : []
+      if (chain.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
+      let duplicate = false
+      walk(nodes.value, (node) => { if (node.kind === SITE_CONTENT && node.id !== slots[0].id) duplicate = true })
+      if (duplicate) return false
+    }
     if (!places.length) return true
     const parent = result.parentId ? findNode(nodes.value, result.parentId) : null
     const around = parent ? [...ancestors(nodes.value, parent.id), parent] : []
@@ -821,15 +833,15 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return component
   }
 
-  /** Whether a structure node can become a component (not a component's own root, nor holding page content). */
+  /** Content slots stay in their own document rather than becoming reusable components. */
   function canConvert(node) {
     return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !holdsPageContent(node) && !!componentApi.create
   }
 
-  /** Whether `node` is or contains the page content place, which exists once per field and only in its layout. */
+  /** Whether `node` is or contains a page content place or the modal's site content slot. */
   function holdsPageContent(node) {
     let found = false
-    if (node) walk([node], (item) => !(found = item.kind === PAGE_CONTENT))
+    if (node) walk([node], (item) => !(found = [PAGE_CONTENT, SITE_CONTENT].includes(item.kind)))
     return found
   }
 
