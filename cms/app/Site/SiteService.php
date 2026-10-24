@@ -28,12 +28,13 @@ final class SiteService
         $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
         $cache = ApiCache::fromConfig($this->ctx->site->workspace());
         $lists = ListFilters::fromQuery($query['c'] ?? null);
-        // Only pagination and list filters change the output. Include every URL component
+        $embed = ($query['embed'] ?? '') === '1';
+        // Only pagination, list filters and embedding change the output. Include every URL component
         // used by links and canonical URLs, even for subdirectory installs.
         // File edits also need to refresh the versioned stylesheet links.
         $key = $cache->key('site|' . json_encode([
-            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(), ThemeToggle::cspSource(), ListFilters::cspSource(),
-        ]), http_build_query(array_filter(['page' => $page > 1 ? $page : null, 'c' => $lists ?: null])));
+            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), LinkModal::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(), ThemeToggle::cspSource(), ListFilters::cspSource(),
+        ]), http_build_query(array_filter(['page' => $page > 1 ? $page : null, 'c' => $lists ?: null, 'embed' => $embed ? 1 : null])));
         $cached = $this->ctx->preview ? null : $cache->get($key);
 
         if ($cached !== null && isset($cached['status'], $cached['body'], $cached['content_type'])) {
@@ -41,7 +42,7 @@ final class SiteService
         }
 
         $startedAt = time();
-        $response = $this->respond($path, ['page' => $page, 'c' => $lists]);
+        $response = $this->respond($path, ['page' => $page, 'c' => $lists, 'embed' => $embed ? '1' : '']);
 
         if ($response['cacheable']) {
             $cache->put($key, $response, $this->nextPublicationAt($startedAt));
@@ -134,6 +135,7 @@ final class SiteService
 
         [$locale, $path] = $this->splitLocale($path);
         $this->ctx->locale = $locale;
+        $this->ctx->embed = ($query['embed'] ?? '') === '1';
         $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
         $this->ctx->listParams = ListFilters::fromQuery($query['c'] ?? null);
         $renderer = new PageRenderer($this->ctx);

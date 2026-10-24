@@ -162,6 +162,10 @@ final class NodeRenderer
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
             LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
+            LayoutSchema::MODAL => $this->modal($node, $state),
+            LayoutSchema::SITE_CONTENT => $this->siteContent($node, $state),
+            'modal_title' => $this->modalTitle($node, $state),
+            'modal_close' => $this->modalClose($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
@@ -322,7 +326,7 @@ final class NodeRenderer
         }
         // Spacers contribute height without text or media, including inside nested rows.
         $hasSpacer = preg_match('/class="[^"]*\bc-spacer\b/', $inner) === 1;
-        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
+        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><iframe><hr><svg><input>')) === '' && !$this->annotating()) {
             // The entry builder renders shared rows without annotations. Keep
             // rows around empty page areas so their drop targets and area
             // switchers survive, including all enclosing rows and sections.
@@ -460,6 +464,60 @@ final class NodeRenderer
         }
 
         return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
+    }
+
+    /**
+     * The modal template's panel. It is the dialog itself, so its style is
+     * the look of the modal; builder previews ($state['modal_preview']) show
+     * it open in place, with nothing to press.
+     */
+    private function modal(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $preview = !empty($state['modal_preview']);
+        $background = $this->background($node['style']);
+        $classes = ['c-modal', 'c-modal-' . $props['size'], 'c-modal-at-' . $props['placement'], 'c-modal-h-' . $props['height'], 'c-modal-backdrop-' . $props['backdrop'],
+            ...($preview ? ['c-modal-preview'] : []), ...$background['classes'], ...$this->styleClasses($node['style'])];
+
+        return '<dialog' . $this->attributes($node, $classes, $background['style'])
+            . ($preview ? ' open' : ' data-link-modal-dialog' . ($props['backdrop_close'] ? ' data-backdrop-close' : ''))
+            . ' aria-label="' . Security::e(Messages::get('modal', $this->ctx->htmlLang())) . '">'
+            . $background['layer'] . $this->render($node['children'], $state) . '</dialog>';
+    }
+
+    /** Where the opened page appears; the modal script loads it into a frame of its own. */
+    private function siteContent(array $node, array $state): string
+    {
+        $inner = !empty($state['modal_preview'])
+            ? '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('siteContent') . '>' . Security::e(Messages::get('site_content_placeholder', $this->ctx->htmlLang())) . '</div>'
+            : '';
+
+        return $this->element($node, $inner);
+    }
+
+    /** The text of the link that opened the modal; previews show a sample. */
+    private function modalTitle(array $node, array $state): string
+    {
+        $tag = $node['props']['level'];
+        $sample = !empty($state['modal_preview']) ? Messages::get('modal_title_sample', $this->ctx->htmlLang()) : '';
+
+        return $this->element($node, '<' . $tag . ' class="' . ($tag === 'p' ? '' : 'c-heading ') . 'c-modal-title" data-modal-title>' . Security::e($sample) . '</' . $tag . '>');
+    }
+
+    private function modalClose(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $icon = Icons::catalog()[$props['icon']] ?? null;
+        $size = (int) $props['size'];
+        $label = $props['label'] !== '' ? $props['label'] : Messages::get('close', $this->ctx->htmlLang());
+        $svg = $icon !== null
+            ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . $size . '" height="' . $size . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+        $text = $props['show_label'] ? '<span>' . Security::e($label) . '</span>' : '';
+
+        return $this->element($node, '<button type="button" class="c-modal-close c-modal-close-' . $props['variant'] . '" data-modal-close'
+            . ($text === '' ? ' aria-label="' . Security::e($label) . '" title="' . Security::e($label) . '"' : '')
+            . (!empty($state['modal_preview']) ? ' tabindex="-1"' : '') . '>' . $svg . $text . '</button>');
     }
 
     private function componentPlaceholder(array $node, string $key, string $message): string
@@ -858,7 +916,7 @@ final class NodeRenderer
 
         $hasMedia = in_array('media', array_column(array_column($inputs, 'config'), 'type'), true);
         $hidden = ($hasMedia ? '<input type="hidden" name="MAX_FILE_SIZE" value="' . FormUploads::maxBytes() . '">' : '')
-            . '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
+            . '<input type="hidden" name="_return" value="' . Security::e($this->ctx->embedUrl((string) ($state['path'] ?? '/'))) . '">'
             . '<input type="hidden" name="_anchor" value="' . Security::e($anchor) . '">'
             . ($this->ctx->locale !== '' ? '<input type="hidden" name="_locale" value="' . Security::e($this->ctx->locale) . '">' : '');
         // Hidden from people and assistive technology; bots filling in every input give themselves away.
@@ -1561,7 +1619,7 @@ final class NodeRenderer
 
     // ─── Links ───────────────────────────────────────────────────────────────
 
-    /** @return array{href: string, new_tab: bool}|null */
+    /** @return array{href: string, new_tab: bool, open_modal: bool}|null */
     private function resolveLink(array|bool $link, array $state): ?array
     {
         if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
@@ -1582,7 +1640,10 @@ final class NodeRenderer
             $href .= '#' . $link['anchor'];
         }
 
-        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
+        // Older or hand-edited links may carry the flag on other destinations.
+        $modal = in_array($link['type'] ?? '', LayoutSchema::MODAL_LINK_TYPES, true) && !empty($link['open_modal']);
+
+        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => !$modal && (bool) ($link['new_tab'] ?? false), 'open_modal' => $modal];
     }
 
     private function linkedEntryUrl(string $type, string $slug): ?string
@@ -1632,6 +1693,7 @@ final class NodeRenderer
     private function anchor(array $link, string $html, string $class = ''): string
     {
         return '<a href="' . Security::e($link['href']) . '"' . ($class !== '' ? ' class="' . $class . '"' : '')
+            . (!empty($link['open_modal']) ? ' data-link-modal aria-haspopup="dialog"' : '')
             . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . '>' . $html . '</a>';
     }
 

@@ -32,7 +32,7 @@ final class SiteController
      * Pages block scripts except for bundled interactions that are present;
      * only their exact hashes are allowed, never content or arbitrary same-origin code.
      */
-    private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+    private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
     public function __construct(private readonly Http $http) {}
 

@@ -209,6 +209,7 @@
         <p v-if="node.kind === 'page_content'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           {{ node.props.field || builder.canAddPageField() ? t("site.page.placeHint") : t("site.page.noFieldHint") }}
         </p>
+        <p v-if="node.kind === 'site_content'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">{{ t('site.modal.contentHint') }}</p>
         <div v-if="node.kind === 'collection'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
           <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
@@ -226,7 +227,7 @@
             </template>
           </div>
         </div>
-        <p v-if="visibleProps.length === 0" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
+        <p v-if="visibleProps.length === 0 && node.kind !== 'site_content'" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
       </template>
 
       <template v-else>
@@ -534,6 +535,12 @@ const visibleProps = computed(() => {
       overlap_background: !!props.overlap,
     };
     return keys.filter((key) => rules[key] !== false);
+  }
+
+  if (current.kind === "modal") {
+    // Panels along the top or bottom span the screen's width; those at the side its height.
+    const side = ["left", "right"].includes(props.placement);
+    return keys.filter((key) => (key !== "size" || !["top", "bottom"].includes(props.placement)) && (key !== "height" || !side));
   }
 
   if (current.kind === "menu") {

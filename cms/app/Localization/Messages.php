@@ -10,6 +10,7 @@ final class Messages
     private const TEXT = [
         'en' => [
             'yes' => 'Yes', 'no' => 'No', 'pagination' => 'Pagination', 'skip' => 'Skip to content', 'home' => 'Home', 'back_home' => 'Back to the homepage',
+            'modal' => 'Modal', 'modal_title_sample' => 'Link text', 'site_content_placeholder' => 'Site content: the page a modal link opens appears here.',
             'language' => 'Language', 'menu' => 'Menu', 'close' => 'Close', 'dark_mode' => 'Dark mode',
             'search' => 'Search', 'search_placeholder' => 'Search…', 'search_results_label' => 'Search results', 'search_results' => '{count} results', 'no_results' => 'No results found',
             'filters' => 'Filters', 'filter_all' => 'All', 'filter_apply' => 'Apply', 'filter_reset' => 'Reset filters', 'filter_from' => 'From', 'filter_to' => 'To', 'filters_active' => '{count} filters active',
@@ -22,6 +23,7 @@ final class Messages
         ],
         'de' => [
             'yes' => 'Ja', 'no' => 'Nein', 'pagination' => 'Seitennavigation', 'skip' => 'Zum Inhalt springen', 'home' => 'Startseite', 'back_home' => 'Zur Startseite',
+            'modal' => 'Modal', 'modal_title_sample' => 'Linktext', 'site_content_placeholder' => 'Website-Inhalt: Hier erscheint die Seite, die ein Modal-Link öffnet.',
             'language' => 'Sprache', 'menu' => 'Menü', 'close' => 'Schließen', 'dark_mode' => 'Dunkler Modus',
             'search' => 'Suche', 'search_placeholder' => 'Suchen…', 'search_results_label' => 'Suchergebnisse', 'search_results' => '{count} Ergebnisse', 'no_results' => 'Keine Treffer gefunden',
             'filters' => 'Filter', 'filter_all' => 'Alle', 'filter_apply' => 'Anwenden', 'filter_reset' => 'Filter zurücksetzen', 'filter_from' => 'Von', 'filter_to' => 'Bis', 'filters_active' => '{count} Filter aktiv',

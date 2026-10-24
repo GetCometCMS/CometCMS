@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Core\HtmlSanitizer;
+use CometCMS\Core\ValidationException;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Localization\LanguageSettings;
 
@@ -33,8 +34,8 @@ final class LayoutSchema
 
     public const REGIONS = ['header', 'footer'];
 
-    /** Standalone pages edited like regions, but rendered as the main content of their own response. */
-    public const SPECIAL_PAGES = ['not_found'];
+    /** Special page templates edited and stored like regions. */
+    public const SPECIAL_PAGES = ['not_found', self::MODAL];
 
     /** Everything stored and edited as a region document. */
     public const REGION_DOCUMENTS = [...self::REGIONS, ...self::SPECIAL_PAGES];
@@ -55,6 +56,22 @@ final class LayoutSchema
      * in a collection's card, and each page field has one place.
      */
     public const PAGE_CONTENT = 'page_content';
+
+    /**
+     * The dialog of links that open in a modal, and the region document of
+     * the same name that designs it. The template is one modal node: the
+     * dialog panel itself, which holds elements and rows like a column.
+     */
+    public const MODAL = 'modal';
+
+    /** Where the page a modal link opens appears, inside the modal template. */
+    public const SITE_CONTENT = 'site_content';
+
+    /** Elements only the modal template offers, anywhere inside its panel. */
+    public const MODAL_ELEMENTS = [self::SITE_CONTENT, 'modal_title', 'modal_close'];
+
+    /** Link destinations that may open in the modal: pages of this website. */
+    public const MODAL_LINK_TYPES = ['current', 'home', 'entry', 'index'];
 
     public const ELEMENTS = [
         'field',
@@ -166,6 +183,7 @@ final class LayoutSchema
         'collection' => ['empty_text'], 'field' => ['prefix', 'suffix', 'true_text', 'false_text', 'link'],
         'search' => ['placeholder', 'no_results_text'],
         'theme_toggle' => ['label'],
+        'modal_close' => ['label'],
     ];
 
     public static function styleSpec(): array
@@ -235,6 +253,8 @@ final class LayoutSchema
             'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
             'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
             self::COMPONENT, self::PAGE_CONTENT => [],
+            self::MODAL => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
+            self::SITE_CONTENT => [...self::SPACING_KEYS, 'background', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
             'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on'],
             default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
         };
@@ -285,6 +305,27 @@ final class LayoutSchema
             ],
             self::PAGE_CONTENT => [
                 'field' => ['type' => 'page_field', 'default' => ''],
+            ],
+            self::MODAL => [
+                'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg', 'xl', 'full'], 'default' => 'lg'],
+                // Centered, or a panel along one edge of the screen (top and bottom span its width, left and right its height).
+                'placement' => ['type' => 'enum', 'options' => ['center', 'top', 'bottom', 'left', 'right'], 'default' => 'center'],
+                // As tall as its content (scrolling beyond the screen), or the full screen height.
+                'height' => ['type' => 'enum', 'options' => ['auto', 'full'], 'default' => 'auto'],
+                'backdrop' => ['type' => 'enum', 'options' => ['dark', 'blurred', 'light', 'none'], 'default' => 'dark'],
+                'backdrop_close' => ['type' => 'bool', 'default' => true],
+            ],
+            // Shows the link's text while the modal is open.
+            'modal_title' => [
+                'level' => ['type' => 'enum', 'options' => ['h2', 'h3', 'h4', 'p'], 'default' => 'h2'],
+            ],
+            // An empty label uses the visitor's language.
+            'modal_close' => [
+                'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:close'],
+                'size' => ['type' => 'int', 'min' => 12, 'max' => 96, 'unit' => 'px', 'default' => 24],
+                'variant' => ['type' => 'enum', 'options' => ['plain', 'outline', 'filled'], 'default' => 'plain'],
+                'show_label' => ['type' => 'bool', 'default' => false],
+                'label' => ['type' => 'string', 'max' => 120, 'default' => ''],
             ],
             'field' => [
                 'source' => ['type' => 'reference', 'default' => ''],
@@ -471,7 +512,9 @@ final class LayoutSchema
             // The card a collection repeats for each entry.
             'collection' => ['column'],
             self::PAGE_CONTENT => ['section'],
-            // The top of a component's own tree holds just its root kind.
+            self::MODAL => [...self::ELEMENTS, 'row'],
+            // The top of a component's own tree holds just its root kind; the modal template's is its panel.
+            'region:' . self::MODAL => [self::MODAL],
             'component:section' => ['section'],
             'component:row' => ['row'],
             'component:column' => ['column'],
@@ -481,13 +524,14 @@ final class LayoutSchema
 
     /**
      * Everything the admin builder needs to draw palettes and inspectors.
-     * With $pageContent (detail layouts) the page content place is offered.
+     * With $pageContent (detail layouts) the page content place is offered;
+     * $modal describes the modal template, a single panel with its own elements.
      */
-    public static function spec(bool $pageContent = false): array
+    public static function spec(bool $pageContent = false, bool $modal = false): array
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT, self::MODAL, ...self::MODAL_ELEMENTS] as $kind) {
             $props = self::propSpec($kind);
             foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
@@ -496,7 +540,7 @@ final class LayoutSchema
             $kinds[$kind] = [
                 'props' => $props,
                 'style' => self::styleKeys($kind),
-                'children' => self::childrenFor($kind, $pageContent),
+                'children' => self::childrenFor($kind, $pageContent, $modal),
                 'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
                 'states' => [
                     'props' => self::STATE_PROPS[$kind] ?? [],
@@ -515,9 +559,9 @@ final class LayoutSchema
             'format_version' => self::FORMAT_VERSION,
             'bindings' => ['sources' => SmartValue::SOURCES, 'date_formats' => SmartValue::DATE_FORMATS, 'properties' => SmartValue::PROPERTIES, 'style_properties' => SmartValue::STYLE_PROPERTIES],
             'kinds' => $kinds,
-            'root' => self::childrenFor('root', $pageContent),
+            'root' => $modal ? self::allowedChildren('region:' . self::MODAL) : self::childrenFor('root', $pageContent, false),
             'style' => $style,
-            'elements' => $pageContent ? [...self::ELEMENTS, self::PAGE_CONTENT] : self::ELEMENTS,
+            'elements' => [...self::ELEMENTS, ...($pageContent ? [self::PAGE_CONTENT] : []), ...($modal ? self::MODAL_ELEMENTS : [])],
             'item_elements' => self::ITEM_ELEMENTS,
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
@@ -546,12 +590,48 @@ final class LayoutSchema
         return self::normalizeNodes(is_array($nodes) ? $nodes : [], 'root', $count, $seen, false, 0, $places);
     }
 
-    /** Kinds a node of $parent may contain, with the page content place where it is allowed. */
-    private static function childrenFor(string $parent, bool $pageContent): array
+    /**
+     * A region document: sections, or the modal template's single panel.
+     * Saving ($requireContent) also needs the modal's one site content element.
+     */
+    public static function normalizeRegion(string $region, mixed $nodes, bool $requireContent = false): array
+    {
+        if ($region !== self::MODAL) {
+            return self::normalize($nodes);
+        }
+
+        $count = 0;
+        $seen = [];
+        $nodes = array_slice(self::normalizeNodes(is_array($nodes) ? $nodes : [], 'region:' . self::MODAL, $count, $seen, false), 0, 1);
+        if ($requireContent && self::countKind($nodes, self::SITE_CONTENT) !== 1) {
+            throw new ValidationException(['nodes' => 'The modal template must contain exactly one Site content element.']);
+        }
+
+        return $nodes;
+    }
+
+    private static function countKind(array $nodes, string $kind): int
+    {
+        $count = 0;
+        foreach ($nodes as $node) {
+            $count += ($node['kind'] === $kind ? 1 : 0) + self::countKind($node['children'], $kind);
+        }
+
+        return $count;
+    }
+
+    /** Kinds a node may contain, with the page content place and modal elements where the document offers them. */
+    private static function childrenFor(string $parent, bool $pageContent, bool $inModal): array
     {
         $children = self::allowedChildren($parent);
+        if ($pageContent && in_array($parent, ['root', 'column', 'tab'], true)) {
+            $children[] = self::PAGE_CONTENT;
+        }
+        if ($inModal && in_array($parent, [self::MODAL, 'column', 'tab'], true)) {
+            array_push($children, ...self::MODAL_ELEMENTS);
+        }
 
-        return $pageContent && in_array($parent, ['root', 'column', 'tab'], true) ? [...$children, self::PAGE_CONTENT] : $children;
+        return $children;
     }
 
     /**
@@ -974,6 +1054,12 @@ final class LayoutSchema
 
     private static function buildDefaultRegion(string $region): array
     {
+        if ($region === self::MODAL) {
+            return [self::node(self::MODAL, [], ['background' => 'background', 'radius' => 'theme', 'shadow' => 'lg'], [
+                self::node('modal_close', [], ['position' => 'absolute', 'pin' => 'top-right', 'offset_x' => -8, 'offset_y' => 8, 'z_index' => '2']),
+                self::node(self::SITE_CONTENT),
+            ])];
+        }
         if ($region === 'not_found') {
             return [
                 self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
@@ -1051,6 +1137,10 @@ final class LayoutSchema
         if ($type !== 'none') {
             $normalized['new_tab'] = $type !== 'anchor' && (bool) ($link['new_tab'] ?? false);
         }
+        if (in_array($type, self::MODAL_LINK_TYPES, true) && !empty($link['open_modal'])) {
+            $normalized['open_modal'] = true;
+            $normalized['new_tab'] = false;
+        }
 
         return $normalized;
     }
@@ -1067,9 +1157,9 @@ final class LayoutSchema
      * columns. $places collects the page fields that already have a place
      * (null where no page content place may go).
      */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null): array
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $inModal = false): array
     {
-        $allowed = self::childrenFor($parent, $places !== null);
+        $allowed = self::childrenFor($parent, $places !== null, $inModal);
         $normalized = [];
 
         foreach (array_values($nodes) as $node) {
@@ -1111,10 +1201,11 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            // Cards, item templates and the default content hold no page content place.
-            $childPlaces = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true) ? null : $places;
-            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces)
+            // Cards, item templates and the default content hold neither content place nor modal elements.
+            $repeated = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true);
+            $childPlaces = $repeated ? null : $places;
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT, self::MODAL], true) && is_array($node['children'] ?? null)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces, ($inModal || $kind === self::MODAL) && !$repeated)
                 : [];
             if ($childPlaces !== null) {
                 $places = $childPlaces;

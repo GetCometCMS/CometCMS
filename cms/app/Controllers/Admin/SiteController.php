@@ -391,7 +391,7 @@ final class SiteController extends BaseController
             'customized' => $this->site->regionCustomized($region),
             'default_nodes' => LayoutSchema::defaultRegion($region),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
-            ...$this->builderContext(),
+            ...$this->builderContext(false, $region === LayoutSchema::MODAL),
         ]]);
     }
 
@@ -650,11 +650,11 @@ final class SiteController extends BaseController
             $region = (string) ($body['region'] ?? '');
             $this->requireRegion($region);
             if (array_key_exists('nodes', $body)) {
-                $context->override('region:' . $region, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'])));
+                $context->override('region:' . $region, $this->validated(static fn() => LayoutSchema::normalizeRegion($region, $body['nodes'])));
             }
             $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
 
-            $html = in_array($region, LayoutSchema::SPECIAL_PAGES, true) ? $renderer->notFound($context->homeUrl()) : $renderer->regionPreview($region);
+            $html = $region === 'not_found' ? $renderer->notFound($context->homeUrl()) : $renderer->regionPreview($region);
             $this->json(['data' => ['html' => $html]]);
         }
 
@@ -784,7 +784,7 @@ final class SiteController extends BaseController
         } elseif ($target === 'region') {
             $region = (string) ($body['region'] ?? '');
             $this->requireRegion($region);
-            $context->override('region:' . $region, LayoutSchema::normalize($body['nodes'] ?? []));
+            $context->override('region:' . $region, LayoutSchema::normalizeRegion($region, $body['nodes'] ?? []));
         } elseif ($target === 'component') {
             $component = $this->requireComponent((string) ($body['component'] ?? ''));
             $component['nodes'] = LayoutSchema::normalizeComponent($body['nodes'] ?? [], $component['root']);
@@ -829,6 +829,7 @@ final class SiteController extends BaseController
             $entry = $schema !== null ? $context->findEntry($schema['name'], (string) ($body['entry'] ?? $schema['name']), true) : null;
             return $renderer->componentPreview($component, $schema, $entry);
         }
+        if ($target === 'region' && ($body['region'] ?? '') === LayoutSchema::MODAL) return $renderer->modalPreview();
         return (new SiteService($context))->respond('/', [])['body'];
     }
 
@@ -922,7 +923,7 @@ final class SiteController extends BaseController
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: private, no-store');
         header('X-Robots-Tag: noindex, nofollow');
-        header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; "
+        header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; "
             . SiteScripts::cspDirective($html) . "; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'");
         echo $html;
         exit;
@@ -944,8 +945,8 @@ final class SiteController extends BaseController
         return SiteContext::make($this->site, rtrim($this->http->url('/'), '/'), $this->requestOrigin());
     }
 
-    /** What every builder page needs; $pageContent offers the page content place (detail layouts). */
-    private function builderContext(bool $pageContent = false): array
+    /** What every builder page needs; $pageContent offers the page content place (detail layouts), $modal the modal template's elements. */
+    private function builderContext(bool $pageContent = false, bool $modal = false): array
     {
         return [
             'settings' => $this->site->settings(),
@@ -953,7 +954,7 @@ final class SiteController extends BaseController
             'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
             'locales' => $this->site->settings()['locales'],
             'default_locale' => $this->site->settings()['default_locale'],
-            'spec' => LayoutSchema::spec($pageContent),
+            'spec' => LayoutSchema::spec($pageContent, $modal),
             'components' => $this->site->components(),
             'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
         ];
