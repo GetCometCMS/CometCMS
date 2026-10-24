@@ -263,6 +263,12 @@
               :value="builder.viewValue(node, group.part, key) ?? (group.part === 'props' ? propSpec[key] : styleSpec[key]).default"
               @update="(value) => builder.editValue(node.id, group.part, key, value)"
             />
+            <template v-if="group.key === 'scrollEffects'">
+              <p class="text-xs text-slate-500">{{ t('site.scrollEffects.hint') }}</p>
+              <button type="button" class="btn-secondary btn-sm" :disabled="!motionPreviewAvailable" @click="$emit('preview-motion')">
+                <Icon icon="mdi:play-outline" class="mr-1 h-4 w-4" />{{ t('site.scrollEffects.preview') }}
+              </button>
+            </template>
           </template>
         </BuilderGroup>
         <p v-if="!styleGroups.length" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
@@ -291,6 +297,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import BuilderTabs from "./BuilderTabs.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
+import { scrollStyleVisible } from "./scrollEffects.js";
 import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
 import { nodeIcon } from "./kindIcons.js";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
@@ -300,8 +307,9 @@ import { useI18n } from "../../../i18n/index.js";
 
 defineProps({
   templatePart: { type: String, default: null },
+  motionPreviewAvailable: { type: Boolean, default: true },
 });
-defineEmits(["edit-template-part"]);
+defineEmits(["edit-template-part", "preview-motion"]);
 
 /** A button's own colors sit with its style, though they are props. */
 const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color"];
@@ -313,6 +321,7 @@ const STYLE_GROUPS = [
   { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
+  { key: "scrollEffects", keys: ["scroll_background", "scroll_element", "scroll_strength", "scroll_direction"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
@@ -433,6 +442,7 @@ const FREE_OPTIONS = ["pin", "offset_x", "offset_y"];
 
 function styleVisible(key) {
   const style = node.value?.style ?? {};
+  if (key.startsWith("scroll_")) return scrollStyleVisible(node.value, key, (name) => builder.viewValue(node.value, "style", name));
   if (style.background_gradient?.type && ["background_image", ...BACKGROUND_IMAGE_OPTIONS].includes(key)) return false;
   if (BACKGROUND_IMAGE_OPTIONS.includes(key) && !style.background_image) return false;
   if (BORDER_OPTIONS.includes(key) && !style.border?.length) return false;

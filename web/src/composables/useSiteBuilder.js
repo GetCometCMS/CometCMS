@@ -499,6 +499,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const target = overrideTarget(node, group, key)
     if (target?.group === 'states') return node.states?.[target.variant]?.[group]?.[key] ?? ''
     if (target?.group === 'responsive') {
+      // Motion is opt-in on mobile, independently of larger-screen enablement.
+      if (target.variant === 'mobile' && group === 'style' && ['scroll_background', 'scroll_element'].includes(key)) return node.responsive?.mobile?.style?.[key] ?? 'none'
       const devices = target.variant === 'mobile' ? ['mobile', 'tablet'] : ['tablet']
       for (const name of devices) {
         const value = node.responsive?.[name]?.[group]?.[key]

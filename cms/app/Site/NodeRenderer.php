@@ -65,6 +65,10 @@ final class NodeRenderer
         'pin' => 'pin-',
         'z_index' => 'z-',
         'opacity' => 'op-',
+        'scroll_background' => 'scroll-background-',
+        'scroll_element' => 'scroll-element-',
+        'scroll_strength' => 'scroll-strength-',
+        'scroll_direction' => 'scroll-direction-',
     ];
 
     /** Offset variables of each device; site.css resolves them, mobile following tablet. */
@@ -287,7 +291,7 @@ final class NodeRenderer
             }
         }
 
-        $background = $this->background($node['style']);
+        $background = $this->background($node['style'], $this->hasScrollEffect($node));
 
         $embedded = ($state['embedded'] ?? false) === true;
         $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false] + $state);
@@ -685,6 +689,7 @@ final class NodeRenderer
             $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($caption) . '</figcaption></figure>';
         }
 
+        if ($this->hasScrollEffect($node)) $html = '<div class="c-parallax-element">' . $html . '</div>';
         [$classes, $style] = $this->imageWidth($props);
 
         return $this->element($node, $html, $classes, $style);
@@ -1722,7 +1727,7 @@ final class NodeRenderer
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
-    private function background(array $style): array
+    private function background(array $style, bool $section = false): array
     {
         $gradient = Gradient::css($style['background_gradient'] ?? []);
         if ($gradient !== '') {
@@ -1750,6 +1755,15 @@ final class NodeRenderer
             $classes[] = 'c-overlay-' . $option('overlay');
         }
 
+        if ($section) {
+            $classes[] = 'c-scroll-background';
+            return [
+                'classes' => $classes,
+                'style' => '--c-background-image:' . $image . ';--c-background-blur:' . $blur . 'px',
+                'layer' => '<span class="c-parallax-clip" aria-hidden="true"><span class="c-parallax-background"></span></span>',
+            ];
+        }
+
         if ($blur === 0) {
             return ['classes' => $classes, 'style' => 'background-image:' . $image, 'layer' => ''];
         }
@@ -1763,9 +1777,24 @@ final class NodeRenderer
         ];
     }
 
+    /** Include the motion layer for desktop or a device-only effect. */
+    private function hasScrollEffect(array $node): bool
+    {
+        $key = match ($node['kind']) { 'section' => 'scroll_background', 'image' => 'scroll_element', default => null };
+        if ($key === null) return false;
+        foreach ([$node['style'], $node['responsive']['tablet']['style'] ?? [], $node['responsive']['mobile']['style'] ?? []] as $style) {
+            if (($style[$key] ?? 'none') === 'parallax') return true;
+        }
+        return false;
+    }
+
     private function attributes(array $node, array $classes, string $style = ''): string
     {
         $classes = [...$classes, ...$this->overrideClasses($node)];
+        if ($this->hasScrollEffect($node)) {
+            $classes[] = 'c-scroll-host';
+            if ($this->ctx->preview && !$this->ctx->browsePreview) $classes[] = 'c-scroll-static';
+        }
         $style = implode(';', array_filter([$style, $this->offsetStyle($node), $this->shadowStyle($node)]));
         $attributes = ' class="' . Security::e(implode(' ', array_unique(array_filter($classes)))) . '"';
 
@@ -1806,6 +1835,11 @@ final class NodeRenderer
                     }
                 }
             }
+        }
+        // Mobile deliberately starts still, even if desktop/tablet enable motion.
+        $scrollKey = match ($node['kind']) { 'section' => 'scroll_background', 'image' => 'scroll_element', default => null };
+        if ($scrollKey !== null && $this->hasScrollEffect($node) && !isset($node['responsive']['mobile']['style'][$scrollKey])) {
+            $classes[] = 'c-m-' . self::STYLE_TOKENS[$scrollKey] . 'none';
         }
         $hover = $node['states']['hover']['style'] ?? [];
         if (($hover['animation'] ?? 'none') !== 'none') {

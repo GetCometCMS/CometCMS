@@ -196,7 +196,7 @@
       >
         <SiteDesignPanel v-if="panel.value === 'design'" :show-header="false" :draft-nodes="builder.nodes.value" />
         <CustomCssPanel v-else-if="panel.value === 'css'" :show-header="false" />
-        <BuilderInspector v-else-if="panel.value === 'inspector'" :template-part="selectedTemplatePart" @edit-template-part="editTemplatePart">
+        <BuilderInspector v-else-if="panel.value === 'inspector'" :template-part="selectedTemplatePart" :motion-preview-available="canPreview && !!previewBody && !fullPreview.opening.value" @edit-template-part="editTemplatePart" @preview-motion="onSaveMenuSelect({ key: 'preview' })">
           <template #empty>
             <BuilderOverview
               :title="overview.title"

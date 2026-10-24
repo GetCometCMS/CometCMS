@@ -74,6 +74,12 @@ Run `node tests/browser/link-modal.mjs` with PHP and Chrome/Chromium installed t
 
 After `npm run build`, add `--builder` to also check the **Modal** template in the builder's header dropdown, selecting its panel, its content placeholder, saving a panel option, reloading, full-page previews and the resulting live modal.
 
+Run `node tests/browser/scroll-effects.mjs` with PHP and Playwright Chromium
+installed to check parallax direction, background coverage, stationary content
+and overlays, mobile overrides, reduced motion and the steady editing canvas.
+Set `CHROME_BIN` to use another Chrome/Chromium executable. Scroll effects use
+CSS view timelines; browsers without support keep images static.
+
 ## Local reset
 
 To wipe all data and return to the setup screen, just delete the storage folder. If you want to keep users and roles but reset content, media, sessions, logs, and settings, run:

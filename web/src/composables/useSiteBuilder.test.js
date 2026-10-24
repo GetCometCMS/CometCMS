@@ -924,3 +924,27 @@ describe('modal template', () => {
     expect(findNode(builder.nodes.value, slot.id).kind).toBe('site_content')
   })
 })
+
+describe('scroll effects device overrides', () => {
+  it('defaults mobile to none and supports explicit enable, disable, reset and undo', async () => {
+    const builder = await builderFixture();
+    builder.spec.value.style = { scroll_background: { default: 'none' }, scroll_strength: { default: 'subtle' } };
+    builder.spec.value.kinds.section.responsive = { style: ['scroll_background', 'scroll_strength'] };
+    const node = builder.nodes.value[0];
+    builder.editValue(node.id, 'style', 'scroll_background', 'parallax');
+    builder.device.value = 'tablet';
+    expect(builder.viewValue(node, 'style', 'scroll_background')).toBe('parallax');
+    builder.editValue(node.id, 'style', 'scroll_strength', 'strong');
+    builder.device.value = 'mobile';
+    expect(builder.viewValue(node, 'style', 'scroll_background')).toBe('none');
+    expect(builder.viewValue(node, 'style', 'scroll_strength')).toBe('strong');
+    builder.editValue(node.id, 'style', 'scroll_background', 'parallax');
+    expect(builder.viewValue(node, 'style', 'scroll_background')).toBe('parallax');
+    builder.editValues(node.id, 'style', { scroll_background: 'none' });
+    expect(builder.viewValue(node, 'style', 'scroll_background')).toBe('none');
+    builder.undo();
+    expect(builder.viewValue(builder.nodes.value[0], 'style', 'scroll_background')).toBe('parallax');
+    builder.resetOverride(node.id, 'responsive', 'mobile', 'style', 'scroll_background');
+    expect(builder.viewValue(builder.nodes.value[0], 'style', 'scroll_background')).toBe('none');
+  });
+});

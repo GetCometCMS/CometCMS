@@ -1226,3 +1226,53 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-op-50 { opacity: .5; }
 .c-op-75 { opacity: .75; }
 .c-op-90 { opacity: .9; }
+
+/* Scroll effects live on their own layer: entrance/hover transforms keep theirs.
+   A view timeline uses compositor motion and needs no script or scroll listener.
+   Browsers without view timelines show the unchanged, static image. */
+.c-scroll-host {
+  --c-scroll-animation: none;
+  --c-scroll-travel: 6vh;
+  --c-scroll-space: 0px;
+  --c-scroll-direction: normal;
+  view-timeline-name: --c-parallax;
+  view-timeline-axis: block;
+}
+.c-scroll-background { isolation: isolate; }
+.c-parallax-clip {
+  position: absolute; inset: 0; z-index: -2; overflow: hidden;
+  border-radius: inherit; pointer-events: none;
+  background-size: inherit; background-position: inherit; background-repeat: inherit;
+}
+.c-parallax-background {
+  position: absolute; inset: calc(0px - var(--c-scroll-oversize, 0px) - 3 * var(--c-background-blur, 0px));
+  background-image: var(--c-background-image);
+  background-size: inherit; background-position: inherit; background-repeat: inherit;
+  filter: blur(var(--c-background-blur, 0px));
+}
+.c-scroll-background-none, .c-scroll-element-none { --c-scroll-animation: none; --c-scroll-space: 0px; }
+.c-scroll-background-parallax { --c-scroll-animation: c-parallax-motion; --c-scroll-space: var(--c-scroll-travel); }
+.c-scroll-element-parallax { --c-scroll-animation: c-parallax-motion; }
+.c-scroll-strength-subtle { --c-scroll-travel: 6vh; }
+.c-scroll-strength-medium { --c-scroll-travel: 12vh; }
+.c-scroll-strength-strong { --c-scroll-travel: 20vh; }
+.c-scroll-direction-slower { --c-scroll-direction: normal; }
+.c-scroll-direction-faster { --c-scroll-direction: reverse; }
+@supports (animation-timeline: view()) {
+  .c-scroll-host { --c-scroll-oversize: var(--c-scroll-space); }
+  .c-parallax-background, .c-parallax-element {
+    animation-name: var(--c-scroll-animation);
+    animation-duration: auto; animation-timing-function: linear; animation-fill-mode: both;
+    animation-timeline: --c-parallax; animation-range: cover;
+  }
+  .c-parallax-element { animation-direction: var(--c-scroll-direction); }
+}
+@keyframes c-parallax-motion {
+  from { transform: translateY(calc(0px - var(--c-scroll-travel))); }
+  to { transform: translateY(var(--c-scroll-travel)); }
+}
+/* These override device controls too. The editing canvas always stays steady. */
+.c-scroll-static { --c-scroll-animation: none !important; --c-scroll-space: 0px !important; }
+@media (prefers-reduced-motion: reduce) {
+  .c-scroll-host { --c-scroll-animation: none !important; --c-scroll-space: 0px !important; }
+}
