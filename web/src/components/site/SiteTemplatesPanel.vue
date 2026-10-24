@@ -79,23 +79,53 @@
           </button>
         </div>
 
-        <div class="mx-auto max-w-3xl space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4" @keydown.esc="openPicker = null">
+        <div class="template-preview" @keydown.esc="openPicker = null">
           <div v-for="part in PARTS" :key="part" class="relative" :data-template-part="part">
             <button
               type="button"
-              class="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border bg-white px-4 text-left transition hover:border-theme-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
-              :class="[{ header: 'min-h-16', content: 'min-h-48 border-dashed', footer: 'min-h-14' }[part], openPicker === part ? 'border-theme-400' : 'border-slate-200']"
+              class="template-preview__part"
+              :class="[`template-preview__part--${part}`, { 'is-open': openPicker === part, 'is-empty': selected[part] === FRAME_NONE }]"
               :aria-expanded="openPicker === part"
               :aria-controls="`${pickerId}-${part}`"
               @click="openPicker = openPicker === part ? null : part"
             >
-              <span class="pointer-events-none absolute inset-0 transition group-hover:bg-theme-500/10" :class="openPicker === part ? 'bg-theme-500/10' : 'bg-theme-500/0'" aria-hidden="true"></span>
-              <Icon :icon="PART_ICONS[part]" class="h-5 w-5 shrink-0 text-slate-400 group-hover:text-theme-600" aria-hidden="true" />
-              <span class="min-w-0 flex-1 py-3">
-                <span class="block text-xs text-slate-500">{{ t(`site.templates.part.${part}`) }}</span>
-                <span class="block truncate text-sm font-semibold" :class="selected[part] === FRAME_NONE ? 'text-slate-500' : 'text-slate-900'">{{ partLabel(part) }}</span>
+              <!-- Decorative sample layout; the assigned part remains the source of truth. -->
+              <span v-if="selected[part] !== FRAME_NONE" class="template-preview__sample" aria-hidden="true">
+                <span v-if="part === 'header'" class="preview-header">
+                  <span class="preview-logo"></span>
+                  <span class="preview-nav"><span></span><span></span><span></span></span>
+                  <span class="preview-action"></span>
+                </span>
+                <span v-else-if="part === 'content'" class="preview-content">
+                  <span class="preview-hero">
+                    <svg viewBox="0 0 160 90" fill="currentColor" focusable="false">
+                      <circle cx="111" cy="22" r="11" />
+                      <path d="M24 66 57 32a7 7 0 0 1 10 0l24 25 11-11a7 7 0 0 1 10 0l22 24H27a3 3 0 0 1-3-4Z" />
+                    </svg>
+                  </span>
+                  <span class="preview-copy"><span></span><span></span><span></span></span>
+                  <span class="preview-cards">
+                    <span v-for="card in 3" :key="card" class="preview-card">
+                      <span class="preview-card__image"><span></span></span>
+                      <span class="preview-card__line"></span>
+                      <span class="preview-card__line preview-card__line--short"></span>
+                    </span>
+                  </span>
+                </span>
+                <span v-else class="preview-footer">
+                  <span class="preview-social"><span></span><span></span><span></span></span>
+                  <span class="preview-nav"><span></span><span></span><span></span></span>
+                  <span class="preview-social"><span></span><span></span><span></span></span>
+                </span>
               </span>
-              <span class="shrink-0 text-xs font-medium text-theme-700">{{ t("site.templates.change") }}</span>
+              <span class="template-preview__badge">
+                <span class="template-preview__kind">{{ t(`site.templates.part.${part}`) }}</span>
+                <span class="template-preview__name">{{ partLabel(part) }}</span>
+              </span>
+              <span class="template-preview__assignment">
+                <span class="template-preview__change">{{ t("site.templates.change") }}</span>
+                <Icon icon="mdi:chevron-down" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </span>
             </button>
 
             <div
@@ -508,3 +538,256 @@ onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onPointerDown);
 });
 </script>
+
+
+<style scoped>
+.template-preview {
+  width: 100%;
+  max-width: 38rem;
+  margin-inline: auto;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgb(var(--color-slate-300) / 0.7);
+  border-radius: 18px;
+  background: rgb(var(--color-slate-50));
+  box-shadow: inset 0 0 24px rgb(var(--color-slate-200) / 0.25);
+}
+
+.template-preview__part {
+  --part-color: 14 165 233;
+  --part-label: #0284c7;
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 88px;
+  border: 1.5px dashed rgb(var(--part-color));
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(var(--part-color) / 0.09), rgb(var(--part-color) / 0.025));
+  text-align: left;
+  transition: background-color 150ms, box-shadow 150ms;
+}
+
+.template-preview__part--content {
+  --part-color: 167 139 250;
+  --part-label: #7c3aed;
+  height: auto;
+  min-height: 300px;
+}
+
+.template-preview__part--footer {
+  --part-color: 20 184 166;
+  --part-label: #0d9488;
+}
+
+.template-preview__part:hover,
+.template-preview__part.is-open {
+  background-color: rgb(var(--part-color) / 0.08);
+  box-shadow: 0 0 0 3px rgb(var(--part-color) / 0.1), inset 0 0 24px rgb(var(--part-color) / 0.06);
+}
+
+.template-preview__part:focus-visible {
+  outline: 2px solid rgb(var(--part-color));
+  outline-offset: 4px;
+}
+
+.template-preview__part.is-empty {
+  background: transparent;
+}
+
+.template-preview__badge {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 5px 18px 6px;
+  border: 1px solid rgb(var(--part-color));
+  border-radius: 12px;
+  text-align: center;
+  background: linear-gradient(rgb(255 255 255 / 0.16), transparent), var(--part-label);
+  box-shadow: 0 0 0 4px rgb(var(--part-color) / 0.08), 0 3px 10px rgb(var(--part-color) / 0.2);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.template-preview__kind {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 14px;
+  color: rgb(255 255 255 / 0.8);
+}
+
+.template-preview__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.template-preview__part--content .template-preview__badge {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.template-preview__assignment {
+  position: absolute;
+  right: 10px;
+  bottom: 7px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  color: rgb(var(--color-slate-600));
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.template-preview__change {
+  flex-shrink: 0;
+  color: rgb(var(--color-slate-800));
+  font-weight: 600;
+}
+
+.template-preview__sample {
+  display: block;
+  pointer-events: none;
+  color: rgb(var(--color-slate-400) / 0.3);
+}
+
+.preview-header,
+.preview-footer {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 28px 20px;
+}
+
+.preview-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgb(var(--part-color) / 0.3);
+}
+
+.preview-nav {
+  display: flex;
+  flex: 1;
+  gap: 14px;
+}
+
+.preview-nav > span,
+.preview-copy > span,
+.preview-card__line {
+  display: block;
+  height: 8px;
+  border-radius: 5px;
+  background: currentColor;
+}
+
+.preview-nav > span {
+  width: 22%;
+  max-width: 48px;
+}
+
+.preview-action {
+  width: 22%;
+  height: 23px;
+  border-radius: 5px;
+  background: rgb(var(--part-color) / 0.2);
+}
+
+.preview-content {
+  display: grid;
+  gap: 16px;
+  padding: 22px 28px 36px;
+}
+
+.preview-hero {
+  display: flex;
+  height: 88px;
+  justify-content: center;
+  border-radius: 7px;
+  background: currentColor;
+}
+
+.preview-hero svg {
+  width: 140px;
+  color: rgb(var(--color-slate-400) / 0.4);
+}
+
+.preview-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.preview-copy > span:nth-child(2) { width: 91%; }
+.preview-copy > span:nth-child(3) { width: 76%; }
+
+.preview-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.preview-card {
+  display: grid;
+  gap: 8px;
+}
+
+.preview-card__image {
+  display: grid;
+  height: 50px;
+  place-items: center;
+  border-radius: 5px;
+  background: currentColor;
+}
+
+.preview-card__image > span {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+.preview-card__line { width: 80%; }
+.preview-card__line--short { width: 56%; }
+
+.preview-footer {
+  gap: 22px;
+  padding-top: 30px;
+}
+
+.preview-social {
+  display: flex;
+  gap: 9px;
+}
+
+.preview-social > span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (max-width: 480px) {
+  .preview-header, .preview-footer { gap: 12px; padding-inline: 14px; }
+  .preview-content { padding-inline: 18px; }
+  .preview-cards { gap: 10px; }
+  .preview-social { gap: 5px; }
+  .preview-social > span { width: 8px; height: 8px; }
+  .preview-nav { gap: 8px; }
+}
+</style>
