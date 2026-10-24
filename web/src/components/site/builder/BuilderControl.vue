@@ -103,7 +103,7 @@
       @update:model-value="emitValue"
     />
 
-    <ShadowEditor v-else-if="def.type === 'shadow'" :id="inputId" :model-value="value || ''" :text="def.text ?? false" :options="colorOptions" @update:model-value="emitValue" />
+    <ShadowEditor v-else-if="def.type === 'shadow'" :id="inputId" :model-value="value || ''" :text="def.text ?? false" :options="colorOptions" :presets="siteTheme?.shadows ?? {}" @update:model-value="emitValue" />
 
     <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
 

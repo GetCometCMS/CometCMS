@@ -44,6 +44,8 @@ final class Theme
 
     public const MAX_CUSTOM_COLORS = 64;
 
+    public const MAX_SHADOWS = 32;
+
     /**
      * Local font stacks only: nothing is fetched from third-party font CDNs,
      * so visitors' IP addresses never leave the site.
@@ -86,6 +88,13 @@ final class Theme
                 'border' => '#1e293b',
             ],
             'custom_colors' => [],
+            // Box shadow presets next to the fixed XS–XL scale (see Shadow).
+            // An empty label shows the preset's translated name.
+            'shadows' => [
+                'hard' => ['label' => '', 'color' => 'primary', 'x' => 6, 'y' => 6, 'blur' => 0, 'spread' => 0, 'opacity' => 100, 'inset' => false],
+                'glow' => ['label' => '', 'color' => 'primary', 'x' => 0, 'y' => 0, 'blur' => 24, 'spread' => 4, 'opacity' => 55, 'inset' => false],
+                'inset' => ['label' => '', 'color' => Shadow::BLACK, 'x' => 0, 'y' => 2, 'blur' => 8, 'spread' => 0, 'opacity' => 25, 'inset' => true],
+            ],
             'fonts' => [
                 'body' => 'system',
                 'heading' => 'system',
@@ -122,6 +131,8 @@ final class Theme
             'colors' => self::colors($theme['colors'] ?? [], $defaults['colors']),
             'dark_colors' => self::colors($theme['dark_colors'] ?? [], $defaults['dark_colors']),
             'custom_colors' => self::customColors($theme['custom_colors'] ?? []),
+            // Themes saved before presets existed get the shipped ones; an emptied list stays empty.
+            'shadows' => array_key_exists('shadows', $theme) ? self::shadows($theme['shadows']) : $defaults['shadows'],
             'fonts' => [
                 'body' => self::fontChoice($theme['fonts']['body'] ?? null, $defaults['fonts']['body']),
                 'heading' => self::fontChoice($theme['fonts']['heading'] ?? null, $defaults['fonts']['heading']),
@@ -227,6 +238,11 @@ final class Theme
             $css .= '.c-button.c-btn-bg-' . $key . '{background:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
             $css .= '.c-button.c-btn-fg-' . $key . '{color:var(--c-' . $key . ');}';
             $css .= '.c-button.c-btn-bdc-' . $key . '{border-color:var(--c-' . $key . ');}';
+        }
+
+        // Before the variants, so presets get device and state versions too.
+        foreach ($theme['shadows'] as $key => $shadow) {
+            $css .= "\n.c-sh-" . $key . '{box-shadow:' . Shadow::css($shadow) . ';}';
         }
 
         // Custom CSS comes last, so it can still change any override.
@@ -367,6 +383,24 @@ final class Theme
                 'color' => $value,
                 'dark_color' => self::hexColor($color['dark_color'] ?? null) ?? $value,
             ];
+        }
+
+        return $normalized;
+    }
+
+    private static function shadows(mixed $shadows): array
+    {
+        $normalized = [];
+        foreach (is_array($shadows) ? $shadows : [] as $key => $shadow) {
+            if (count($normalized) >= self::MAX_SHADOWS) {
+                break;
+            }
+            $value = Shadow::isPresetKey($key) && is_array($shadow) ? Shadow::normalize($shadow) : '';
+            if (!is_array($value)) {
+                continue;
+            }
+            $label = is_string($shadow['label'] ?? null) ? trim(strip_tags($shadow['label'])) : '';
+            $normalized[$key] = ['label' => Text::limit($label, 80)] + $value;
         }
 
         return $normalized;

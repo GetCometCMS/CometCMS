@@ -217,7 +217,8 @@ describe('builder shadow controls', () => {
     for (const name of ['shadow', 'text_shadow']) {
       const html = await renderControl(name, { type: 'shadow', text: name === 'text_shadow', options: ['primary', 'accent'], default: '' }, 'hard', { group: 'style' })
       expect(html).toContain(`id="builder-icon1-style-${name}"`)
-      expect(html).toContain('Hard / block')
+      // No saved theme here, so the box shadow's preset is unknown.
+      expect(html).toContain(name === 'shadow' ? 'hard (missing)' : '>Block</option>')
       expect(html).toContain('Customize')
       expect(html).toContain(name === 'shadow' ? 'box-shadow:6px 6px 0px 0px' : 'text-shadow:3px 3px 0px')
     }

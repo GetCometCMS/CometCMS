@@ -175,6 +175,39 @@
         </div>
       </BuilderGroup>
 
+      <BuilderGroup v-model:open="expanded.shadows" :title="t('site.theme.shadows')" content-class="mt-2 space-y-4 px-1">
+        <p class="text-xs text-slate-500">{{ t("site.theme.shadowsHint") }}</p>
+        <div class="grid grid-cols-5 gap-2" aria-hidden="true">
+          <div v-for="size in FIXED_SHADOWS" :key="size" class="space-y-1.5 text-center">
+            <div class="mx-auto h-10 w-10 rounded-md bg-white ring-1 ring-black/5" :style="shadowPreview(size, false, [])"></div>
+            <span class="block text-[11px] font-semibold text-slate-600">{{ t(`site.option.${size}`) }}</span>
+          </div>
+        </div>
+
+        <div class="space-y-3 border-t border-slate-100 pt-4">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-xs font-semibold text-slate-700">{{ t("site.shadow.themePresets") }}</h4>
+            <button type="button" class="btn-secondary btn-sm" :disabled="Object.keys(theme.shadows ?? {}).length >= MAX_SHADOWS" @click="addShadow">
+              <Icon icon="mdi:plus" class="h-4 w-4" />
+              {{ t("site.theme.addShadow") }}
+            </button>
+          </div>
+          <div v-for="(shadow, key) in theme.shadows" :key="key" class="rounded-lg border border-slate-200 p-3">
+            <div class="flex items-center gap-3">
+              <span class="h-8 w-8 shrink-0 rounded-md bg-white ring-1 ring-black/5" :style="shadowPreview(key, false, shadowColors, theme.shadows)" aria-hidden="true"></span>
+              <input v-model="shadow.label" type="text" maxlength="80" :placeholder="shadowLabel(key, null, t)" :aria-label="t('site.theme.shadowName')" class="form-input min-w-0 flex-1 rounded-lg border-slate-300 py-1 text-xs" />
+              <button type="button" class="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" :aria-label="t('select.remove', { name: shadowLabel(key, shadow, t) })" @click="delete theme.shadows[key]">
+                <Icon icon="mdi:trash-can-outline" class="h-4 w-4" />
+              </button>
+            </div>
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs text-slate-500 hover:text-theme-700">{{ t("site.shadow.customize") }}</summary>
+              <ShadowFields :id="`design-shadow-${key}`" class="mt-2" :model-value="shadowSettings(shadow)" :options="shadowColors" @update:model-value="theme.shadows[key] = { label: shadow.label, ...$event }" />
+            </details>
+          </div>
+        </div>
+      </BuilderGroup>
+
       <BuilderGroup v-model:open="expanded.motion" :title="t('site.theme.motion')" content-class="mt-2 space-y-4 px-1">
         <p class="text-xs text-slate-500">{{ t("site.theme.motionHint") }}</p>
         <!-- Stored in ms, shown in seconds. -->
@@ -235,9 +268,11 @@ import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
 import FontPicker from "../FontPicker.vue";
 import FontManager from "../FontManager.vue";
+import ShadowFields from "./ShadowFields.vue";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
-import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
+import { MAX_CUSTOM_COLORS, themeColorOptions } from "../../../composables/themeColors.js";
+import { FIXED_SHADOWS, MAX_SHADOWS, shadowLabel, shadowPreview, shadowSettings } from "../../../composables/shadows.js";
 import { newId } from "../../../composables/layoutTree.js";
 
 /** Global design of the website, shared by the backend settings and builder sidebar. */
@@ -309,7 +344,7 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: false, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
+const expanded = ref({ presets: false, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, shadows: false, motion: false });
 const motionPreview = ref(0);
 
 const palettes = computed(() => {
@@ -317,6 +352,8 @@ const palettes = computed(() => {
   if (theme.value.mode === "auto") return [{ key: "colors" }, { key: "dark_colors" }];
   return [{ key: "colors" }];
 });
+
+const shadowColors = computed(() => themeColorOptions(theme.value, COLOR_KEYS, (key) => t(`site.theme.color.${key}`)));
 
 function customColorKey(palette) {
   return palette === "dark_colors" ? "dark_color" : "color";
@@ -342,6 +379,7 @@ function applyPreset(preset) {
     space: scaledSpace(spacingFactor),
     custom_css: theme.value.custom_css,
     custom_colors: theme.value.custom_colors ?? {},
+    shadows: theme.value.shadows ?? {},
   };
   site.draft.theme = { ...theme.value, ...next };
 }
@@ -363,7 +401,7 @@ function applySpacingPreset(key) {
 }
 
 function resetTheme() {
-  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, custom_colors: theme.value.custom_colors ?? {}, updated_at: theme.value.updated_at };
+  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, custom_colors: theme.value.custom_colors ?? {}, shadows: theme.value.shadows ?? {}, updated_at: theme.value.updated_at };
 }
 
 function addCustomColor() {
@@ -373,6 +411,15 @@ function addCustomColor() {
   theme.value.custom_colors = {
     ...colors,
     [key]: { label: t("site.theme.customColorName", { count: Object.keys(colors).length + 1 }), color: "#2563eb", dark_color: "#60a5fa" },
+  };
+}
+
+function addShadow() {
+  const shadows = theme.value.shadows ?? {};
+  if (Object.keys(shadows).length >= MAX_SHADOWS) return;
+  theme.value.shadows = {
+    ...shadows,
+    [`shadow-${newId()}`]: { label: t("site.theme.shadowPresetName", { count: Object.keys(shadows).length + 1 }), ...shadowSettings("md") },
   };
 }
 

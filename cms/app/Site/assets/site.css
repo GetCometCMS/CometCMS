@@ -949,9 +949,6 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-r-theme, .c-r-sm, .c-r-md, .c-r-lg, .c-r-full { overflow: hidden; }
 
 /* Colored effects follow the theme palette, including dark mode. */
-.c-sh-hard { box-shadow: 6px 6px 0 var(--c-primary); }
-.c-sh-glow { box-shadow: 0 0 24px 4px color-mix(in srgb, var(--c-primary) 55%, transparent); }
-.c-sh-inset { box-shadow: inset 0 2px 8px rgb(0 0 0 / 0.25); }
 .c-ts-hard { text-shadow: 3px 3px 0 var(--c-primary); }
 .c-ts-glow { text-shadow: 0 0 16px var(--c-primary); }
 .c-sh-custom-normal { box-shadow: var(--c-sh-custom-normal); }
@@ -966,9 +963,11 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-ts-custom-focus { text-shadow: var(--c-ts-custom-focus); }
 
 .c-sh-none { box-shadow: none; }
+.c-sh-xs { box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); }
 .c-sh-sm { box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04); }
 .c-sh-md { box-shadow: 0 6px 18px -6px rgb(0 0 0 / 0.15); }
 .c-sh-lg { box-shadow: 0 20px 45px -15px rgb(0 0 0 / 0.25); }
+.c-sh-xl { box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.3); }
 /* Each bordered element resets the look, so it never inherits a parent's. */
 .c-bd { --c-bd-w: 1px; --c-bd-s: solid; --c-bd-c: var(--c-border); }
 .c-bd-left { border-left: var(--c-bd-w) var(--c-bd-s) var(--c-bd-c); }

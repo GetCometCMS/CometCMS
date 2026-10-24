@@ -5,11 +5,16 @@ declare(strict_types=1);
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\NodeRenderer;
 use CometCMS\Site\Shadow;
-use CometCMS\Site\StyleVariants;
 use CometCMS\Site\Theme;
 
 test('shadows bound custom values and reject CSS injection', function (): void {
     assert_same('md', Shadow::normalize('md'));
+    assert_same('xl', Shadow::normalize('xl'));
+    assert_same('shadow-n1a2b3', Shadow::normalize('shadow-n1a2b3'));
+    assert_same('', Shadow::normalize('shadow-n1;color:red'));
+    assert_same('', Shadow::normalize('inset', true));
+    assert_same('', Shadow::normalize('xl', true));
+    assert_same('glow', Shadow::normalize('glow', true));
     assert_same('', Shadow::normalize('0 0 10px red'));
     assert_same('', Shadow::normalize(['color' => 'primary);color:red']));
     assert_same('', Shadow::normalize(['color' => []]));
@@ -21,6 +26,29 @@ test('shadows bound custom values and reject CSS injection', function (): void {
     assert_false(isset($text['inset']));
     assert_true(str_contains(Shadow::css($text, true), '-100px 100px 0px color-mix('));
     assert_true(str_contains(Shadow::css(['color' => 'accent', 'inset' => true]), 'inset 6px 6px 0px 0px'));
+    assert_same('0px 2px 8px 0px color-mix(in srgb,#000 25%,transparent)', Shadow::css(['color' => 'black', 'x' => 0, 'y' => 2, 'blur' => 8, 'opacity' => 25]));
+});
+
+test('theme shadow presets are bounded, keep their labels and render with variants', function (): void {
+    $defaults = Theme::normalize([]);
+    assert_same(['hard', 'glow', 'inset'], array_keys($defaults['shadows']));
+    assert_same([], Theme::normalize(['shadows' => []])['shadows']);
+    $theme = Theme::normalize(['shadows' => [
+        'shadow-card' => ['label' => '<b>Card</b>', 'color' => 'custom-brand', 'x' => 0, 'y' => 12, 'blur' => 900, 'opacity' => 40],
+        'glow' => ['color' => 'accent', 'x' => 0, 'y' => 0, 'blur' => 30],
+        'shadow-bad' => ['color' => 'red'],
+        'evil}body{' => ['color' => 'primary'],
+        'shadow-text' => 'md',
+    ]]);
+    assert_same(['shadow-card', 'glow'], array_keys($theme['shadows']));
+    assert_same(['label' => 'Card', 'color' => 'custom-brand', 'x' => 0, 'y' => 12, 'blur' => 200, 'spread' => 0, 'opacity' => 40, 'inset' => false], $theme['shadows']['shadow-card']);
+    assert_same(Theme::MAX_SHADOWS, count(Theme::normalize(['shadows' => array_fill_keys(array_map(fn($i) => 'shadow-s' . $i, range(1, 40)), ['color' => 'primary'])])['shadows']));
+    $css = Theme::stylesheet($theme);
+    assert_true(str_contains($css, '.c-sh-shadow-card{box-shadow:0px 12px 200px 0px color-mix(in srgb,var(--c-custom-brand,var(--c-primary)) 40%,transparent);}'));
+    assert_true(str_contains($css, '.c-h-sh-shadow-card:is(:hover,.c-preview-hover){'));
+    assert_true(str_contains($css, '.c-t-sh-glow{'));
+    assert_false(str_contains($css, '.c-sh-hard{'));
+    assert_true(str_contains(Theme::stylesheet([]), '.c-sh-inset{box-shadow:inset 0px 2px 8px 0px color-mix(in srgb,#000 25%,transparent);}'));
 });
 
 test('shadows survive saving with independent device and state settings and legacy presets', function (): void {
@@ -48,7 +76,7 @@ test('shadows survive saving with independent device and state settings and lega
         }
         assert_false(str_contains($html, 'Array'));
     }
-    $css = StyleVariants::css(Theme::baseStylesheet());
+    $css = Theme::stylesheet([]);
     assert_true(str_contains($css, '.c-t-sh-custom-tablet{box-shadow: var(--c-sh-custom-tablet);}'));
     assert_true(str_contains($css, '.c-h-ts-custom-hover:is(:hover,.c-preview-hover){text-shadow: var(--c-ts-custom-hover);}'));
     assert_true(str_contains($css, '.c-f-sh-glow:is(:focus-visible,:has(:focus-visible),.c-preview-focus){'));

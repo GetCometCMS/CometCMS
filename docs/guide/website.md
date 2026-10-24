@@ -113,7 +113,7 @@ Scroll inside the preview to test entry animations. Each preview update creates 
 
 ### Shadows
 
-**Shadow** and **Text shadow** offer soft sizes, a colored **Hard / block** effect and **Glow**; box shadows also offer **Inset**. Choose a preset, then expand **Customize** to adjust its palette color, horizontal and vertical offset, blur and opacity. Box shadows also have spread and an inset toggle. Editing a value switches to **Custom**, which keeps the settings visible. For block-style depth, use zero blur and an offset with a contrasting color; for a glow, use zero offset and increase blur. Colors follow the site's light and dark palettes. **None** explicitly removes a shadow, including on a device or state override; **Default** follows the normal or larger-screen value.
+**Shadow** offers the fixed soft sizes **XS** to **XL** and the site's **theme shadows** (by default **Block**, **Glow** and **Inset**; see *Design settings → Shadows*). **Text shadow** offers soft sizes, **Block** and **Glow**. Choose a preset, then expand **Customize** to adjust its palette color, horizontal and vertical offset, blur and opacity. Box shadows also have spread and an inset toggle. Editing a value switches to **Custom**, which keeps the settings visible. For block-style depth, use zero blur and an offset with a contrasting color; for a glow, use zero offset and increase blur. Colors follow the site's light and dark palettes; **Black** stays black in both. **None** explicitly removes a shadow, including on a device or state override; **Default** follows the normal or larger-screen value.
 
 ### Positioning
 
@@ -335,6 +335,7 @@ The theme also defines the **tokens** the builder offers, so one change reshapes
 
 - **Spacing scale** — the pixel values behind XS to 2XL for padding, space below and spacers (Compact / Normal / Relaxed fill them in).
 - **Corners** — the S, M and L radii, and the default corner used by buttons, images, cards and “Theme default”. “Round” turns buttons into pills while images and cards use L.
+- **Shadows** — the fixed XS to XL soft shadows, and the theme shadows offered by every element's **Shadow** setting. Add, rename, adjust or remove theme shadows here; a change updates every element that uses it. A removed shadow is no longer shown, and the element's setting reports it as missing.
 - **Widths** — the maximum content width of “Contained” and “Narrow” sections.
 
 Administrators can add **custom CSS**. Every class the website uses starts with `c-`, e.g. `.c-site-name` or `.c-button-primary`. Elements also accept extra CSS classes in the builder.
