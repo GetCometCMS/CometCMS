@@ -108,7 +108,7 @@ final class PreviewAdminBar
             . $this->icon('back') . '<img src="data:image/png;base64,' . $logo . '" alt="CometCMS" width="' . $logoWidth . '" height="' . $logoHeight . '"></a>'
             . '<div class="c-admin-context" title="' . Security::e($workspace . ' · ' . $title) . '">'
             . '<span class="c-admin-workspace">' . Security::e($workspace) . '</span><span class="c-admin-title">' . Security::e($title) . '</span></div>'
-            . '<div class="c-admin-meta">' . $statusHtml . $this->languages($type, $entry, $text['language']) . '</div>'
+            . '<div class="c-admin-meta">' . $statusHtml . $this->languages($type, $entry, $text['language']) . $this->templateMenu($state, $savedEntry, $de) . '</div>'
             . '<div class="c-preview-actions">' . $actions . '</div>'
             . '<details class="c-admin-account c-admin-dropdown"><summary aria-label="' . Security::e($username) . '" title="' . Security::e($username) . '"><span class="c-admin-avatar" aria-hidden="true">' . Security::e($initials) . '</span>'
             . '<span class="c-admin-username">' . Security::e($username) . '</span>' . $this->icon('chevron') . '</summary>'
@@ -146,6 +146,74 @@ final class PreviewAdminBar
         }
         return '<details class="c-admin-dropdown c-admin-languages"><summary class="c-admin-language" aria-label="' . Security::e($label) . '">'
             . $value . $this->icon('chevron') . '</summary><div class="c-admin-dropdown-panel">' . $links . '</div></details>';
+    }
+
+    /**
+     * Which template assembled this page, why, and its parts with links to
+     * edit each of them; for those who may design the website.
+     */
+    private function templateMenu(array $state, ?array $savedEntry, bool $de): string
+    {
+        $shown = $state['template'] ?? null;
+        if ($shown === null || !$this->ctx->adminAllows('site.manage')) {
+            return '';
+        }
+        $text = $de ? [
+            'template' => 'Vorlage', 'default' => 'Standard', 'header' => 'Header', 'content' => 'Inhalt', 'footer' => 'Footer',
+            'siteHeader' => 'Website-Header', 'siteFooter' => 'Website-Footer', 'noHeader' => 'Kein Header', 'noFooter' => 'Kein Footer',
+            'editTemplate' => 'Vorlage bearbeiten', 'defaultArea' => 'Standard',
+            'reason.picked' => 'Für diesen Eintrag gewählt', 'reason.conditions' => 'Bedingungen erfüllt', 'reason.first' => 'Erste Vorlage ohne Bedingungen',
+            'reason.default' => 'Keine andere Vorlage passt',
+        ] : [
+            'template' => 'Template', 'default' => 'Default', 'header' => 'Header', 'content' => 'Content', 'footer' => 'Footer',
+            'siteHeader' => 'Site header', 'siteFooter' => 'Site footer', 'noHeader' => 'No header', 'noFooter' => 'No footer',
+            'editTemplate' => 'Edit template', 'defaultArea' => 'Default',
+            'reason.picked' => 'Chosen for this entry', 'reason.conditions' => 'Its conditions match', 'reason.first' => 'First template without conditions',
+            'reason.default' => 'No other template applies',
+        ];
+        $template = $shown['template'];
+        $type = (string) $shown['type'];
+        $variant = (string) $shown['variant'];
+        $name = $template['id'] === SiteRepository::DEFAULT_TEMPLATE ? $text['default'] : (string) $template['name'];
+        $reason = $text['reason.' . $shown['reason']] ?? '';
+        if ($shown['reason'] === 'conditions') {
+            $fields = $this->ctx->site->types()[$type]['fields'] ?? [];
+            $reason .= ': ' . implode(', ', array_map(static fn(array $condition): string => (is_string($fields[$condition['field']]['label'] ?? null) && $fields[$condition['field']]['label'] !== '' ? $fields[$condition['field']]['label'] : $condition['field']) . ' ' . strtr($condition['op'], ['equals' => '=', 'not_equals' => '≠', 'contains' => '∋', 'not_empty' => '≠ ∅', 'empty' => '= ∅'])
+                . ($condition['value'] !== null ? ' ' . (is_bool($condition['value']) ? ($condition['value'] ? 'true' : 'false') : (string) $condition['value']) : ''), $template['conditions']));
+        }
+
+        $row = function (string $label, string $value, ?string $url): string {
+            $body = '<span class="c-admin-part"><small>' . Security::e($label) . '</small><span>' . Security::e($value) . '</span></span>';
+            return $url !== null
+                ? '<a class="c-admin-action" href="' . Security::e($url) . '">' . $body . $this->icon('edit') . '</a>'
+                : '<span class="c-admin-action c-admin-action-static">' . $body . '</span>';
+        };
+        $rows = '';
+        foreach (['header', 'content', 'footer'] as $part) {
+            $value = (string) $template[$part];
+            if ($part === 'content') {
+                $area = array_values(array_filter($this->ctx->site->contentAreas($type, $variant), static fn(array $area): bool => $area['id'] === $value))[0] ?? null;
+                $label = $area === null || $area['id'] === SiteRepository::DEFAULT_AREA ? $text['defaultArea'] : $area['name'];
+                $entryId = $savedEntry !== null ? (string) ($savedEntry['uid'] ?? $savedEntry['id']) : '';
+                $rows .= $row($text['content'], $label, $this->ctx->adminUrl('/page-builder/builder/layout/' . rawurlencode($type) . '/' . $variant,
+                    array_filter(['area' => $value, 'entry' => $entryId, 'template' => $template['id']], static fn(string $item): bool => $item !== '')));
+                continue;
+            }
+            $component = !in_array($value, [LayoutSchema::FRAME_DEFAULT, LayoutSchema::FRAME_NONE], true) ? $this->ctx->component($value) : null;
+            [$label, $url] = match (true) {
+                $value === LayoutSchema::FRAME_NONE => [$text[$part === 'header' ? 'noHeader' : 'noFooter'], null],
+                $component !== null && SiteRepository::fitsFrame($component, $type) => [(string) $component['name'], $this->ctx->adminUrl('/page-builder/builder/component/' . rawurlencode($value))],
+                default => [$text[$part === 'header' ? 'siteHeader' : 'siteFooter'], $this->ctx->adminUrl('/page-builder/builder/region/' . $part)],
+            };
+            $rows .= $row($text[$part], $label, $url);
+        }
+        $edit = '<a class="c-admin-action c-admin-action-separated" href="' . Security::e($this->ctx->adminUrl('/page-builder/templates', ['type' => $type, 'variant' => $variant, 'template' => $template['id']])) . '">'
+            . $this->icon('layout') . '<span>' . Security::e($text['editTemplate']) . '</span></a>';
+
+        return '<details class="c-admin-dropdown c-admin-templates"><summary class="c-admin-language" title="' . Security::e($text['template'] . ': ' . $name) . '">'
+            . $this->icon('layout') . '<span class="c-admin-template-name">' . Security::e($name) . '</span>' . $this->icon('chevron') . '</summary>'
+            . '<div class="c-admin-dropdown-panel"><p class="c-admin-template-reason"><strong>' . Security::e($text['template'] . ': ' . $name) . '</strong><span>' . Security::e($reason) . '</span></p>'
+            . $rows . $edit . '</div></details>';
     }
 
     private function icon(string $name): string

@@ -230,6 +230,24 @@
             <p v-if="fieldErrors.parent" class="mt-1 text-xs text-red-600">{{ fieldErrors.parent }}</p>
           </div>
 
+          <!-- The website template of this entry's page: automatic, or one chosen here. -->
+          <div v-if="templateOptions.length > 1">
+            <label for="content-template" class="form-label">{{ t("contentEdit.template") }}</label>
+            <select
+              id="content-template"
+              v-model="pageTemplate"
+              :disabled="isReadOnly"
+              class="form-select w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.page_template }"
+              aria-describedby="content-template-hint"
+            >
+              <option value="">{{ t("contentEdit.templateAutomatic") }}</option>
+              <option v-for="option in templateOptions" :key="option.id" :value="option.id">{{ option.name }}</option>
+            </select>
+            <p id="content-template-hint" class="mt-1 text-xs text-slate-500">{{ templateHint }}</p>
+            <p v-if="fieldErrors.page_template" class="mt-1 text-xs text-red-600">{{ fieldErrors.page_template }}</p>
+          </div>
+
 
           <div>
             <label for="content-status" class="form-label">{{ t("contentEdit.status") }}</label>
@@ -743,6 +761,7 @@ import {
 } from "../composables/apiEndpoint.js";
 import { orderLocales } from "../composables/contentDisplay.js";
 import { entryKey, subtreeKeys, treeRows } from "../composables/entryTree.js";
+import { reasonLabel, templateName } from "../composables/templates.js";
 
 const users = ref([]);
 const userMap = computed(() =>
@@ -762,6 +781,9 @@ async function loadUsers() {
 // ── Page hierarchy ────────────────────────────────────────────────────────────
 // The parent is shared by all languages, so it lives outside the per-language form.
 const parentUid = ref("");
+/** The website template the entry chose ("" = automatic, see SiteRepository::resolveTemplate()). */
+const pageTemplate = ref("");
+const pageTemplateBaseline = ref("");
 const parentBaseline = ref("");
 const siblingPages = ref([]);
 const parentOptions = computed(() => {
@@ -1089,6 +1111,7 @@ const newEntryBaseline = ref(null);
 const isDirty = computed(() => {
   if (!formLoaded.value) return false;
   if (parentUid.value !== parentBaseline.value) return true;
+  if (pageTemplate.value !== pageTemplateBaseline.value) return true;
   const base = liveEntryBeforeRestore.value ?? fullEntry.value;
   const drafts = {
     ...localeDrafts.value,
@@ -1149,6 +1172,15 @@ const designLink = computed(() => ({
   // Builders name entries by stable ID; slugs differ between languages.
   query: { entry: fullEntry.value?.uid || entryId.value, back: route.fullPath },
 }));
+
+/** Templates the entry can choose; the one applying now explains "Automatic". */
+const templateOptions = computed(() => (siteLinks.value?.templates ?? []).map((template) => ({ id: template.id, name: templateName(t, template) })));
+const templateHint = computed(() => {
+  const applied = siteLinks.value?.template;
+  if (pageTemplate.value) return t("contentEdit.templatePicked");
+  if (!applied) return "";
+  return t("contentEdit.templateUses", { name: templateName(t, applied), reason: reasonLabel(t, applied.reason, applied, contentTypeSchema.value) });
+});
 
 /** The type's page fields and whether this entry has page content of its own in each. */
 const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields ?? {})
@@ -1282,6 +1314,7 @@ onMounted(async () => {
 
       form.value = formFromEntry(entry, initLocale);
       parentUid.value = parentBaseline.value = entry.parent || "";
+      pageTemplate.value = pageTemplateBaseline.value = entry.page_template || "";
     } catch (err) {
       loadError.value = err.message;
     }
@@ -1355,6 +1388,13 @@ async function handleSave() {
         fullEntry.value = latest;
       }
       parentBaseline.value = parentUid.value = latest.parent || "";
+      if (pageTemplate.value !== (latest.page_template || "")) {
+        latest = (await api.content.update(collection, latest.uid || latest.id, {
+          page_template: pageTemplate.value, locale: currentLocale.value || undefined, revision: latest.revision,
+        })).data;
+        fullEntry.value = latest;
+      }
+      pageTemplateBaseline.value = pageTemplate.value = latest.page_template || "";
       const res = { data: latest };
       localeDrafts.value = {};
       toast.success(t("contentEdit.entrySaved"));

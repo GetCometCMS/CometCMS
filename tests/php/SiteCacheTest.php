@@ -72,7 +72,7 @@ test('website cache bypasses previews without replacing public pages', function 
     $live = comet_site_cache_test_get('/blog/hello');
     $context = comet_site_test_context();
     $context->preview = true;
-    $context->override('layout:blog:detail', []);
+    $context->override('layout:blog:detail:default', []);
     $preview = comet_site_cache_test_get('/blog/hello', [], $context);
     assert_same('BYPASS', $preview['cache_status']);
     assert_false($preview['cacheable']);

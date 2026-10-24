@@ -13,7 +13,8 @@ const languagesOf = (settings) => ({ locales: clone(settings.locales), default_l
 /**
  * Website configuration of the active workspace. `data` is what the server
  * last returned; `draft` holds the editable copies of settings, workspace
- * languages, theme, menus and frames (which header and footer each layout shows).
+ * languages, theme, menus and templates (which header, content area and footer
+ * each page kind's pages show, and when).
  */
 export const useSiteStore = defineStore('site', () => {
   const data = ref(null)
@@ -35,8 +36,8 @@ export const useSiteStore = defineStore('site', () => {
 
   const dirtyParts = computed(() => {
     if (!data.value || !draft.value) return []
-    return ['languages', 'settings', 'theme', 'menus', 'frames'].filter((part) => {
-      const saved = part === 'languages' ? languagesOf(data.value.settings) : part === 'frames' ? data.value.frames ?? {} : data.value[part]
+    return ['languages', 'settings', 'theme', 'menus', 'templates'].filter((part) => {
+      const saved = part === 'languages' ? languagesOf(data.value.settings) : part === 'templates' ? data.value.templates ?? {} : data.value[part]
       return JSON.stringify(draft.value[part]) !== JSON.stringify(saved)
     })
   })
@@ -88,7 +89,7 @@ export const useSiteStore = defineStore('site', () => {
 
   function resetDraft() {
     draft.value = data.value
-      ? { settings: clone(data.value.settings), languages: languagesOf(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus), frames: clone(data.value.frames ?? {}) }
+      ? { settings: clone(data.value.settings), languages: languagesOf(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus), templates: clone(data.value.templates ?? {}) }
       : null
     fieldErrors.value = {}
   }
@@ -159,10 +160,10 @@ export const useSiteStore = defineStore('site', () => {
           syncPageBuilderActive()
         } else if (part === 'theme') {
           data.value.theme = (await api.site.saveTheme(draft.value.theme)).data
-        } else if (part === 'frames') {
-          const response = await api.site.saveFrames(draft.value.frames, data.value.frames_revision)
-          data.value.frames = response.data
-          data.value.frames_revision = response.meta?.revision
+        } else if (part === 'templates') {
+          const response = await api.site.saveTemplates(draft.value.templates, data.value.templates_revision)
+          data.value.templates = response.data
+          data.value.templates_revision = response.meta?.revision
         } else {
           const response = await api.site.saveMenus(draft.value.menus, data.value.menus_revision)
           data.value.menus = response.data
@@ -211,6 +212,12 @@ export const useSiteStore = defineStore('site', () => {
     }
   }
 
+  /** Content areas changed in the builder or the Templates tab: `areas` is the page kind's new list. */
+  function setContentAreas(type, variant, areas) {
+    if (!data.value) return
+    data.value.content_areas = { ...(data.value.content_areas ?? {}), [type]: { ...(data.value.content_areas?.[type] ?? {}), [variant]: areas } }
+  }
+
   /** Restoring the design must preserve pending settings and menu edits. */
   function applyRestoredTheme(theme) {
     if (!data.value || !draft.value) return;
@@ -238,5 +245,5 @@ export const useSiteStore = defineStore('site', () => {
     statusWorkspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, homepagePreview, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, applyRestoredTheme, discardTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, homepagePreview, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, setContentAreas, applyRestoredTheme, discardTheme, invalidate }
 })

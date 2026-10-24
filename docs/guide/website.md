@@ -223,15 +223,20 @@ The header and footer are shown on every page and are edited directly in the pag
 
 Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button at every screen size, including desktop. **Menu button opens** chooses what the button shows: a dropdown under the button, a full-screen menu with large centered links, or a side panel over a dimmed page. **Side panel position** chooses whether the panel slides in from the left or right (the default). For full-screen menus and side panels, **Menu panel background** and **Menu panel text color** select colors from the theme palette, including custom colors; **Default** keeps the theme's background and text colors. These colors apply to the open panel's content and close button. Full-screen menus and side panels have their own close button (clicking the dimmed page also closes a side panel), and the page behind them does not scroll while they are open.
 
-### Different headers and footers per page kind
+### Templates
 
-Each layout can show its own header and footer. Select the header or footer in the builder while editing a layout, and choose under **Shown on these pages** what pages of that content type and page kind (entry pages or the list page) show there:
+A **template** puts a page together from three parts: a **header**, a **content area** and a **footer**. It holds no design of its own, so the same header, content area or footer can appear in several templates. Each content type has templates for its entry pages and, when turned on, for its list page.
 
-- **Site header** / **Site footer**: the shared one (the default).
-- **No header** / **No footer**: for landing pages and similar. The builder keeps a placeholder you can select to bring it back.
-- A **component**: any section component that is shared or belongs to that content type, for example a blog header that shows the post's category.
+- **Header** and **footer**: the site header or footer, **none** (for landing pages and similar), or any section component that is shared or belongs to that content type, for example a blog header that shows the post's category.
+- **Content area**: the main part of the page, designed in the page builder. Every page kind starts with its **Default content**; add more, such as "Long read" or "Compact", to give entries of the same type different layouts. A new content area starts as a copy of another one.
 
-**Edit** opens whatever is shown: the shared header or footer, or the component. The assignment is saved with **Save**, and undo and the full-page preview include it. The **Templates** tab under **Design & layout** shows the same choice for every content type as a page outline: pick a content type and page kind, click the header or footer to change it, or click the content area to open the layout in the builder. Deleting a component that is assigned this way brings back the site header or footer on those pages.
+Templates are tried **in order**: an entry page uses the first template whose **conditions** all match the entry, for example *Category is Tips* or *Featured is yes*. The **Default** template is always last, has no conditions and applies to everything else. List pages have no entry to compare, so their templates have no conditions. An editor can also choose a template for a single entry under **Template** in the entry's settings; that choice comes before any conditions, and **Automatic** goes back to them. The hint below the field says which template applies and why.
+
+Manage templates under **Design & layout → Templates**: choose a content type and page kind, add, duplicate, rename or delete templates, drag them into order, and set their conditions. The page outline on the right shows the selected template; click its header, content or footer to choose another part, create a content area, or open the part in the builder. Changes are saved with **Save**.
+
+In the page builder, the top bar shows the template the canvas shows around the content area (**Template: …**) and why. Its menu previews the content area with another template, switches to another content area of the page kind, or starts a new one. Select the header or footer in the canvas to choose under **Shown on these pages** what that template shows there; **Edit** opens the header, footer or component itself. The page dropdown lists, for each content type, its templates and their three parts, each of which opens in the builder.
+
+In the full-page preview, the admin bar's **Template** menu names the template the page uses, why, and links to its header, content area and footer. Deleting a component that a template shows brings back the site header or footer there; a content area cannot be deleted while a template shows it.
 
 ### Sticky and floating headers
 
@@ -284,9 +289,9 @@ theme/
   style.css                     custom CSS
   regions/header.json           header and footer
   regions/footer.json
-  layouts/{type}/detail.json    page layout of a content type
-  layouts/{type}/index.json     its list page
-  frames.json                   header and footer per layout, where they differ
+  content/{type}/detail/{area}.json   content areas of a content type's entry pages
+  content/{type}/index/{area}.json    and of its list page
+  templates/{type}/{variant}.json     its templates, where they differ from the default
   components/{name}.json        reusable components
 ```
 
@@ -294,7 +299,7 @@ Public pages load `style.css` after the generated theme styles. The builder prev
 
 Components are stored under their name, e.g. `components/hero-banner.json`, and layouts refer to them by that name. Renaming a component in the builder keeps its file name, so placements stay intact. The files contain no save times: saving without changes leaves them untouched, and the time shown as "last changed" is the file's modification time. Revisions are kept outside the folder, in `storage/workspaces/{workspace}/revisions/site/`. Settings, menus and forms belong to the site rather than its design and stay in `site/`. Website backups include all of it.
 
-Workspaces from earlier versions move their headers, footers, layouts and components into the theme folder on the first request after updating. Components with generated names such as `ce1f4a17586` get readable names, and every placement, also in revisions, is updated. Backups made before this change can still be restored. Existing `site/theme.json` files remain readable and move into the folder the next time the theme is saved.
+Workspaces from earlier versions move their headers, footers, layouts and components into the theme folder on the first request after updating. Layouts from before templates (`layouts/{type}/{variant}.json`) become each page kind's default content area, with their history, and their header and footer choices become the default template. Components with generated names such as `ce1f4a17586` get readable names, and every placement, also in revisions, is updated. Backups made before this change can still be restored. Existing `site/theme.json` files remain readable and move into the folder the next time the theme is saved.
 
 ## Languages
 

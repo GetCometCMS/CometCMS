@@ -749,11 +749,11 @@ test('preview status follows rendered changes in the current page locale and sha
     $ctx = $context();
     $ctx->overrideEntry('posts', $content->preview('posts', ['title' => 'First', 'locale' => 'en'], $user, $first), 'first');
     $ctx->override('theme', $site->theme());
-    $ctx->override('layout:posts:detail', $detail);
+    $ctx->override('layout:posts:detail:default', $detail);
     $assertState($ctx, 'posts', 'first', 'published');
 
     $ctx = $context();
-    $ctx->override('layout:posts:detail', $nodes([['id' => 'heading', 'kind' => 'heading', 'props' => ['text' => 'Shared draft layout']]]));
+    $ctx->override('layout:posts:detail:default', $nodes([['id' => 'heading', 'kind' => 'heading', 'props' => ['text' => 'Shared draft layout']]]));
     $assertState($ctx, 'posts', 'first', 'preview');
     $assertState($ctx, 'posts', 'second', 'preview');
     $assertState($ctx, 'about', 'about', 'published');

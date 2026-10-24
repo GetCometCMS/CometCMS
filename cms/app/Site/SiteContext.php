@@ -63,6 +63,7 @@ final class SiteContext
     private array $trees = [];
     private array $components = [];
     private array $cardTemplates = [];
+    private array $templateLists = [];
     private ?FormRepository $forms = null;
     private array $formCache = [];
 
@@ -168,19 +169,41 @@ final class SiteContext
         return $this->overridden('region:' . $region) ?? ($this->site->regionCustomized($region) ? $this->site->region($region) : null);
     }
 
-    /**
-     * What a page of $type's $variant layout shows as its header or footer:
-     * the region's nodes, a placed section component, or null for none. A
-     * component that is gone (or no longer fits) falls back to the region.
-     */
-    public function frameNodes(string $region, ?string $type = null, ?string $variant = null): ?array
+    /** A page kind's templates in order, with unsaved ones while the builder previews them. */
+    public function templates(string $type, string $variant): array
     {
-        $frames = $this->overridden('frames') ?? $this->site->frames();
-        $value = $type !== null && $variant !== null ? ($frames[$type][$variant][$region] ?? LayoutSchema::FRAME_DEFAULT) : LayoutSchema::FRAME_DEFAULT;
+        return ($this->overridden('templates') ?? [])[$type][$variant]
+            ?? $this->templateLists[$type . ':' . $variant] ??= $this->site->templates($type, $variant);
+    }
+
+    /**
+     * The template a page of $type's $variant uses for $entry and why (see
+     * SiteRepository::resolveTemplate()); the builder may preview another one.
+     *
+     * @return array{template: array, reason: string}
+     */
+    public function template(string $type, string $variant, ?array $entry): array
+    {
+        $templates = $this->templates($type, $variant);
+        $previewed = $this->overridden('template:' . $type . ':' . $variant);
+        foreach (is_string($previewed) ? $templates : [] as $template) {
+            if ($template['id'] === $previewed) return ['template' => $template, 'reason' => 'previewed'];
+        }
+
+        return SiteRepository::resolveTemplate($templates, $entry, $entry !== null && is_string($entry['page_template'] ?? null) ? $entry['page_template'] : '');
+    }
+
+    /**
+     * What a template's header or footer shows: the site's own region, a
+     * placed section component, or null for none. A component that is gone
+     * (or no longer fits) falls back to the region.
+     */
+    public function partNodes(string $region, string $value, string $type = ''): ?array
+    {
         if ($value === LayoutSchema::FRAME_NONE) {
             return null;
         }
-        if ($value !== LayoutSchema::FRAME_DEFAULT && SiteRepository::fitsFrame($this->component($value), (string) $type)) {
+        if ($value !== LayoutSchema::FRAME_DEFAULT && SiteRepository::fitsFrame($this->component($value), $type)) {
             $node = LayoutSchema::node(LayoutSchema::COMPONENT, ['component' => $value, 'root' => 'section']);
             $node['id'] = 'frame-' . $region;
 
@@ -190,9 +213,10 @@ final class SiteContext
         return $this->region($region);
     }
 
-    public function layout(string $type, string $variant): array
+    /** A content area's nodes; the builder overrides the one being edited. */
+    public function layout(string $type, string $variant, string $area = SiteRepository::DEFAULT_AREA): array
     {
-        return $this->overridden('layout:' . $type . ':' . $variant) ?? $this->site->layout($type, $variant);
+        return $this->overridden('layout:' . $type . ':' . $variant . ':' . $area) ?? $this->site->layout($type, $variant, $area);
     }
 
     /** The standard card of a content type (see SiteRepository::cardTemplate()). */

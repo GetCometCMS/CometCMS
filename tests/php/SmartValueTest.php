@@ -196,20 +196,20 @@ test('incompatible designs use defaults without deleting data and old revisions 
     $site = comet_site_test_setup();
     $store = new JsonStore($site->workspace()->path('site') . '/theme');
     $old = ['nodes' => [LayoutSchema::node('section')]];
-    $store->write($old, 'layouts', 'blog', 'detail');
+    $store->write($old, 'content', 'blog', 'detail', 'default');
     $store->write($old, 'regions', 'footer');
     assert_true($site->needsLayoutUpgrade('blog', 'detail'));
     assert_true($site->needsRegionUpgrade('footer'));
-    assert_same($old, $store->read('layouts', 'blog', 'detail'));
+    assert_same($old, $store->read('content', 'blog', 'detail', 'default'));
     assert_true(str_contains(json_encode($site->layout('blog', 'detail')), 'reference'));
     $revisions = new JsonStore($site->workspace()->path('revisions') . '/site');
-    $revisions->write(['id' => 'old', 'snapshot' => $old], 'layouts', 'blog', 'detail', 'old');
+    $revisions->write(['id' => 'old', 'snapshot' => $old], 'content', 'blog', 'detail', 'default', 'old');
     assert_null($site->restoreLayoutRevision('blog', 'detail', 'old'));
     assert_same([], $site->layoutRevisions('blog', 'detail'));
     $site->saveLayout('blog', 'detail', $site->layout('blog', 'detail'));
     assert_false($site->needsLayoutUpgrade('blog', 'detail'));
     assert_true(ContentRepository::make()->findByIdentifier('blog', 'hello') !== null);
-    assert_same(LayoutSchema::FORMAT_VERSION, $store->read('layouts', 'blog', 'detail')['format_version']);
+    assert_same(LayoutSchema::FORMAT_VERSION, $store->read('content', 'blog', 'detail', 'default')['format_version']);
 });
 
 test('columns and column components resolve bound backgrounds while preserving responsive order', function (): void {

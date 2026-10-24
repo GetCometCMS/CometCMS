@@ -126,8 +126,8 @@ const toast = useToastStore();
 const { t } = useI18n();
 const cssEditorOpen = ref(false);
 provideLanguageSwitcher();
-/** Global design, menus and header/footer assignments share a draft across these tabs. */
-const PARTS = ["theme", "menus", "frames"];
+/** Global design, menus and templates share a draft across these tabs. */
+const PARTS = ["theme", "menus", "templates"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 // Opens the homepage layout, or the header when no homepage is chosen. Uses saved
 // settings because leaving discards any pending edits.

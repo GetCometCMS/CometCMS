@@ -248,17 +248,30 @@ test('mcp builder preserves localized props and bindings during partial edits an
     assert_same('reference', $updated['data']['element']['props']['text']['type']);
 });
 
-test('mcp builder tools read and assign a layout header and footer', function (): void {
+test('mcp builder tools list templates, assign their parts and edit other content areas', function (): void {
     [$token] = comet_test_builder_setup();
+    [, $listed] = comet_test_mcp_tool($token, 'list_templates', ['collection' => 'pages', 'variant' => 'detail']);
+    assert_same([SiteRepository::defaultTemplate()], $listed['data']['templates']);
+    assert_same([['id' => 'default', 'name' => 'Default']], $listed['data']['content_areas']);
+    assert_same(['default', 'none'], $listed['data']['header_footer_options']);
+
+    $site = new SiteRepository();
+    $site->createContentArea('pages', 'detail', 'Landing');
+    [, $saved] = comet_test_mcp_tool($token, 'set_template_parts', ['collection' => 'pages', 'variant' => 'detail', 'header' => 'none', 'content' => 'landing']);
+    assert_same(['none', 'landing'], [$saved['data']['templates'][0]['header'], $saved['data']['templates'][0]['content']], json_encode($saved));
+
+    // Layout tools now default to the area the default template shows.
     $layout = comet_test_builder_layout($token);
-    assert_same(['header' => 'default', 'footer' => 'default'], $layout['frame']);
-    assert_same(['default', 'none'], $layout['frame_options']);
+    assert_same('landing', $layout['content']);
+    assert_same(['Default'], $layout['used_by_templates']);
+    [, $default] = comet_test_mcp_tool($token, 'get_layout', ['collection' => 'pages', 'variant' => 'detail', 'content' => 'default']);
+    assert_same([], $default['data']['used_by_templates']);
 
-    [, $saved] = comet_test_mcp_tool($token, 'set_layout_frame', ['collection' => 'pages', 'variant' => 'detail', 'header' => 'none']);
-    assert_same(['header' => 'none', 'footer' => 'default'], $saved['data']['frame'], json_encode($saved));
-    assert_same(['pages' => ['detail' => ['header' => 'none']]], (new SiteRepository())->frames());
-
-    [$failed] = comet_test_mcp_tool($token, 'set_layout_frame', ['collection' => 'pages', 'variant' => 'detail', 'footer' => 'no-such-component']);
-    assert_true($failed['result']['isError'] ?? false, json_encode($failed));
-    assert_same(['pages' => ['detail' => ['header' => 'none']]], (new SiteRepository())->frames());
+    foreach ([['footer' => 'no-such-component'], ['template' => 'missing'], ['content' => 'missing']] as $extra) {
+        [$failed] = comet_test_mcp_tool($token, 'set_template_parts', ['collection' => 'pages', 'variant' => 'detail'] + $extra);
+        assert_true($failed['result']['isError'] ?? false, json_encode($failed));
+    }
+    [$failed] = comet_test_mcp_tool($token, 'get_layout', ['collection' => 'pages', 'variant' => 'detail', 'content' => 'missing']);
+    assert_true($failed['result']['isError'] ?? false);
+    assert_same('none', (new SiteRepository())->templates('pages', 'detail')[0]['header']);
 });

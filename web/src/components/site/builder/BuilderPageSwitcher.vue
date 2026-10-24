@@ -20,7 +20,7 @@
       v-if="open"
       :id="menuId"
       tabindex="-1"
-      class="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
+      class="absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
       @keydown="onMenuKeydown"
     >
       <div v-if="showFilter" class="border-b border-slate-100 p-2">
@@ -44,11 +44,12 @@
             tabindex="-1"
             :aria-current="item.current ? 'page' : undefined"
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-            :class="item.current ? 'font-medium text-theme-700' : 'text-slate-700'"
+            :class="[item.current ? 'font-medium text-theme-700' : item.disabled ? 'text-slate-400' : 'text-slate-700', { 'pl-7 text-[13px]': item.depth === 1, 'py-1 pl-11 text-xs': item.depth === 2 }]"
+            :aria-disabled="item.disabled || undefined"
             @click="go(item)"
           >
-            <Icon :icon="item.icon" class="h-4 w-4 shrink-0" :class="item.current ? 'text-theme-600' : 'text-slate-400'" aria-hidden="true" />
-            <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+            <Icon :icon="item.icon" class="shrink-0" :class="[item.current ? 'text-theme-600' : 'text-slate-400', item.depth === 2 ? 'h-3.5 w-3.5' : 'h-4 w-4']" aria-hidden="true" />
+            <span class="min-w-0 flex-1 truncate"><span v-if="item.prefix" class="text-slate-400">{{ item.prefix }}: </span>{{ item.label }}</span>
             <span v-if="item.isHomepage" class="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.overview.homepage") }}</span>
             <Icon v-if="item.current" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
           </button>
@@ -64,6 +65,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue"
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
+import { FRAME_DEFAULT, FRAME_NONE, areaLabel, frameLabel, templateList, templateName } from "../../../composables/templates.js";
+import { hasListPage } from "../../../composables/siteLinks.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -75,6 +78,7 @@ const props = defineProps({
 });
 
 const REGION_ICONS = { header: "mdi:page-layout-header", footer: "mdi:page-layout-footer" };
+const PART_ICONS = { header: "mdi:page-layout-header", content: "mdi:file-document-outline", footer: "mdi:page-layout-footer" };
 const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", modal: "mdi:dock-window" };
 
 const route = useRoute();
@@ -90,19 +94,48 @@ const open = ref(false);
 const filter = ref("");
 const menuId = `page-switcher-${useId()}`;
 
+/**
+ * A content type's pages: each page kind, its templates in order, and the
+ * header, content area and footer every template puts together.
+ */
+function typeItems(type) {
+  const editing = ["layout", "page"].includes(props.target) && props.name === type.name;
+  const variants = hasListPage(builder.settings.value, type.name) ? ["detail", "index"] : ["detail"];
+  return variants.flatMap((variant) => {
+    const path = `/page-builder/builder/layout/${type.name}/${variant}`;
+    const areas = site.data?.content_areas?.[type.name]?.[variant] ?? [];
+    const components = builder.components.value;
+    return [
+      {
+        key: `layout:${type.name}:${variant}`,
+        label: variants.length > 1 ? `${type.label ?? type.name} · ${t(`site.variant.${variant}`)}` : type.label ?? type.name,
+        icon: variant === "index" ? "mdi:view-grid-outline" : type.icon || "mdi:file-multiple-outline",
+        path,
+        current: editing && (props.target === "page" ? variant === "detail" : route.params.variant === variant),
+        isHomepage: builder.settings.value?.homepage?.type === type.name && (variant === "index") === !builder.settings.value?.homepage?.entry,
+      },
+      ...templateList(site.draft?.templates ?? site.data?.templates, type.name, variant).flatMap((template) => [
+        { key: `template:${type.name}:${variant}:${template.id}`, label: templateName(t, template), icon: "mdi:page-layout-header-footer", depth: 1, path, query: { area: template.content, template: template.id } },
+        ...["header", "content", "footer"].map((part) => {
+          const value = template[part];
+          const label = part === "content" ? areaLabel(t, value, areas) : frameLabel(t, value, part, components);
+          const target = part === "content" ? { path, query: { area: value, template: template.id } }
+            : value === FRAME_NONE ? null
+            : value === FRAME_DEFAULT ? { path: `/page-builder/builder/region/${part}` }
+            : { path: `/page-builder/builder/component/${encodeURIComponent(value)}` };
+          return { key: `part:${type.name}:${variant}:${template.id}:${part}`, label, prefix: t(`site.templates.part.${part}`), icon: PART_ICONS[part], depth: 2, disabled: !target, ...(target ?? {}) };
+        }),
+      ]),
+    ];
+  });
+}
+
 const allGroups = computed(() => [
-  {
-    key: "pages",
-    label: t("site.builder.pages"),
-    items: builder.pageTypes.value.map((type) => ({
-      key: `layout:${type.name}`,
-      label: type.label ?? type.name,
-      icon: type.icon || "mdi:file-multiple-outline",
-      path: `/page-builder/builder/layout/${type.name}/detail`,
-      current: ["layout", "page"].includes(props.target) && props.name === type.name,
-      isHomepage: builder.settings.value?.homepage?.type === type.name,
-    })),
-  },
+  ...builder.pageTypes.value.map((type) => ({
+    key: `type:${type.name}`,
+    label: type.label ?? type.name,
+    items: typeItems(type),
+  })),
   {
     key: "regions",
     label: t("site.builder.regions"),
@@ -172,10 +205,11 @@ function close(restoreFocus = false) {
 
 function go(item) {
   close();
-  if (item.current) return;
-  // Keep where the builder was opened from, so "back" still leads there.
+  if (item.current || item.disabled) return;
+  // Keep where the builder was opened from, so "back" still leads there, and the previewed entry.
   const back = typeof route.query.back === "string" ? route.query.back : "";
-  router.push({ path: item.path, query: back ? { back } : {} });
+  const entry = item.path.startsWith("/page-builder/builder/layout/") && typeof route.query.entry === "string" ? route.query.entry : "";
+  router.push({ path: item.path, query: { ...(item.query ?? {}), ...(entry ? { entry } : {}), ...(back ? { back } : {}) } });
 }
 
 function onMenuKeydown(event) {

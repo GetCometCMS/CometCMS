@@ -156,7 +156,7 @@ test('a placed form renders labelled inputs from the content type and is found w
     assert_true($sent !== null && str_contains($sent->textContent, 'Thanks, we will be in touch.'));
     assert_true($document->getElementById($anchor . '-error') !== null);
 
-    assert_same([['target' => 'layout', 'type' => 'blog', 'variant' => 'detail']], $site->formUsages($form['id']));
+    assert_same([['target' => 'layout', 'type' => 'blog', 'variant' => 'detail', 'area' => 'default']], $site->formUsages($form['id']));
     $types = new ContentTypeRepository();
     $types->save([...$types->find('inquiries'), 'allow_submissions' => false]);
     assert_same(0, substr_count(comet_site_test_get('/blog/hello')['body'], 'c-form-grid'));

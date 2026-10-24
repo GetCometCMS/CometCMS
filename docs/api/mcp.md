@@ -108,9 +108,13 @@ bearer tokens with `site.manage` on `workspace:{workspace}:site:*`; direct calls
 also enforce this permission. Headless tokens do not receive builder schemas.
 There is no second MCP connection to configure.
 
-These tools edit **shared collection layouts**, by `collection` and `variant`
-(`detail` or `index`). Changes affect every entry using that layout and take
-effect on published pages immediately. They do not create a separate design
+These tools edit **content areas** and **templates** of a collection, by
+`collection` and `variant` (`detail` or `index`). A template puts pages together
+from a header, a content area and a footer; the first template whose conditions
+match an entry is used and the last one (`default`) applies to everything else.
+Layout tools take an optional `content` area id and default to the area the
+default template shows. Changes affect every entry whose template shows that
+area and take effect on published pages immediately. They do not create a separate design
 draft. Entry-specific page fields use the existing entry tools. Editing the
 header/footer themselves, reusable component definitions, theme and menus are
 outside this tool group; choosing which header and footer a layout shows is not.
@@ -118,15 +122,16 @@ outside this tool group; choosing which header and footer a layout shows is not.
 | Tool | Required inputs | Result |
 | --- | --- | --- |
 | `get_builder_schema` | none; optional `kind` | Kinds/children and limits, or props/styles/defaults/bindings for one kind. |
-| `get_layout` | `collection`, `variant` | Ordered section summaries, node counts and layout revision, plus `frame` (header/footer shown) and `frame_options`. |
+| `get_layout` | `collection`, `variant`; optional `content` | Ordered section summaries, node counts, revision, the content area and the templates that show it (`used_by_templates`). |
 | `get_section` | target + `section_id` | One subtree with default props omitted, and revision. |
 | `get_element` | target + `element_id` | One node's props/style, immediate child summaries, section ID and revision. |
 | `set_layout` | target + `revision`, `sections` | Replace entire layout; returns compact overview and new revision. |
 | `update_section` | target + `revision`, `section_id`, `patch` | Patch `name`, `props`, `style`, or replace `children`; returns overview and revision. |
 | `update_element_props` | target + `revision`, `element_id`, `props`; optional `style` | Merge property/style keys; returns node and revision. |
-| `set_layout_frame` | target; optional `header`, `footer` | `default`, `none` or a section component id from `frame_options`; returns the new `frame`. |
+| `list_templates` | `collection`, `variant` | Templates in order, content areas and the components that can be a header or footer. |
+| `set_template_parts` | `collection`, `variant`; optional `template` (default `default`), `header`, `content`, `footer` | Header/footer: `default`, `none` or a section component id; content: a content area id. Returns the templates. |
 
-Here `target` means `collection`, `variant`. A section is any top-level node,
+Here `target` means `collection`, `variant` and optionally `content`. A section is any top-level node,
 including a `page_content` placeholder or a section component reference.
 Patches preserve omitted keys, descendants and other sections. Supplying
 `children: []` removes children. Object-valued props (including localized maps)

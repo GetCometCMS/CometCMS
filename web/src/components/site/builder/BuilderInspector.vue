@@ -313,7 +313,7 @@ import SegmentedControl from "../SegmentedControl.vue";
 import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
 import { nodeIcon } from "./kindIcons.js";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
-import { FRAME_DEFAULT, FRAME_NONE, frameLabel } from "../../../composables/frames.js";
+import { FRAME_DEFAULT, FRAME_NONE, frameLabel } from "../../../composables/templates.js";
 import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumbs.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";

@@ -55,7 +55,7 @@ const props = defineProps({
   headCss: { type: String, default: "" },
 });
 
-/** ready: a new document loaded; updated: the loaded one was patched in place. */
+/** ready: a new document loaded; updated: the loaded one was patched in place; rendered: the response data (html and what else the preview reports). */
 const emit = defineEmits(["ready", "updated", "rendered"]);
 const { t } = useI18n();
 const containerRef = ref(null);
@@ -119,7 +119,7 @@ async function render() {
       srcdoc.value = html;
     }
     error.value = "";
-    emit("rendered");
+    emit("rendered", res.data);
   } catch (err) {
     if (current === sequence) error.value = err.message;
   } finally {

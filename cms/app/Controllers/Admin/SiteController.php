@@ -42,11 +42,14 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
 
         $layouts = [];
+        $areas = [];
         foreach ($this->site->types() as $name => $type) {
             foreach ($this->site->enabledVariantsFor($type) as $variant) {
                 $layouts[$name][$variant] = $this->site->layoutCustomized($name, $variant);
+                $areas[$name][$variant] = $this->site->contentAreas((string) $name, $variant);
             }
         }
+        $templates = $this->site->allTemplates();
 
         $this->json(['data' => [
             'settings' => $this->site->settings(),
@@ -54,9 +57,10 @@ final class SiteController extends BaseController
             'menus' => $this->site->menus(),
             'menus_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->menus()),
             'menu_limits' => SiteRepository::MENU_LIMITS,
-            // An object, also when empty: the admin assigns into it by type.
-            'frames' => $this->site->frames() ?: new \stdClass(),
-            'frames_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->frames()),
+            // Objects, also when empty: the admin assigns into them by type.
+            'templates' => $templates ?: new \stdClass(),
+            'templates_revision' => \CometCMS\Localization\LocalizedValue::hash($templates),
+            'content_areas' => $areas ?: new \stdClass(),
             'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
             'special_pages' => array_combine(LayoutSchema::SPECIAL_PAGES, array_map(fn(string $page): bool => $this->site->regionCustomized($page), LayoutSchema::SPECIAL_PAGES)),
             'layouts' => $layouts,
@@ -150,8 +154,11 @@ final class SiteController extends BaseController
             'url_conflict' => $this->liveUrlConflict($url),
             'previewable' => $entry !== null && $context->isPublicType($type),
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
-            // Page fields with an area in the entry page layout.
-            'page_fields' => $routed ? array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail')))) : [],
+            // Page fields with a place in the content area this entry's template shows.
+            'page_fields' => $routed ? array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryArea($type, $entry))))) : [],
+            'template' => $routed && $entry !== null ? $this->entryTemplate($type, $entry) : null,
+            // The templates an entry can choose instead of the automatic one.
+            'templates' => $routed && $context->isPublicType($type) ? array_map(static fn(array $template): array => ['id' => $template['id'], 'name' => $template['name']], $this->site->templates($type, 'detail')) : [],
         ]]);
     }
 
@@ -200,14 +207,45 @@ final class SiteController extends BaseController
         $this->json(['data' => $menus, 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($menus)]]);
     }
 
-    /** Body: {frames: {type: {variant: {header|footer: "none"|component id}}}, revision}. */
-    public function updateFrames(): never
+    /** Body: {templates: {type: {variant: [template, …]}}, revision}; page kinds left out stay as they are. */
+    public function updateTemplates(): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
-        $frames = $this->validated(fn() => $this->site->saveFrames($this->requestJson()['frames'] ?? [], $this->requestJson()['revision'] ?? null));
-        $this->logger->info('site.frames_updated', ['workspace' => $this->site->workspace()->slug()]);
-        $this->json(['data' => $frames ?: new \stdClass(), 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($frames)]]);
+        $templates = $this->validated(fn() => $this->site->saveTemplates($this->requestJson()['templates'] ?? [], $this->requestJson()['revision'] ?? null));
+        $this->logger->info('site.templates_updated', ['workspace' => $this->site->workspace()->slug()]);
+        $this->json(['data' => $templates ?: new \stdClass(), 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($templates)]]);
+    }
+
+    /** Body: {name, from}: a new content area of the page kind, copied from another one (default: the default area). */
+    public function createContentArea(string $type, string $variant): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $body = $this->requestJson();
+        $area = $this->validated(fn() => $this->site->createContentArea($type, $variant, $body['name'] ?? '', (string) ($body['from'] ?? SiteRepository::DEFAULT_AREA), $user));
+        $this->logger->info('site.content_area_created', ['type' => $type, 'variant' => $variant, 'area' => $area['id']]);
+        $this->json(['data' => $area], 201);
+    }
+
+    /** Body: {name}. */
+    public function renameContentArea(string $type, string $variant, string $area): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $this->json(['data' => $this->validated(fn() => $this->site->renameContentArea($type, $variant, $area, $this->requestJson()['name'] ?? ''))]);
+    }
+
+    public function deleteContentArea(string $type, string $variant, string $area): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $this->requireType($type, $variant);
+        $this->validated(fn() => $this->site->deleteContentArea($type, $variant, $area));
+        $this->logger->info('site.content_area_deleted', ['type' => $type, 'variant' => $variant, 'area' => $area]);
+        $this->json(['data' => ['deleted' => true]]);
     }
 
     /** The standard card of a type, for a collection that gets a card of its own. */
@@ -219,18 +257,27 @@ final class SiteController extends BaseController
         $this->json(['data' => ['nodes' => LayoutSchema::withNewIds($this->site->cardTemplate($type))]]);
     }
 
+    /**
+     * A content area for the builder. Query: area (default: the one the
+     * entry's template shows, else the default template's), entry.
+     */
     public function layout(string $type, string $variant): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $schema = $this->requireType($type, $variant);
+        $identifier = LayoutSchema::key($_GET['entry'] ?? '');
+        $sample = $variant === 'detail' && $identifier !== '' && ($_GET['area'] ?? '') === '' ? $this->findAdminEntry($type, $identifier) : null;
+        $area = $sample !== null ? $this->entryArea($type, $sample) : $this->requestedArea($type, $variant, $_GET['area'] ?? null);
 
         $context = $this->context();
 
         $this->json(['data' => [
-            'nodes' => $this->site->layout($type, $variant),
-            'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant)),
-            'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant),
-            'customized' => $this->site->layoutCustomized($type, $variant),
+            'area' => $area,
+            'areas' => $this->site->contentAreas($type, $variant),
+            'nodes' => $this->site->layout($type, $variant, $area),
+            'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant, $area)),
+            'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant, $area),
+            'customized' => $this->site->layoutCustomized($type, $variant, $area),
             // Reset to default loads this as an edit, so it can be undone before saving.
             'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
             'type' => $schema,
@@ -247,8 +294,9 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null));
-        $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant]);
+        $area = $this->requestedArea($type, $variant, $this->requestJson()['area'] ?? SiteRepository::DEFAULT_AREA);
+        $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null, $area));
+        $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant, 'area' => $area]);
         $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => true]]);
     }
 
@@ -257,9 +305,10 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $nodes = $this->site->resetLayout($type, $variant, $user);
-        $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant]);
-        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => false]]);
+        $area = $this->requestedArea($type, $variant, $_GET['area'] ?? SiteRepository::DEFAULT_AREA);
+        $nodes = $this->site->resetLayout($type, $variant, $user, 'reset', $area);
+        $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant, 'area' => $area]);
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => $area !== SiteRepository::DEFAULT_AREA]]);
     }
 
     // ─── Page content of one entry ───────────────────────────────────────────
@@ -277,12 +326,13 @@ final class SiteController extends BaseController
         $customized = LayoutSchema::hasPageContent($value);
 
         $this->json(['data' => [
-            'nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field),
+            'nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field, $entry),
             'revision' => (string) ($entry['revision'] ?? ''),
             'customized' => $customized,
-            'default_nodes' => $customized ? $this->defaultPage($type, $field) : null,
+            'default_nodes' => $customized ? $this->defaultPage($type, $field, $entry) : null,
             'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
-            'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]),
+            'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryArea($type, $entry)))[$field]),
+            'template' => $this->entryTemplate($type, $entry),
             'field' => $field,
             'samples' => $this->samples($type, $this->content()->stableId($entry)),
             'type' => $schema,
@@ -338,7 +388,7 @@ final class SiteController extends BaseController
             if ($revision['id'] === $revisionId) {
                 $value = $revision['entry'][$field] ?? null;
                 $customized = LayoutSchema::hasPageContent($value);
-                $this->json(['data' => ['nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field), 'customized' => $customized]]);
+                $this->json(['data' => ['nodes' => $customized ? LayoutSchema::pageNodes($value) : $this->defaultPage($type, $field, $entry), 'customized' => $customized]]);
             }
         }
 
@@ -369,17 +419,50 @@ final class SiteController extends BaseController
         return [$schema, $entry, $field, $user];
     }
 
-    /** A copy of the default content the detail layout shows in $field's place. */
-    private function defaultPage(string $type, string $field): array
+    /** A copy of the default content the entry's content area shows in $field's place. */
+    private function defaultPage(string $type, string $field, ?array $entry): array
     {
-        return LayoutSchema::withNewIds(LayoutSchema::pagePlaces($this->site->layout($type, 'detail'))[$field]['children'] ?? []);
+        return LayoutSchema::withNewIds(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryArea($type, $entry)))[$field]['children'] ?? []);
+    }
+
+    /**
+     * The template an entry's page uses, as the website resolves it:
+     * {id, name, content, header, footer, reason, conditions}.
+     */
+    private function entryTemplate(string $type, ?array $entry): array
+    {
+        $context = $this->context();
+        $found = $entry !== null ? $context->findEntry($type, $this->content()->stableId($entry), true) : null;
+        $resolved = $context->template($type, 'detail', $found);
+
+        return $resolved['template'] + ['reason' => $resolved['reason']];
+    }
+
+    /** The content area an entry's page shows. */
+    private function entryArea(string $type, ?array $entry): string
+    {
+        return $this->entryTemplate($type, $entry)['content'];
+    }
+
+    /** A content area of the page kind; none asked for means the one its default template shows. */
+    private function requestedArea(string $type, string $variant, mixed $area): string
+    {
+        if ($area === null || $area === '') {
+            $templates = $this->site->templates($type, $variant);
+            return $templates[array_key_last($templates)]['content'];
+        }
+        if (!is_string($area) || !$this->site->contentAreaExists($type, $variant, $area)) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Content area not found.']], 404);
+        }
+
+        return $area;
     }
 
     private function sendPage(string $type, string $field, array $entry): never
     {
         $customized = LayoutSchema::hasPageContent($entry[$field] ?? null);
         $this->json(['data' => [
-            'nodes' => $customized ? LayoutSchema::pageNodes($entry[$field]) : $this->defaultPage($type, $field),
+            'nodes' => $customized ? LayoutSchema::pageNodes($entry[$field]) : $this->defaultPage($type, $field, $entry),
             'revision' => (string) ($entry['revision'] ?? ''),
             'customized' => $customized,
         ]]);
@@ -545,7 +628,7 @@ final class SiteController extends BaseController
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->requireType($type, $variant);
-        $this->sendRevision($this->site->layoutRevision($type, $variant, $id));
+        $this->sendRevision($this->site->layoutRevision($type, $variant, $id, $this->requestedArea($type, $variant, $_GET['area'] ?? SiteRepository::DEFAULT_AREA)));
     }
 
     public function regionRevision(string $region, string $id): never
@@ -582,7 +665,7 @@ final class SiteController extends BaseController
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->requireType($type, $variant);
-        $this->json(['data' => $this->site->layoutRevisions($type, $variant)]);
+        $this->json(['data' => $this->site->layoutRevisions($type, $variant, $this->requestedArea($type, $variant, $_GET['area'] ?? SiteRepository::DEFAULT_AREA))]);
     }
 
     public function restoreLayoutRevision(string $type, string $variant, string $id): never
@@ -590,8 +673,9 @@ final class SiteController extends BaseController
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
-        $result = $this->site->restoreLayoutRevision($type, $variant, $id, $user);
-        $this->sendRestoredRevision($result, ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'revision' => $id]);
+        $area = $this->requestedArea($type, $variant, $_GET['area'] ?? SiteRepository::DEFAULT_AREA);
+        $result = $this->site->restoreLayoutRevision($type, $variant, $id, $user, $area);
+        $this->sendRestoredRevision($result, ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'area' => $area, 'revision' => $id]);
     }
 
     public function regionRevisions(string $region): never
@@ -621,7 +705,10 @@ final class SiteController extends BaseController
 
     /**
      * Render unsaved work. Body: {target: layout|region|component|entry_page|page,
-     * type, variant, region, component, field, nodes, entry, locale, theme, menus, frames, path}.
+     * type, variant, area, template, region, component, field, nodes, entry,
+     * locale, theme, menus, templates, path}. `template` previews a content
+     * area inside another template of its page kind. Layout and entry page
+     * previews also return the template shown ({id, name, …, reason}).
      */
     public function preview(): never
     {
@@ -647,8 +734,8 @@ final class SiteController extends BaseController
             }
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
-        if (is_array($body['frames'] ?? null)) {
-            $context->override('frames', $this->validated(fn() => $this->site->normalizeFrames($body['frames'], true)));
+        if (is_array($body['templates'] ?? null)) {
+            $context->override('templates', $this->validated(fn() => $this->site->validateTemplates($body['templates'])));
         }
 
         $locale = (new \CometCMS\Localization\LanguageSettings($this->site->workspace()))->requireLocale((string) ($body['locale'] ?? ''));
@@ -697,20 +784,29 @@ final class SiteController extends BaseController
             [$schema, , $field] = $this->requirePage($type, LayoutSchema::key($body['entry'] ?? ''), (string) ($body['field'] ?? ''));
             $context->locale = $locale;
             $context->pageDraft = ['field' => $field, 'nodes' => $this->validated(static fn() => LayoutSchema::normalize($body['nodes'] ?? []))];
+            if (is_string($body['template'] ?? null) && $body['template'] !== '') {
+                $context->override('template:' . $type . ':detail', $body['template']);
+            }
             $entry = $context->findEntry($type, $this->content()->stableId($this->findAdminEntry($type, LayoutSchema::key($body['entry'] ?? '')) ?? []), true);
             if ($entry === null) {
                 $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
             }
 
-            $this->json(['data' => ['html' => $renderer->pagePreview($schema, $entry, $field)]]);
+            $html = $renderer->pagePreview($schema, $entry, $field);
+            $this->json(['data' => ['html' => $html, 'template' => self::shownTemplate($renderer)]]);
         }
 
         $type = (string) ($body['type'] ?? '');
         $variant = (string) ($body['variant'] ?? 'detail');
         $schema = $this->requireType($type, $variant);
 
+        $area = $this->requestedArea($type, $variant, $body['area'] ?? SiteRepository::DEFAULT_AREA);
+
         if (array_key_exists('nodes', $body)) {
-            $context->override('layout:' . $type . ':' . $variant, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'], $variant === 'detail')));
+            $context->override('layout:' . $type . ':' . $variant . ':' . $area, $this->validated(static fn() => LayoutSchema::normalize($body['nodes'], $variant === 'detail')));
+        }
+        if (is_string($body['template'] ?? null) && $body['template'] !== '') {
+            $context->override('template:' . $type . ':' . $variant, $body['template']);
         }
 
         $context->locale = $locale;
@@ -718,7 +814,16 @@ final class SiteController extends BaseController
         $identifier = LayoutSchema::key($body['entry'] ?? '');
         $entry = $identifier !== '' ? $context->findEntry($type, $identifier, true) : null;
 
-        $this->json(['data' => ['html' => $renderer->layoutPreview($schema, $variant, $entry)]]);
+        $html = $renderer->layoutPreview($schema, $variant, $entry, $area);
+        $this->json(['data' => ['html' => $html, 'template' => self::shownTemplate($renderer)]]);
+    }
+
+    /** The template a builder preview showed around its content, for the builder's template indicator. */
+    private static function shownTemplate(PageRenderer $renderer): ?array
+    {
+        $shown = $renderer->template();
+
+        return $shown === null ? null : $shown['template'] + ['reason' => $shown['reason']];
     }
 
     /** Open unsaved editor state as a navigable, private snapshot. */
@@ -745,7 +850,7 @@ final class SiteController extends BaseController
         if (!in_array($target, ['entry', 'entry_page', 'layout', 'region', 'component'], true)) {
             throw new ValidationException(['target' => 'Choose a valid preview target.']);
         }
-        if ($target !== 'entry' || isset($body['theme']) || isset($body['menus']) || isset($body['frames'])) {
+        if ($target !== 'entry' || isset($body['theme']) || isset($body['menus']) || isset($body['templates'])) {
             $this->requirePermission('site.manage', ['resource' => 'site:*']);
         }
         if ((isset($body['theme']) && !is_array($body['theme'])) || (isset($body['menus']) && !is_array($body['menus']))) {
@@ -756,7 +861,7 @@ final class SiteController extends BaseController
             $this->site->validateMenus($body['menus'], false);
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
-        if (isset($body['frames'])) $context->override('frames', $this->site->normalizeFrames($body['frames'], true));
+        if (isset($body['templates'])) $context->override('templates', $this->site->validateTemplates($body['templates']));
         $locale = (string) ($body['locale'] ?? $context->defaultLocale());
         $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
         $drafts = [];
@@ -797,7 +902,10 @@ final class SiteController extends BaseController
             $variant = (string) ($body['variant'] ?? 'detail');
             $this->requireType($type, $variant);
             if (!$context->isPublicType($type)) $this->http->notFound();
-            $context->override('layout:' . $type . ':' . $variant, LayoutSchema::normalize($body['nodes'] ?? []));
+            $area = (string) ($body['area'] ?? SiteRepository::DEFAULT_AREA);
+            if (!$this->site->contentAreaExists($type, $variant, $area)) throw new ValidationException(['area' => 'Unknown content area.']);
+            $context->override('layout:' . $type . ':' . $variant . ':' . $area, LayoutSchema::normalize($body['nodes'] ?? []));
+            if (is_string($body['template'] ?? null) && $body['template'] !== '') $context->override('template:' . $type . ':' . $variant, $body['template']);
         } elseif ($target === 'region') {
             $region = (string) ($body['region'] ?? '');
             $this->requireRegion($region);

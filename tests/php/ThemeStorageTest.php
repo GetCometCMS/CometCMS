@@ -29,7 +29,7 @@ test('theme files store no save time and stay unchanged when saved unchanged', f
     $component = $site->createComponent('Promo', $section);
     $site->saveLayout('blog', 'detail', [comet_component_test_instance('p1', $component['id'])]);
     $site->saveRegion('footer', [comet_component_test_instance('p2', $component['id'])]);
-    $files = ['theme.json', 'components/promo.json', 'layouts/blog/detail.json', 'regions/footer.json'];
+    $files = ['theme.json', 'components/promo.json', 'content/blog/detail/default.json', 'regions/footer.json'];
     $before = [];
     foreach ($files as $file) {
         $before[$file] = file_get_contents($theme . '/' . $file);

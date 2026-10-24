@@ -8,6 +8,7 @@
     interactive
     @ready="attach"
     @updated="prepare"
+    @rendered="emit('rendered', $event)"
   />
 </template>
 
@@ -28,7 +29,8 @@ const props = defineProps({
   selectedTemplatePart: { type: String, default: null },
 });
 
-const emit = defineEmits(["keydown", "select-template-part", "edit-field", "switch-page-area"]);
+/** rendered: the preview's response data, e.g. the template it showed around the content. */
+const emit = defineEmits(["keydown", "select-template-part", "edit-field", "switch-page-area", "rendered"]);
 const builder = useSiteBuilder();
 const { t } = useI18n();
 const frameRef = ref(null);

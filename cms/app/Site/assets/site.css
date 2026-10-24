@@ -1088,6 +1088,17 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-admin-dropdown-panel .c-admin-icon { color: var(--c-admin-muted); }
 .c-admin-dropdown-panel .c-admin-action:hover .c-admin-icon { color: inherit; }
 .c-admin-languages .c-admin-dropdown-panel { min-width: 104px; }
+.c-admin-templates > summary:hover, .c-admin-templates[open] > summary { background: var(--c-admin-hover); }
+.c-admin-template-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.c-admin-templates .c-admin-dropdown-panel { left: 0; right: auto; min-width: 260px; max-width: min(320px, calc(100vw - 24px)); }
+.c-admin-template-reason { display: grid; gap: 2px; margin: 0; padding: 6px 10px 8px; color: var(--c-admin-muted); font-size: 12px; line-height: 1.4; }
+.c-admin-template-reason strong { color: var(--c-admin-text); font-size: 13px; }
+.c-preview-bar .c-admin-templates .c-admin-action { justify-content: space-between; }
+.c-admin-part { display: grid; min-width: 0; text-align: left; }
+.c-admin-part small { color: var(--c-admin-muted); font-size: 11px; }
+.c-admin-part > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-admin-action-static { cursor: default; }
+.c-admin-action-separated { margin-top: 4px; border-top: 1px solid var(--c-admin-border); border-top-left-radius: 0; border-top-right-radius: 0; }
 .c-preview-bar .c-admin-languages .c-admin-action { justify-content: space-between; }
 .c-admin-dropdown-panel .c-admin-action[aria-current] { background: var(--c-admin-hover); color: var(--c-admin-focus); }
 .c-admin-account { flex: none; padding-left: 12px; border-left: 1px solid var(--c-admin-border); }
@@ -1122,6 +1133,7 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
   .c-preview-bar .c-admin-action-primary { padding: 7px; margin-right: 0; }
   .c-admin-account { padding-left: 8px; }
   .c-admin-status { padding: 2px 7px; font-size: 11px; }
+  .c-admin-template-name { display: none; }
 }
 /* Phones: the page shows its own title; keep every action reachable instead. */
 @media (max-width: 480px) {

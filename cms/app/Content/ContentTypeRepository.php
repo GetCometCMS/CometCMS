@@ -206,7 +206,7 @@ final class ContentTypeRepository
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
         foreach ($fields as $key => &$config) {
-            if (in_array($key, ['values', 'publication', 'revision', 'reset_fields', 'locale', 'translations'], true)) throw new ValidationException(['fields' => 'This field key is reserved: ' . $key]);
+            if (in_array($key, ['values', 'publication', 'revision', 'reset_fields', 'locale', 'translations', 'page_template'], true)) throw new ValidationException(['fields' => 'This field key is reserved: ' . $key]);
             // Hierarchical entries keep their place in the tree under these keys.
             if (!empty($schema['hierarchical']) && in_array($key, ['parent', 'position'], true)) throw new ValidationException(['fields' => 'This field key is reserved for page hierarchies: ' . $key]);
             $config = $this->fieldMetadata($config, $languages['locales']);

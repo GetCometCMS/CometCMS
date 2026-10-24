@@ -703,7 +703,7 @@ final class ContentRepository
 
     private function stored(array $entry): array
     {
-        return array_intersect_key($entry, array_flip(['id', 'uid', 'collection', 'parent', 'position', 'values', 'publication', 'revision', 'created_at', 'updated_at', 'author_id', 'updated_by', 'deleted_at', 'deleted_by']));
+        return array_intersect_key($entry, array_flip(['id', 'uid', 'collection', 'parent', 'position', 'page_template', 'values', 'publication', 'revision', 'created_at', 'updated_at', 'author_id', 'updated_by', 'deleted_at', 'deleted_by']));
     }
 
     private function normalizeAndValidate(string $collection, array $payload, array $user, ?array $existing, bool $autoResolveSlugConflicts, ?array $validateOnlyFields = null): array
@@ -737,6 +737,13 @@ final class ContentRepository
                 : ($existing !== null && $entry['parent'] === $previousParent ? (int) ($entry['position'] ?? 0) : $this->nextPosition($collection, $entry['parent']));
             // Slugs only need to be unique among the pages that share a parent.
             $siblingsOf = $entry['parent'];
+        }
+        // The website template the entry's page uses instead of the automatic one (see SiteRepository::resolveTemplate()).
+        if (array_key_exists('page_template', $payload)) {
+            $picked = is_string($payload['page_template']) ? trim($payload['page_template']) : '';
+            if ($picked !== '' && !preg_match('/^[A-Za-z0-9_-]{1,80}$/', $picked)) $errors['page_template'] = 'Choose a template of this content type.';
+            elseif ($picked === '') unset($entry['page_template']);
+            else $entry['page_template'] = $picked;
         }
         $fields = $schema['fields'];
         foreach ($fields as $name => $config) {

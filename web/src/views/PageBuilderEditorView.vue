@@ -51,6 +51,11 @@
         </template>
       </nav>
 
+      <!-- Which template the canvas shows around the content area, and why. -->
+      <div v-if="templateMenu" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 lg:flex">
+        <BuilderTemplateMenu v-bind="templateMenu" @preview="previewWith" @area="openArea" @new-area="areaDialogOpen = true" />
+      </div>
+
       <div class="ml-auto flex min-w-0 items-center gap-1.5">
         <div v-if="locales.length > 1" class="topbar-group hidden md:flex">
           <!-- The language also sets the mode: other languages only translate texts. -->
@@ -95,7 +100,7 @@
 
         <SplitButton
           variant="inverse"
-          :primary-disabled="saving || loading || switching || (!layoutSavable && !themeDirty && !framesDirty && !entryFields.isDirty.value)"
+          :primary-disabled="saving || loading || switching || (!layoutSavable && !themeDirty && !templatesDirty && !entryFields.isDirty.value)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
@@ -103,7 +108,7 @@
         >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <template #badge>
-            <span v-if="(builder.isDirty.value || themeDirty || framesDirty || entryFields.isDirty.value) && !saving" class="topbar-save-badge pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2"></span>
+            <span v-if="(builder.isDirty.value || themeDirty || templatesDirty || entryFields.isDirty.value) && !saving" class="topbar-save-badge pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2"></span>
           </template>
         </SplitButton>
       </div>
@@ -242,7 +247,7 @@
             />
             <BuilderHistory
               v-else
-              :key="`layout-${historyVersion}`"
+              :key="`layout-${historyVersion}-${area}`"
               :fetch-revisions="fetchRevisions"
               :fetch-revision="fetchRevision"
               :busy="saving"
@@ -254,7 +259,7 @@
 
       <!-- Canvas -->
       <main class="builder-stage order-1 min-w-0 flex-1" :class="device === 'full' ? 'p-0' : 'p-2 xl:p-4'">
-        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" @edit-field="editEntryField" @switch-page-area="selectPageArea" />
+        <BuilderCanvas ref="canvasRef" :body="previewBody" :device="device" :selected-template-part="selectedTemplatePart" @keydown="onKeydown" @select-template-part="selectedTemplatePart = $event" @edit-field="editEntryField" @switch-page-area="selectPageArea" @rendered="onRendered" />
       </main>
 
       <div
@@ -283,6 +288,18 @@
       :loading="converting"
       @update:model-value="(open) => { if (!open) builder.componentDialog.value = null }"
       @confirm="convert"
+    />
+
+    <ComponentNameModal
+      v-model="areaDialogOpen"
+      :title="t('site.templates.newAreaTitle')"
+      :message="t('site.templates.newAreaMessage', { name: areaLabel(t, area, areas) })"
+      :confirm-label="t('site.templates.createArea')"
+      :label="t('site.templates.areaName')"
+      :placeholder="t('site.templates.areaNamePlaceholder')"
+      icon="mdi:file-document-plus-outline"
+      :loading="creatingArea"
+      @confirm="createArea"
     />
 
     <ComponentNameModal
@@ -346,6 +363,7 @@ import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
 import BuilderGuide from "../components/site/builder/BuilderGuide.vue";
 import BuilderHelpMenu from "../components/site/builder/BuilderHelpMenu.vue";
 import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
+import BuilderTemplateMenu from "../components/site/builder/BuilderTemplateMenu.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import LanguageTabs from "../components/LanguageTabs.vue";
 import { api } from "../api/index.js";
@@ -354,7 +372,7 @@ import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
 import { usePermissions } from "../composables/usePermissions.js";
 import { MODAL, findNode } from "../composables/layoutTree.js";
-import { FRAME_DEFAULT, FRAME_NONE, FRAME_REGIONS, frameComponents, frameValue, withFrame } from "../composables/frames.js";
+import { DEFAULT_AREA, FRAME_DEFAULT, FRAME_NONE, FRAME_REGIONS, areaLabel, frameComponents, templateById, templateList, templateName, withTemplate } from "../composables/templates.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
@@ -417,17 +435,17 @@ const builder = createSiteBuilder({
   },
   // Design and header/footer assignments are undone and redone together with layout edits.
   linked: {
-    get: () => site.draft ? { theme: site.draft.theme, frames: site.draft.frames } : null,
+    get: () => site.draft ? { theme: site.draft.theme, templates: site.draft.templates } : null,
     set: (linked) => {
       if (!site.draft || !linked) return;
       site.draft.theme = linked.theme;
-      site.draft.frames = linked.frames ?? {};
+      site.draft.templates = linked.templates ?? {};
     },
   },
 });
 // Record design edits together with layout edits, including revision loading.
 let changingRevisionTheme = false;
-watch(() => [site.draft?.theme, site.draft?.frames], () => {
+watch(() => [site.draft?.theme, site.draft?.templates], () => {
   builder.linkedChanged({ record: !changingRevisionTheme && !site.saving && !site.loading });
 }, { deep: true, flush: "sync" });
 
@@ -464,13 +482,13 @@ function cancelRevision(scope) {
 
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
-/** Header and footer assignments are saved with the layout, but stored apart (see SiteRepository::frames()). */
-const framesDirty = computed(() => site.dirtyParts.includes("frames"));
+/** Template changes (parts assigned in the inspector) are saved with the layout, but stored apart (see SiteRepository::templates()). */
+const templatesDirty = computed(() => site.dirtyParts.includes("templates"));
 /** The pending design edits include the custom stylesheet, or are only that. */
 const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_css ?? "") !== (site.data?.theme?.custom_css ?? ""));
 const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
-  (to) => builder.isDirty.value || entryFields.isDirty.value || ((themeDirty.value || framesDirty.value) && !isBuilderPath(to?.path)),
+  (to) => builder.isDirty.value || entryFields.isDirty.value || ((themeDirty.value || templatesDirty.value) && !isBuilderPath(to?.path)),
   { guardUpdates: true },
 );
 
@@ -530,9 +548,13 @@ function contextFor(to) {
     pageEntry: page ? String(to.params.variant ?? "") : "",
     variant: page ? "detail" : String(to.params.variant || "detail"),
     field: page && typeof to.query.field === "string" ? to.query.field : "",
+    /** The content area of a layout; empty lets the server pick the one the entry's template shows. */
+    area: !page && typeof to.query.area === "string" ? to.query.area : "",
   };
 }
-const sameContext = (a, b) => ["target", "name", "pageEntry", "variant", "field"].every((key) => a[key] === b[key]);
+// No area asked for means whichever area is loaded.
+const sameContext = (a, b) => ["target", "name", "pageEntry", "variant", "field"].every((key) => a[key] === b[key])
+  && (a.area === b.area || !a.area || !b.area);
 /** What the builder shows. Moving to another builder page keeps this one until the next one's content arrives. */
 const shown = ref(contextFor(route));
 /** What the builder shows or is loading: the latest request wins. */
@@ -757,12 +779,12 @@ const subheading = computed(() => {
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
   if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
-  return t(`site.variant.${variant.value}`);
+  return `${t(`site.variant.${variant.value}`)} · ${areaLabel(t, area.value, areas.value)}`;
 });
 
 const saveStatus = computed(() => {
   if (saving.value) return "saving";
-  return builder.isDirty.value || themeDirty.value || framesDirty.value || entryFields.isDirty.value ? "unsaved" : "saved";
+  return builder.isDirty.value || themeDirty.value || templatesDirty.value || entryFields.isDirty.value ? "unsaved" : "saved";
 });
 
 /** What the inspector shows while nothing is selected. */
@@ -802,43 +824,113 @@ const previewBody = computed(() => {
   const theme = {
     ...(site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {}),
     ...(site.draft?.menus ? { menus: site.draft.menus } : {}),
-    ...(site.draft?.frames ? { frames: site.draft.frames } : {}),
+    ...(site.draft?.templates ? { templates: site.draft.templates } : {}),
     entries: entryFields.previewEntries(),
   };
   if (target.value === "component") {
     return { target: "component", component: name.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
   }
+  const template = previewTemplate.value ? { template: previewTemplate.value } : {};
   if (target.value === "page") {
-    return { target: "entry_page", type: name.value, entry: pageEntry.value, field: pageField.value, nodes: builder.nodes.value, locale: locale.value, ...theme };
+    return { target: "entry_page", type: name.value, entry: pageEntry.value, field: pageField.value, nodes: builder.nodes.value, locale: locale.value, ...template, ...theme };
   }
   return target.value === "region"
     ? { target: "region", region: name.value, nodes: builder.nodes.value, locale: locale.value, ...theme }
-    : { target: "layout", type: name.value, variant: variant.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+    : { target: "layout", type: name.value, variant: variant.value, area: area.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...template, ...theme };
 });
 
 function isBuilderPath(path) {
   return typeof path === "string" && path.startsWith("/page-builder/builder/");
 }
 
-/** The layout whose header and footer the canvas shows, when there is one. */
+/** The page kind whose templates the canvas shows, when there is one. */
 const frameLayout = computed(() => ["layout", "page"].includes(target.value) && builder.type.value
   ? { type: name.value, variant: target.value === "page" ? "detail" : variant.value } : null);
 
-/** What the selected header or footer shows on this layout, and what else it may show. */
+/** The template the preview last showed around the content: `{ …template, reason }`. */
+const shownTemplate = ref(null);
+function onRendered(data) {
+  shownTemplate.value = data?.template ?? null;
+}
+
+/** The shown template as the draft has it now: the inspector assigns its header and footer. */
+const shownDraft = computed(() => {
+  const layout = frameLayout.value;
+  return layout && shownTemplate.value ? templateById(site.draft?.templates, layout.type, layout.variant, shownTemplate.value.id) : null;
+});
+
+/** The template chosen to preview with ("" for the one the page uses). */
+const previewTemplate = ref(typeof route.query.template === "string" ? route.query.template : "");
+watch(() => route.query.template, (value) => { previewTemplate.value = typeof value === "string" ? value : ""; });
+function previewWith(id) {
+  router.replace({ query: { ...route.query, template: id || undefined } });
+}
+
+/** Content areas of the page kind; templates choose one of them. */
+const areas = ref([]);
+const area = computed(() => shown.value.area || DEFAULT_AREA);
+function openArea(id) {
+  const entry = sampleId.value || pageEntryId.value;
+  const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
+  router.push({ path: `/page-builder/builder/layout/${name.value}/${frameLayout.value?.variant ?? variant.value}`, query: { area: id, ...(entry ? { entry } : {}), ...(previewTemplate.value ? { template: previewTemplate.value } : {}), ...back } });
+}
+
+const areaDialogOpen = ref(false);
+const creatingArea = ref(false);
+/** A new content area, starting as a copy of the one being edited (its saved version). */
+async function createArea(areaName) {
+  const layout = frameLayout.value;
+  if (!layout || creatingArea.value) return;
+  creatingArea.value = true;
+  try {
+    const from = target.value === "page" ? shownTemplate.value?.content ?? DEFAULT_AREA : area.value;
+    const created = (await api.site.createContentArea(layout.type, layout.variant, areaName, from)).data;
+    areas.value = [...areas.value, created];
+    site.setContentAreas(layout.type, layout.variant, areas.value);
+    areaDialogOpen.value = false;
+    toast.success(t("site.templates.areaCreated", { name: created.name }));
+    openArea(created.id);
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    creatingArea.value = false;
+  }
+}
+
+/** The top bar's template menu, for layouts and entry pages. */
+const templateMenu = computed(() => {
+  const layout = frameLayout.value;
+  if (!layout) return null;
+  return {
+    shown: shownTemplate.value ? { ...(shownDraft.value ?? shownTemplate.value), reason: shownTemplate.value.reason } : null,
+    templates: templateList(site.draft?.templates, layout.type, layout.variant),
+    previewed: previewTemplate.value,
+    type: layout.type,
+    variant: layout.variant,
+    schema: builder.type.value,
+    area: target.value === "page" ? shownTemplate.value?.content ?? DEFAULT_AREA : area.value,
+    areas: areas.value.length ? areas.value : site.data?.content_areas?.[layout.type]?.[layout.variant] ?? [],
+    components: builder.components.value,
+  };
+});
+
+/** What the selected header or footer shows in the shown template, and what else it may show. */
 const selectedFrame = computed(() => {
   const layout = frameLayout.value;
-  if (!layout || !FRAME_REGIONS.includes(selectedTemplatePart.value)) return null;
+  const template = shownDraft.value;
+  if (!layout || !template || !FRAME_REGIONS.includes(selectedTemplatePart.value)) return null;
   return {
-    value: frameValue(site.draft?.frames, layout.type, layout.variant, selectedTemplatePart.value),
+    value: template[selectedTemplatePart.value],
     components: frameComponents(builder.components.value, layout.type),
-    scope: `${builder.type.value.label} · ${t(`site.variant.${layout.variant}`)}`,
+    scope: templateName(t, template),
   };
 });
 
 function assignTemplatePart(part, value) {
   const layout = frameLayout.value;
-  if (!layout || !site.draft || !FRAME_REGIONS.includes(part)) return;
-  site.draft.frames = withFrame(site.draft.frames, layout.type, layout.variant, part, value);
+  const template = shownDraft.value;
+  if (!layout || !template || !site.draft || !FRAME_REGIONS.includes(part)) return;
+  site.draft.templates = withTemplate(site.draft.templates, layout.type, layout.variant, template.id, { [part]: value });
 }
 
 function editTemplatePart(part) {
@@ -894,7 +986,7 @@ async function load(next = requested) {
     let res;
     if (target === "page") res = await api.site.page(name, pageEntry, field);
     else if (target === "region") res = await api.site.region(name);
-    else res = target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry);
+    else res = target === "component" ? await api.site.component(name, entry) : await api.site.layout(name, variant, entry, next.area);
     if (current !== loadSequence) return;
     const data = res.data;
     const moved = !sameContext(next, shown.value);
@@ -931,6 +1023,15 @@ async function load(next = requested) {
       pageTitle.value = data.entry?.title ?? "";
       pageEntryId.value = data.entry?.id || pageEntry;
     }
+    if (target === "layout") {
+      // The server picks the area when none was asked for.
+      requested = shown.value = { ...shown.value, area: data.area };
+      areas.value = data.areas ?? [];
+      site.setContentAreas(name, variant, areas.value);
+    } else if (moved) {
+      areas.value = [];
+    }
+    if (moved) shownTemplate.value = null;
     layoutCustomized.value = !!data.customized;
     defaultNodes.value = data.default_nodes ?? (target === "page" ? data.nodes : null);
     upgradeRequired.value = !!data.upgrade_required;
@@ -971,9 +1072,9 @@ async function load(next = requested) {
 async function save() {
   const saveLayout = layoutSavable.value;
   const saveTheme = themeDirty.value;
-  const saveFrames = framesDirty.value;
+  const saveTemplates = templatesDirty.value;
   const saveContent = entryFields.isDirty.value;
-  if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveFrames && !saveContent)) return;
+  if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveTemplates && !saveContent)) return;
   saving.value = true;
 
   try {
@@ -999,13 +1100,13 @@ async function save() {
           ? await api.site.resetPage(name.value, pageEntry.value, pageField.value, layoutRevision.value)
           : await api.site.savePage(name.value, pageEntry.value, pageField.value, nodes, layoutRevision.value);
       } else if (restoreDefault) {
-        res = target.value === "region" ? await api.site.resetRegion(name.value) : await api.site.resetLayout(name.value, variant.value);
+        res = target.value === "region" ? await api.site.resetRegion(name.value) : await api.site.resetLayout(name.value, variant.value, area.value);
       } else if (target.value === "region") {
         res = await api.site.saveRegion(name.value, nodes, layoutRevision.value);
       } else if (target.value === "component") {
         res = await api.site.saveComponent(name.value, nodes, layoutRevision.value);
       } else {
-        res = await api.site.saveLayout(name.value, variant.value, nodes, layoutRevision.value);
+        res = await api.site.saveLayout(name.value, variant.value, nodes, layoutRevision.value, area.value);
       }
       builder.markSaved(res.data.nodes);
       layoutRevision.value = res.data.revision;
@@ -1014,7 +1115,7 @@ async function save() {
       if (target.value === "component") component.value = res.data.component;
       else if (target.value === "page") savedPage(res.data);
       else {
-        site.markCustomized(target.value, name.value, variant.value, res.data.customized);
+        if (target.value === "region" || area.value === DEFAULT_AREA) site.markCustomized(target.value, name.value, variant.value, res.data.customized);
         layoutCustomized.value = res.data.customized;
       }
     }
@@ -1022,7 +1123,7 @@ async function save() {
       await site.save({ parts: ["theme"] });
       loadedRevisions.value.theme = null;
     }
-    if (saveFrames) await site.save({ parts: ["frames"] });
+    if (saveTemplates) await site.save({ parts: ["templates"] });
     if (!builder.isDirty.value) loadedRevisions.value.layout = null;
     if (!themeDirty.value) loadedRevisions.value.theme = null;
     historyVersion.value++;
@@ -1045,13 +1146,13 @@ async function save() {
 function fetchRevisions() {
   if (target.value === "page") return api.site.pageRevisions(name.value, pageEntry.value, pageField.value);
   if (target.value === "component") return api.site.componentRevisions(name.value);
-  return target.value === "region" ? api.site.regionRevisions(name.value) : api.site.layoutRevisions(name.value, variant.value);
+  return target.value === "region" ? api.site.regionRevisions(name.value) : api.site.layoutRevisions(name.value, variant.value, area.value);
 }
 
 function fetchRevision(id) {
   if (target.value === "page") return api.site.pageRevision(name.value, pageEntry.value, pageField.value, id);
   if (target.value === "component") return api.site.componentRevision(name.value, id);
-  return target.value === "region" ? api.site.regionRevision(name.value, id) : api.site.layoutRevision(name.value, variant.value, id);
+  return target.value === "region" ? api.site.regionRevision(name.value, id) : api.site.layoutRevision(name.value, variant.value, id, area.value);
 }
 
 function onRevisionLoaded(data, revision) {

@@ -257,8 +257,8 @@ test('default and legacy builder designs can be saved with their loaded revision
 
     foreach ([false, true] as $legacy) {
         foreach ([['about', 'detail'], ['blog', 'detail'], ['blog', 'index']] as [$type, $variant]) {
-            $theme->delete('layouts', $type, $variant);
-            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'layouts', $type, $variant);
+            $theme->delete('content', $type, $variant, 'default');
+            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'content', $type, $variant, 'default');
             $site = new SiteRepository();
             assert_same($legacy, $site->needsLayoutUpgrade($type, $variant));
             $nodes = $site->layout($type, $variant);
@@ -606,7 +606,7 @@ test('layout previews annotate nodes and render unsaved changes', function (): v
     $context = comet_site_test_context();
     $context->preview = true;
     $context->annotate = true;
-    $context->override('layout:blog:detail', LayoutSchema::normalize([
+    $context->override('layout:blog:detail:default', LayoutSchema::normalize([
         ['id' => 'sec1', 'kind' => 'section', 'children' => [
             ['id' => 'row1', 'kind' => 'row', 'children' => [
                 ['id' => 'col1', 'kind' => 'column', 'children' => [
@@ -632,7 +632,7 @@ test('layout previews of a draft resolve its publish date', function (): void {
     $context = comet_site_test_context();
     $context->preview = true;
     $context->annotate = true;
-    $context->override('layout:blog:detail', LayoutSchema::normalize([
+    $context->override('layout:blog:detail:default', LayoutSchema::normalize([
         ['id' => 'sec1', 'kind' => 'section', 'children' => [
             ['id' => 'row1', 'kind' => 'row', 'children' => [
                 ['id' => 'col1', 'kind' => 'column', 'children' => [
@@ -841,8 +841,8 @@ test('deleting a content type removes its website layouts and route', function (
 
     (new ContentTypeRepository())->delete('blog');
 
-    assert_null($theme->read('layouts', 'blog', 'index'));
-    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
+    assert_null($theme->read('content', 'blog', 'index', 'default'));
+    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('content', 'blog', 'index', 'default'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });
 

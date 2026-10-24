@@ -432,14 +432,20 @@ export const api = {
     themeRevision: (id) => request('GET', `/site/theme/revisions/${encodeURIComponent(id)}`),
     restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
     saveMenus:    (menus, revision)      => request('PUT',    '/site/menus', { menus, revision }),
-    saveFrames:   (frames, revision)     => request('PUT',    '/site/frames', { frames, revision }),
+    /** Templates of some page kinds: `{ type: { variant: [template, …] } }`; page kinds left out stay. */
+    saveTemplates: (templates, revision) => request('PUT',    '/site/templates', { templates, revision }),
     cardTemplate: (type) => request('GET', `/site/card-template/${type}`),
-    layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
-    saveLayout:   (type, variant, nodes, revision) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes, revision }),
-    resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),
-    layoutRevisions: (type, variant) => request('GET', `/site/layouts/${type}/${variant}/revisions`),
-    layoutRevision: (type, variant, id) => request('GET', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`),
-    restoreLayoutRevision: (type, variant, id) => request('POST', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`),
+    /** A content area of a page kind; without `area`, the one the entry's (or the default) template shows. */
+    layout:       (type, variant, entry = '', area = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, { ...(entry ? { entry } : {}), ...(area ? { area } : {}) })),
+    saveLayout:   (type, variant, nodes, revision, area = 'default') => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes, revision, area }),
+    resetLayout:  (type, variant, area = 'default') => request('DELETE', withQuery(`/site/layouts/${type}/${variant}`, { area })),
+    layoutRevisions: (type, variant, area = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions`, { area })),
+    layoutRevision: (type, variant, id, area = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`, { area })),
+    restoreLayoutRevision: (type, variant, id, area = 'default') => request('POST', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`, { area })),
+    /** A new content area, copied from `from` (default: the default area). */
+    createContentArea: (type, variant, name, from = 'default') => request('POST', `/site/layouts/${type}/${variant}/areas`, { name, from }),
+    renameContentArea: (type, variant, area, name) => request('PATCH', `/site/layouts/${type}/${variant}/areas/${encodeURIComponent(area)}`, { name }),
+    deleteContentArea: (type, variant, area) => request('DELETE', `/site/layouts/${type}/${variant}/areas/${encodeURIComponent(area)}`),
     /** An entry's own page content ({ field } picks the page field; the type's first by default). */
     page:         (type, id, field = '') => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}`, field ? { field } : {})),
     savePage:     (type, id, field, nodes, revision) => request('PUT', `/site/pages/${type}/${encodeURIComponent(id)}`, { field, nodes, revision }),

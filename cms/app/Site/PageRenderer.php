@@ -15,6 +15,7 @@ final class PageRenderer
 {
     private NodeRenderer $nodes;
     private ?\Closure $savedRender = null;
+    private ?array $template = null;
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -35,7 +36,8 @@ final class PageRenderer
         $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->entryPath($name, $entry) === '/';
         $state = $this->state($entry, $type, $url, $page, $this->entryAlternates($type, $entry));
-        $main = $this->nodes->render($this->ctx->layout($name, 'detail'), $state);
+        $state['template'] = $this->pageTemplate($name, 'detail', $entry);
+        $main = $this->nodes->render($this->ctx->layout($name, 'detail', $state['template']['template']['content']), $state);
         $title = (string) ($entry['title'] ?? '');
 
         return $this->document([
@@ -45,7 +47,6 @@ final class PageRenderer
             'canonical' => $url,
             'og_type' => $isHome ? 'website' : 'article',
             'body_class' => 'c-type-' . $name . ' c-view-detail' . ($isHome ? ' c-view-home' : ''),
-            'frame' => [$name, 'detail'],
             'published_at' => (string) ($entry['published_at'] ?? ''),
         ], $main, $state);
     }
@@ -62,7 +63,8 @@ final class PageRenderer
         }
 
         $state = $this->state(null, $type, $url, $page, $alternates);
-        $main = $this->nodes->render($this->ctx->layout($name, 'index'), $state);
+        $state['template'] = $this->pageTemplate($name, 'index', null);
+        $main = $this->nodes->render($this->ctx->layout($name, 'index', $state['template']['template']['content']), $state);
         $route = $this->ctx->route($name);
         $title = (string) (($route['index_title'] ?? '') ?: $type['label']);
 
@@ -72,7 +74,6 @@ final class PageRenderer
             'canonical' => $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : ''),
             'og_type' => 'website',
             'body_class' => 'c-type-' . $name . ' c-view-index' . ($isHome ? ' c-view-home' : ''),
-            'frame' => [$name, 'index'],
         ], $main, $state);
     }
 
@@ -129,15 +130,15 @@ final class PageRenderer
      * Builder preview of one layout. Only the edited layout carries node
      * annotations; header and footer are shown for context.
      */
-    public function layoutPreview(array $type, string $variant, ?array $entry): string
+    public function layoutPreview(array $type, string $variant, ?array $entry, string $area = SiteRepository::DEFAULT_AREA): string
     {
-        $this->savedRender = function (SiteContext $saved) use ($type, $variant, $entry): string {
+        $this->savedRender = function (SiteContext $saved) use ($type, $variant, $entry, $area): string {
             $original = $entry !== null ? $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true) : null;
-            return (new self($saved))->layoutPreview($type, $variant, $original);
+            return (new self($saved))->layoutPreview($type, $variant, $original, $area);
         };
         $name = (string) $type['name'];
         $entry ??= $this->sampleEntry($type);
-        $layout = $this->ctx->layout($name, $variant);
+        $layout = $this->ctx->layout($name, $variant, $area);
 
         if ($variant === 'index') {
             $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
@@ -152,13 +153,13 @@ final class PageRenderer
             $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
         }
 
+        $state['template'] = $this->areaTemplate($name, $variant, $variant === 'index' ? null : $entry, $area);
         $main = $this->nodes->render($layout, $state);
 
         return $this->document([
             'title' => $this->pageTitle((string) ($variant === 'index' ? $type['label'] : ($entry['title'] ?? ''))),
             'noindex' => true,
             'body_class' => 'c-type-' . $name . ' c-view-' . $variant,
-            'frame' => [$name, $variant],
         ], $main, $state, true, true);
     }
 
@@ -171,19 +172,20 @@ final class PageRenderer
     public function pagePreview(array $type, array $entry, string $field): string
     {
         $name = (string) $type['name'];
-        $layout = $this->ctx->layout($name, 'detail');
+        $template = $this->pageTemplate($name, 'detail', $entry);
+        $layout = $this->ctx->layout($name, 'detail', $template['template']['content']);
         if (!isset(LayoutSchema::pagePlaces($layout)[$field])) {
             $layout[] = LayoutSchema::node(LayoutSchema::PAGE_CONTENT, ['field' => $field]);
         }
         $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
         $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
+        $state['template'] = $template;
         $main = $this->nodes->renderPlain($layout, $state);
 
         return $this->document([
             'title' => $this->pageTitle((string) ($entry['title'] ?? '')),
             'noindex' => true,
             'body_class' => 'c-type-' . $name . ' c-view-detail c-view-page-edit',
-            'frame' => [$name, 'detail'],
         ], $main, $state, true, true, 'page');
     }
 
@@ -245,6 +247,39 @@ final class PageRenderer
         ], '<div data-drop-root>' . $html . '</div>', $state, false);
     }
 
+    /**
+     * The template a page uses: {type, variant, template, reason}; see
+     * SiteContext::template(). Kept for the builder after rendering.
+     */
+    private function pageTemplate(string $type, string $variant, ?array $entry): array
+    {
+        return $this->template = ['type' => $type, 'variant' => $variant] + $this->ctx->template($type, $variant, $entry);
+    }
+
+    /**
+     * The template the builder shows around a content area: the page's own
+     * when it uses this area, else the first template that does. An area no
+     * template uses keeps the page's header and footer ("unused").
+     */
+    private function areaTemplate(string $type, string $variant, ?array $entry, string $area): array
+    {
+        $resolved = $this->pageTemplate($type, $variant, $entry);
+        if ($resolved['reason'] === 'previewed' || $resolved['template']['content'] === $area) {
+            return $resolved;
+        }
+        foreach ($this->ctx->templates($type, $variant) as $template) {
+            if ($template['content'] === $area) return $this->template = ['template' => $template, 'reason' => 'area'] + $resolved;
+        }
+
+        return $this->template = ['reason' => 'unused'] + $resolved;
+    }
+
+    /** The template the last rendered page used, if any. */
+    public function template(): ?array
+    {
+        return $this->template;
+    }
+
     public function sampleEntry(array $type): array
     {
         return [
@@ -266,7 +301,7 @@ final class PageRenderer
      * @param bool $plainRegions render header/footer without builder annotations
      * @param string $annotatedRegion the region being edited in the builder
      *
-     * $meta['frame'] ([type, variant]) names the layout whose header and footer the page shows.
+     * $state['template'] (see pageTemplate()) gives the header and footer; pages without one show the site's own.
      */
     private function document(array $meta, string $main, array $state, bool $withRegions = true, bool $plainRegions = false, string $annotatedRegion = ''): string
     {
@@ -277,9 +312,9 @@ final class PageRenderer
 
         if ($withRegions && !$embed) {
             $regionState = $state;
-            [$frameType, $frameVariant] = $meta['frame'] ?? [null, null];
-            $render = function (string $region, string $tag) use ($regionState, $plainRegions, $annotatedRegion, $frameType, $frameVariant): string {
-                $nodes = $this->ctx->frameNodes($region, $frameType, $frameVariant);
+            $template = $state['template'] ?? null;
+            $render = function (string $region, string $tag) use ($regionState, $plainRegions, $annotatedRegion, $template): string {
+                $nodes = $this->ctx->partNodes($region, (string) ($template['template'][$region] ?? LayoutSchema::FRAME_DEFAULT), (string) ($template['type'] ?? ''));
                 $dropRoot = $this->ctx->annotate && $annotatedRegion === $region ? ' data-drop-root' : '';
                 if ($nodes === null) {
                     // The builder keeps a removed header or footer selectable, to bring it back.

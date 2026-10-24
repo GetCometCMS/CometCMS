@@ -138,7 +138,7 @@ test('deleting a component detaches all placements and removes its history', fun
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id']) + ['name' => 'Footer promo']]);
     $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
     assert_same([
-        ['target' => 'layout', 'type' => 'blog', 'variant' => 'index'],
+        ['target' => 'layout', 'type' => 'blog', 'variant' => 'index', 'area' => 'default'],
         ['target' => 'region', 'region' => 'footer'],
     ], $site->componentUsages($component['id']));
     $cache = ApiCache::fromConfig();
@@ -188,12 +188,12 @@ test('deleting a nested column component preserves widths and detaches saved his
     assert_same([$outer['id']], LayoutSchema::componentRefs($site->layout('blog', 'detail')), 'Other component links stay intact.');
 
     $revisions = new JsonStore(comet_test_workspace_path() . '/revisions/site');
-    foreach ([['layouts', 'about', 'detail'], ['regions', 'header'], ['components', $outer['id']]] as $path) {
+    foreach ([['content', 'about', 'detail', 'default'], ['regions', 'header'], ['components', $outer['id']]] as $path) {
         foreach ($revisions->all(...$path) as $revision) {
             assert_same([], LayoutSchema::componentRefs($revision['snapshot']['nodes']));
         }
     }
-    $savedLayout = array_values(array_filter($revisions->all('layouts', 'about', 'detail'), static fn(array $revision): bool => $revision['snapshot']['nodes'] !== [] && $revision['snapshot']['customized']))[0];
+    $savedLayout = array_values(array_filter($revisions->all('content', 'about', 'detail', 'default'), static fn(array $revision): bool => $revision['snapshot']['nodes'] !== [] && $revision['snapshot']['customized']))[0];
     $restored = $site->restoreLayoutRevision('about', 'detail', $savedLayout['id']);
     assert_same('Kept heading', $restored['nodes'][0]['children'][0]['children'][0]['children'][0]['props']['text']);
     assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'Missing component'));
