@@ -13,10 +13,22 @@
         <p class="topbar-muted truncate text-[11px] leading-tight">{{ subheading }}</p>
       </div>
 
-      <!-- The layers of one content type: an entry's own page content, the entry page around it, the list page. -->
-      <nav v-if="views.length || (showsSamples && samples.length)" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
+      <!-- The entry the canvas previews, and the way into its own page content. Page kinds switch in the page menu. -->
+      <nav v-if="pageView || (showsSamples && samples.length)" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
         <BuilderEntrySwitcher
-          v-if="showsSamples && !views.some((item) => item.key === 'page') && samples.length"
+          v-if="pageView"
+          :label="pageView.label"
+          :title="pageView.title"
+          :icon="pageView.icon"
+          :active="target === 'page'"
+          :model-value="target === 'page' ? pageEntryId : sampleId"
+          :entries="samples"
+          :disabled="saving || loading"
+          @navigate="goToView(pageView)"
+          @update:model-value="selectEntry"
+        />
+        <BuilderEntrySwitcher
+          v-else
           :label="samples.find((entry) => entry.id === sampleId)?.title || sampleId"
           :model-value="sampleId"
           :entries="samples"
@@ -24,31 +36,6 @@
           :disabled="saving || loading"
           @update:model-value="selectEntry"
         />
-        <template v-for="item in views" :key="item.key">
-          <BuilderEntrySwitcher
-            v-if="item.key === 'page'"
-            :label="item.label"
-            :title="item.title"
-            :icon="item.icon"
-            :active="currentView === 'page'"
-            :model-value="target === 'page' ? pageEntryId : sampleId"
-            :entries="samples"
-            :disabled="saving || loading"
-            @navigate="goToView(item)"
-            @update:model-value="selectEntry"
-          />
-          <button
-            v-else
-            type="button"
-            class="topbar-view flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-            :aria-pressed="item.key === currentView"
-            :title="item.title"
-            @click="goToView(item)"
-          >
-            <Icon :icon="item.icon" class="h-3.5 w-3.5 shrink-0" />
-            <span class="truncate">{{ item.label }}</span>
-          </button>
-        </template>
       </nav>
 
       <!-- Which template the canvas shows around the content area, and why. -->
@@ -378,7 +365,6 @@ import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { resolveLocalized } from "../composables/localizedValues.js";
-import { hasListPage } from "../composables/siteLinks.js";
 import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
@@ -723,34 +709,23 @@ watch([previewEntry, locale], async ([entry]) => {
 });
 
 /**
- * The layers of the edited content type, to move between them without
- * losing the entry or where the builder was opened from: the entry's own
- * page content (when the type has a page field), its entry page and the list page.
+ * The entry's own page content, when the type has a page field: reached from
+ * its entry page without losing the entry or where the builder was opened from.
  */
-const views = computed(() => {
+const pageView = computed(() => {
   const type = builder.type.value;
-  if (!["layout", "page"].includes(target.value) || !type) return [];
-  const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
+  if (!type || !(target.value === "page" || (target.value === "layout" && variant.value === "detail"))) return null;
   const entry = target.value === "page" ? pageEntryId.value : sampleId.value;
+  if (!entry || !Object.values(type.fields ?? {}).some((config) => config?.type === "page")) return null;
+  const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
   const entryTitle = target.value === "page" ? pageTitle.value : samples.value.find((sample) => sample.id === entry)?.title ?? "";
-  const hasPage = Object.values(type.fields ?? {}).some((config) => config?.type === "page");
-  return [
-    ...(hasPage && entry ? [{
-      key: "page",
-      label: t("site.view.page", { title: entryTitle || entry }),
-      title: t("site.view.pageHint", { title: entryTitle || entry }),
-      icon: "mdi:file-document-edit-outline",
-      to: { path: `/page-builder/builder/page/${name.value}/${entry}`, query: { ...(target.value === "page" && pageField.value ? { field: pageField.value } : {}), ...back } },
-    }] : []),
-    {
-      key: "detail",
-      label: t("site.variant.detail"),
-      title: hasPage ? t("site.view.detailHint") : undefined,
-      icon: "mdi:file-document-outline",
-      to: { path: `/page-builder/builder/layout/${name.value}/detail`, query: { ...(entry ? { entry } : {}), ...back } },
-    },
-    ...(hasListPage(builder.settings.value, name.value) ? [{ key: "index", label: t("site.variant.index"), icon: "mdi:view-grid-outline", to: { path: `/page-builder/builder/layout/${name.value}/index`, query: { ...(entry ? { entry } : {}), ...back } } }] : []),
-  ];
+  return {
+    key: "page",
+    label: t("site.view.page", { title: entryTitle || entry }),
+    title: t("site.view.pageHint", { title: entryTitle || entry }),
+    icon: "mdi:file-document-edit-outline",
+    to: { path: `/page-builder/builder/page/${name.value}/${entry}`, query: { ...(target.value === "page" && pageField.value ? { field: pageField.value } : {}), ...back } },
+  };
 });
 const currentView = computed(() => (target.value === "page" ? "page" : variant.value));
 /** Both exit controls leave the builder, regardless of navigation between its views. */
@@ -849,8 +824,16 @@ const frameLayout = computed(() => ["layout", "page"].includes(target.value) && 
 
 /** The template the preview last showed around the content: `{ …template, reason }`. */
 const shownTemplate = ref(null);
+/** Another entry was picked: the canvas moves to the template and content area it uses on the website. */
+const followLiveTemplate = ref(false);
 function onRendered(data) {
   shownTemplate.value = data?.template ?? null;
+  if (!followLiveTemplate.value) return;
+  followLiveTemplate.value = false;
+  const layout = frameLayout.value;
+  if (target.value !== "layout" || !layout || builder.isDirty.value) return;
+  const live = templateById(site.draft?.templates, layout.type, layout.variant, shownTemplate.value?.live);
+  if (live && live.content !== area.value && pageKindAreas.value.some((item) => item.id === live.content)) openArea(live.content, "");
 }
 
 /** The shown template as the draft has it now: the inspector assigns its header and footer. */
@@ -1248,6 +1231,10 @@ async function convertField(label) {
 function selectEntry(entry) {
   if (saving.value || loading.value) return;
   if (target.value !== "page") {
+    if (entry !== sampleId.value && showsTemplates.value && target.value === "layout") {
+      followLiveTemplate.value = true;
+      if (previewTemplate.value) router.replace({ query: { ...route.query, template: undefined } });
+    }
     sampleId.value = entry;
     return;
   }

@@ -100,7 +100,7 @@ import { useI18n } from "../../../i18n/index.js";
 /**
  * Which template the canvas shows around the content area being edited, and
  * why; lets the editor preview another template (the one the page uses on
- * the website is tagged "Live"), switch content areas, or start a new one.
+ * the website is tagged "Using"), switch content areas, or start a new one.
  */
 const props = defineProps({
   /**
