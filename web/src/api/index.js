@@ -432,6 +432,7 @@ export const api = {
     themeRevision: (id) => request('GET', `/site/theme/revisions/${encodeURIComponent(id)}`),
     restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
     saveMenus:    (menus, revision)      => request('PUT',    '/site/menus', { menus, revision }),
+    saveFrames:   (frames, revision)     => request('PUT',    '/site/frames', { frames, revision }),
     cardTemplate: (type) => request('GET', `/site/card-template/${type}`),
     layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
     saveLayout:   (type, variant, nodes, revision) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes, revision }),

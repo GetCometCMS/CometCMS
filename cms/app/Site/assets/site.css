@@ -1139,6 +1139,9 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 /* Room to scroll, so a sticky or floating header can be tried out while editing it. */
 .c-view-region-preview:has(.c-header .c-sticky, .c-header .c-overlap) .c-preview-main { min-height: 160vh; }
 .c-placeholder { border: 1px dashed var(--c-border); border-radius: calc(var(--radius-box) * 0.75); padding: 0.75em 1em; color: var(--c-muted); font: 13px/1.4 system-ui, sans-serif; background: repeating-linear-gradient(-45deg, transparent 0 8px, rgb(var(--c-primary-rgb) / 0.04) 8px 16px); }
+/* Builder only: a layout without header or footer keeps a selectable stand-in. */
+.c-region-none { padding: 2.25rem 1rem 0.75rem; }
+.c-region-none > .c-placeholder { text-align: center; }
 .c-placeholder-warning { border-color: #f59e0b; color: #b45309; }
 .c-placeholder-drop { min-height: 3.5em; display: flex; align-items: center; justify-content: center; }
 .c-builder [data-node] { cursor: default; }

@@ -13,7 +13,7 @@ const languagesOf = (settings) => ({ locales: clone(settings.locales), default_l
 /**
  * Website configuration of the active workspace. `data` is what the server
  * last returned; `draft` holds the editable copies of settings, workspace
- * languages, theme and menus.
+ * languages, theme, menus and frames (which header and footer each layout shows).
  */
 export const useSiteStore = defineStore('site', () => {
   const data = ref(null)
@@ -35,8 +35,8 @@ export const useSiteStore = defineStore('site', () => {
 
   const dirtyParts = computed(() => {
     if (!data.value || !draft.value) return []
-    return ['languages', 'settings', 'theme', 'menus'].filter((part) => {
-      const saved = part === 'languages' ? languagesOf(data.value.settings) : data.value[part]
+    return ['languages', 'settings', 'theme', 'menus', 'frames'].filter((part) => {
+      const saved = part === 'languages' ? languagesOf(data.value.settings) : part === 'frames' ? data.value.frames ?? {} : data.value[part]
       return JSON.stringify(draft.value[part]) !== JSON.stringify(saved)
     })
   })
@@ -88,7 +88,7 @@ export const useSiteStore = defineStore('site', () => {
 
   function resetDraft() {
     draft.value = data.value
-      ? { settings: clone(data.value.settings), languages: languagesOf(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus) }
+      ? { settings: clone(data.value.settings), languages: languagesOf(data.value.settings), theme: clone(data.value.theme), menus: clone(data.value.menus), frames: clone(data.value.frames ?? {}) }
       : null
     fieldErrors.value = {}
   }
@@ -159,6 +159,10 @@ export const useSiteStore = defineStore('site', () => {
           syncPageBuilderActive()
         } else if (part === 'theme') {
           data.value.theme = (await api.site.saveTheme(draft.value.theme)).data
+        } else if (part === 'frames') {
+          const response = await api.site.saveFrames(draft.value.frames, data.value.frames_revision)
+          data.value.frames = response.data
+          data.value.frames_revision = response.meta?.revision
         } else {
           const response = await api.site.saveMenus(draft.value.menus, data.value.menus_revision)
           data.value.menus = response.data

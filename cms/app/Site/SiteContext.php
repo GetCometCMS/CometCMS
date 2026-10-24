@@ -168,6 +168,28 @@ final class SiteContext
         return $this->overridden('region:' . $region) ?? ($this->site->regionCustomized($region) ? $this->site->region($region) : null);
     }
 
+    /**
+     * What a page of $type's $variant layout shows as its header or footer:
+     * the region's nodes, a placed section component, or null for none. A
+     * component that is gone (or no longer fits) falls back to the region.
+     */
+    public function frameNodes(string $region, ?string $type = null, ?string $variant = null): ?array
+    {
+        $frames = $this->overridden('frames') ?? $this->site->frames();
+        $value = $type !== null && $variant !== null ? ($frames[$type][$variant][$region] ?? LayoutSchema::FRAME_DEFAULT) : LayoutSchema::FRAME_DEFAULT;
+        if ($value === LayoutSchema::FRAME_NONE) {
+            return null;
+        }
+        if ($value !== LayoutSchema::FRAME_DEFAULT && SiteRepository::fitsFrame($this->component($value), (string) $type)) {
+            $node = LayoutSchema::node(LayoutSchema::COMPONENT, ['component' => $value, 'root' => 'section']);
+            $node['id'] = 'frame-' . $region;
+
+            return [$node];
+        }
+
+        return $this->region($region);
+    }
+
     public function layout(string $type, string $variant): array
     {
         return $this->overridden('layout:' . $type . ':' . $variant) ?? $this->site->layout($type, $variant);

@@ -45,6 +45,7 @@ final class PageRenderer
             'canonical' => $url,
             'og_type' => $isHome ? 'website' : 'article',
             'body_class' => 'c-type-' . $name . ' c-view-detail' . ($isHome ? ' c-view-home' : ''),
+            'frame' => [$name, 'detail'],
             'published_at' => (string) ($entry['published_at'] ?? ''),
         ], $main, $state);
     }
@@ -71,6 +72,7 @@ final class PageRenderer
             'canonical' => $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : ''),
             'og_type' => 'website',
             'body_class' => 'c-type-' . $name . ' c-view-index' . ($isHome ? ' c-view-home' : ''),
+            'frame' => [$name, 'index'],
         ], $main, $state);
     }
 
@@ -156,6 +158,7 @@ final class PageRenderer
             'title' => $this->pageTitle((string) ($variant === 'index' ? $type['label'] : ($entry['title'] ?? ''))),
             'noindex' => true,
             'body_class' => 'c-type-' . $name . ' c-view-' . $variant,
+            'frame' => [$name, $variant],
         ], $main, $state, true, true);
     }
 
@@ -180,6 +183,7 @@ final class PageRenderer
             'title' => $this->pageTitle((string) ($entry['title'] ?? '')),
             'noindex' => true,
             'body_class' => 'c-type-' . $name . ' c-view-detail c-view-page-edit',
+            'frame' => [$name, 'detail'],
         ], $main, $state, true, true, 'page');
     }
 
@@ -261,6 +265,8 @@ final class PageRenderer
      * @param bool $withRegions  include header and footer
      * @param bool $plainRegions render header/footer without builder annotations
      * @param string $annotatedRegion the region being edited in the builder
+     *
+     * $meta['frame'] ([type, variant]) names the layout whose header and footer the page shows.
      */
     private function document(array $meta, string $main, array $state, bool $withRegions = true, bool $plainRegions = false, string $annotatedRegion = ''): string
     {
@@ -271,15 +277,23 @@ final class PageRenderer
 
         if ($withRegions && !$embed) {
             $regionState = $state;
-            $render = function (string $region) use ($regionState, $plainRegions, $annotatedRegion): string {
-                $nodes = $this->ctx->region($region);
+            [$frameType, $frameVariant] = $meta['frame'] ?? [null, null];
+            $render = function (string $region, string $tag) use ($regionState, $plainRegions, $annotatedRegion, $frameType, $frameVariant): string {
+                $nodes = $this->ctx->frameNodes($region, $frameType, $frameVariant);
+                $dropRoot = $this->ctx->annotate && $annotatedRegion === $region ? ' data-drop-root' : '';
+                if ($nodes === null) {
+                    // The builder keeps a removed header or footer selectable, to bring it back.
+                    return $this->ctx->annotate
+                        ? '<' . $tag . ' class="c-region c-' . $region . ' c-region-none"><div class="c-placeholder"' . ' data-placeholder="' . $region . 'None">No ' . $region . ' on these pages</div></' . $tag . '>'
+                        : '';
+                }
                 $plain = $plainRegions || ($annotatedRegion !== '' && $annotatedRegion !== $region);
+                $html = $plain ? $this->nodes->renderPlain($nodes, $regionState) : $this->nodes->render($nodes, $regionState);
 
-                return $plain ? $this->nodes->renderPlain($nodes, $regionState) : $this->nodes->render($nodes, $regionState);
+                return '<' . $tag . ' class="c-region c-' . $region . '"' . $dropRoot . '>' . $html . '</' . $tag . '>';
             };
-            $dropRoot = fn(string $region): string => $this->ctx->annotate && $annotatedRegion === $region ? ' data-drop-root' : '';
-            $header = '<header class="c-region c-header"' . $dropRoot('header') . '>' . $render('header') . '</header>';
-            $footer = '<footer class="c-region c-footer"' . $dropRoot('footer') . '>' . $render('footer') . '</footer>';
+            $header = $render('header', 'header');
+            $footer = $render('footer', 'footer');
         }
 
         // Full-page previews behave like the website. The editor iframe keeps

@@ -247,3 +247,18 @@ test('mcp builder preserves localized props and bindings during partial edits an
     ]);
     assert_same('reference', $updated['data']['element']['props']['text']['type']);
 });
+
+test('mcp builder tools read and assign a layout header and footer', function (): void {
+    [$token] = comet_test_builder_setup();
+    $layout = comet_test_builder_layout($token);
+    assert_same(['header' => 'default', 'footer' => 'default'], $layout['frame']);
+    assert_same(['default', 'none'], $layout['frame_options']);
+
+    [, $saved] = comet_test_mcp_tool($token, 'set_layout_frame', ['collection' => 'pages', 'variant' => 'detail', 'header' => 'none']);
+    assert_same(['header' => 'none', 'footer' => 'default'], $saved['data']['frame'], json_encode($saved));
+    assert_same(['pages' => ['detail' => ['header' => 'none']]], (new SiteRepository())->frames());
+
+    [$failed] = comet_test_mcp_tool($token, 'set_layout_frame', ['collection' => 'pages', 'variant' => 'detail', 'footer' => 'no-such-component']);
+    assert_true($failed['result']['isError'] ?? false, json_encode($failed));
+    assert_same(['pages' => ['detail' => ['header' => 'none']]], (new SiteRepository())->frames());
+});

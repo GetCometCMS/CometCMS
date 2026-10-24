@@ -95,7 +95,7 @@
 
         <SplitButton
           variant="inverse"
-          :primary-disabled="saving || loading || switching || (!layoutSavable && !themeDirty && !entryFields.isDirty.value)"
+          :primary-disabled="saving || loading || switching || (!layoutSavable && !themeDirty && !framesDirty && !entryFields.isDirty.value)"
           :menu-label="t('common.moreActions')"
           :items="saveMenuItems"
           @click="save"
@@ -103,7 +103,7 @@
         >
           {{ saving ? t("common.saving") : t("site.builder.save") }}
           <template #badge>
-            <span v-if="(builder.isDirty.value || themeDirty || entryFields.isDirty.value) && !saving" class="topbar-save-badge pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2"></span>
+            <span v-if="(builder.isDirty.value || themeDirty || framesDirty || entryFields.isDirty.value) && !saving" class="topbar-save-badge pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2"></span>
           </template>
         </SplitButton>
       </div>
@@ -196,7 +196,13 @@
       >
         <SiteDesignPanel v-if="panel.value === 'design'" :show-header="false" :draft-nodes="builder.nodes.value" />
         <CustomCssPanel v-else-if="panel.value === 'css'" :show-header="false" />
-        <BuilderInspector v-else-if="panel.value === 'inspector'" :template-part="selectedTemplatePart" @edit-template-part="editTemplatePart">
+        <BuilderInspector
+          v-else-if="panel.value === 'inspector'"
+          :template-part="selectedTemplatePart"
+          :frame="selectedFrame"
+          @edit-template-part="editTemplatePart"
+          @assign-template-part="assignTemplatePart"
+        >
           <template #empty>
             <BuilderOverview
               :title="overview.title"
@@ -348,6 +354,7 @@ import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
 import { usePermissions } from "../composables/usePermissions.js";
 import { MODAL, findNode } from "../composables/layoutTree.js";
+import { FRAME_DEFAULT, FRAME_NONE, FRAME_REGIONS, frameComponents, frameValue, withFrame } from "../composables/frames.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
@@ -408,17 +415,19 @@ const builder = createSiteBuilder({
       return (await api.contentTypes.update(type, { ...schema, fields: { ...schema.fields, [key]: { ...schema.fields[key], label: config.label } } })).data;
     },
   },
-  // Design edits are undone and redone together with layout edits.
+  // Design and header/footer assignments are undone and redone together with layout edits.
   linked: {
-    get: () => site.draft?.theme,
-    set: (theme) => {
-      if (site.draft) site.draft.theme = theme;
+    get: () => site.draft ? { theme: site.draft.theme, frames: site.draft.frames } : null,
+    set: (linked) => {
+      if (!site.draft || !linked) return;
+      site.draft.theme = linked.theme;
+      site.draft.frames = linked.frames ?? {};
     },
   },
 });
 // Record design edits together with layout edits, including revision loading.
 let changingRevisionTheme = false;
-watch(() => site.draft?.theme, () => {
+watch(() => [site.draft?.theme, site.draft?.frames], () => {
   builder.linkedChanged({ record: !changingRevisionTheme && !site.saving && !site.loading });
 }, { deep: true, flush: "sync" });
 
@@ -455,11 +464,13 @@ function cancelRevision(scope) {
 
 /** Pending design edits belong to the whole site: they stay while moving between builder pages. */
 const themeDirty = computed(() => site.dirtyParts.includes("theme"));
+/** Header and footer assignments are saved with the layout, but stored apart (see SiteRepository::frames()). */
+const framesDirty = computed(() => site.dirtyParts.includes("frames"));
 /** The pending design edits include the custom stylesheet, or are only that. */
 const cssDirty = computed(() => themeDirty.value && (site.draft?.theme?.custom_css ?? "") !== (site.data?.theme?.custom_css ?? ""));
 const cssOnlyDirty = computed(() => cssDirty.value && JSON.stringify({ ...site.draft.theme, custom_css: "" }) === JSON.stringify({ ...site.data.theme, custom_css: "" }));
 const { leavePromptOpen, confirmLeave, bypass } = useUnsavedChangesGuard(
-  (to) => builder.isDirty.value || entryFields.isDirty.value || (themeDirty.value && !isBuilderPath(to?.path)),
+  (to) => builder.isDirty.value || entryFields.isDirty.value || ((themeDirty.value || framesDirty.value) && !isBuilderPath(to?.path)),
   { guardUpdates: true },
 );
 
@@ -751,7 +762,7 @@ const subheading = computed(() => {
 
 const saveStatus = computed(() => {
   if (saving.value) return "saving";
-  return builder.isDirty.value || themeDirty.value || entryFields.isDirty.value ? "unsaved" : "saved";
+  return builder.isDirty.value || themeDirty.value || framesDirty.value || entryFields.isDirty.value ? "unsaved" : "saved";
 });
 
 /** What the inspector shows while nothing is selected. */
@@ -791,6 +802,7 @@ const previewBody = computed(() => {
   const theme = {
     ...(site.draft?.theme ? { theme: site.draft.theme, font_version: site.data?.font_version } : {}),
     ...(site.draft?.menus ? { menus: site.draft.menus } : {}),
+    ...(site.draft?.frames ? { frames: site.draft.frames } : {}),
     entries: entryFields.previewEntries(),
   };
   if (target.value === "component") {
@@ -808,9 +820,33 @@ function isBuilderPath(path) {
   return typeof path === "string" && path.startsWith("/page-builder/builder/");
 }
 
+/** The layout whose header and footer the canvas shows, when there is one. */
+const frameLayout = computed(() => ["layout", "page"].includes(target.value) && builder.type.value
+  ? { type: name.value, variant: target.value === "page" ? "detail" : variant.value } : null);
+
+/** What the selected header or footer shows on this layout, and what else it may show. */
+const selectedFrame = computed(() => {
+  const layout = frameLayout.value;
+  if (!layout || !FRAME_REGIONS.includes(selectedTemplatePart.value)) return null;
+  return {
+    value: frameValue(site.draft?.frames, layout.type, layout.variant, selectedTemplatePart.value),
+    components: frameComponents(builder.components.value, layout.type),
+    scope: `${builder.type.value.label} · ${t(`site.variant.${layout.variant}`)}`,
+  };
+});
+
+function assignTemplatePart(part, value) {
+  const layout = frameLayout.value;
+  if (!layout || !site.draft || !FRAME_REGIONS.includes(part)) return;
+  site.draft.frames = withFrame(site.draft.frames, layout.type, layout.variant, part, value);
+}
+
 function editTemplatePart(part) {
-  if (!["header", "footer"].includes(part)) return;
-  router.push({ path: `/page-builder/builder/region/${part}`, query: { back: route.fullPath } });
+  if (!FRAME_REGIONS.includes(part)) return;
+  const value = selectedFrame.value?.value ?? FRAME_DEFAULT;
+  if (value === FRAME_NONE) return;
+  const path = value === FRAME_DEFAULT ? `/page-builder/builder/region/${part}` : `/page-builder/builder/component/${encodeURIComponent(value)}`;
+  router.push({ path, query: { back: route.fullPath } });
 }
 
 watch(() => builder.pageFieldError.value, (message) => {
@@ -935,8 +971,9 @@ async function load(next = requested) {
 async function save() {
   const saveLayout = layoutSavable.value;
   const saveTheme = themeDirty.value;
+  const saveFrames = framesDirty.value;
   const saveContent = entryFields.isDirty.value;
-  if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveContent)) return;
+  if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveFrames && !saveContent)) return;
   saving.value = true;
 
   try {
@@ -985,6 +1022,7 @@ async function save() {
       await site.save({ parts: ["theme"] });
       loadedRevisions.value.theme = null;
     }
+    if (saveFrames) await site.save({ parts: ["frames"] });
     if (!builder.isDirty.value) loadedRevisions.value.layout = null;
     if (!themeDirty.value) loadedRevisions.value.theme = null;
     historyVersion.value++;

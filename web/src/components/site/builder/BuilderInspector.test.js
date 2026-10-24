@@ -37,6 +37,34 @@ describe('template part inspector', () => {
     expect(html).toContain(t('site.builder.editTemplatePart', { name: t(`site.region.${templatePart}`) }))
     expect(html).not.toContain('Page overview')
     expect(html).not.toContain('data-control=')
+    expect(html).not.toContain(t('site.frame.assign'))
+  })
+
+  it('assigns the header of a layout and edits the assigned component', async () => {
+    const frame = { value: 'blog-header', components: [{ id: 'blog-header', name: 'Blog header' }], scope: 'Blog · Entry design' }
+    const app = createSSRApp({ setup() {
+      createSiteBuilder({ t })
+      return () => h(BuilderInspector, { templatePart: 'header', frame })
+    } })
+    const html = await renderToString(app)
+    expect(html).toContain(t('site.frame.assign'))
+    expect(html).toContain(t('site.frame.default.header'))
+    expect(html).toContain(t('site.frame.none.header'))
+    expect(html).toMatch(/<select id="builder-frame-assign"[^>]* value="blog-header"/)
+    expect(html).toMatch(/<option value="blog-header"[^>]*>Blog header<\/option>/)
+    expect(html).toContain(t('site.frame.scope', { scope: frame.scope }))
+    expect(html).toContain(t('site.frame.editComponent', { name: 'Blog header' }))
+  })
+
+  it('offers no edit button for a removed footer', async () => {
+    const app = createSSRApp({ setup() {
+      createSiteBuilder({ t })
+      return () => h(BuilderInspector, { templatePart: 'footer', frame: { value: 'none', components: [], scope: 'Blog · List page' } })
+    } })
+    const html = await renderToString(app)
+    expect(html).toContain(t('site.frame.noneHint.footer'))
+    expect(html).toContain(t('site.frame.noComponents'))
+    expect(html).not.toContain(t('site.builder.editTemplatePart', { name: t('site.region.footer') }))
   })
 })
 

@@ -223,6 +223,16 @@ The header and footer are shown on every page and are edited directly in the pag
 
 Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button at every screen size, including desktop. **Menu button opens** chooses what the button shows: a dropdown under the button, a full-screen menu with large centered links, or a side panel over a dimmed page. **Side panel position** chooses whether the panel slides in from the left or right (the default). For full-screen menus and side panels, **Menu panel background** and **Menu panel text color** select colors from the theme palette, including custom colors; **Default** keeps the theme's background and text colors. These colors apply to the open panel's content and close button. Full-screen menus and side panels have their own close button (clicking the dimmed page also closes a side panel), and the page behind them does not scroll while they are open.
 
+### Different headers and footers per page kind
+
+Each layout can show its own header and footer. Select the header or footer in the builder while editing a layout, and choose under **Shown on these pages** what pages of that content type and page kind (entry pages or the list page) show there:
+
+- **Site header** / **Site footer**: the shared one (the default).
+- **No header** / **No footer**: for landing pages and similar. The builder keeps a placeholder you can select to bring it back.
+- A **component**: any section component that is shared or belongs to that content type, for example a blog header that shows the post's category.
+
+**Edit** opens whatever is shown: the shared header or footer, or the component. The assignment is saved with **Save**, and undo and the full-page preview include it. The **Templates** tab under **Design & layout** shows the same choice for every content type as a page outline: pick a content type and page kind, click the header or footer to change it, or click the content area to open the layout in the builder. Deleting a component that is assigned this way brings back the site header or footer on those pages.
+
 ### Sticky and floating headers
 
 Each section has a **Scrolling** group in its content settings, usually used for the section in the header that holds the logo and menu:
@@ -276,6 +286,7 @@ theme/
   regions/footer.json
   layouts/{type}/detail.json    page layout of a content type
   layouts/{type}/index.json     its list page
+  frames.json                   header and footer per layout, where they differ
   components/{name}.json        reusable components
 ```
 

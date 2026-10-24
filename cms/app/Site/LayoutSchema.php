@@ -34,6 +34,10 @@ final class LayoutSchema
 
     public const REGIONS = ['header', 'footer'];
 
+    /** A layout's header or footer: the site's own (default), none, or a section component's id. */
+    public const FRAME_DEFAULT = 'default';
+    public const FRAME_NONE = 'none';
+
     /** Special page templates edited and stored like regions. */
     public const SPECIAL_PAGES = ['not_found', self::MODAL];
 

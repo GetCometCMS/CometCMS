@@ -10,9 +10,28 @@
       </div>
     </div>
     <div class="space-y-4 p-4">
-      <p class="text-sm leading-relaxed text-slate-600">{{ t("site.builder.templatePartHint") }}</p>
-      <button type="button" class="btn-primary w-full justify-between" @click="$emit('edit-template-part', templatePart)">
-        <span>{{ t("site.builder.editTemplatePart", { name: t(`site.region.${templatePart}`) }) }}</span>
+      <div v-if="frame" class="space-y-1.5">
+        <label for="builder-frame-assign" class="block text-xs font-semibold text-slate-700">{{ t("site.frame.assign") }}</label>
+        <select
+          id="builder-frame-assign"
+          class="form-select w-full rounded-lg border-slate-300 text-sm"
+          :value="frame.value"
+          aria-describedby="builder-frame-scope"
+          @change="$emit('assign-template-part', templatePart, $event.target.value)"
+        >
+          <option :value="FRAME_DEFAULT">{{ t(`site.frame.default.${templatePart}`) }}</option>
+          <option :value="FRAME_NONE">{{ t(`site.frame.none.${templatePart}`) }}</option>
+          <optgroup v-if="frame.components.length" :label="t('site.component.group')">
+            <option v-for="component in frame.components" :key="component.id" :value="component.id">{{ component.name }}</option>
+          </optgroup>
+          <option v-if="frameMissing" :value="frame.value" disabled>{{ t("site.frame.missing") }}</option>
+        </select>
+        <p id="builder-frame-scope" class="text-xs text-slate-500">{{ t("site.frame.scope", { scope: frame.scope }) }}</p>
+        <p v-if="!frame.components.length" class="text-xs text-slate-500">{{ t("site.frame.noComponents") }}</p>
+      </div>
+      <p class="text-sm leading-relaxed text-slate-600">{{ templatePartHint }}</p>
+      <button v-if="frame?.value !== FRAME_NONE" type="button" class="btn-primary w-full justify-between" @click="$emit('edit-template-part', templatePart)">
+        <span>{{ editTemplatePartLabel }}</span>
         <Icon icon="mdi:arrow-right" class="h-4 w-4 shrink-0" aria-hidden="true" />
       </button>
     </div>
@@ -294,14 +313,17 @@ import SegmentedControl from "../SegmentedControl.vue";
 import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
 import { nodeIcon } from "./kindIcons.js";
 import { COMPONENT, findNode } from "../../../composables/layoutTree.js";
+import { FRAME_DEFAULT, FRAME_NONE, frameLabel } from "../../../composables/frames.js";
 import { useBuilderBreadcrumbs } from "../../../composables/useBuilderBreadcrumbs.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
 
-defineProps({
+const props = defineProps({
   templatePart: { type: String, default: null },
+  /** The layout's header or footer: `{ value, components, scope }`, or null where it can't be assigned. */
+  frame: { type: Object, default: null },
 });
-defineEmits(["edit-template-part"]);
+defineEmits(["edit-template-part", "assign-template-part"]);
 
 /** A button's own colors sit with its style, though they are props. */
 const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color"];
@@ -319,6 +341,20 @@ const STYLE_GROUPS = [
 
 const builder = useSiteBuilder();
 const { t } = useI18n();
+const frameMissing = computed(() => !!props.frame && ![FRAME_DEFAULT, FRAME_NONE].includes(props.frame.value)
+  && !props.frame.components.some((component) => component.id === props.frame.value));
+const templatePartHint = computed(() => {
+  const value = props.frame?.value ?? FRAME_DEFAULT;
+  if (value === FRAME_DEFAULT) return t("site.builder.templatePartHint");
+  if (value === FRAME_NONE) return t(`site.frame.noneHint.${props.templatePart}`);
+  return t("site.frame.componentHint", { name: frameLabel(t, value, props.templatePart, props.frame.components) });
+});
+const editTemplatePartLabel = computed(() => {
+  const value = props.frame?.value ?? FRAME_DEFAULT;
+  return value === FRAME_DEFAULT
+    ? t("site.builder.editTemplatePart", { name: t(`site.region.${props.templatePart}`) })
+    : t("site.frame.editComponent", { name: frameLabel(t, value, props.templatePart, props.frame.components) });
+});
 const tab = ref("content");
 const inspectorTabs = computed(() => [
   { value: "content", label: t("site.builder.content"), icon: "mdi:tune-variant" },

@@ -54,6 +54,9 @@ final class SiteController extends BaseController
             'menus' => $this->site->menus(),
             'menus_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->menus()),
             'menu_limits' => SiteRepository::MENU_LIMITS,
+            // An object, also when empty: the admin assigns into it by type.
+            'frames' => $this->site->frames() ?: new \stdClass(),
+            'frames_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->frames()),
             'regions' => array_combine(LayoutSchema::REGIONS, array_map(fn(string $region): bool => $this->site->regionCustomized($region), LayoutSchema::REGIONS)),
             'special_pages' => array_combine(LayoutSchema::SPECIAL_PAGES, array_map(fn(string $page): bool => $this->site->regionCustomized($page), LayoutSchema::SPECIAL_PAGES)),
             'layouts' => $layouts,
@@ -195,6 +198,16 @@ final class SiteController extends BaseController
         }
         $this->logger->info('site.menus_updated', ['count' => count($menus)]);
         $this->json(['data' => $menus, 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($menus)]]);
+    }
+
+    /** Body: {frames: {type: {variant: {header|footer: "none"|component id}}}, revision}. */
+    public function updateFrames(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $frames = $this->validated(fn() => $this->site->saveFrames($this->requestJson()['frames'] ?? [], $this->requestJson()['revision'] ?? null));
+        $this->logger->info('site.frames_updated', ['workspace' => $this->site->workspace()->slug()]);
+        $this->json(['data' => $frames ?: new \stdClass(), 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($frames)]]);
     }
 
     /** The standard card of a type, for a collection that gets a card of its own. */
@@ -608,7 +621,7 @@ final class SiteController extends BaseController
 
     /**
      * Render unsaved work. Body: {target: layout|region|component|entry_page|page,
-     * type, variant, region, component, field, nodes, entry, locale, theme, menus, path}.
+     * type, variant, region, component, field, nodes, entry, locale, theme, menus, frames, path}.
      */
     public function preview(): never
     {
@@ -633,6 +646,9 @@ final class SiteController extends BaseController
                 $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
             }
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
+        }
+        if (is_array($body['frames'] ?? null)) {
+            $context->override('frames', $this->validated(fn() => $this->site->normalizeFrames($body['frames'], true)));
         }
 
         $locale = (new \CometCMS\Localization\LanguageSettings($this->site->workspace()))->requireLocale((string) ($body['locale'] ?? ''));
@@ -729,7 +745,7 @@ final class SiteController extends BaseController
         if (!in_array($target, ['entry', 'entry_page', 'layout', 'region', 'component'], true)) {
             throw new ValidationException(['target' => 'Choose a valid preview target.']);
         }
-        if ($target !== 'entry' || isset($body['theme']) || isset($body['menus'])) {
+        if ($target !== 'entry' || isset($body['theme']) || isset($body['menus']) || isset($body['frames'])) {
             $this->requirePermission('site.manage', ['resource' => 'site:*']);
         }
         if ((isset($body['theme']) && !is_array($body['theme'])) || (isset($body['menus']) && !is_array($body['menus']))) {
@@ -740,6 +756,7 @@ final class SiteController extends BaseController
             $this->site->validateMenus($body['menus'], false);
             $context->override('menus', $this->site->normalizeMenus($body['menus']));
         }
+        if (isset($body['frames'])) $context->override('frames', $this->site->normalizeFrames($body['frames'], true));
         $locale = (string) ($body['locale'] ?? $context->defaultLocale());
         $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
         $drafts = [];

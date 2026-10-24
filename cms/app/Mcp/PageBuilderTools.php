@@ -17,7 +17,7 @@ use CometCMS\Workspaces\WorkspaceContext;
 /** Shared-layout tools; transport and authorization belong to McpServer. */
 final class PageBuilderTools
 {
-    public const NAMES = ['get_builder_schema', 'get_layout', 'get_section', 'get_element', 'set_layout', 'update_section', 'update_element_props'];
+    public const NAMES = ['get_builder_schema', 'get_layout', 'get_section', 'get_element', 'set_layout', 'update_section', 'update_element_props', 'set_layout_frame'];
 
     public static function schemas(): array
     {
@@ -41,16 +41,17 @@ final class PageBuilderTools
             'get_element' => ['Read one element', 'Read a node by ID, its props/style and immediate child summaries, enclosing section and layout revision.', $target + ['element_id' => $string], ['collection', 'variant', 'element_id']],
             'set_layout' => ['Replace layout', 'Replace all sections, including empty layouts. Requires revision. Changes affect published pages immediately. Discover valid props with get_builder_schema.', $target + $revision + ['sections' => $nodes], ['collection', 'variant', 'revision', 'sections']],
             'update_section' => ['Patch one section', 'Merge supplied props/style keys and name into one top-level section; children explicitly replaces its subtree. Omitted keys and other sections are preserved. Requires revision; saves live.', $target + $revision + ['section_id' => $string, 'patch' => $patch], ['collection', 'variant', 'revision', 'section_id', 'patch']],
+            'set_layout_frame' => ['Assign header and footer', 'Choose what pages of this collection/variant show as header and footer: "default" (the site\'s own), "none", or the id of a section component from get_layout frame_options. Omitted regions stay as they are. Saves live.', $target + ['header' => $string, 'footer' => $string], ['collection', 'variant']],
             'update_element_props' => ['Patch element properties', 'Merge props/style keys on any node by ID; preserve children. Object-valued properties (including localized maps) replace the whole property; responsive and states replace their whole maps. Requires revision; saves live.', $target + $revision + ['element_id' => $string, 'props' => $map, 'style' => $map, ...$overrides], ['collection', 'variant', 'revision', 'element_id', 'props']],
         ];
         $result = [];
         foreach ($contracts as $name => [$title, $description, $properties, $required]) {
-            $write = in_array($name, ['set_layout', 'update_section', 'update_element_props'], true);
+            $write = in_array($name, ['set_layout', 'update_section', 'update_element_props', 'set_layout_frame'], true);
             $schema = self::object($properties, $required);
             if (in_array($name, ['set_layout', 'update_section'], true)) $schema['$defs'] = $definitions;
             $result[$name] = [
                 'title' => $title, 'description' => $description, 'inputSchema' => $schema,
-                'annotations' => ['readOnlyHint' => !$write, 'destructiveHint' => $write, 'idempotentHint' => !$write, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => !$write, 'destructiveHint' => $write, 'idempotentHint' => !$write || $name === 'set_layout_frame', 'openWorldHint' => false],
             ];
         }
         return $result;
@@ -83,7 +84,21 @@ final class PageBuilderTools
         $nodes = $site->layout($collection, $variant);
         $revision = LocalizedValue::hash($nodes);
         $target = ['collection' => $collection, 'variant' => $variant];
-        if ($tool === 'get_layout') return ['data' => $this->overview($target, $nodes)];
+        if ($tool === 'get_layout') return ['data' => $this->overview($site, $target, $nodes)];
+        if ($tool === 'set_layout_frame') {
+            $frames = $site->frames();
+            foreach (LayoutSchema::REGIONS as $region) {
+                if (!array_key_exists($region, $args)) continue;
+                if (!is_string($args[$region])) $this->invalid($region, 'Use default, none or a component id.');
+                $frames[$collection][$variant][$region] = $args[$region];
+            }
+            try {
+                $site->saveFrames($frames);
+            } catch (ValidationException $e) {
+                $this->invalid('frame', implode(' ', $e->fields()) . ' Call get_layout for frame_options.');
+            }
+            return ['data' => $target + $this->frame($site, $collection, $variant) + ['effect' => 'Saved live for every page of this collection/variant.']];
+        }
         if ($tool === 'get_section') {
             $index = $this->sectionIndex($nodes, $this->identifier($args['section_id'], 'section_id'));
             return ['data' => $target + ['revision' => $revision, 'section' => $this->compact($nodes[$index])]];
@@ -124,7 +139,18 @@ final class PageBuilderTools
             [$node, $section] = $this->element($saved, $args['element_id']);
             return ['data' => $target + ['revision' => LocalizedValue::hash($saved), 'section_id' => $section, 'element' => $this->elementView($node), 'effect' => 'Saved live; shared by entries using this layout.']];
         }
-        return ['data' => $this->overview($target, $saved)];
+        return ['data' => $this->overview($site, $target, $saved)];
+    }
+
+    /** What the layout's pages show as header and footer, and the components that may stand in. */
+    private function frame(SiteRepository $site, string $collection, string $variant): array
+    {
+        $options = array_values(array_filter($site->components(), static fn(array $component): bool => SiteRepository::fitsFrame($component, $collection)));
+
+        return [
+            'frame' => $site->frame($collection, $variant),
+            'frame_options' => ['default', 'none', ...array_map(static fn(array $component): array => ['id' => $component['id'], 'name' => $component['name']], $options)],
+        ];
     }
 
     private function vocabulary(array $args): array
@@ -144,9 +170,9 @@ final class PageBuilderTools
         ];
     }
 
-    private function overview(array $target, array $nodes): array
+    private function overview(SiteRepository $site, array $target, array $nodes): array
     {
-        return $target + [
+        return $target + $this->frame($site, $target['collection'], $target['variant']) + [
             'revision' => LocalizedValue::hash($nodes),
             'sections' => array_map(fn(array $node): array => $this->summary($node) + ['node_count' => $this->countNodes([$node])], $nodes),
             'effect' => 'Shared by entries using this layout; saves take effect on published pages immediately.',

@@ -321,6 +321,115 @@ final class SiteRepository
         return $this->region($region);
     }
 
+    // ─── Frames (header / footer per page kind) ───────────────────────────────
+
+    /**
+     * Which header and footer each layout shows, stored only where it differs
+     * from the site's own header and footer: {type: {variant: {region: value}}}
+     * with value "none" (no header or footer) or the id of a section
+     * component shown in its place.
+     *
+     * @return array<string, array<string, array<string, string>>>
+     */
+    public function frames(): array
+    {
+        $stored = $this->themeStore->read('frames');
+
+        return $this->normalizeFrames(is_array($stored['frames'] ?? null) ? $stored['frames'] : [], false);
+    }
+
+    /** One layout's header and footer: "default", "none" or a component id per region. */
+    public function frame(string $type, string $variant): array
+    {
+        $assigned = $this->frames()[$type][$variant] ?? [];
+
+        return array_combine(LayoutSchema::REGIONS, array_map(static fn(string $region): string => $assigned[$region] ?? LayoutSchema::FRAME_DEFAULT, LayoutSchema::REGIONS));
+    }
+
+    public function saveFrames(mixed $frames, ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($frames, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->frames())) throw new \CometCMS\Core\ConflictException();
+            $frames = $this->normalizeFrames($frames, true);
+            if ($frames === []) {
+                $this->themeStore->delete('frames');
+            } else {
+                $this->themeStore->write(['frames' => $frames], 'frames');
+            }
+            $this->clearCache();
+
+            return $frames;
+        }, 'frames');
+    }
+
+    /**
+     * Keep known types, variants and regions with a valid value; "default"
+     * entries are dropped. Saving rejects what reading silently drops.
+     */
+    public function normalizeFrames(mixed $frames, bool $strict): array
+    {
+        if (!is_array($frames)) {
+            if ($strict) throw new ValidationException(['frames' => 'Invalid header and footer assignments.']);
+            return [];
+        }
+        $types = $this->types();
+        $components = $strict ? array_column($this->components(), null, 'id') : null;
+        $normalized = [];
+
+        foreach ($frames as $type => $variants) {
+            $type = (string) $type;
+            if (!isset($types[$type]) || !is_array($variants)) {
+                if ($strict) throw new ValidationException(['frames' => 'Unknown content type: ' . $type]);
+                continue;
+            }
+            foreach ($variants as $variant => $regions) {
+                if (!in_array($variant, LayoutSchema::VARIANTS, true) || !is_array($regions)) {
+                    if ($strict) throw new ValidationException(['frames' => 'Unknown page kind: ' . $variant]);
+                    continue;
+                }
+                foreach ($regions as $region => $value) {
+                    $value = is_string($value) ? $value : '';
+                    if (!in_array($region, LayoutSchema::REGIONS, true) || $value === '' || $value === LayoutSchema::FRAME_DEFAULT) {
+                        continue;
+                    }
+                    if ($value !== LayoutSchema::FRAME_NONE && LayoutSchema::key($value) !== $value) {
+                        if ($strict) throw new ValidationException(['frames' => 'Invalid component.']);
+                        continue;
+                    }
+                    if ($strict && $value !== LayoutSchema::FRAME_NONE && !self::fitsFrame($components[$value] ?? null, $type)) {
+                        throw new ValidationException(['frames' => 'Choose a section component for the ' . $region . '.']);
+                    }
+                    $normalized[$type][$variant][$region] = $value;
+                }
+            }
+        }
+
+        return $normalized;
+    }
+
+    /** A component can stand in for a header or footer: a section, shared or of this type. */
+    public static function fitsFrame(?array $component, string $type): bool
+    {
+        return $component !== null && $component['root'] === 'section' && in_array($component['type'], ['', $type], true);
+    }
+
+    private function forgetFrames(callable $keep): void
+    {
+        $frames = $this->frames();
+        $kept = [];
+        foreach ($frames as $type => $variants) {
+            foreach ($variants as $variant => $regions) {
+                foreach ($regions as $region => $value) {
+                    if ($keep((string) $type, (string) $variant, (string) $region, $value)) {
+                        $kept[$type][$variant][$region] = $value;
+                    }
+                }
+            }
+        }
+        if ($kept === $frames) return;
+        $kept === [] ? $this->themeStore->delete('frames') : $this->themeStore->write(['frames' => $kept], 'frames');
+    }
+
     // ─── Layouts ─────────────────────────────────────────────────────────────
 
     public function layout(string $type, string $variant): array
@@ -513,6 +622,15 @@ final class SiteRepository
                 $usages[] = ['target' => 'component', 'id' => (string) $stored['id'], 'name' => (string) ($stored['name'] ?? $stored['id'])];
             }
         }
+        foreach ($this->frames() as $type => $variants) {
+            foreach ($variants as $variant => $regions) {
+                foreach ($regions as $region => $value) {
+                    if ($value === $id) {
+                        $usages[] = ['target' => 'frame', 'type' => (string) $type, 'variant' => (string) $variant, 'region' => (string) $region];
+                    }
+                }
+            }
+        }
 
         return [...$usages, ...$this->pageUsages($uses)];
     }
@@ -632,6 +750,9 @@ final class SiteRepository
                 ? ['nodes' => $this->detachComponentInstances($value['nodes'], $component)] + $value
                 : $value);
         }
+
+        // Layouts that showed it as their header or footer show the site's own again.
+        $this->forgetFrames(static fn(string $type, string $variant, string $region, string $value): bool => $value !== $id);
 
         $this->themeStore->delete('components', $id);
         foreach ($this->listRevisions(['components', $id]) as $revision) {
@@ -1004,6 +1125,7 @@ final class SiteRepository
         if (is_dir($directory) && (glob($directory . '/*') ?: []) === []) {
             @rmdir($directory);
         }
+        $this->forgetFrames(static fn(string $frameType): bool => $frameType !== $type);
 
         $stored = $this->store->read('settings');
         if (is_array($stored) && isset($stored['routes'][$type])) {

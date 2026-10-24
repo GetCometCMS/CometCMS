@@ -75,6 +75,7 @@
         </div>
         <SiteThemePreview class="min-w-0 lg:sticky lg:top-24" />
       </div>
+      <SiteTemplatesPanel v-else-if="activeTab === 'templates'" />
       <SiteComponentsPanel v-else-if="activeTab === 'components'" />
       <section v-else-if="activeTab === 'fonts'" class="card p-6">
         <div class="mb-4">
@@ -111,6 +112,7 @@ import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
 import SiteThemePreview from "../components/site/SiteThemePreview.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
 import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
+import SiteTemplatesPanel from "../components/site/SiteTemplatesPanel.vue";
 import FontLibrary from "../components/site/FontLibrary.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
@@ -124,8 +126,8 @@ const toast = useToastStore();
 const { t } = useI18n();
 const cssEditorOpen = ref(false);
 provideLanguageSwitcher();
-/** Global design and menus share a draft across these tabs. */
-const PARTS = ["theme", "menus"];
+/** Global design, menus and header/footer assignments share a draft across these tabs. */
+const PARTS = ["theme", "menus", "frames"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
 // Opens the homepage layout, or the header when no homepage is chosen. Uses saved
 // settings because leaving discards any pending edits.
@@ -141,10 +143,11 @@ const builderLink = computed(() => {
 });
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["design", "menus", "fonts", "components"]);
+const validTabs = new Set(["design", "templates", "menus", "fonts", "components"]);
 const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "design"));
 const tabs = computed(() => [
   { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
+  { value: "templates", label: t("site.templates.title"), icon: "mdi:page-layout-header-footer", to: "/page-builder/templates" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
   { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline", to: "/page-builder/components" },
   { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },

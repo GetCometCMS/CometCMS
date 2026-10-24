@@ -268,6 +268,7 @@ $routes = [
     ['GET',    '#^/admin/api/site/theme/revisions/(' . SEG . ')$#',    [AdminSiteController::class, 'themeRevision']],
     ['POST',   '#^/admin/api/site/theme/revisions/(' . SEG . ')/restore$#',    [AdminSiteController::class, 'restoreThemeRevision']],
     ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
+    ['PUT',    '#^/admin/api/site/frames$#',                                  [AdminSiteController::class, 'updateFrames']],
     ['POST',   '#^/admin/api/site/preview-snapshots$#', [AdminSiteController::class, 'createPreview']],
     ['GET',    '#^/admin/api/site/preview-search$#', [AdminSiteController::class, 'previewSearch']],
     ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
