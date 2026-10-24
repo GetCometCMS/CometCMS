@@ -348,7 +348,7 @@
                     </optgroup>
                     <optgroup
                       v-if="contentFilterFields.length > 0"
-                      :label="t('apiBuilder.contentFields')"
+                      :label="t('apiBuilder.customFields')"
                     >
                       <option
                         v-for="field in contentFilterFields"

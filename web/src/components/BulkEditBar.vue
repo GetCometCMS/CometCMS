@@ -19,7 +19,7 @@
         </optgroup>
         <optgroup
           v-if="customFields.length > 0"
-          :label="t('bulk.contentFields')"
+          :label="t('bulk.customFields')"
         >
           <option v-for="f in customFields" :key="f.key" :value="f.key">
             {{ f.label }}

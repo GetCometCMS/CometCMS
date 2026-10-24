@@ -7,7 +7,7 @@ CometCMS is a lightweight, **Page Builder and file-based CMS** built with PHP an
 | Concept           | Description                                                                                    |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
 | **Page Builder** | Shared layouts keep the design consistent while editors work with content. |
-| **Content fields** | Structured values bound to layouts, also available through the optional headless API. |
+| **Custom Fields** | Structured values bound to layouts, also available through the optional headless API. |
 | **Content type**  | A schema that defines a collection of entries (e.g. `posts` or `pages`). |
 | **Content entry** | A saved item made up of the fields defined by its content type.                                |
 | **Media**         | Uploaded images/files, managed through the media library.                                      |

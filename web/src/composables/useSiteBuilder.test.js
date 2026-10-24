@@ -512,7 +512,7 @@ async function contentFixture(fieldApi) {
   return { builder, heading, image, bound, item: template.children[0] }
 }
 
-describe('builder content fields', () => {
+describe('builder custom fields', () => {
   it('offers literal content for conversion, but not bound or template content', async () => {
     const { builder, heading, image, bound, item } = await contentFixture({ create: async () => null, can: () => true })
     expect(builder.canMakeField(heading)).toBe(true)

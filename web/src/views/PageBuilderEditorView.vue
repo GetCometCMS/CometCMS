@@ -831,7 +831,7 @@ watch(selectedTemplatePart, (part) => {
   if (part) panelLayout.open("inspector");
 });
 
-/** The field the Content fields panel brings into view: `{ name }`. */
+/** The field the Custom Fields panel brings into view: `{ name }`. */
 const revealedField = ref(null);
 /** Double-clicked smart tag content edits its field of the previewed entry. */
 function editEntryField({ fields, text }) {

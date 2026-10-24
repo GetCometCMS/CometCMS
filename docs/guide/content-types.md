@@ -2,9 +2,9 @@
 
 A **content type** defines the structure (schema) for content. Every content type is a collection of entries, such as `posts`. One-off content like a start page, contact page or imprint is simply an entry, for example in a `pages` collection.
 
-New content types use the **Page Builder** by default. **Content fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
+New content types use the **Page Builder** by default. **Custom Fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
 
-The headless API is disabled for new types. Enable **Expose content fields through the API** explicitly to make published, unprotected entries publicly readable. Drafts and protected entries keep their access rules. API exposure is independent of website pages. Existing schemas retain their previous API access until reconfigured.
+The headless API is disabled for new types. Enable **Expose custom fields through the API** explicitly to make published, unprotected entries publicly readable. Drafts and protected entries keep their access rules. API exposure is independent of website pages. Existing schemas retain their previous API access until reconfigured.
 
 ![Content types overview in the CometCMS admin](../screenshots/view-content-types.png)
 
@@ -13,7 +13,7 @@ The headless API is disabled for new types. Enable **Expose content fields throu
 1. In the sidebar, under **Developer**, click **Content types**.
 2. Click **New content type**.
 3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
-4. Add content fields (see [Field Types](./field-types)).
+4. Add custom fields (see [Field Types](./field-types)).
 5. For forms, enable **Allow Submissions** and configure the new-entry status, button and messages below.
 6. Click **Save**.
 

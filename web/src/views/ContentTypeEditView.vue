@@ -157,7 +157,7 @@
         @touched="routeTouched = true"
       />
 
-      <!-- Custom content fields supply values to shared page layouts. -->
+      <!-- Custom fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
           <h2 class="card-title">

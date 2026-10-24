@@ -23,7 +23,7 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
   const records = ref({})
   const saving = ref(false)
   const fields = computed(() => Object.fromEntries(Object.entries(type.value?.fields ?? {})
-    // Routing stays in the entry editor and page content on the canvas; this panel owns title and content fields.
+    // Routing stays in the entry editor and page content on the canvas; this panel owns title and custom fields.
     .filter(([name, config]) => name !== 'slug' && name !== (type.value?.slug_field ?? 'slug') && config?.type !== 'page')))
   const defaultLocale = computed(() => type.value?.default_locale || type.value?.locales?.[0] || '')
   const activeLocale = computed(() => type.value?.locales?.length ? locale.value || defaultLocale.value : '')

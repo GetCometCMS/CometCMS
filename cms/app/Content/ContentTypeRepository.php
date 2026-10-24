@@ -124,7 +124,7 @@ final class ContentTypeRepository
             $fillable = array_filter($schema['fields'], static fn(array $config, string $key): bool => FormRepository::accepts($key, $config, $schema), ARRAY_FILTER_USE_BOTH);
             $unsupported = array_filter(FormRepository::unsupported($schema), static fn(array $config): bool => !empty($config['required']));
             if ($fillable === [] || $unsupported !== []) {
-                throw new ValidationException(['allow_submissions' => 'Submissions need at least one content field visitors can fill in, and all required content fields must support forms.']);
+                throw new ValidationException(['allow_submissions' => 'Submissions need at least one custom field visitors can fill in, and all required custom fields must support forms.']);
             }
         }
         // Language settings are workspace-owned; discard old per-type overrides on save.

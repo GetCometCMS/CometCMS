@@ -22,7 +22,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **No Composer.** Nothing to install on the server.
 - **No build step to deploy.** Run `make build` locally once, upload the `dist/` folder, done.
 - **Visual Page Builder.** Build a server-rendered website with shared layouts, a theme, header, footer and menus. Keep design consistent while editors manage content.
-- **Content fields and an optional headless API.** Bind structured content to your designs, or explicitly expose a content type through the API for Next.js, Astro, mobile apps or any other consumer.
+- **Custom Fields and an optional headless API.** Bind structured content to your designs, or explicitly expose a content type through the API for Next.js, Astro, mobile apps or any other consumer.
 - **Forms from content types.** Enable submissions on a collection, customize its messages and review incoming entries in the CMS.
 - **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
@@ -39,7 +39,7 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
 4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Pages collection with Landing Page, About and Hello World entries, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages, sets the Landing Page entry as your homepage, and downloads Inter and Lora as normal installed fonts that you can replace or remove. If font downloads are unavailable, the website uses system fonts. Empty workspaces start without installed fonts. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
-5. Edit your pages in the Page Builder, add content fields as needed, and enable API exposure only for types you want to use headlessly.
+5. Edit your pages in the Page Builder, add custom fields as needed, and enable API exposure only for types you want to use headlessly.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.
 

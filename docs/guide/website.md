@@ -1,6 +1,6 @@
 # Website
 
-CometCMS provides a visual Page Builder with shared layouts and structured content fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
+CometCMS provides a visual Page Builder with shared layouts and structured custom fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
@@ -297,7 +297,7 @@ Pages get a title (template in **Website settings → SEO & sharing**, e.g. `{ti
 
 ## Previewing drafts
 
-People who manage the website get a **Page design** section between **Core** and **Content fields** in the entry editor, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the save button's menu offers **Preview**, which opens the last saved layout with the sample entry, drafts included, for signed-in users only and marked with a preview banner. Save first to include unsaved layout changes. The same menu has **View live page** for the published page, and the top bar links back to the entry's content. Published entries also offer **View on website** in the editor header.
+People who manage the website get a **Page design** section between **Core** and **Custom Fields** in the entry editor, with an **Edit page** button. It opens the content type's shared page layout in the builder with that entry as the preview; layout changes apply to every entry of that type. In the builder, the save button's menu offers **Preview**, which opens the last saved layout with the sample entry, drafts included, for signed-in users only and marked with a preview banner. Save first to include unsaved layout changes. The same menu has **View live page** for the published page, and the top bar links back to the entry's content. Published entries also offer **View on website** in the editor header.
 
 ## Domains and workspaces
 
@@ -319,7 +319,7 @@ Website settings are included in backups as the **Website** part.
 
 Ordinary elements can use manually written content, a field value, or text containing several field values. Click the database icon beside a supported property to choose its content source. Clicking an inserted chip edits its reference, formatting, and empty-value fallback. **Raw** switches to the source view, where you can edit content and smart tags directly; **Visual** switches back to the visual editor. Invalid tags must be corrected before saving. **Use static content** removes the binding.
 
-Supported properties are heading text, Text content, image and gallery sources, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Content fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, single-image media inserts an Image, and multiple-media fields insert a Gallery. Files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
+Supported properties are heading text, Text content, image and gallery sources, button label, background images, and element link destinations. Image alt text and captions come from the selected media item's alt text and title. Other layout and style controls stay static. The **Custom Fields** sidebar contains shortcuts: Title inserts a bound Heading, scalar content inserts Text, single-image media inserts an Image, and multiple-media fields insert a Gallery. Files, relation lists/cards, repeaters, badges, meters, swatches, and JSON retain specialized displays using the same reference system.
 
 The picker offers these sources:
 

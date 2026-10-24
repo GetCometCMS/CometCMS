@@ -27,8 +27,8 @@ features:
     link: /guide/content-types
     linkText: Content types
   - icon: 🔌
-    title: Visual pages & content fields
-    details: Design consistent pages with shared layouts and structured content fields. Developers can also enable the headless API.
+    title: Visual pages & custom fields
+    details: Design consistent pages with shared layouts and structured custom fields. Developers can also enable the headless API.
     link: /guide/website
     linkText: Page Builder
   - icon: 🧩
