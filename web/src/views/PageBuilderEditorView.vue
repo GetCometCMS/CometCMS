@@ -119,7 +119,10 @@
     <!-- What saving changes: every entry the template shows, or this entry only. -->
     <div v-if="scopeBar" role="note" class="scope-bar flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5 text-xs" :class="`is-${scopeBar.kind}`">
       <Icon :icon="scopeBar.icon" class="scope-accent h-4 w-4 shrink-0" aria-hidden="true" />
-      <p class="min-w-0 flex-1"><strong class="scope-accent font-semibold">{{ scopeBar.title }}</strong> · {{ scopeBar.text }}</p>
+      <p class="min-w-0 flex-1">
+        <strong class="scope-accent font-semibold">{{ scopeBar.title }}</strong> · {{ scopeBar.text }}
+        <span v-if="scopeBar.note" class="block opacity-80">{{ scopeBar.note }}</span>
+      </p>
       <div class="flex items-center gap-3">
         <button
           v-for="action in scopeBar.actions"
@@ -140,10 +143,6 @@
       <button type="button" class="btn-secondary btn-sm shrink-0" :disabled="saving" @click="cancelRevision(scope)">{{ t('common.cancel') }}</button>
     </div>
     <p v-if="upgradeRequired" role="status" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">{{ t("site.binding.upgrade") }}</p>
-    <p v-if="target === 'page' && !loading && !loadError && !pagePlaced" role="status" class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-      {{ t("site.page.notPlaced") }}
-      <router-link :to="layoutLink" class="font-medium underline">{{ t("site.page.editLayout") }}</router-link>
-    </p>
     <p v-if="builder.hasSyntaxErrors.value" role="alert" class="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{{ t("site.binding.invalidSyntax") }}</p>
     <div v-if="loadError" class="m-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">{{ loadError }}</div>
 
@@ -347,12 +346,14 @@
     <ConfirmModal
       :model-value="pendingView !== null"
       :title="t('unsaved.title')"
-      :message="t('unsaved.message')"
-      :confirm-label="t('unsaved.leave')"
+      :message="pendingView?.save ? t('site.scope.saveFirst', { title: entryTitle }) : t('unsaved.message')"
+      :confirm-label="pendingView?.save ? t('site.scope.saveAndContinue') : t('unsaved.leave')"
+      :loading-label="t('common.saving')"
       :cancel-label="t('unsaved.stay')"
+      :loading="saving"
       variant="warning"
       @update:model-value="(open) => { if (!open) pendingView = null }"
-      @confirm="switchView(pendingView)"
+      @confirm="confirmPendingView"
     />
   </div>
 </template>
@@ -585,8 +586,6 @@ const variant = computed(() => shown.value.variant);
 const pageField = ref(shown.value.field);
 /** The entry has page content of its own (not the layout's default content). */
 const pageCustomized = ref(false);
-/** The detail layout has a place for the page field. */
-const pagePlaced = ref(true);
 const pageTitle = ref("");
 /** The default design (generated layout, header or footer, or the layout's default page content) that Reset brings back. */
 const defaultNodes = ref(null);
@@ -594,7 +593,6 @@ const defaultNodes = ref(null);
 const layoutCustomized = ref(false);
 /** The entry's stable ID: builders name entries by it, as slugs differ between languages. */
 const pageEntryId = ref(pageEntry.value);
-const layoutLink = computed(() => ({ path: `/page-builder/builder/layout/${name.value}/detail`, query: { entry: pageEntryId.value, back: route.fullPath } }));
 const historyScopeKey = computed(() => {
   if (target.value === "page") return "site.history.scope.page";
   return target.value === "component" ? "site.history.scope.component" : "site.history.scope.layout";
@@ -757,7 +755,7 @@ const pageView = computed(() => {
   if (!type || !(target.value === "page" || (target.value === "layout" && variant.value === "detail"))) return null;
   const entry = target.value === "page" ? pageEntryId.value : sampleId.value;
   if (!entry) return null;
-  const field = target.value === "page" ? pageField.value : editedTemplate.value === liveTemplate.value ? builder.placedPageFields()[0]?.key : null;
+  const field = target.value === "page" ? pageField.value : editedTemplate.value === liveTemplate.value ? designableField() : null;
   if (!field) return null;
   const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
   return {
@@ -766,6 +764,13 @@ const pageView = computed(() => {
     to: { path: `/page-builder/builder/page/${name.value}/${entry}`, query: { field, ...back } },
   };
 });
+
+/** The template's area an entry designs: the selected Entry content element's, else the first. */
+function designableField() {
+  const placed = builder.placedPageFields();
+  const selected = builder.selectedId.value ? findNode(builder.nodes.value, builder.selectedId.value) : null;
+  return (placed.find((field) => selected?.kind === "page_content" && field.key === selected.props?.field) ?? placed[0])?.key ?? null;
+}
 
 /** The entry the canvas shows: the edited one, or the template's sample. */
 const entryTitle = computed(() => {
@@ -852,14 +857,19 @@ const scopeBar = computed(() => {
     };
   }
   if (target.value !== "layout" || variant.value !== "detail") return null;
+  const live = liveTemplate.value;
+  const elsewhere = !pageView.value && entrySide.value && live && live !== editedTemplate.value;
   return {
     kind: "template",
     icon: "mdi:page-layout-header-footer",
     title: t("site.templates.shown", { name: templateName(t, templateById(site.draft?.templates, name.value, variant.value, editedTemplate.value)) }),
-    text: t(pageView.value ? "site.scope.templateWithPages" : "site.scope.templateText", { type: builder.type.value?.label ?? name.value }),
+    text: t(builder.placedPageFields().length ? "site.scope.templateWithPages" : "site.scope.templateText", { type: builder.type.value?.label ?? name.value }),
+    note: entrySide.value?.unavailable ?? "",
     actions: pageView.value
       ? [{ key: "page", icon: "mdi:arrow-right", label: t("site.scope.toPage", { title: pageView.value.entryTitle }), run: () => goToView(pageView.value) }]
-      : [],
+      : elsewhere
+        ? [{ key: "live", icon: "mdi:arrow-right", label: t("site.scope.openTemplate", { template: templateName(t, templateById(site.draft?.templates, name.value, "detail", live)) }), run: () => openTemplate(live) }]
+        : [],
   };
 });
 
@@ -929,12 +939,16 @@ const frameLayout = computed(() => ["layout", "page"].includes(target.value) && 
 
 /** The template the preview last showed around the content: `{ …template, reason, live }`. */
 const shownTemplate = ref(null);
-/** Another entry was picked: the canvas moves to the template it uses on the website. */
-const followLiveTemplate = ref(false);
-function onRendered(data) {
+/** Another entry was picked: the canvas moves to the template it uses on the website, once its preview names it. */
+let followEntry = "";
+/** What a preview shows; one that arrives for another view, entry or template is left out. */
+const RENDER_KEYS = ["target", "type", "variant", "template", "entry", "field", "component", "region"];
+function onRendered(data, body) {
+  const current = previewBody.value;
+  if (!current || RENDER_KEYS.some((key) => body?.[key] !== current[key])) return;
   shownTemplate.value = data?.template ?? null;
-  if (!followLiveTemplate.value) return;
-  followLiveTemplate.value = false;
+  if (!followEntry || body.entry !== followEntry) return;
+  followEntry = "";
   const live = shownTemplate.value?.live;
   if (target.value === "layout" && !builder.isDirty.value && live && live !== editedTemplate.value) openTemplate(live);
 }
@@ -1097,7 +1111,6 @@ async function load(next = requested) {
       // The server picks the first area when none was asked for.
       requested = shown.value = { ...next, field: data.field };
       pageCustomized.value = !!data.customized;
-      pagePlaced.value = data.placed !== false;
       pageTitle.value = data.entry?.title ?? "";
       pageEntryId.value = data.entry?.id || pageEntry;
     }
@@ -1105,7 +1118,7 @@ async function load(next = requested) {
       // The server picks the entry's (or the default) template when none was asked for.
       requested = shown.value = { ...shown.value, template: data.template };
     }
-    if (moved) shownTemplate.value = null;
+    shownTemplate.value = data.shown_template ?? null;
     layoutCustomized.value = !!data.customized;
     defaultNodes.value = data.default_nodes ?? (target === "page" ? data.nodes : null);
     upgradeRequired.value = !!data.upgrade_required;
@@ -1115,6 +1128,9 @@ async function load(next = requested) {
     sampleId.value = target === "page" ? data.entry.id
       : samples.value.some((sample) => sample.id === wanted) ? wanted
       : samples.value.find((sample) => sample.status === "published")?.id ?? samples.value[0]?.id ?? "";
+    if (target !== "page" && sampleId.value && route.query.entry !== sampleId.value && isBuilderPath(route.path)) {
+      router.replace({ query: { ...route.query, entry: sampleId.value } });
+    }
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
     locales.value = data.locales ?? [];
@@ -1127,6 +1143,12 @@ async function load(next = requested) {
     // A list page that is turned off does not exist: open the entry page instead.
     if (target === "layout" && variant === "index" && err.status === 404) {
       router.replace({ path: `/page-builder/builder/layout/${name}/detail`, query: route.query });
+      return;
+    }
+    // The entry's template shows none of its areas: its template opens, which says why.
+    if (target === "page" && err.code === "page_not_placed") {
+      const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
+      router.replace({ path: `/page-builder/builder/layout/${name}/detail`, query: { entry: pageEntry, ...back } });
       return;
     }
     loadError.value = err.message;
@@ -1303,10 +1325,11 @@ async function convertField(label) {
 function selectEntry(entry) {
   if (saving.value || loading.value) return;
   if (target.value !== "page") {
-    if (entry !== sampleId.value && showsTemplates.value && target.value === "layout") {
-      followLiveTemplate.value = true;
-    }
+    if (entry === sampleId.value) return;
+    if (showsTemplates.value && target.value === "layout") followEntry = entry;
     sampleId.value = entry;
+    // The link names the entry shown, so later builder links and reloads keep it.
+    router.replace({ query: { ...route.query, entry } });
     return;
   }
   if (entry === pageEntryId.value) return;
@@ -1331,7 +1354,19 @@ function selectPageArea(field) {
 function goToView(view) {
   if (view.key === currentView.value) return;
   if (!switching.value && (builder.isDirty.value || entryFields.isDirty.value)) {
-    pendingView.value = view;
+    // The entry starts from the saved template's area; leaving its edits behind could remove that area.
+    pendingView.value = view.key === "page" && target.value === "layout" ? { ...view, save: true } : view;
+    return;
+  }
+  switchView(view);
+}
+
+async function confirmPendingView() {
+  const view = pendingView.value;
+  if (!view?.save) return switchView(view);
+  await save();
+  if (builder.isDirty.value || entryFields.isDirty.value) {
+    pendingView.value = null;
     return;
   }
   switchView(view);

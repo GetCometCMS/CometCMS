@@ -188,6 +188,26 @@ final class SiteContext
     }
 
     /**
+     * The template the builder shows around the content area of template
+     * $area for $entry. `live` is the id of the template $entry uses on the
+     * website; when that is another one, the reason is "edited".
+     *
+     * @return array{template: array, reason: string, live: string}
+     */
+    public function areaTemplate(string $type, string $variant, ?array $entry, string $area): array
+    {
+        $resolved = $this->template($type, $variant, $entry);
+        $live = (string) $resolved['template']['id'];
+        if ($live !== $area) {
+            foreach ($this->templates($type, $variant) as $template) {
+                if ($template['id'] === $area) return ['template' => $template, 'reason' => 'edited', 'live' => $live];
+            }
+        }
+
+        return $resolved + ['live' => $live];
+    }
+
+    /**
      * What a template's header or footer shows: the site's own region, a
      * placed section component, or null for none. A component that is gone
      * (or no longer fits) falls back to the region.

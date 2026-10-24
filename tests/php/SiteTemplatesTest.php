@@ -342,3 +342,38 @@ PHP;
     assert_same(['tips', 'Tip'], $open('?template=tips&entry=news'), 'A carried entry that does not use the template gives way to one that does.');
     assert_same(['default', 'News'], $open('?entry=news'), 'An entry asked for opens its own template.');
 });
+
+test('the entry builder only opens content areas the entry\'s template shows, and names that template up front', function (): void {
+    $seed = <<<'PHP'
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'blog', 'fields' => [
+    'category' => ['type' => 'select', 'options' => ['news' => 'News', 'tips' => 'Tips']],
+    'design' => ['type' => 'page'],
+    'aside' => ['type' => 'page'],
+]]);
+$content = \CometCMS\Content\ContentRepository::make();
+$news = $content->save('blog', ['title' => 'News', 'slug' => 'news', 'category' => 'news', 'status' => 'published'], ['id' => 'admin']);
+$tip = $content->save('blog', ['title' => 'Tip', 'slug' => 'tip', 'category' => 'tips', 'status' => 'published'], ['id' => 'admin']);
+$site = new \CometCMS\Site\SiteRepository();
+$site->saveSettings(['routes' => ['blog' => ['enabled' => true]]]);
+$site->createTemplate('blog', 'detail', 'Tips', '', ['conditions' => [['field' => 'category', 'op' => 'equals', 'value' => 'tips']]]);
+$site->saveLayout('blog', 'detail', [['id' => 'area', 'kind' => 'page_content', 'props' => ['field' => 'aside']]]);
+$site->saveLayout('blog', 'detail', [['id' => 'title', 'kind' => 'heading', 'props' => ['text' => 'Tips', 'level' => 'h1']]], area: 'tips');
+PHP;
+    $controller = '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))';
+
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/pages/blog/news?field=design', $controller . '->page("blog", $news["uid"]);');
+    assert_same(200, $status);
+    assert_same('aside', $body['data']['field'], 'An area the template does not show gives way to one it does.');
+    assert_same(['default', 'default'], [$body['data']['shown_template']['id'], $body['data']['shown_template']['live']]);
+
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/pages/blog/tip', $controller . '->page("blog", $tip["uid"]);');
+    assert_same(409, $status);
+    assert_same('page_not_placed', $body['error']['code'], 'An entry whose template has no Entry content area cannot be designed.');
+
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/layouts/blog/detail?template=default&entry=tip', $controller . '->layout("blog", "detail");');
+    assert_same(200, $status);
+    assert_same(['default', 'default'], [$body['data']['shown_template']['id'], $body['data']['shown_template']['live']], 'The sample switches to an entry using the template.');
+
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/layouts/blog/detail?entry=tip', $controller . '->layout("blog", "detail");');
+    assert_same(['tips', 'tips', 'conditions'], [$body['data']['template'], $body['data']['shown_template']['live'], $body['data']['shown_template']['reason']]);
+});

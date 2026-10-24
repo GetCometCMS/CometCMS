@@ -275,22 +275,10 @@ final class PageRenderer
         return $this->template = ['type' => $type, 'variant' => $variant, 'live' => $resolved['template']['id']] + $resolved;
     }
 
-    /**
-     * The template whose content area the builder edits, around it. When the
-     * sample entry uses another one on the website, the reason is "edited"
-     * and `live` names the entry's.
-     */
+    /** The template whose content area the builder edits, around it (see SiteContext::areaTemplate()). */
     private function areaTemplate(string $type, string $variant, ?array $entry, string $area): array
     {
-        $resolved = $this->pageTemplate($type, $variant, $entry);
-        if ($resolved['template']['id'] === $area) {
-            return $resolved;
-        }
-        foreach ($this->ctx->templates($type, $variant) as $template) {
-            if ($template['id'] === $area) return $this->template = ['template' => $template, 'reason' => 'edited'] + $resolved;
-        }
-
-        return $resolved;
+        return $this->template = ['type' => $type, 'variant' => $variant] + $this->ctx->areaTemplate($type, $variant, $entry, $area);
     }
 
     /** The template the last rendered page used, if any. */

@@ -154,7 +154,7 @@ final class SiteController extends BaseController
             'previewable' => $entry !== null && $context->isPublicType($type),
             'can_manage' => $this->can($user, 'site.manage', ['resource' => 'site:*']),
             // Page fields with a place in the content area this entry's template shows.
-            'page_fields' => $routed ? array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryTemplate($type, $entry)['id'])))) : [],
+            'page_fields' => $routed && isset($this->site->types()[$type]) ? $this->placedPageFields($this->site->types()[$type], $type, $entry) : [],
             'template' => $routed && $entry !== null ? $this->entryTemplate($type, $entry) : null,
             // The templates an entry can choose instead of the automatic one.
             'templates' => $routed && $context->isPublicType($type) ? array_map(static fn(array $template): array => ['id' => $template['id'], 'name' => $template['name']], $this->site->templates($type, 'detail')) : [],
@@ -266,9 +266,13 @@ final class SiteController extends BaseController
 
         $context = $this->context();
         $samples = $this->samples($type, $identifier);
+        $sampleId = $variant === 'detail' ? $this->sampleUsing($type, $area, $samples) : $this->requestedSample($type);
+        $shownEntry = $variant === 'detail' && $sampleId !== '' ? $context->findEntry($type, $sampleId, true) : null;
 
         $this->json(['data' => [
             'template' => $area,
+            // What the canvas shows around the area before its first preview arrives.
+            'shown_template' => self::shown($context->areaTemplate($type, $variant, $shownEntry, $area)),
             'nodes' => $this->site->layout($type, $variant, $area),
             'revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->layout($type, $variant, $area)),
             'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant, $area),
@@ -277,7 +281,7 @@ final class SiteController extends BaseController
             'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
             'type' => $schema,
             'samples' => $samples,
-            'sample' => $variant === 'detail' ? $this->sampleUsing($type, $area, $samples) : $this->requestedSample($type),
+            'sample' => $sampleId,
             'index_url' => $this->liveUrl($context->indexUrl($type), $context),
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext($variant === 'detail'),
@@ -315,7 +319,7 @@ final class SiteController extends BaseController
      */
     public function page(string $type, string $id): never
     {
-        [$schema, $entry, $field] = $this->requirePage($type, $id, (string) ($_GET['field'] ?? ''));
+        [$schema, $entry, $field] = $this->requirePage($type, $id, (string) ($_GET['field'] ?? ''), true);
         $context = $this->context();
         $value = $entry[$field] ?? null;
         $customized = LayoutSchema::hasPageContent($value);
@@ -326,8 +330,7 @@ final class SiteController extends BaseController
             'customized' => $customized,
             'default_nodes' => $customized ? $this->defaultPage($type, $field, $entry) : null,
             'upgrade_required' => LayoutSchema::pageNeedsUpgrade($value),
-            'placed' => isset(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryTemplate($type, $entry)['id']))[$field]),
-            'template' => $this->entryTemplate($type, $entry),
+            'shown_template' => self::shown($context->template($type, 'detail', $context->findEntry($type, $this->content()->stableId($entry), true))),
             'field' => $field,
             'samples' => $this->samples($type, $this->content()->stableId($entry)),
             'type' => $schema,
@@ -392,11 +395,15 @@ final class SiteController extends BaseController
 
     /**
      * The type, entry and page field the page builder edits, for those who
-     * manage the website and may change this entry's page field.
+     * manage the website and may change this entry's page field. With
+     * $placed, only an area the entry's template shows can be opened: another
+     * field gives way to the first one placed, and with none the request
+     * fails with "page_not_placed", so no entry is designed where its
+     * content would not appear.
      *
      * @return array{0: array, 1: array, 2: string, 3: array}
      */
-    private function requirePage(string $type, string $id, string $field): array
+    private function requirePage(string $type, string $id, string $field, bool $placed = false): array
     {
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $schema = $this->requireType($type, 'detail');
@@ -405,6 +412,13 @@ final class SiteController extends BaseController
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
         }
         $fields = array_keys(array_filter($schema['fields'], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+        if ($placed) {
+            $places = $this->placedPageFields($schema, $type, $entry);
+            if ($places === []) {
+                $this->json(['error' => ['code' => 'page_not_placed', 'message' => 'The template this entry uses has no Entry content area.', 'template' => $this->entryTemplate($type, $entry)['id']]], 409);
+            }
+            $field = in_array($field, $places, true) ? $field : $places[0];
+        }
         $field = $field !== '' ? $field : (string) ($fields[0] ?? '');
         if (!in_array($field, $fields, true)) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'This content type has no page content field.']], 404);
@@ -412,6 +426,19 @@ final class SiteController extends BaseController
         $this->requirePermission('content.update', ['type' => 'content', 'collection' => $type, 'entry' => $entry, 'fields' => [$field], 'locale' => $this->content()->locale()]);
 
         return [$schema, $entry, $field, $user];
+    }
+
+    /**
+     * The type's page fields that the content area of the entry's template
+     * shows, in canvas order: the areas the entry can design.
+     *
+     * @return list<string>
+     */
+    private function placedPageFields(array $schema, string $type, ?array $entry): array
+    {
+        $places = array_map('strval', array_keys(LayoutSchema::pagePlaces($this->site->layout($type, 'detail', $this->entryTemplate($type, $entry)['id']))));
+
+        return array_values(array_filter($places, static fn(string $key): bool => ($schema['fields'][$key]['type'] ?? '') === 'page'));
     }
 
     /** A copy of the default content the entry's template shows in $field's place. */
@@ -807,7 +834,13 @@ final class SiteController extends BaseController
     {
         $shown = $renderer->template();
 
-        return $shown === null ? null : $shown['template'] + ['reason' => $shown['reason'], 'live' => $shown['live']];
+        return $shown === null ? null : self::shown($shown);
+    }
+
+    /** A resolved template as the builder names it: {…template, reason, live}. */
+    private static function shown(array $resolved): array
+    {
+        return $resolved['template'] + ['reason' => $resolved['reason'], 'live' => $resolved['live'] ?? $resolved['template']['id']];
     }
 
     /** Open unsaved editor state as a navigable, private snapshot. */

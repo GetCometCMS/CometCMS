@@ -99,11 +99,12 @@ watch(scale, applyScale);
 
 async function render() {
   if (!props.body) return;
+  const body = props.body;
   const current = ++sequence;
   loading.value = true;
 
   try {
-    const res = await api.site.preview(props.body);
+    const res = await api.site.preview(body);
     if (current !== sequence) return;
     const html = withPreviewStyles(res.data?.html ?? "", props.headCss);
     const doc = documentLoaded ? iframeRef.value?.contentDocument : null;
@@ -119,7 +120,7 @@ async function render() {
       srcdoc.value = html;
     }
     error.value = "";
-    emit("rendered", res.data);
+    emit("rendered", res.data, body);
   } catch (err) {
     if (current === sequence) error.value = err.message;
   } finally {
