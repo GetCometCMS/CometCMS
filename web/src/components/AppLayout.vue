@@ -21,9 +21,9 @@
         ]"
       >
         <div class="sidebar-header flex h-16 shrink-0 items-center justify-between gap-2 px-3">
-          <router-link to="/dashboard" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
+          <a :href="api.site.homePreviewUrl()" :title="t('site.preview.title')" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
             <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto max-w-full object-contain" />
-          </router-link>
+          </a>
           <button
             type="button"
             :aria-label="sidebarToggleLabel"

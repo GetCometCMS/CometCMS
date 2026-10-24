@@ -1176,3 +1176,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 export function useSiteBuilder() {
   return inject(KEY)
 }
+
+/** The builder when there is one, e.g. for panels the design page shares. */
+export function useOptionalSiteBuilder() {
+  return inject(KEY, null)
+}

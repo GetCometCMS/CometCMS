@@ -111,4 +111,47 @@ onBeforeUnmount(() => {
 .css-code-editor :deep(.cm-cursor) {
   border-left-color: currentColor;
 }
+/* CodeMirror's tooltips are light-only; follow the app theme instead. */
+.css-code-editor :deep(.cm-tooltip) {
+  border: 1px solid rgb(var(--color-slate-200));
+  border-radius: 0.375rem;
+  background: rgb(var(--color-raised, 255 255 255));
+  color: rgb(var(--color-slate-800));
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.35);
+  overflow: hidden;
+}
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul > li) {
+  padding: 1px 6px;
+  color: rgb(var(--color-slate-800));
+}
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul > li[aria-selected]) {
+  background: rgb(var(--color-theme-600));
+  color: #fff;
+}
+.css-code-editor :deep(.cm-completionMatchedText) {
+  text-decoration: none;
+  font-weight: 700;
+  color: rgb(var(--color-theme-600));
+}
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText) {
+  color: inherit;
+}
+.css-code-editor :deep(.cm-completionIcon),
+.css-code-editor :deep(.cm-completionDetail) {
+  color: rgb(var(--color-slate-500));
+  opacity: 1;
+}
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionIcon),
+.css-code-editor :deep(.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail) {
+  color: inherit;
+}
+.css-code-editor :deep(.cm-completionInfo) {
+  border: 1px solid rgb(var(--color-slate-200));
+  background: rgb(var(--color-raised, 255 255 255));
+  color: rgb(var(--color-slate-700));
+}
 </style>
