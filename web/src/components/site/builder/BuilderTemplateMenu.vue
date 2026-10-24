@@ -66,7 +66,10 @@
           @click="choose(() => emit('area', item.id))"
         >
           <Icon icon="mdi:file-document-outline" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-          <span class="min-w-0 flex-1 truncate">{{ areaLabel(t, item.id, areas) }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate" :class="{ 'font-medium text-theme-700': item.id === area }">{{ areaLabel(t, item.id, areas) }}</span>
+            <span class="block truncate text-xs text-slate-500">{{ usedBy(item.id) }}</span>
+          </span>
           <Icon v-if="item.id === area" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
         </button>
         <button type="button" role="menuitem" tabindex="-1" class="menu-row" @click="choose(() => emit('new-area'))">
@@ -134,6 +137,12 @@ function parts(template) {
     areaLabel(t, template.content, props.areas),
     frameLabel(t, template.footer, "footer", props.components),
   ].join(" · ");
+}
+
+/** Which templates put a content area on the page: picking a template also opens its area. */
+function usedBy(id) {
+  const names = props.templates.filter((template) => template.content === id).map((template) => templateName(t, template));
+  return names.length ? t("site.templates.usedBy", { names: names.join(", ") }) : t("site.templates.unused");
 }
 
 function choose(action) {

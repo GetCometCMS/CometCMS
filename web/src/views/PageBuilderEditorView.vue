@@ -862,17 +862,29 @@ const shownDraft = computed(() => {
 /** The template chosen to preview with ("" for the one the page uses). */
 const previewTemplate = ref(typeof route.query.template === "string" ? route.query.template : "");
 watch(() => route.query.template, (value) => { previewTemplate.value = typeof value === "string" ? value : ""; });
+/**
+ * Preview with another template ("" for the live one). A layout's canvas also
+ * opens that template's content area, so the preview shows the whole page it puts together.
+ */
 function previewWith(id) {
+  const layout = frameLayout.value;
+  if (target.value === "layout" && layout) {
+    const template = templateById(site.draft?.templates, layout.type, layout.variant, id || shownTemplate.value?.live);
+    if (template && template.content !== area.value && pageKindAreas.value.some((item) => item.id === template.content)) {
+      openArea(template.content, id);
+      return;
+    }
+  }
   router.replace({ query: { ...route.query, template: id || undefined } });
 }
 
 /** Content areas of the page kind; templates choose one of them. */
 const areas = ref([]);
 const area = computed(() => shown.value.area || DEFAULT_AREA);
-function openArea(id) {
+function openArea(id, template = previewTemplate.value) {
   const entry = sampleId.value || pageEntryId.value;
   const back = typeof route.query.back === "string" ? { back: route.query.back } : {};
-  router.push({ path: `/page-builder/builder/layout/${name.value}/${frameLayout.value?.variant ?? variant.value}`, query: { area: id, ...(entry ? { entry } : {}), ...(previewTemplate.value ? { template: previewTemplate.value } : {}), ...back } });
+  router.push({ path: `/page-builder/builder/layout/${name.value}/${frameLayout.value?.variant ?? variant.value}`, query: { area: id, ...(entry ? { entry } : {}), ...(template ? { template } : {}), ...back } });
 }
 
 const areaDialogOpen = ref(false);

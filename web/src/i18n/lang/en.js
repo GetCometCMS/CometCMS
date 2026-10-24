@@ -1642,6 +1642,8 @@ const messages = {
     'site.templates.liveTag': 'Live',
     'site.templates.liveHint': 'The template this page uses on the website',
     'site.templates.contentAreas': 'Content areas',
+    'site.templates.usedBy': 'Used by {names}',
+    'site.templates.unused': 'Not used by any template',
     'site.templates.newArea': 'New content area…',
     'site.templates.editTemplates': 'Edit templates',
     'site.templates.defaultName': 'Default',

@@ -1647,6 +1647,8 @@ const messages = {
   'site.templates.liveTag': 'Live',
   'site.templates.liveHint': 'Die Vorlage, die diese Seite auf der Website nutzt',
   'site.templates.contentAreas': 'Inhaltsbereiche',
+  'site.templates.usedBy': 'Verwendet von {names}',
+  'site.templates.unused': 'Von keiner Vorlage verwendet',
   'site.templates.newArea': 'Neuer Inhaltsbereich…',
   'site.templates.editTemplates': 'Vorlagen bearbeiten',
   'site.templates.defaultName': 'Standard',
