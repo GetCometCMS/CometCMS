@@ -70,6 +70,8 @@ make test-frontend
 npm --workspace web run test:watch
 ```
 
+Run `node tests/browser/link-modal.mjs` with PHP and Chrome/Chromium installed to check internal link modals, external links, keyboard and focus behavior, mobile sizing, previews and root/subdirectory installs under the real content security policy. Set `CHROME_BIN` to override the browser executable. The test uses an isolated temporary installation.
+
 ## Local reset
 
 To wipe all data and return to the setup screen, just delete the storage folder. If you want to keep users and roles but reset content, media, sessions, logs, and settings, run:

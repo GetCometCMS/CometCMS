@@ -317,7 +317,26 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-gallery-item { min-width: 0; }
 .c-gallery-zoom { display: block; cursor: zoom-in; }
 .c-gallery-zoom:focus-visible { outline: 3px solid var(--c-primary); outline-offset: 3px; }
-html:has(.c-lightbox[open]) { overflow: hidden; }
+html:has(.c-lightbox[open], .c-link-modal[open]) { overflow: hidden; }
+.c-link-modal {
+  width: min(72rem, calc(100% - 2rem));
+  height: calc(100dvh - 2rem);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-box);
+  background: var(--c-background);
+  color: var(--c-text);
+  overflow: hidden;
+}
+.c-link-modal[open] { display: flex; flex-direction: column; }
+.c-link-modal::backdrop { background: rgb(0 0 0 / 0.65); }
+.c-link-modal-bar { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--c-border); }
+.c-link-modal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-link-modal-close { display: flex; flex: none; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: var(--radius-box); background: transparent; color: inherit; cursor: pointer; }
+.c-link-modal-close:hover { background: var(--c-surface); }
+.c-link-modal-frame { flex: 1; min-height: 0; width: 100%; border: 0; }
 .c-lightbox {
   position: fixed;
   inset: 0;

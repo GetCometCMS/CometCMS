@@ -18,7 +18,7 @@
       </template>
       <template v-if="['media', 'media_list', 'link'].includes(def.binding)" #literal>
         <MediaSelect v-if="['media', 'media_list'].includes(def.binding)" :model-value="value" :multiple="def.binding === 'media_list'" :name="inputId" :compact="group === 'style' || def.binding === 'media_list'" @update:model-value="emitValue" />
-        <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
+        <LinkEditor v-else :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact allow-modal @update:model-value="emitValue" />
       </template>
     </SmartValueEditor>
 
@@ -223,7 +223,7 @@
 
     <MediaSelect v-else-if="def.type === 'media'" :model-value="value" :name="inputId" @update:model-value="emitValue" />
 
-    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact @update:model-value="emitValue" />
+    <LinkEditor v-else-if="def.type === 'link'" :model-value="value" :types="builder.types.value" :settings="linkSettings" :context="node.id" compact allow-modal @update:model-value="emitValue" />
 
     <div v-else-if="def.type === 'spans'" class="space-y-1.5">
       <div v-for="device in devices" :key="device" class="flex items-center gap-1.5">

@@ -1051,6 +1051,10 @@ final class LayoutSchema
         if ($type !== 'none') {
             $normalized['new_tab'] = $type !== 'anchor' && (bool) ($link['new_tab'] ?? false);
         }
+        if (in_array($type, ['current', 'home', 'entry', 'index'], true) && !empty($link['open_modal'])) {
+            $normalized['open_modal'] = true;
+            $normalized['new_tab'] = false;
+        }
 
         return $normalized;
     }

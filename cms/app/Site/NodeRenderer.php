@@ -1561,7 +1561,7 @@ final class NodeRenderer
 
     // ─── Links ───────────────────────────────────────────────────────────────
 
-    /** @return array{href: string, new_tab: bool}|null */
+    /** @return array{href: string, new_tab: bool, open_modal: bool}|null */
     private function resolveLink(array|bool $link, array $state): ?array
     {
         if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
@@ -1582,7 +1582,9 @@ final class NodeRenderer
             $href .= '#' . $link['anchor'];
         }
 
-        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
+        $modal = in_array($link['type'] ?? '', ['current', 'home', 'entry', 'index'], true) && !empty($link['open_modal']);
+
+        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => !$modal && (bool) ($link['new_tab'] ?? false), 'open_modal' => $modal];
     }
 
     private function linkedEntryUrl(string $type, string $slug): ?string
@@ -1632,6 +1634,7 @@ final class NodeRenderer
     private function anchor(array $link, string $html, string $class = ''): string
     {
         return '<a href="' . Security::e($link['href']) . '"' . ($class !== '' ? ' class="' . $class . '"' : '')
+            . (!empty($link['open_modal']) ? ' data-link-modal aria-haspopup="dialog" data-modal-close="' . Security::e(Messages::get('close', $this->ctx->htmlLang())) . '"' : '')
             . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . '>' . $html . '</a>';
     }
 

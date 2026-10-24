@@ -1617,6 +1617,7 @@ const messages = {
     'site.link.chooseType': 'Choose a content type',
     'site.link.chooseEntry': 'Choose an entry',
     'site.link.newTab': 'Open in a new tab',
+    'site.link.openModal': 'Open in modal',
     'site.builder.back': 'Back to website settings',
     'site.builder.exit': 'Exit Page Builder',
     'site.builder.variants': 'Layout',

@@ -1622,6 +1622,7 @@ const messages = {
   'site.link.chooseType': 'Inhaltstyp wählen',
   'site.link.chooseEntry': 'Eintrag wählen',
   'site.link.newTab': 'In neuem Tab öffnen',
+  'site.link.openModal': 'In Modal öffnen',
   'site.builder.back': 'Zurück zu den Website-Einstellungen',
   'site.builder.exit': 'Page Builder verlassen',
   'site.builder.variants': 'Layout',

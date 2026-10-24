@@ -275,7 +275,7 @@ final class PageRenderer
         $headScript = $interactive && str_contains($markup, 'data-theme-toggle')
             ? '<script>' . ThemeToggle::script() . '</script>' : '';
         $bodyScripts = '';
-        foreach (['data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class, ' data-list-filters' => ListFilters::class] as $marker => $module) {
+        foreach (['data-link-modal' => LinkModal::class, 'data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class, ' data-list-filters' => ListFilters::class] as $marker => $module) {
             if ($interactive && str_contains($markup, $marker)) {
                 $bodyScripts .= '<script type="module">' . $module::script() . '</script>';
             }

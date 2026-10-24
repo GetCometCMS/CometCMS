@@ -306,6 +306,7 @@ final class PageBuilderTools
             if ($type === 'link') {
                 foreach (['type', 'url', 'anchor', 'collection', 'entry'] as $key) if (array_key_exists($key, $value) && !is_string($value[$key])) $this->invalid($path . '.' . $key, 'Expected a string.');
                 if (isset($value['new_tab']) && !is_bool($value['new_tab'])) $this->invalid($path . '.new_tab', 'Expected a boolean.');
+                if (isset($value['open_modal']) && !is_bool($value['open_modal'])) $this->invalid($path . '.open_modal', 'Expected a boolean.');
             }
             return;
         }

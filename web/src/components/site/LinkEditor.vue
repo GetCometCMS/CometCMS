@@ -5,7 +5,7 @@
       <button v-if="!['none', 'anchor'].includes(link.type)" type="button"
         class="flex w-8 shrink-0 items-center justify-center rounded-lg border transition-colors"
         :class="link.new_tab ? 'border-theme-200 bg-theme-50 text-theme-700' : 'border-slate-300 bg-white text-slate-400 hover:text-slate-700'"
-        :aria-pressed="!!link.new_tab" :title="t('site.link.newTab')" :aria-label="t('site.link.newTab')" @click="update({ new_tab: !link.new_tab })">
+        :aria-pressed="!!link.new_tab" :title="t('site.link.newTab')" :aria-label="t('site.link.newTab')" @click="update({ new_tab: !link.new_tab, open_modal: false })">
         <Icon icon="mdi:open-in-new" class="h-4 w-4" />
       </button>
     </div>
@@ -40,7 +40,7 @@
       <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t('site.link.urlHint') }}</span>
     </label>
 
-    <LinkOptions :link="link" :compact="compact" :task-focused="taskFocused" @update="update" />
+    <LinkOptions :link="link" :compact="compact" :task-focused="taskFocused" :allow-modal="allowModal" @update="update" />
     <p v-if="issue" class="text-xs text-red-700" role="status">{{ t(`site.link.${issue}`) }}</p>
 
   </div>
@@ -65,6 +65,7 @@ const props = defineProps({
   /** One-row type menu and smaller fields, for narrow sidebars. */
   compact: { type: Boolean, default: false },
   taskFocused: { type: Boolean, default: false },
+  allowModal: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'destination-label'])
 const { t } = useI18n()
