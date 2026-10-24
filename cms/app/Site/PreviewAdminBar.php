@@ -150,12 +150,18 @@ final class PreviewAdminBar
 
     /**
      * Which template assembled this page, why, and its parts with links to
-     * edit each of them; for those who may design the website.
+     * edit each of them; for those who may design the website, once the
+     * page kind has more than one template or content area.
      */
     private function templateMenu(array $state, ?array $savedEntry, bool $de): string
     {
         $shown = $state['template'] ?? null;
         if ($shown === null || !$this->ctx->adminAllows('site.manage')) {
+            return '';
+        }
+        // Only once the page kind uses more than its default template and content area.
+        if (count($this->ctx->templates((string) $shown['type'], (string) $shown['variant'])) < 2
+            && count($this->ctx->site->contentAreas((string) $shown['type'], (string) $shown['variant'])) < 2) {
             return '';
         }
         $text = $de ? [

@@ -372,7 +372,7 @@ import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
 import { usePermissions } from "../composables/usePermissions.js";
 import { MODAL, findNode } from "../composables/layoutTree.js";
-import { DEFAULT_AREA, FRAME_DEFAULT, FRAME_NONE, FRAME_REGIONS, areaLabel, frameComponents, templateById, templateList, templateName, withTemplate } from "../composables/templates.js";
+import { DEFAULT_AREA, FRAME_DEFAULT, FRAME_NONE, FRAME_REGIONS, areaLabel, frameComponents, templateById, templateList, templateName, usesTemplates, withTemplate } from "../composables/templates.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
@@ -779,7 +779,7 @@ const subheading = computed(() => {
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
   if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
-  return `${t(`site.variant.${variant.value}`)} · ${areaLabel(t, area.value, areas.value)}`;
+  return showsTemplates.value ? `${t(`site.variant.${variant.value}`)} · ${areaLabel(t, area.value, areas.value)}` : t(`site.variant.${variant.value}`);
 });
 
 const saveStatus = computed(() => {
@@ -813,7 +813,7 @@ const overview = computed(() => {
   const type = builder.type.value?.label ?? name.value;
   return {
     title: `${type} · ${t(`site.variant.${variant.value}`)}`,
-    description: t(variant.value === "index" ? "site.builder.overview.index" : "site.builder.overview.detail", { type }),
+    description: t(variant.value === "index" ? "site.builder.overview.index" : showsTemplates.value ? "site.builder.overview.detailArea" : "site.builder.overview.detail", { type }),
     icon: builder.type.value?.icon || (variant.value === "index" ? "mdi:view-grid-outline" : "mdi:file-document-outline"),
   };
 });
@@ -897,10 +897,19 @@ async function createArea(areaName) {
   }
 }
 
-/** The top bar's template menu, for layouts and entry pages. */
+/** The page kind's content areas, as loaded with the layout or listed by the site. */
+const pageKindAreas = computed(() => {
+  const layout = frameLayout.value;
+  return areas.value.length ? areas.value : site.data?.content_areas?.[layout?.type]?.[layout?.variant] ?? [];
+});
+/** Template controls only show once the page kind has more than its default template and content area. */
+const showsTemplates = computed(() => !!frameLayout.value
+  && usesTemplates(site.draft?.templates, pageKindAreas.value, frameLayout.value.type, frameLayout.value.variant));
+
+/** The top bar's template menu, for layouts and entry pages that use templates. */
 const templateMenu = computed(() => {
   const layout = frameLayout.value;
-  if (!layout) return null;
+  if (!layout || !showsTemplates.value) return null;
   return {
     shown: shownTemplate.value ? { ...(shownDraft.value ?? shownTemplate.value), reason: shownTemplate.value.reason, live: shownTemplate.value.live } : null,
     templates: templateList(site.draft?.templates, layout.type, layout.variant),
@@ -908,7 +917,7 @@ const templateMenu = computed(() => {
     variant: layout.variant,
     schema: builder.type.value,
     area: target.value === "page" ? shownTemplate.value?.content ?? DEFAULT_AREA : area.value,
-    areas: areas.value.length ? areas.value : site.data?.content_areas?.[layout.type]?.[layout.variant] ?? [],
+    areas: pageKindAreas.value,
     components: builder.components.value,
   };
 });

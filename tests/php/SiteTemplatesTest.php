@@ -272,3 +272,25 @@ test('the preview admin bar names the template of the page, why it applies and l
     $context->adminCan = static fn(string $action): bool => $action !== 'site.manage';
     assert_false(str_contains((new \CometCMS\Site\SiteService($context))->respond('/blog/hello', [])['body'], '<details class="c-admin-dropdown c-admin-templates"'), 'Only site designers see it.');
 });
+
+test('the preview admin bar keeps its template menu out of the way until a page kind uses templates', function (): void {
+    $site = comet_site_test_setup();
+    $menu = '<details class="c-admin-dropdown c-admin-templates"';
+    // A fresh context per page, as each request has.
+    $render = static function (): string {
+        $context = comet_site_test_context();
+        $context->preview = true;
+        $context->browsePreview = true;
+        $context->previewBanner = true;
+        $context->adminUser = ['username' => 'admin', 'language' => 'en'];
+        $context->adminCan = static fn(): bool => true;
+        return (new \CometCMS\Site\SiteService($context))->respond('/blog/hello', [])['body'];
+    };
+
+    assert_false(str_contains($render(), $menu), 'Only the default template and content area.');
+    $site->createContentArea('blog', 'detail', 'Long read');
+    assert_true(str_contains($render(), $menu), 'A second content area brings the menu.');
+    $site->deleteContentArea('blog', 'detail', 'long-read');
+    $site->saveTemplates(['blog' => ['detail' => [comet_template_test('plain'), SiteRepository::defaultTemplate()]]]);
+    assert_true(str_contains($render(), $menu), 'So does a second template.');
+});

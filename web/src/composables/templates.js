@@ -26,6 +26,15 @@ export function templateList(templates, type, variant) {
   return Array.isArray(list) && list.length ? list : [defaultTemplate()]
 }
 
+/**
+ * Whether a page kind uses templates beyond the default: more than one
+ * template or content area. Until then the builder and the admin bar keep
+ * their template controls out of the way (the Templates tab always has them).
+ */
+export function usesTemplates(templates, areas, type, variant) {
+  return templateList(templates, type, variant).length > 1 || (areas?.length ?? 0) > 1
+}
+
 /** A copy of `templates` with one page kind's list replaced. */
 export function withTemplateList(templates, type, variant, list) {
   const next = JSON.parse(JSON.stringify(templates ?? {}))

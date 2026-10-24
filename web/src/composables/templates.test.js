@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_TEMPLATE, FRAME_NONE, areaLabel, conditionFields, conditionLabel, conditionOps, defaultTemplate, frameComponents,
-  frameLabel, reasonLabel, templateById, templateId, templateList, withNewTemplate, withTemplate, withTemplateMoved, withoutTemplate,
+  frameLabel, reasonLabel, templateById, templateId, templateList, usesTemplates, withNewTemplate, withTemplate, withTemplateMoved, withoutTemplate,
 } from './templates.js'
 
 const t = (key, params = {}) => Object.entries(params).reduce((text, [name, value]) => text.replace(`{${name}}`, value), key)
@@ -67,5 +67,15 @@ describe('templates', () => {
     expect(areaLabel(t, 'long', [{ id: 'long', name: 'Long read' }])).toBe('Long read')
     expect(areaLabel(t, 'default', [])).toBe('site.templates.defaultArea')
     expect(frameComponents([{ id: 'a', root: 'section', type: '' }, { id: 'b', root: 'column', type: '' }, { id: 'c', root: 'section', type: 'about' }], 'blog').map((component) => component.id)).toEqual(['a'])
+  })
+})
+
+describe('usesTemplates', () => {
+  it('stays false while a page kind has only its default template and content area', () => {
+    const areas = [{ id: 'default' }]
+    expect(usesTemplates({}, areas, 'blog', 'detail')).toBe(false)
+    expect(usesTemplates({ blog: { detail: [defaultTemplate()] } }, areas, 'blog', 'detail')).toBe(false)
+    expect(usesTemplates({}, [...areas, { id: 'long' }], 'blog', 'detail')).toBe(true)
+    expect(usesTemplates({ blog: { detail: [tips, defaultTemplate()] } }, areas, 'blog', 'detail')).toBe(true)
   })
 })

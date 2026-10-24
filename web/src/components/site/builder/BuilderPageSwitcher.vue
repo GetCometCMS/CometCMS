@@ -65,7 +65,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue"
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
-import { FRAME_DEFAULT, FRAME_NONE, areaLabel, frameLabel, templateList, templateName } from "../../../composables/templates.js";
+import { FRAME_DEFAULT, FRAME_NONE, areaLabel, frameLabel, templateList, templateName, usesTemplates } from "../../../composables/templates.js";
 import { hasListPage } from "../../../composables/siteLinks.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -105,6 +105,7 @@ function typeItems(type) {
     const path = `/page-builder/builder/layout/${type.name}/${variant}`;
     const areas = site.data?.content_areas?.[type.name]?.[variant] ?? [];
     const components = builder.components.value;
+    const templates = site.draft?.templates ?? site.data?.templates;
     return [
       {
         key: `layout:${type.name}:${variant}`,
@@ -114,7 +115,8 @@ function typeItems(type) {
         current: editing && (props.target === "page" ? variant === "detail" : route.params.variant === variant),
         isHomepage: builder.settings.value?.homepage?.type === type.name && (variant === "index") === !builder.settings.value?.homepage?.entry,
       },
-      ...templateList(site.draft?.templates ?? site.data?.templates, type.name, variant).flatMap((template) => [
+      // Templates and their parts only show once the page kind has more than its default ones.
+      ...(usesTemplates(templates, areas, type.name, variant) ? templateList(templates, type.name, variant) : []).flatMap((template) => [
         { key: `template:${type.name}:${variant}:${template.id}`, label: templateName(t, template), icon: "mdi:page-layout-header-footer", depth: 1, path, query: { area: template.content, template: template.id } },
         ...["header", "content", "footer"].map((part) => {
           const value = template[part];
