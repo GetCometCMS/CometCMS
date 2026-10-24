@@ -248,12 +248,15 @@ final class PageRenderer
     }
 
     /**
-     * The template a page uses: {type, variant, template, reason}; see
-     * SiteContext::template(). Kept for the builder after rendering.
+     * The template a page uses: {type, variant, template, reason, live}; see
+     * SiteContext::template(). `live` is the id of the one the page uses
+     * without a builder preview choice. Kept for the builder after rendering.
      */
     private function pageTemplate(string $type, string $variant, ?array $entry): array
     {
-        return $this->template = ['type' => $type, 'variant' => $variant] + $this->ctx->template($type, $variant, $entry);
+        $live = $this->ctx->template($type, $variant, $entry, false)['template']['id'];
+
+        return $this->template = ['type' => $type, 'variant' => $variant, 'live' => $live] + $this->ctx->template($type, $variant, $entry);
     }
 
     /**

@@ -214,6 +214,7 @@ test('builder previews show unsaved templates and the content area being edited 
     $context->override('template:blog:detail', 'compact');
     $renderer->layoutPreview($site->types()['blog'], 'detail', null);
     assert_same('previewed', $renderer->template()['reason']);
+    assert_same('default', $renderer->template()['live'], 'The builder still knows which template the page uses live.');
     assert_same([SiteRepository::defaultTemplate()], $site->templates('blog', 'detail'), 'Nothing is saved.');
 });
 

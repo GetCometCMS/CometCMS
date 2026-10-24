@@ -36,7 +36,7 @@ describe('admin navigation', () => {
   it('exposes all design tools while keeping content directly accessible', () => {
     useContentTypesStore().list = [{ name: 'pages', label: 'Pages' }]
     expect(item('page-builder').children.map((entry) => entry.to)).toEqual([
-      '/page-builder/design', '/page-builder/menus', '/page-builder/components', '/page-builder/fonts',
+      '/page-builder/design', '/page-builder/templates', '/page-builder/menus', '/page-builder/components', '/page-builder/fonts',
     ])
     expect(item('content:pages').to).toBe('/content/pages')
     expect(item('content:pages').children).toBeUndefined()

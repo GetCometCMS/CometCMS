@@ -902,9 +902,8 @@ const templateMenu = computed(() => {
   const layout = frameLayout.value;
   if (!layout) return null;
   return {
-    shown: shownTemplate.value ? { ...(shownDraft.value ?? shownTemplate.value), reason: shownTemplate.value.reason } : null,
+    shown: shownTemplate.value ? { ...(shownDraft.value ?? shownTemplate.value), reason: shownTemplate.value.reason, live: shownTemplate.value.live } : null,
     templates: templateList(site.draft?.templates, layout.type, layout.variant),
-    previewed: previewTemplate.value,
     type: layout.type,
     variant: layout.variant,
     schema: builder.type.value,

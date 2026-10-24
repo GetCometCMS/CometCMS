@@ -29,30 +29,29 @@
       </div>
       <div ref="menuRef" role="menu" :aria-label="t('site.templates.title')" class="max-h-[60vh] overflow-y-auto py-1">
         <p class="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ t("site.templates.previewWith") }}</p>
-        <button type="button" role="menuitemradio" tabindex="-1" :aria-checked="!previewed" class="menu-row" @click="choose(() => emit('preview', ''))">
-          <Icon icon="mdi:auto-fix" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-          <span class="min-w-0 flex-1">
-            <span class="block truncate">{{ t("site.templates.automatic") }}</span>
-            <span class="block truncate text-xs text-slate-500">{{ t("site.templates.automaticHint") }}</span>
-          </span>
-          <Icon v-if="!previewed" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
-        </button>
         <button
           v-for="template in templates"
           :key="template.id"
           type="button"
           role="menuitemradio"
           tabindex="-1"
-          :aria-checked="previewed === template.id"
+          :aria-checked="shown?.id === template.id"
           class="menu-row"
-          @click="choose(() => emit('preview', template.id))"
+          @click="choose(() => emit('preview', template.id === shown?.live ? '' : template.id))"
         >
           <Icon icon="mdi:page-layout-header-footer" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
           <span class="min-w-0 flex-1">
-            <span class="block truncate" :class="{ 'font-medium text-theme-700': shown?.id === template.id }">{{ templateName(t, template) }}</span>
+            <span class="flex items-center gap-1.5">
+              <span class="truncate" :class="{ 'font-medium text-theme-700': shown?.id === template.id }">{{ templateName(t, template) }}</span>
+              <span
+                v-if="shown?.live === template.id"
+                class="shrink-0 rounded bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700"
+                :title="t('site.templates.liveHint')"
+              >{{ t("site.templates.liveTag") }}</span>
+            </span>
             <span class="block truncate text-xs text-slate-500">{{ parts(template) }}</span>
           </span>
-          <Icon v-if="previewed === template.id" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
+          <Icon v-if="shown?.id === template.id" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
         </button>
 
         <p class="mt-1 border-t border-slate-100 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ t("site.templates.contentAreas") }}</p>
@@ -97,16 +96,17 @@ import { useI18n } from "../../../i18n/index.js";
 
 /**
  * Which template the canvas shows around the content area being edited, and
- * why; lets the editor preview another template, switch content areas, or
- * start a new one.
+ * why; lets the editor preview another template (the one the page uses on
+ * the website is tagged "Live"), switch content areas, or start a new one.
  */
 const props = defineProps({
-  /** The template the preview showed: `{ id, name, header, content, footer, conditions, reason }`. */
+  /**
+   * The template the preview showed: `{ id, name, header, content, footer,
+   * conditions, reason, live }`; `live` is the id of the one the page uses on the website.
+   */
   shown: { type: Object, default: null },
   /** The page kind's templates (draft), in order. */
   templates: { type: Array, default: () => [] },
-  /** The template chosen to preview with, or "" for the one the page uses. */
-  previewed: { type: String, default: "" },
   type: { type: String, required: true },
   variant: { type: String, required: true },
   /** The content type's schema, to name fields in conditions. */

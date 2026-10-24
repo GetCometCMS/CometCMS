@@ -178,14 +178,15 @@ final class SiteContext
 
     /**
      * The template a page of $type's $variant uses for $entry and why (see
-     * SiteRepository::resolveTemplate()); the builder may preview another one.
+     * SiteRepository::resolveTemplate()); the builder may preview another one
+     * unless $previewed is false.
      *
      * @return array{template: array, reason: string}
      */
-    public function template(string $type, string $variant, ?array $entry): array
+    public function template(string $type, string $variant, ?array $entry, bool $previewed = true): array
     {
         $templates = $this->templates($type, $variant);
-        $previewed = $this->overridden('template:' . $type . ':' . $variant);
+        $previewed = $previewed ? $this->overridden('template:' . $type . ':' . $variant) : null;
         foreach (is_string($previewed) ? $templates : [] as $template) {
             if ($template['id'] === $previewed) return ['template' => $template, 'reason' => 'previewed'];
         }

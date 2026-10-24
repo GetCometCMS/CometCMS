@@ -823,7 +823,7 @@ final class SiteController extends BaseController
     {
         $shown = $renderer->template();
 
-        return $shown === null ? null : $shown['template'] + ['reason' => $shown['reason']];
+        return $shown === null ? null : $shown['template'] + ['reason' => $shown['reason'], 'live' => $shown['live']];
     }
 
     /** Open unsaved editor state as a navigable, private snapshot. */

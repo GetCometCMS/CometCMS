@@ -85,6 +85,7 @@ export function useNavigation() {
     if (showPageBuilder.value) {
       website.push(section({ key: 'page-builder', label: t('app.nav.website'), description: t('app.nav.designHint'), icon: 'mdi:palette-outline', match: ['/page-builder'] }, [
         { key: 'website-design', label: t('site.builder.designSettings'), to: '/page-builder/design', match: ['/page-builder/design'] },
+        { key: 'website-templates', label: t('site.templates.title'), to: '/page-builder/templates', match: ['/page-builder/templates'] },
         { key: 'website-menus', label: t('site.tab.menus'), to: '/page-builder/menus', match: ['/page-builder/menus'] },
         { key: 'website-components', label: t('site.component.group'), to: '/page-builder/components', match: ['/page-builder/components'] },
         { key: 'website-fonts', label: t('site.tab.fonts'), to: '/page-builder/fonts', match: ['/page-builder/fonts'] },
