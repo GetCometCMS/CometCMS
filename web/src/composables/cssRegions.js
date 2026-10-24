@@ -9,6 +9,8 @@ import { classesFromSelector } from "./cssClasses.js";
  *   /* #endregion *\/
  *
  * The markers are the ones code editors fold, so the file still reads well.
+ * A section holds one rule for its class; the builder edits what is nested
+ * inside, so its CSS only reaches the element and what the element contains.
  */
 const OPEN = /^\/\*\s*#region\s+\.([A-Za-z_][A-Za-z0-9_-]{0,60})\s*\*\/$/;
 const CLOSE = /^\/\*\s*#endregion\b[^*]*\*\/$/;
@@ -63,6 +65,7 @@ export function cssStatements(css, from = 0, to = css.length) {
       start,
       end,
       prelude: css.slice(start, bodyStart === -1 ? end : bodyStart - 1).trim(),
+      preludeEnd: bodyStart === -1 ? end : bodyStart - 1,
       body: bodyStart === -1 ? null : [bodyStart, Math.max(bodyStart, end - 1)],
     });
   }
@@ -116,27 +119,82 @@ export function setRegionText(css, name, text) {
   return `${source.slice(0, region.bodyStart)}\n${text}\n${source.slice(region.bodyEnd)}`;
 }
 
-function mentionsClass(css, item, name) {
-  if (item.type !== "rule") return false;
-  if (!item.prelude.startsWith("@")) return classesFromSelector(item.prelude).includes(name);
-  return !!item.body && cssStatements(css, item.body[0], item.body[1]).some((inner) => mentionsClass(css, inner, name));
+/** The rule wrapping a whole section, or null for CSS written before sections were scoped. */
+function wrapper(text, name) {
+  const items = cssStatements(text);
+  const [rule] = items;
+  const only = items.length === 1 && rule.type === "rule" && rule.prelude === `.${name}` && rule.body && rule.end === text.length;
+  return only && text.startsWith(`.${name} {\n`) && text.endsWith("\n}") ? rule : null;
 }
 
-/** Top-level rules outside any section whose selectors use the class. */
+/** What is nested in a class's section, without the class rule around it. */
+export function scopedText(css, name) {
+  const text = regionText(css, name);
+  if (text === null) return "";
+  if (!wrapper(text, name)) return text;
+  return text.slice(name.length + 4, -2).split("\n").map((line) => line.replace(/^ {2}/, "")).join("\n");
+}
+
+/** Set what is nested in a class's section; the class rule around it is added here. */
+export function setScopedText(css, name, text) {
+  if (!text.trim()) return setRegionText(css, name, "");
+  const indented = text.split("\n").map((line) => (line ? `  ${line}` : line)).join("\n");
+  return setRegionText(css, name, `.${name} {\n${indented}\n}`);
+}
+
+/** Split a selector list at its top-level commas. */
+function selectorList(prelude) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < prelude.length; i++) {
+    const next = skipToken(prelude, i);
+    if (next !== i) { i = next - 1; continue; }
+    if ("([".includes(prelude[i])) depth++;
+    else if (")]".includes(prelude[i])) depth--;
+    else if (prelude[i] === "," && depth === 0) { parts.push(prelude.slice(start, i)); start = i + 1; }
+  }
+  return [...parts, prelude.slice(start)].map((part) => part.trim());
+}
+
+/** Rules that can move into the class's section: every selector names the class. */
+function scopable(css, item, name) {
+  if (item.type !== "rule" || !item.body) return false;
+  if (!item.prelude.startsWith("@")) return selectorList(item.prelude).every((selector) => classesFromSelector(selector).includes(name));
+  if (!/^@(media|supports|container|layer)\b/i.test(item.prelude)) return false;
+  const rules = cssStatements(css, item.body[0], item.body[1]).filter((inner) => inner.type === "rule");
+  return rules.length > 0 && rules.every((inner) => scopable(css, inner, name));
+}
+
+/** A scopable rule's text with the class replaced by "&", so it nests inside the class. */
+function nestedRule(css, item, name) {
+  if (!item.prelude.startsWith("@")) {
+    const self = new RegExp(`\\.${name.replace(/-/g, "\\-")}(?![\\w-])`, "g");
+    return css.slice(item.start, item.preludeEnd).replace(self, "&") + css.slice(item.preludeEnd, item.end);
+  }
+  let text = css.slice(item.start, item.end);
+  const inner = cssStatements(css, item.body[0], item.body[1]).filter((rule) => rule.type === "rule");
+  for (const rule of inner.reverse()) {
+    text = text.slice(0, rule.start - item.start) + nestedRule(css, rule, name) + text.slice(rule.end - item.start);
+  }
+  return text;
+}
+
+/** Top-level rules outside any section that could move into the class's section. */
 export function looseRules(css, name) {
   const source = css ?? "";
   const regions = cssRegions(source);
   return cssStatements(source).filter((item) =>
-    mentionsClass(source, item, name) && !regions.some((region) => item.start >= region.start && item.end <= region.end),
+    scopable(source, item, name) && !regions.some((region) => item.start >= region.start && item.end <= region.end),
   );
 }
 
-/** Move the class's loose rules into its section, keeping their order. */
+/** Move the class's loose rules into its section as nested rules, keeping their order. */
 export function adoptLooseRules(css, name) {
   const source = css ?? "";
   const rules = looseRules(source, name);
   if (!rules.length) return source;
-  const moved = rules.map((rule) => source.slice(rule.start, rule.end)).join("\n\n");
+  const moved = rules.map((rule) => nestedRule(source, rule, name)).join("\n\n");
   let rest = source;
   for (const rule of [...rules].reverse()) {
     const before = rest.slice(0, rule.start).replace(/[ \t]+$/, "");
@@ -144,6 +202,6 @@ export function adoptLooseRules(css, name) {
     if (/(^|\n\n)$/.test(before)) after = after.replace(/^\n+/, "");
     rest = before + after;
   }
-  const current = regionText(rest, name);
-  return setRegionText(rest, name, current?.trim() ? `${current}\n\n${moved}` : moved);
+  const current = scopedText(rest, name);
+  return setScopedText(rest, name, current.trim() ? `${current}\n\n${moved}` : moved);
 }

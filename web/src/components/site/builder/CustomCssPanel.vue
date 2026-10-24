@@ -66,7 +66,7 @@
             class="flex-1"
             :disabled="!canEdit"
             :label="`${t('site.theme.customCss')} — .${activeClass}`"
-            :placeholder="`.${activeClass} {\n  \n}`"
+            :placeholder="t('site.customCss.elementPlaceholder')"
           />
         </template>
       </template>
@@ -96,7 +96,7 @@ import LoadingSpinner from "../../LoadingSpinner.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { nodeIcon } from "./kindIcons.js";
 import { normalizeCssClasses, MAX_CSS_CLASSES } from "../../../composables/cssClasses.js";
-import { adoptLooseRules, looseRules, regionText, setRegionText } from "../../../composables/cssRegions.js";
+import { adoptLooseRules, looseRules, scopedText, setScopedText } from "../../../composables/cssRegions.js";
 import { useOptionalSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -125,8 +125,8 @@ watch(classes, (names) => {
 }, { immediate: true });
 
 const regionCss = computed({
-  get: () => regionText(theme.value?.custom_css ?? "", activeClass.value) ?? "",
-  set: (text) => { theme.value.custom_css = setRegionText(theme.value.custom_css ?? "", activeClass.value, text); },
+  get: () => scopedText(theme.value?.custom_css ?? "", activeClass.value),
+  set: (text) => { theme.value.custom_css = setScopedText(theme.value.custom_css ?? "", activeClass.value, text); },
 });
 const looseCount = computed(() => (activeClass.value ? looseRules(theme.value?.custom_css ?? "", activeClass.value).length : 0));
 
