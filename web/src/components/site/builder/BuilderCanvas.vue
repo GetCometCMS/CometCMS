@@ -100,8 +100,9 @@ const BUILDER_CSS = `
 }
 
 /* Each entry replaces this area with its own content, so it stays marked. */
-[data-kind="page_content"]{
+[data-kind="page_content"], [data-kind="site_content"]{
   --builder-color:#217f98;
+  background-image:repeating-linear-gradient(-45deg,transparent 0 8px,color-mix(in srgb,var(--builder-color) 4%,transparent) 8px 16px);
   outline:2px dashed color-mix(in srgb,var(--builder-color) 75%,transparent);
   outline-offset:-2px;
 }
@@ -188,7 +189,7 @@ const BUILDER_CSS = `
   margin:24px;
   border:2px dashed #cbd5e1;
   border-radius:12px;
-  background:rgba(148,163,184,.035);
+  background-color:rgba(148,163,184,.035);
 }
 
 [data-drop-root]:empty::before{

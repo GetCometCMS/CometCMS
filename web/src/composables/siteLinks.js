@@ -1,6 +1,9 @@
 import { entryForLocale, resolveLocalized } from './localizedValues.js'
 import { DEFAULT_MENU_LIMITS } from './menuTree.js'
 
+/** Destinations that may open in the modal: pages of the website (see LayoutSchema::MODAL_LINK_TYPES). */
+export const MODAL_LINK_TYPES = ['current', 'home', 'entry', 'index']
+
 /**
  * Mirrors SiteRepository::isLive(): the website is live while a public homepage
  * or at least one public content type with frontend pages exists.

@@ -1,6 +1,6 @@
 # Website
 
-CometCMS provides a visual Page Builder with shared layouts and structured custom fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Pages use no JavaScript unless a gallery's modal viewer is enabled; that viewer uses a small bundled script. Developers can also enable the headless API per content type, independently of website pages.
+CometCMS provides a visual Page Builder with shared layouts and structured custom fields. Pages are rendered by PHP on your server, so there is still nothing to install: no Node or build step. Interactive elements, including gallery viewers and internal link modals, use small bundled scripts included only when needed. Developers can also enable the headless API per content type, independently of website pages.
 
 The website is data-driven. You design a **layout per content type** once, and every entry of that type uses it. Editors keep filling in fields; the layout decides how those fields look.
 
@@ -68,6 +68,12 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 A column set (row) decides whether its columns sit side by side or underneath each other. Each column decides the same for its own elements under **Arrange elements**: underneath each other (default) or side by side, which wraps onto the next line when there is no room left. Side by side adds **Distribute elements** and **Align elements**, and **Space between elements** becomes the gap between them.
 
 Repeater fields contain an **item template**: the elements inside them are repeated for every row and bind to the repeater's sub-fields.
+
+Elements with a **Link** offer **Open in modal** (the window icon next to the link type) when their destination is **This entry**, **Homepage**, a collection's list page, or another entry. The destination opens inside a modal without its header and footer, keeping its styling, interactive elements and optional section anchor. The modal is as tall as the page's content; longer pages scroll inside it. Close it with a close button, Escape, or a click on the backdrop. **Open in modal** and **Open in a new tab** exclude each other. Inside the modal, other modal links replace the page shown, while all other links open in the whole window; forms stay in the modal after they are sent. Custom web addresses, external URLs, section-only links and dynamic destinations keep their normal behavior. Try modal links on the live website or in the full-page **Preview**.
+
+Choose **Modal** under **Other** in the builder header's page dropdown to design the modal itself. Select the **Modal** panel to set its size, placement (centered, or along an edge of the screen), height, backdrop and whether a backdrop click closes it; its style sets the background, corners, border, shadow and spacing. Inside the panel, add a **Close button**, a **Modal title** (the text of the link that opened the modal), headings, images or rows around **Site content**, which marks where the opened page appears. The template keeps exactly one Site content element. Saving applies the design to every modal link in the workspace; **Preview**, undo/redo, **History** and **Reset to default** work here too. The builder and the template's full-page preview show a placeholder in place of the opened page.
+
+To show content that has no page of its own in a modal, such as a sign-up form or terms, create a content type for it with the Page Builder enabled, design its entry layout, and link to its entries with **Open in modal**.
 
 Add a **Gallery** to any column or repeater item template. Choose media manually and drag the selected files to reorder them, or use the content reference picker to bind the gallery to a media field. Set one to six columns, spacing, aspect ratio, image fit and focal point, and optional captions from media titles. Galleries can also be included in reusable components. Existing **Field → Gallery** displays open as Gallery elements with their content reference and styling preserved.
 

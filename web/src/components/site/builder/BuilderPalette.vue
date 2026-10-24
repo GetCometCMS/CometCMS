@@ -99,7 +99,7 @@ import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
 import { KIND_ICONS } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
-import { ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
+import { MODAL, ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -128,7 +128,8 @@ function matches(...values) {
   return searchTerms.value.every((term) => text.includes(term));
 }
 
-const presets = computed(() => PRESETS.filter((preset) => matches(
+// The modal panel holds rows and elements, never sections.
+const presets = computed(() => builder.rootKind.value === MODAL ? [] : PRESETS.filter((preset) => matches(
   t("site.builder.layout"), builder.kindLabel("section"), "section",
   t("site.builder.columns", { count: preset.length }), t(`site.builder.preset.${preset.join("-")}`),
 )));

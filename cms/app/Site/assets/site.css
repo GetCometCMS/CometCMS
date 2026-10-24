@@ -317,7 +317,62 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-gallery-item { min-width: 0; }
 .c-gallery-zoom { display: block; cursor: zoom-in; }
 .c-gallery-zoom:focus-visible { outline: 3px solid var(--c-primary); outline-offset: 3px; }
-html:has(.c-lightbox[open]) { overflow: hidden; }
+html:has(.c-lightbox[open], .c-modal:modal) { overflow: hidden; }
+/* Link modal: the template's panel is the dialog. It is as tall as its content, up to the screen; the site
+   content element then shrinks, so the opened page scrolls inside it while the rest of the panel stays in view. */
+:where(.c-modal) { padding: 0; border: 0; background: var(--c-background); color: var(--c-text); }
+.c-modal {
+  --c-modal-width: 56rem;
+  box-sizing: border-box; width: min(var(--c-modal-width), calc(100% - 2rem)); max-width: none; max-height: calc(100dvh - 2rem);
+  margin: auto; overflow: auto; overscroll-behavior: contain;
+}
+.c-modal[open] { display: flex; flex-direction: column; }
+.c-modal > .c-el:last-child { margin-bottom: 0; }
+.c-modal-sm { --c-modal-width: 28rem; }
+.c-modal-md { --c-modal-width: 40rem; }
+.c-modal-xl { --c-modal-width: 72rem; }
+.c-modal-full { --c-modal-width: 100vw; }
+.c-modal-h-full { height: calc(100dvh - 2rem); }
+.c-modal-at-top, .c-modal-at-bottom { width: 100%; max-height: 100dvh; }
+.c-modal-at-top { margin: 0 0 auto; }
+.c-modal-at-bottom { margin: auto 0 0; }
+.c-modal-at-left, .c-modal-at-right { width: min(var(--c-modal-width), 100%); height: 100dvh; max-height: 100dvh; }
+.c-modal-at-left { margin: 0 auto 0 0; }
+.c-modal-at-right { margin: 0 0 0 auto; }
+.c-modal-backdrop-dark::backdrop { background: rgb(0 0 0 / 0.6); }
+.c-modal-backdrop-blurred::backdrop { background: rgb(0 0 0 / 0.3); backdrop-filter: blur(6px); }
+.c-modal-backdrop-light::backdrop { background: rgb(255 255 255 / 0.7); }
+.c-modal-backdrop-none::backdrop { background: transparent; }
+@media (prefers-reduced-motion: no-preference) {
+  .c-modal:modal { animation: c-modal-in .2s ease-out; }
+  @keyframes c-modal-in { from { opacity: 0; translate: 0 0.5rem; } }
+}
+.c-el-site-content { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; overflow: hidden; }
+.c-modal-frame { display: block; flex: 0 1 auto; width: 100%; height: 12rem; min-height: 0; border: 0; background: transparent; }
+.c-modal-h-full .c-el-site-content, .c-modal-h-full .c-modal-frame { flex-grow: 1; }
+/* An embedded page sits on the panel, at the height of its content. */
+.c-embed { min-height: 0; background: transparent; }
+.c-modal-close {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em; margin: 0; padding: 0.45em; font: inherit; line-height: 1; color: inherit;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; transition: background-color .15s, border-color .15s;
+}
+.c-modal-close:has(> span) { padding-inline: 0.75em; }
+/* Pinned to an edge, the button has no room of its own; it keeps its natural size. */
+.c-modal-close { white-space: nowrap; }
+.c-modal-close > svg { flex: none; max-width: none; }
+.c-modal-close:hover { background: var(--c-surface); color: var(--c-on-surface); }
+.c-modal-close:focus-visible { outline: 3px solid var(--c-primary); outline-offset: 2px; }
+.c-modal-close-outline { border-color: var(--c-border); }
+.c-modal-close-filled { background: var(--c-surface); color: var(--c-on-surface); }
+/* The template's builder preview: the panel open in place, over a stand-in for its backdrop. */
+.c-view-modal-preview .c-main { display: flex; min-height: 100dvh; box-sizing: border-box; padding: 1rem; background: rgb(0 0 0 / 0.6); }
+.c-view-modal-preview .c-main:has(.c-modal-backdrop-light) { background: rgb(255 255 255 / 0.7); }
+.c-view-modal-preview .c-main:has(.c-modal-backdrop-blurred) { background: rgb(0 0 0 / 0.3); }
+.c-view-modal-preview .c-main:has(.c-modal-backdrop-none) { background: var(--c-surface); }
+.c-view-modal-preview .c-main:has(.c-modal-at-top, .c-modal-at-bottom, .c-modal-at-left, .c-modal-at-right) { padding: 0; }
+.c-modal-stage { display: flex; flex: 1; min-width: 0; }
+.c-modal-preview { position: relative; inset: auto; }
+.c-modal-preview .c-placeholder-drop { min-height: 12rem; }
 .c-lightbox {
   position: fixed;
   inset: 0;
