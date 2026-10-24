@@ -75,7 +75,7 @@ const props = defineProps({
 });
 
 const REGION_ICONS = { header: "mdi:page-layout-header", footer: "mdi:page-layout-footer" };
-const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", modal: "mdi:application-outline" };
+const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", modal: "mdi:dock-window" };
 
 const route = useRoute();
 const router = useRouter();

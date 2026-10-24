@@ -5,6 +5,7 @@ import { useBuilderClipboard } from './builderClipboard.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
+  MODAL,
   PAGE_CONTENT,
   SITE_CONTENT,
   ancestors,
@@ -105,7 +106,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const currentAvailable = ref(true)
   /** Reusable components ({ id, name, root, type }) available in the Add panel. */
   const components = ref([])
-  /** Editing a component: its id and root kind; its tree holds just that one root node. */
+  /** Editing a component (its id and root kind) or the modal template: the tree holds just that one root node. */
   const componentId = ref(null)
   const rootKind = ref(null)
   /** Node waiting for a name before it becomes a component: { id }. */
@@ -330,41 +331,45 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   const dropOptions = { isTemplateField }
 
-  /** Drop containers: structure, tabs, item templates, page content and lists without a card yet. */
+  /** Drop containers: structure, tabs, item templates, page content, the modal panel and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
   }
 
-  /** The single root of a component's tree stays where it is. */
+  /** The single root of a component's or the modal template's tree stays where it is. */
   function isLockedRoot(id) {
     return !!rootKind.value && nodes.value[0]?.id === id
   }
 
   /**
-   * Whether a resolved drop may happen: nothing joins a component's root,
-   * and page content goes neither into page content, cards or item templates
-   * nor twice into one layout for the same field.
+   * Whether a resolved drop may happen: nothing joins a locked root. Page
+   * content and the modal's site content go neither into page content,
+   * cards or item templates nor twice into one tree (page content: per field).
    */
   function placeable(result) {
     if (!result || (rootKind.value && result.parentId === null)) return false
     const places = []
-    walk([result.node], (node) => { if (node.kind === PAGE_CONTENT) places.push(node) })
     const slots = []
-    walk([result.node], (node) => { if (node.kind === SITE_CONTENT) slots.push(node) })
-    if (slots.length) {
-      if (slots.length > 1) return false
-      const slotParent = result.parentId ? findNode(nodes.value, result.parentId) : null
-      const chain = slotParent ? [...ancestors(nodes.value, slotParent.id), slotParent] : []
-      if (chain.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
-      let duplicate = false
-      walk(nodes.value, (node) => { if (node.kind === SITE_CONTENT && node.id !== slots[0].id) duplicate = true })
-      if (duplicate) return false
-    }
-    if (!places.length) return true
+    walk([result.node], (node) => {
+      if (node.kind === PAGE_CONTENT) places.push(node)
+      if (node.kind === SITE_CONTENT) slots.push(node)
+    })
+    if (!places.length && !slots.length) return true
     const parent = result.parentId ? findNode(nodes.value, result.parentId) : null
     const around = parent ? [...ancestors(nodes.value, parent.id), parent] : []
     if (around.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
+    if (slots.length > 1 || (slots.length && findKind(SITE_CONTENT, slots[0].id))) return false
     return places.every((place) => !place.props?.field || !findPlace(place.props.field, place.id))
+  }
+
+  /** A node of `kind` other than the one with id `except`. */
+  function findKind(kind, except) {
+    let found = null
+    walk(nodes.value, (node) => {
+      if (node.kind === kind && node.id !== except) found = node
+      return !found
+    })
+    return found
   }
 
   /** The page content element showing `field`, other than the one with id `except`. */
@@ -595,7 +600,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
     if (translating.value) return false
-    let current = targetId ? findNode(nodes.value, targetId) : null
+    // Without a selection, a locked root takes the node in.
+    let current = targetId ? findNode(nodes.value, targetId) : rootKind.value ? nodes.value[0] ?? null : null
     if (current?.kind === 'tabs' && node.kind !== 'tab' && current.children.length) {
       current = current.children[Math.min(current.children.length, Math.max(1, current.props.initial_tab || 1)) - 1]
     }

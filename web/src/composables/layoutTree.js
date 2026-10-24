@@ -52,6 +52,9 @@ export const COMPONENT = 'component'
 
 /** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
 export const PAGE_CONTENT = 'page_content'
+
+/** The modal template's panel, and where the page a modal link opens appears in it (see LayoutSchema::MODAL). */
+export const MODAL = 'modal'
 export const SITE_CONTENT = 'site_content'
 
 /** The kind a node is placed as: a component instance counts as its root kind. */

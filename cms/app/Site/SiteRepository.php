@@ -279,7 +279,10 @@ final class SiteRepository
         $this->assertRegion($region);
         $stored = $this->themeStore->read('regions', $region);
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+        $nodes = ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+
+        // The modal template cannot do without its panel; one saved without it starts over.
+        return $region === LayoutSchema::MODAL && $nodes === [] ? LayoutSchema::defaultRegion($region) : $nodes;
     }
 
     public function regionCustomized(string $region): bool

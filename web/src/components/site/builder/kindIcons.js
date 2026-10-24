@@ -25,7 +25,10 @@ export const KIND_ICONS = {
   theme_toggle: 'mdi:theme-light-dark',
   component: 'mdi:puzzle-outline',
   page_content: 'mdi:file-document-edit-outline',
+  modal: 'mdi:dock-window',
   site_content: 'mdi:application-import',
+  modal_title: 'mdi:format-title',
+  modal_close: 'mdi:close-box-outline',
 }
 
 /** Column sets arranged underneath each other read as rows. */

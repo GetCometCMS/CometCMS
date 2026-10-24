@@ -59,29 +59,52 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
     assert.match(response.headers()['content-security-policy'], /frame-src 'self'/);
     assert.match(response.headers()['content-security-policy'], /script-src 'sha256-/);
     await page.evaluate(() => { window.violations = []; document.addEventListener('securitypolicyviolation', (event) => window.violations.push(event.violatedDirective)); });
+    const history = await page.evaluate(() => window.history.length);
     const opener = page.getByRole('link', { name: 'Entry modal', exact: true });
     await opener.click();
     const dialog = page.getByRole('dialog', { name: 'Entry modal' });
     await dialog.waitFor({ state: 'visible' });
     assert(await dialog.evaluate((element) => element.matches(':modal')));
     assert.equal(page.url(), source, 'Opening a modal leaves the parent URL unchanged');
-    const content = page.frameLocator('.c-link-modal-frame');
+    const content = page.frameLocator('.c-modal-frame');
     await content.getByRole('heading', { name: 'Target page', exact: true }).waitFor();
-    assert.equal(await dialog.locator('iframe').getAttribute('src'), origin + base + '/posts/target#main');
+    assert.equal(await dialog.locator('iframe').getAttribute('src'), origin + base + '/posts/target?embed=1#main');
+    assert.equal(await content.locator('header, footer, .c-skip-link').count(), 0, 'Embedded pages show only their main content');
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('.c-modal-frame');
+      return Math.abs(frame.getBoundingClientRect().height - frame.contentDocument.body.getBoundingClientRect().height) <= 1;
+    });
+    assert((await dialog.boundingBox()).height < 700, 'The modal is as tall as the embedded page');
     await content.getByRole('tab', { name: 'Second', exact: true }).click();
     assert.equal(await content.getByRole('tab', { name: 'Second', exact: true }).getAttribute('aria-selected'), 'true', 'Destination scripts work under their CSP');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
     assert(await opener.evaluate((element) => element === document.activeElement), 'Escape from the frame restores focus');
-    await page.waitForFunction(() => document.querySelector('.c-link-modal-frame').getAttribute('src') === 'about:blank');
+    assert.equal(await page.locator('.c-modal-frame').count(), 0, 'Closing removes the frame');
 
     for (const label of ['List modal', 'Home modal', 'Current modal']) {
       await page.getByRole('link', { name: label, exact: true }).click();
-      await page.locator('.c-link-modal[open]').waitFor();
+      await page.locator('.c-modal[open]').waitFor();
       await content.locator('main').waitFor();
       await page.getByRole('button', { name: 'Close', exact: true }).click();
-      await page.locator('.c-link-modal[open]').waitFor({ state: 'hidden' });
+      await page.locator('.c-modal[open]').waitFor({ state: 'hidden' });
     }
+    assert.equal(await page.evaluate(() => window.history.length), history, 'Modals never add history entries');
+
+    // Inside the modal, modal links swap the page in place and other links leave for the whole window.
+    await opener.click();
+    await content.getByRole('heading', { name: 'Target page', exact: true }).waitFor();
+    await content.getByRole('link', { name: 'List modal', exact: true }).click();
+    await page.getByRole('dialog', { name: 'List modal' }).waitFor();
+    // The list page is also the homepage here.
+    await page.waitForFunction(() => /\/\?embed=1$|\/posts\?embed=1$/.test(document.querySelector('.c-modal-frame')?.getAttribute('src') ?? ''));
+    await content.locator('main').waitFor();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await opener.click();
+    await content.getByRole('link', { name: 'Normal internal', exact: true }).click();
+    await page.waitForURL(origin + base + '/posts/target');
+    await page.goto(source);
+
     const external = page.getByRole('link', { name: 'External link', exact: true });
     assert.equal(await external.getAttribute('data-link-modal'), null);
     assert.equal(await external.getAttribute('target'), '_blank');
@@ -94,7 +117,7 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
       return prevented;
     });
     assert.equal(modified, false, 'Modified clicks retain browser navigation');
-    assert.equal(await page.locator('.c-link-modal[open]').count(), 0);
+    assert.equal(await page.locator('.c-modal[open]').count(), 0);
     // Defend against an external URL accidentally receiving a trigger attribute.
     assert.equal(await external.evaluate((element) => {
       element.dataset.linkModal = '';
@@ -103,41 +126,54 @@ session_id('modal-browser-session'); session_start(); $_SESSION['user_id'] = 'mo
       element.click();
       return prevented;
     }), false);
-    assert.deepEqual(await page.evaluate(() => window.violations), []);
 
-    await page.setViewportSize({ width: 375, height: 667 });
+    // On a short screen the page scrolls inside the frame; the close button stays in view.
+    await page.setViewportSize({ width: 375, height: 320 });
+    await page.evaluate(() => { window.violations = []; document.addEventListener('securitypolicyviolation', (event) => window.violations.push(event.violatedDirective)); });
     await opener.click();
-    const bounds = await page.locator('.c-link-modal').boundingBox();
-    assert(bounds.width <= 375 && bounds.height <= 667, 'Modal fits narrow screens');
+    await content.getByRole('heading', { name: 'Target page', exact: true }).waitFor();
+    const bounds = await page.locator('.c-modal').boundingBox();
+    assert(bounds.width <= 375 && bounds.height <= 320, 'Modal fits small screens');
+    assert.equal(await page.locator('.c-modal').evaluate((element) => element.scrollHeight <= element.clientHeight), true, 'The panel itself does not scroll');
+    const close = await page.getByRole('button', { name: 'Close', exact: true }).boundingBox();
+    assert(close.y >= bounds.y && close.y + close.height <= bounds.y + bounds.height, 'The close button stays visible');
     await page.mouse.click(1, 1);
-    await page.locator('.c-link-modal[open]').waitFor({ state: 'hidden' });
+    await page.locator('.c-modal[open]').waitFor({ state: 'hidden' });
+    assert.deepEqual(await page.evaluate(() => window.violations), []);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.getByRole('link', { name: 'Normal internal', exact: true }).click();
     await page.waitForURL(origin + base + '/posts/target');
   }
 
-  // A custom template applies to every link while retaining the selected page's URL and scripts.
+  // A custom template applies to every link: here a drawer with a title and its own close button.
   writeFileSync(join(directory, 'customize.php'), `<?php
 require __DIR__ . '/app/bootstrap.php';
 $node = \\CometCMS\\Site\\LayoutSchema::node(...);
-(new \\CometCMS\\Site\\SiteRepository())->saveRegion('modal', [$node('section', ['width' => 'full'], ['background' => 'surface'], [$node('row', [], [], [$node('column', [], [], [
-    $node('heading', ['text' => 'Shared modal frame']),
-    $node('site_content', ['content_height' => 420]),
-])])])]);`);
+(new \\CometCMS\\Site\\SiteRepository())->saveRegion('modal', [$node('modal', ['size' => 'sm', 'placement' => 'right', 'backdrop_close' => false], ['background' => 'surface', 'padding_y' => 'md'], [
+    $node('modal_title', ['level' => 'h2']),
+    $node('modal_close', ['show_label' => true, 'label' => 'Done']),
+    $node('site_content'),
+])]);`);
   execFileSync('php', [join(directory, 'customize.php')]);
   await page.goto(origin + '/posts/source');
   await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
-  await page.getByRole('dialog').getByRole('heading', { name: 'Shared modal frame' }).waitFor();
-  await page.frameLocator('.c-link-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
-  assert.equal(await page.locator('.c-site-content').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '420px');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('dialog').getByRole('heading', { name: 'Entry modal', exact: true }).waitFor();
+  await page.frameLocator('.c-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
+  await page.locator('.c-modal').evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+  const drawer = await page.locator('.c-modal').boundingBox();
+  assert(Math.abs(drawer.x + drawer.width - 1280) <= 1 && Math.abs(drawer.y) <= 1 && Math.abs(drawer.height - 720) <= 1 && drawer.width < 640, 'Drawers sit along their edge');
+  await page.mouse.click(1, 1);
+  assert.equal(await page.locator('.c-modal[open]').count(), 1, 'The backdrop can be set to keep the modal open');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.locator('.c-modal[open]').waitFor({ state: 'hidden' });
 
   await page.context().addCookies([{ name: 'cometcms_admin', value: 'modal-browser-session', url: origin }]);
   await page.goto(origin + '/cms/admin/site-preview/posts/source?workspace=default');
   await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
-  await page.frameLocator('.c-link-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
-  assert.match(await page.locator('.c-link-modal-frame').getAttribute('src'), /\/cms\/admin\/site-preview\?/);
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.frameLocator('.c-modal-frame').getByRole('heading', { name: 'Target page', exact: true }).waitFor();
+  assert.match(await page.locator('.c-modal-frame').getAttribute('src'), /\/cms\/admin\/site-preview\?.*embed=1/);
+  assert.equal(await page.frameLocator('.c-modal-frame').locator('.c-preview-bar').count(), 0, 'Embedded previews leave out the admin bar');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   if (process.argv.includes('--builder')) {
     await page.addInitScript(() => localStorage.setItem('cometcms-builder-guide-seen', '1'));
     await page.goto(origin + '/admin/page-builder/builder/layout/posts/detail');
@@ -145,32 +181,31 @@ $node = \\CometCMS\\Site\\LayoutSchema::node(...);
     await page.getByRole('menuitem', { name: 'Modal', exact: true }).click();
     await page.waitForURL('**/page-builder/builder/region/modal');
     const canvas = page.frameLocator('.builder-stage iframe');
-    await canvas.locator('[data-kind="site_content"] .c-modal-content-placeholder').waitFor();
+    await canvas.locator('[data-kind="site_content"] .c-placeholder').waitFor();
     assert.equal(await canvas.locator('iframe').count(), 0, 'The builder shows a placeholder rather than a live embedded page');
-    await canvas.locator('[data-kind="site_content"]').click();
-    const height = page.getByRole('spinbutton', { name: 'Content height', exact: true });
-    await height.fill('480');
-    await height.press('Tab');
+    await canvas.locator('[data-kind="modal"]').click({ position: { x: 4, y: 4 } });
+    const backdrop = page.getByRole('switch', { name: 'Close on backdrop click', exact: true });
+    assert.equal(await backdrop.getAttribute('aria-checked'), 'false');
+    await backdrop.click();
     const saved = page.waitForResponse((response) => response.url().includes('/api/site/regions/modal') && response.request().method() === 'PUT');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     assert.equal((await saved).status(), 200);
     await page.reload();
-    await canvas.locator('[data-kind="site_content"]').waitFor();
-    assert.equal(await canvas.locator('[data-kind="site_content"]').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '480px');
+    await canvas.locator('[data-kind="modal"].c-modal-at-right').waitFor();
     await page.locator('header').getByRole('button', { name: 'More actions', exact: true }).click();
     const popup = page.waitForEvent('popup');
     await page.getByRole('menuitem', { name: 'Preview', exact: true }).click();
     const preview = await popup;
-    await preview.locator('.c-link-modal-preview[open] .c-modal-content-placeholder').waitFor();
+    await preview.locator('.c-modal-preview[open] .c-placeholder').waitFor();
     assert.equal(await preview.locator('iframe').count(), 0, 'Full-page previews retain the content placeholder');
     await preview.close();
     await page.goto(origin + '/posts/source');
     await page.getByRole('link', { name: 'Entry modal', exact: true }).click();
-    assert.equal(await page.locator('.c-site-content').evaluate((element) => getComputedStyle(element).getPropertyValue('--c-modal-content-height')), '480px', 'Saving in the builder updates the live modal');
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    console.log('Modal template editor checks passed (header dropdown, content placeholder, height editing, save, reload and live rendering).');
+    await page.mouse.click(1, 1);
+    await page.locator('.c-modal[open]').waitFor({ state: 'hidden' });
+    console.log('Modal template editor checks passed (header dropdown, panel selection, content placeholder, save, reload and live rendering).');
   }
-  console.log('Link modal browser checks passed (internal destinations, external links, focus, Escape, backdrop, mobile, nested interactions, root/subdirectory installs, preview and real CSP).');
+  console.log('Link modal browser checks passed (internal destinations, embedded pages, history, content height, links inside the modal, external links, focus, Escape, backdrop, small screens, custom drawer template, root/subdirectory installs, preview and real CSP).');
 } finally {
   await browser?.close();
   if (php) await new Promise((resolve) => { php.once('exit', resolve); if (!php.kill('SIGTERM')) resolve(); });

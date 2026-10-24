@@ -11,12 +11,8 @@
       </div>
       <span v-if="!compact" class="mt-1 block text-xs text-slate-500">{{ t(link.type === 'anchor' ? 'site.link.anchorHint' : 'site.link.optionalAnchorHint') }}</span>
     </label>
-    <label v-if="allowModal && ['current', 'home', 'entry', 'index'].includes(link.type)" class="flex items-center gap-2 text-xs text-slate-600">
-      <input type="checkbox" class="rounded border-slate-300 text-theme-600" :checked="!!link.open_modal" @change="$emit('update', { open_modal: $event.target.checked, new_tab: false })" />
-      {{ t('site.link.openModal') }}
-    </label>
     <label v-if="!compact && !['none', 'anchor'].includes(link.type)" class="flex items-center gap-2 text-xs text-slate-600">
-      <input type="checkbox" class="rounded border-slate-300 text-theme-600" :checked="link.new_tab" @change="$emit('update', { new_tab: $event.target.checked, open_modal: false })" />
+      <input type="checkbox" class="rounded border-slate-300 text-theme-600" :checked="link.new_tab" @change="$emit('update', { new_tab: $event.target.checked })" />
       {{ t('site.link.newTab') }}
     </label>
   </component>
@@ -24,7 +20,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from '../../i18n/index.js'
-const props = defineProps({ link: { type: Object, required: true }, compact: Boolean, taskFocused: Boolean, allowModal: Boolean })
+const props = defineProps({ link: { type: Object, required: true }, compact: Boolean, taskFocused: Boolean })
 defineEmits(['update'])
 const { t } = useI18n()
 const labelClass = computed(() => props.compact ? 'mb-1 block text-xs font-medium text-slate-600' : 'form-label')

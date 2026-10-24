@@ -884,26 +884,42 @@ describe('independent hover animations', () => {
 })
 
 
-describe('modal content placement', () => {
-  it('keeps a single content slot, prevents duplication and allows remove and undo', async () => {
-    const builder = await builderFixture()
-    builder.spec.value.kinds.column.children.push('site_content')
-    builder.spec.value.kinds.site_content = { props: { content_height: { default: 640 } }, children: [] }
-    const section = builder.nodes.value[0]
-    const column = section.children[0].children[0]
-    const slot = builder.make('site_content')
-    expect(builder.insert(slot, column.id)).toBe(true)
-    expect(builder.insert(builder.make('site_content'), column.id)).toBe(false)
-    builder.duplicate(slot.id)
-    expect(builder.nodes.value[0].children[0].children[0].children.filter((node) => node.kind === 'site_content')).toHaveLength(1)
-    builder.duplicate(section.id)
+describe('modal template', () => {
+  async function modalFixture() {
+    let builder
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key }); return () => null } }))
+    const inside = ['heading', 'row', 'collection', 'site_content', 'modal_close']
+    builder.spec.value = { root: ['modal'], item_elements: [], kinds: {
+      modal: { props: { size: { default: 'lg' } }, children: inside }, row: { props: {}, children: ['column'] }, column: { props: {}, children: inside },
+      collection: { props: {}, children: ['column'] }, heading: { props: {}, children: [] }, site_content: { props: {}, children: [] }, modal_close: { props: {}, children: [] },
+    } }
+    builder.rootKind.value = 'modal'
+    builder.load([builder.make('modal', {}, {}, [builder.make('modal_close'), builder.make('site_content')])])
+    return builder
+  }
+
+  it('keeps its one panel and takes new elements into it without a selection', async () => {
+    const builder = await modalFixture()
+    const panel = builder.nodes.value[0]
+    builder.remove(panel.id)
+    builder.duplicate(panel.id)
     expect(builder.nodes.value).toHaveLength(1)
-    builder.updateValue(slot.id, 'props', 'content_height', 420)
-    expect(findNode(builder.nodes.value, slot.id).props.content_height).toBe(420)
-    builder.undo()
-    expect(findNode(builder.nodes.value, slot.id).props.content_height).toBe(640)
+    builder.selectedId.value = null
+    expect(builder.insert(builder.make('heading'))).toBe(true)
+    expect(builder.nodes.value[0].children.map((node) => node.kind)).toEqual(['modal_close', 'site_content', 'heading'])
+  })
+
+  it('holds exactly one site content element, never inside a card', async () => {
+    const builder = await modalFixture()
+    const panel = builder.nodes.value[0]
+    const slot = panel.children[1]
+    expect(builder.insert(builder.make('site_content'), panel.id)).toBe(false)
+    builder.duplicate(slot.id)
+    expect(panel.children.filter((node) => node.kind === 'site_content')).toHaveLength(1)
+    const card = builder.make('column')
+    builder.insert(builder.make('collection', {}, {}, [card]), panel.id)
     builder.remove(slot.id)
-    expect(findNode(builder.nodes.value, slot.id)).toBeNull()
+    expect(builder.insert(builder.make('site_content'), card.id)).toBe(false)
     builder.undo()
     expect(findNode(builder.nodes.value, slot.id).kind).toBe('site_content')
   })

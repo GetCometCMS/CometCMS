@@ -227,7 +227,7 @@
             </template>
           </div>
         </div>
-        <p v-if="visibleProps.length === 0" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
+        <p v-if="visibleProps.length === 0 && node.kind !== 'site_content'" class="text-xs text-slate-500">{{ t("site.builder.noOptions") }}</p>
       </template>
 
       <template v-else>
@@ -535,6 +535,12 @@ const visibleProps = computed(() => {
       overlap_background: !!props.overlap,
     };
     return keys.filter((key) => rules[key] !== false);
+  }
+
+  if (current.kind === "modal") {
+    // Panels along the top or bottom span the screen's width; those at the side its height.
+    const side = ["left", "right"].includes(props.placement);
+    return keys.filter((key) => (key !== "size" || !["top", "bottom"].includes(props.placement)) && (key !== "height" || !side));
   }
 
   if (current.kind === "menu") {

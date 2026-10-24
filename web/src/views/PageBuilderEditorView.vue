@@ -2,7 +2,7 @@
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
     <header class="builder-topbar relative flex h-12 shrink-0 items-center gap-2 border-b px-2">
-      <router-link :to="backTo" class="topbar-action" :title="t('site.builder.back')">
+      <router-link :to="exitTo" class="topbar-action" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
       </router-link>
@@ -347,7 +347,7 @@ import { createSiteBuilder } from "../composables/useSiteBuilder.js";
 import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
 import { usePermissions } from "../composables/usePermissions.js";
-import { findNode } from "../composables/layoutTree.js";
+import { MODAL, findNode } from "../composables/layoutTree.js";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useSiteStore } from "../stores/site.js";
@@ -603,9 +603,11 @@ const entryFields = useBuilderEntry({
   canUpdate: (type, entry) => canContent("content.update", type, entry),
 });
 
+const editingModal = computed(() => target.value === "region" && name.value === MODAL);
+
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
-  if (target.value === "component" || (target.value === "region" && name.value === "modal")) return null;
+  if (target.value === "component" || editingModal.value) return null;
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
@@ -619,7 +621,7 @@ const liveUrl = computed(() => {
 });
 /** Why the live page cannot be opened, shown on the disabled menu item. */
 const liveHint = computed(() => {
-  if (target.value === "region" && name.value === "modal") return t("site.modal.noPage");
+  if (editingModal.value) return t("site.modal.noPage");
   if (target.value === "component") return t("site.builder.componentNoPage");
   if (target.value === "region") return t("site.builder.siteOff");
   if (variant.value === "index") return t("site.builder.noLiveIndex");
@@ -718,19 +720,14 @@ const views = computed(() => {
   ];
 });
 const currentView = computed(() => (target.value === "page" ? "page" : variant.value));
-// Opened from an entry or another builder: go back there. Only internal content and website URLs are followed.
-const backTo = computed(() => {
-  const back = typeof route.query.back === "string" ? route.query.back : "";
-  if (back.startsWith("/content/") || back.startsWith("/page-builder/")) return back;
-  if (target.value === "component") return COMPONENTS_PATH;
-  if (target.value === "page") return `/content/${name.value}/${pageEntry.value}`;
-  return target.value === "region" ? "/page-builder/design" : `/content-types/${name.value}/edit#website`;
-});
-/** Leave the builder for the current entry, even after switching builder views. */
+/** Both exit controls leave the builder, regardless of navigation between its views. */
 const exitTo = computed(() => {
-  const type = builder.type.value?.name;
-  const entry = target.value === "page" ? pageEntryId.value : previewEntry.value;
-  return type && entry ? `/content/${type}/${entry}` : backTo.value;
+  if (target.value === "page") return `/content/${name.value}/${pageEntryId.value || pageEntry.value}`;
+  if (target.value === "layout") return `/content/${name.value}`;
+  const back = typeof route.query.back === "string" ? route.query.back : "";
+  if (back.startsWith("/content/")) return back;
+  if (target.value === "component") return COMPONENTS_PATH;
+  return "/dashboard";
 });
 const heading = computed(() => {
   if (target.value === "component") return component.value?.name ?? "";
@@ -748,7 +745,7 @@ const subheading = computed(() => {
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
-  if (target.value === "region") return t(name.value === "modal" ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
+  if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : "site.builder.regionSubtitle");
   return t(`site.variant.${variant.value}`);
 });
 
@@ -777,7 +774,7 @@ const overview = computed(() => {
     return {
       title: heading.value,
       description: t(`site.region.${name.value}Hint`),
-      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline", modal: "mdi:application-outline" }[name.value] ?? "mdi:page-layout-header",
+      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline", [MODAL]: "mdi:dock-window" }[name.value] ?? "mdi:page-layout-header",
     };
   }
   const type = builder.type.value?.label ?? name.value;
@@ -886,7 +883,8 @@ async function load(next = requested) {
       builder.spec.value = data.spec;
       builder.currentAvailable.value = ["layout", "page"].includes(target) && variant !== "index";
       builder.componentId.value = null;
-      builder.rootKind.value = null;
+      // The modal template is its one panel, like a component's root.
+      builder.rootKind.value = target === "region" && name === MODAL ? MODAL : null;
     }
     if (target === "page") {
       pageField.value = data.field;

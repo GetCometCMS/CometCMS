@@ -40,7 +40,6 @@ test('internal page modal links survive saving and render across all link elemen
         assert_same(1, substr_count($html, ' data-link-modal '), $node['kind']);
         assert_true(str_contains($html, 'href="/cms/'));
         assert_true(str_contains($html, 'aria-haspopup="dialog"'));
-        assert_true(str_contains($html, 'data-modal-close="Close"'));
         assert_false(str_contains($html, 'target="_blank"'));
     }
 });
@@ -95,4 +94,19 @@ test('page modal scripts load once only when needed with exact CSP hashes and sc
     $preview = $renderer->entryPage($type, $entry);
     assert_true(str_contains($preview, 'initLinkModal(document)'));
     assert_true(str_contains($preview, LinkModal::cspSource()));
+});
+
+test('embedded pages show only their main content and keep forms embedded', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = SiteContext::make($site, '/cms', 'https://example.test');
+    $full = (new \CometCMS\Site\SiteService($ctx))->respond('/blog/hello', [])['body'];
+    assert_true(str_contains($full, '<header'));
+    $ctx = SiteContext::make($site, '/cms', 'https://example.test');
+    $html = (new \CometCMS\Site\SiteService($ctx))->respond('/blog/hello', ['embed' => '1'])['body'];
+    assert_true(str_contains($html, '<main id="main"'));
+    assert_true(str_contains($html, 'c-embed'));
+    assert_true(str_contains($html, 'noindex'));
+    foreach (['<header', '<footer', 'c-skip-link', 'data-link-modal-dialog'] as $missing) assert_false(str_contains($html, $missing), $missing);
+    assert_same('/cms/blog/hello?embed=1', $ctx->embedUrl('/cms/blog/hello'));
+    assert_same('/cms/admin/site-preview?path=%2F&embed=1', $ctx->embedUrl('/cms/admin/site-preview?path=%2F'));
 });

@@ -41,6 +41,12 @@ final class SiteContext
     /** Visitor filters of entry lists, by list (see ListFilters::fromQuery). */
     public array $listParams = [];
 
+    /**
+     * Pages opened in the link modal (?embed=1): only the page's main content,
+     * without header, footer or modals of its own.
+     */
+    public bool $embed = false;
+
     /** Signed-in full-page previews keep navigation and admin actions together. */
     public bool $browsePreview = false;
     public string $previewToken = '';
@@ -83,6 +89,7 @@ final class SiteContext
         $saved->preview = $this->preview;
         $saved->annotate = $this->annotate;
         $saved->browsePreview = $this->browsePreview;
+        $saved->embed = $this->embed;
         $saved->previewToken = $this->previewToken;
         $saved->previewReturnUrl = $this->previewReturnUrl;
         $saved->previewTime = $this->previewTime;
@@ -93,6 +100,12 @@ final class SiteContext
     }
 
     // ─── Configuration (with preview overrides) ──────────────────────────────
+
+    /** $url as this page shows it: embedded pages stay embedded, e.g. after a form is sent. */
+    public function embedUrl(string $url): string
+    {
+        return $this->embed ? $url . (str_contains($url, '?') ? '&' : '?') . 'embed=1' : $url;
+    }
 
     public function override(string $key, mixed $value): void
     {

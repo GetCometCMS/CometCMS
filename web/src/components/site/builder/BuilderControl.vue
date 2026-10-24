@@ -383,6 +383,7 @@ const label = computed(() => {
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
   if (props.name === "label" && props.node.kind === "theme_toggle") return t("site.prop.toggleLabel");
+  if (props.name === "label" && props.node.kind === "modal_close") return t("site.prop.closeLabel");
   if (props.name === "icon_position" && props.node.kind === "button") return t("site.prop.buttonIconPosition");
   if (props.name === "media" && props.node.kind === "gallery") return t("site.prop.galleryImages");
   if (props.name === "media" && props.node.kind === "video") return t("site.prop.videoFile");
@@ -393,6 +394,7 @@ const hint = computed(() => {
   if (props.node.kind === "video" && ["media", "poster", "video_url", "autoplay", "controls", "start_time", "fullscreen"].includes(props.name)) return t(`site.video.${props.name}Hint`);
   if (props.name === "class") return t("site.builder.classHint");
   if (props.node.kind === "theme_toggle" && props.name === "label" && !value.value) return t("site.themeToggle.labelHint");
+  if (props.node.kind === "modal_close" && props.name === "label" && !value.value) return t("site.modalClose.labelHint");
   if (props.name === "background_blur") return t("site.builder.backgroundBlurHint");
   if (props.node.kind === "section" && props.name === "sticky" && value.value !== "none") return t("site.builder.stickyHint");
   if (props.node.kind === "section" && props.name === "overlap" && value.value) return t("site.builder.overlapHint");

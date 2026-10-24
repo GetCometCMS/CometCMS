@@ -185,7 +185,7 @@ final class PageRenderer
 
     public function regionPreview(string $region): string
     {
-        if ($region === 'modal') return $this->modalPreview();
+        if ($region === LayoutSchema::MODAL) return $this->modalPreview();
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->regionPreview($region);
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
@@ -194,11 +194,15 @@ final class PageRenderer
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
     }
 
+    /** The modal template, open over a stand-in backdrop; a placeholder shows where opened pages appear. */
     public function modalPreview(): string
     {
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->modalPreview();
+        $state = ['modal_preview' => true] + $this->state(null, null, $this->ctx->homeUrl(), 1, []);
+        $modal = $this->nodes->render($this->ctx->region(LayoutSchema::MODAL), $state);
+
         return $this->document(['title' => Messages::get('modal', $this->ctx->htmlLang()), 'noindex' => true, 'body_class' => 'c-view-modal-preview'],
-            LinkModal::markup($this->ctx, true, $this->nodes), $this->state(null, null, $this->ctx->homeUrl(), 1, []), false);
+            '<div class="c-modal-stage"' . ($this->ctx->annotate ? ' data-drop-root' : '') . '>' . $modal . '</div>', $state, false);
     }
 
     /**
@@ -262,8 +266,10 @@ final class PageRenderer
     {
         $settings = $this->ctx->settings();
         $header = $footer = '';
+        // An embedded page (see SiteContext::$embed) is its main content, inside the parent page's modal.
+        $embed = $this->ctx->embed;
 
-        if ($withRegions) {
+        if ($withRegions && !$embed) {
             $regionState = $state;
             $render = function (string $region) use ($regionState, $plainRegions, $annotatedRegion): string {
                 $nodes = $this->ctx->region($region);
@@ -280,12 +286,13 @@ final class PageRenderer
         // its parent-managed interactions and selection behavior.
         $interactive = !$this->ctx->preview || ($this->ctx->browsePreview && !$this->ctx->annotate);
         $markup = $header . $main . $footer;
-        $modal = $interactive && str_contains($markup, ' data-link-modal ') ? LinkModal::markup($this->ctx, false, $this->nodes) : '';
+        // Links inside an embedded page are followed by the parent page's modal script.
+        $modal = $interactive && !$embed && str_contains($markup, ' data-link-modal ') ? LinkModal::markup($this->ctx, $this->nodes, $state) : '';
         $markup .= $modal;
         $headScript = $interactive && str_contains($markup, 'data-theme-toggle')
             ? '<script>' . ThemeToggle::script() . '</script>' : '';
         $bodyScripts = '';
-        foreach (['data-link-modal' => LinkModal::class, 'data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class, ' data-list-filters' => ListFilters::class] as $marker => $module) {
+        foreach (['data-link-modal-dialog' => LinkModal::class, 'data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class, ' data-list-filters' => ListFilters::class] as $marker => $module) {
             if ($interactive && str_contains($markup, $marker)) {
                 $bodyScripts .= '<script type="module">' . $module::script() . '</script>';
             }
@@ -294,7 +301,7 @@ final class PageRenderer
         $title = Security::e((string) ($meta['title'] ?? $this->ctx->siteTitle()));
         $description = trim((string) ($meta['description'] ?? ''));
         $canonical = (string) ($meta['canonical'] ?? '');
-        $noindex = ($meta['noindex'] ?? false) || $this->ctx->preview || !empty($settings['noindex']);
+        $noindex = ($meta['noindex'] ?? false) || $embed || $this->ctx->preview || !empty($settings['noindex']);
         $head = '<meta charset="utf-8">'
             . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="'
                 . SiteScripts::cspDirective($headScript . $bodyScripts)
@@ -366,8 +373,8 @@ final class PageRenderer
         $head .= $headScript;
 
         $opening = '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
-            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">';
-        $content = '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>'
+            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . ($embed ? ' c-embed' : '') . '">';
+        $content = ($embed ? '' : '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>')
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
@@ -375,7 +382,7 @@ final class PageRenderer
             . $bodyScripts
             . '</body></html>';
         $banner = '';
-        if ($this->ctx->previewBanner) {
+        if ($this->ctx->previewBanner && !$embed) {
             // Compare the page that was actually rendered, including shared regions,
             // embedded entries, locale and theme. A token alone does not imply changes,
             // and a page that read no override is the saved page: skip the second render.

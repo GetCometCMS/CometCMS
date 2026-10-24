@@ -70,9 +70,9 @@ make test-frontend
 npm --workspace web run test:watch
 ```
 
-Run `node tests/browser/link-modal.mjs` with PHP and Chrome/Chromium installed to check internal link modals, external links, keyboard and focus behavior, mobile sizing, previews and root/subdirectory installs under the real content security policy. Set `CHROME_BIN` to override the browser executable. The test uses an isolated temporary installation.
+Run `node tests/browser/link-modal.mjs` with PHP and Chrome/Chromium installed to check internal link modals, embedded pages and their height, browser history, links inside the modal, external links, keyboard and focus behavior, small screens, a custom drawer template, previews and root/subdirectory installs under the real content security policy. Set `CHROME_BIN` to override the browser executable. The test uses an isolated temporary installation.
 
-After `npm run build`, add `--builder` to also check the **Modal** template in the builder's header dropdown, its content placeholder, editing and saving its height, reloading, full-page previews and the resulting live modal.
+After `npm run build`, add `--builder` to also check the **Modal** template in the builder's header dropdown, selecting its panel, its content placeholder, saving a panel option, reloading, full-page previews and the resulting live modal.
 
 ## Local reset
 
