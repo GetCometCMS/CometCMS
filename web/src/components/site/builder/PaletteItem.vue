@@ -11,14 +11,14 @@
     @dragstart="$emit('drag', $event)"
     @dragend="$emit('dragend')"
   >
-    <Icon :icon="icon" class="shrink-0 text-slate-400 transition-colors group-hover/item:text-theme-500" :class="stacked ? 'h-5 w-5' : 'h-4 w-4'" />
+    <KindIcon :icon="icon" class="shrink-0 text-slate-400 transition-colors group-hover/item:text-theme-500" :class="stacked ? 'h-5 w-5' : 'h-4 w-4'" />
     <span class="min-w-0" :class="stacked ? 'w-full break-words' : 'flex-1 truncate'">{{ label }}</span>
     <span v-if="wide && meta" class="shrink-0 font-mono text-[10px] text-slate-400">{{ meta }}</span>
   </button>
 </template>
 
 <script setup>
-import { Icon } from "@iconify/vue";
+import KindIcon from "./KindIcon.vue";
 
 defineProps({
   icon: { type: String, default: "mdi:shape-outline" },

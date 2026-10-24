@@ -10,6 +10,7 @@ use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Localization\LanguageSettings;
+use CometCMS\Site\Blocks\BlockRegistry;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -61,6 +62,7 @@ final class SiteRepository
     private ContentTypeRepository $types;
     private ?array $settingsCache = null;
     private ?array $typesCache = null;
+    private ?BlockRegistry $blockRegistry = null;
 
     public function __construct(?WorkspaceContext $workspace = null, ?ContentTypeRepository $types = null)
     {
@@ -80,6 +82,11 @@ final class SiteRepository
     public function workspace(): WorkspaceContext
     {
         return $this->workspace;
+    }
+
+    public function blocks(): BlockRegistry
+    {
+        return $this->blockRegistry ??= new BlockRegistry($this->workspace);
     }
 
     /** @return array<string, array> content types keyed by name */
@@ -290,7 +297,7 @@ final class SiteRepository
         $this->assertRegion($region);
         $stored = $this->themeStore->read('regions', $region);
 
-        $nodes = ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+        $nodes = ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? [], blocks: $this->blocks()) : LayoutSchema::defaultRegion($region);
 
         // The modal template cannot do without its panel; one saved without it starts over.
         return $region === LayoutSchema::MODAL && $nodes === [] ? LayoutSchema::defaultRegion($region) : $nodes;
@@ -314,7 +321,7 @@ final class SiteRepository
     private function saveRegionUnlocked(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $this->assertRegion($region);
-        $nodes = LayoutSchema::normalizeRegion($region, $nodes, true);
+        $nodes = LayoutSchema::normalizeRegion($region, $nodes, true, $this->blocks());
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'regions', $region);
         $this->clearCache();
@@ -690,7 +697,7 @@ final class SiteRepository
         }
 
         return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
-            ? LayoutSchema::normalize($stored['nodes'] ?? [], $variant === 'detail')
+            ? LayoutSchema::normalize($stored['nodes'] ?? [], $variant === 'detail', $this->blocks())
             : LayoutSchema::defaultLayout($schema, $variant);
     }
 
@@ -716,7 +723,7 @@ final class SiteRepository
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
         $this->assertArea($type, $variant, $area);
-        $nodes = LayoutSchema::normalize($nodes, $variant === 'detail');
+        $nodes = LayoutSchema::normalize($nodes, $variant === 'detail', $this->blocks());
         $this->writeRevision(['content', $type, $variant, $area], $this->layoutSnapshot($type, $variant, $area), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'content', $type, $variant, $area);
         $this->clearCache();
@@ -1219,7 +1226,7 @@ final class SiteRepository
             'name' => self::line($stored['name'] ?? '', 120) ?: $id,
             'root' => $root,
             'type' => LayoutSchema::key($stored['type'] ?? ''),
-            'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
+            'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root, $this->blocks()),
             'created_at' => (string) ($stored['created_at'] ?? ''),
             'updated_at' => self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
         ];
@@ -1232,7 +1239,7 @@ final class SiteRepository
      */
     private function validateComponent(array $component, mixed $nodes, mixed $type): array
     {
-        $nodes = LayoutSchema::normalizeComponent($nodes, $component['root']);
+        $nodes = LayoutSchema::normalizeComponent($nodes, $component['root'], $this->blocks());
         if ($nodes === []) {
             throw new ValidationException(['nodes' => 'A component needs its ' . $component['root'] . '.']);
         }

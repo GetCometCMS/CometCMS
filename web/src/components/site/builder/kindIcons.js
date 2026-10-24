@@ -37,6 +37,11 @@ export const STACKED_ICONS = {
   column: 'mdi:view-split-horizontal',
 }
 
-export function nodeIcon(node, stacked = false) {
-  return (stacked && STACKED_ICONS[node?.kind]) || KIND_ICONS[node?.kind] || 'mdi:shape-outline'
+/** A kind's icon; block packages bring their own, as an Iconify name or an image. */
+export function kindIcon(kind, spec = null) {
+  return KIND_ICONS[kind] || spec?.kinds?.[kind]?.icon || (kind?.startsWith('block:') ? 'mdi:cube-outline' : 'mdi:shape-outline')
+}
+
+export function nodeIcon(node, stacked = false, spec = null) {
+  return (stacked && STACKED_ICONS[node?.kind]) || kindIcon(node?.kind, spec)
 }

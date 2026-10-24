@@ -335,7 +335,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Drop containers: structure, tabs, item templates, page content, the modal panel and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length)
+      || !!spec.value?.kinds?.[node.kind]?.slot)
   }
 
   /** The single root of a component's or the modal template's tree stays where it is. */
@@ -1087,7 +1088,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   // ─── Labels ────────────────────────────────────────────────────────────
 
   function kindLabel(kind) {
-    return t(`site.kind.${kind}`)
+    return spec.value?.kinds?.[kind]?.label ?? (kind.startsWith('block:') ? kind.slice(6) : t(`site.kind.${kind}`))
   }
 
   /**
