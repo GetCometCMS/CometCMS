@@ -895,6 +895,7 @@ const messages = {
   'connect.webhooksUnavailable': 'Du hast keine Berechtigung, Webhooks zu verwalten.',
   'connect.mcpEndpoint': 'MCP-Endpunkt',
   'connect.mcpDescription': 'Verbinde MCP-Clients mit demselben Arbeitsbereich und den Berechtigungen eines Zugriffstokens.',
+  'connect.mcpBuilderPermissions': 'Page-Builder-Werkzeuge sind nur enthalten, wenn der verwendete Zugriffstoken die Berechtigung „Website verwalten“ (site.manage) für diesen Arbeitsbereich hat.',
   'connect.copyUrl': 'URL kopieren',
   'connect.copyCurl': 'curl kopieren',
   'connect.copied': 'In die Zwischenablage kopiert.',

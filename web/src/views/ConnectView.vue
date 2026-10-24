@@ -34,6 +34,7 @@
             </h2>
           </div>
           <p class="mt-1 text-sm text-slate-500">{{ t("connect.mcpDescription") }}</p>
+          <p class="mt-2 text-xs text-slate-500">{{ t("connect.mcpBuilderPermissions") }}</p>
         </div>
         <button type="button" class="btn-secondary shrink-0" @click="copy(mcpUrl)">
           <Icon icon="mdi:content-copy" class="h-4 w-4" />

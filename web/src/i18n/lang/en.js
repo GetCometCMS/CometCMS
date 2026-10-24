@@ -892,6 +892,7 @@ const messages = {
     'connect.webhooksUnavailable': 'You do not have permission to manage webhooks.',
     'connect.mcpEndpoint': 'MCP endpoint',
     'connect.mcpDescription': 'Connect MCP clients using the same workspace and access-token permissions.',
+    'connect.mcpBuilderPermissions': 'Page Builder tools are only included when the access token has the “Manage the website” (site.manage) permission for this workspace.',
     'connect.copyUrl': 'Copy URL',
     'connect.copyCurl': 'Copy curl',
     'connect.copied': 'Copied to clipboard.',
