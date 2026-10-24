@@ -139,7 +139,7 @@
               <p v-else-if="part !== 'content' && !frameComponents(components, selectedType).length" class="px-3 py-2 text-xs text-slate-500">{{ t("site.frame.noComponents") }}</p>
               <div class="mt-1 border-t border-slate-100 pt-1">
                 <button v-if="part === 'content'" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50" @click="nameDialog = { mode: 'area' }">
-                  <Icon icon="mdi:file-document-plus-outline" class="h-4 w-4" aria-hidden="true" />{{ t("site.templates.newAreaFrom", { name: partLabel("content") }) }}
+                  <Icon icon="mdi:file-document-plus-outline" class="h-4 w-4" aria-hidden="true" />{{ t("site.templates.newArea") }}
                 </button>
                 <router-link v-if="selected[part] !== FRAME_NONE" :to="editPath(part)" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                   <Icon icon="mdi:pencil-outline" class="h-4 w-4" aria-hidden="true" />{{ t("site.frame.editComponent", { name: partLabel(part) }) }}
@@ -486,7 +486,7 @@ async function confirmName(name) {
     if (creatingArea.value) return;
     creatingArea.value = true;
     try {
-      const created = (await api.site.createContentArea(selectedType.value, selectedVariant.value, name, selected.value.content)).data;
+      const created = (await api.site.createContentArea(selectedType.value, selectedVariant.value, name)).data;
       site.setContentAreas(selectedType.value, selectedVariant.value, [...areas.value, created]);
       change({ content: created.id });
       nameDialog.value = null;

@@ -293,7 +293,7 @@
     <ComponentNameModal
       v-model="areaDialogOpen"
       :title="t('site.templates.newAreaTitle')"
-      :message="t('site.templates.newAreaMessage', { name: areaLabel(t, area, areas) })"
+      :message="t('site.templates.newAreaMessage')"
       :confirm-label="t('site.templates.createArea')"
       :label="t('site.templates.areaName')"
       :placeholder="t('site.templates.areaNamePlaceholder')"
@@ -877,14 +877,13 @@ function openArea(id) {
 
 const areaDialogOpen = ref(false);
 const creatingArea = ref(false);
-/** A new content area, starting as a copy of the one being edited (its saved version). */
+/** A new, empty content area of the page kind. */
 async function createArea(areaName) {
   const layout = frameLayout.value;
   if (!layout || creatingArea.value) return;
   creatingArea.value = true;
   try {
-    const from = target.value === "page" ? shownTemplate.value?.content ?? DEFAULT_AREA : area.value;
-    const created = (await api.site.createContentArea(layout.type, layout.variant, areaName, from)).data;
+    const created = (await api.site.createContentArea(layout.type, layout.variant, areaName)).data;
     areas.value = [...areas.value, created];
     site.setContentAreas(layout.type, layout.variant, areas.value);
     areaDialogOpen.value = false;

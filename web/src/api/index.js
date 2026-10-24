@@ -442,8 +442,8 @@ export const api = {
     layoutRevisions: (type, variant, area = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions`, { area })),
     layoutRevision: (type, variant, id, area = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`, { area })),
     restoreLayoutRevision: (type, variant, id, area = 'default') => request('POST', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`, { area })),
-    /** A new content area, copied from `from` (default: the default area). */
-    createContentArea: (type, variant, name, from = 'default') => request('POST', `/site/layouts/${type}/${variant}/areas`, { name, from }),
+    /** A new, empty content area. */
+    createContentArea: (type, variant, name) => request('POST', `/site/layouts/${type}/${variant}/areas`, { name }),
     renameContentArea: (type, variant, area, name) => request('PATCH', `/site/layouts/${type}/${variant}/areas/${encodeURIComponent(area)}`, { name }),
     deleteContentArea: (type, variant, area) => request('DELETE', `/site/layouts/${type}/${variant}/areas/${encodeURIComponent(area)}`),
     /** An entry's own page content ({ field } picks the page field; the type's first by default). */

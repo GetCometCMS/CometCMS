@@ -217,14 +217,14 @@ final class SiteController extends BaseController
         $this->json(['data' => $templates ?: new \stdClass(), 'meta' => ['revision' => \CometCMS\Localization\LocalizedValue::hash($templates)]]);
     }
 
-    /** Body: {name, from}: a new content area of the page kind, copied from another one (default: the default area). */
+    /** Body: {name}: a new, empty content area of the page kind. */
     public function createContentArea(string $type, string $variant): never
     {
         $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireType($type, $variant);
         $body = $this->requestJson();
-        $area = $this->validated(fn() => $this->site->createContentArea($type, $variant, $body['name'] ?? '', (string) ($body['from'] ?? SiteRepository::DEFAULT_AREA), $user));
+        $area = $this->validated(fn() => $this->site->createContentArea($type, $variant, $body['name'] ?? '', $user));
         $this->logger->info('site.content_area_created', ['type' => $type, 'variant' => $variant, 'area' => $area['id']]);
         $this->json(['data' => $area], 201);
     }
@@ -279,7 +279,7 @@ final class SiteController extends BaseController
             'upgrade_required' => $this->site->needsLayoutUpgrade($type, $variant, $area),
             'customized' => $this->site->layoutCustomized($type, $variant, $area),
             // Reset to default loads this as an edit, so it can be undone before saving.
-            'default_nodes' => LayoutSchema::defaultLayout($schema, $variant),
+            'default_nodes' => $area === SiteRepository::DEFAULT_AREA ? LayoutSchema::defaultLayout($schema, $variant) : [],
             'type' => $schema,
             'samples' => $this->samples($type, LayoutSchema::key($_GET['entry'] ?? '')),
             'sample' => $this->requestedSample($type),

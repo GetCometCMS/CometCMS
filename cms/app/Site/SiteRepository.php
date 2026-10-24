@@ -646,19 +646,17 @@ final class SiteRepository
         return $area === self::DEFAULT_AREA || (LayoutSchema::key($area) === $area && ($this->themeStore->read('content', $type, $variant, $area)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION);
     }
 
-    /** A new content area named $name, starting as a copy of $from. */
-    public function createContentArea(string $type, string $variant, mixed $name, string $from = self::DEFAULT_AREA, array $user = []): array
+    /** A new, empty content area named $name. */
+    public function createContentArea(string $type, string $variant, mixed $name, array $user = []): array
     {
         $this->assertVariant($this->requireType($type), $variant);
         $name = mb_substr(trim(is_string($name) ? $name : ''), 0, 120);
         if ($name === '') throw new ValidationException(['name' => 'Name the content area.']);
-        if (!$this->contentAreaExists($type, $variant, $from)) throw new ValidationException(['from' => 'Unknown content area.']);
 
-        return $this->themeStore->synchronized(function () use ($type, $variant, $name, $from, $user): array {
+        return $this->themeStore->synchronized(function () use ($type, $variant, $name, $user): array {
             $id = self::componentId($name, fn(string $id): bool => $id === self::DEFAULT_AREA || $this->contentAreaExists($type, $variant, $id));
-            $nodes = LayoutSchema::withNewIds($this->layout($type, $variant, $from));
-            $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'id' => $id, 'name' => $name, 'nodes' => $nodes], 'content', $type, $variant, $id);
-            $this->writeRevision(['content', $type, $variant, $id], ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes, 'customized' => true], $user, 'created');
+            $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'id' => $id, 'name' => $name, 'nodes' => []], 'content', $type, $variant, $id);
+            $this->writeRevision(['content', $type, $variant, $id], ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [], 'customized' => true], $user, 'created');
             $this->clearCache();
 
             return ['id' => $id, 'name' => $name, 'customized' => true];
@@ -753,14 +751,14 @@ final class SiteRepository
         return $nodes;
     }
 
-    /** Back to the generated design: the default area stops being stored, a named one starts over. */
+    /** Back to the start: the default area to its generated design, a named one to empty. */
     public function resetLayout(string $type, string $variant, array $user = [], string $event = 'reset', string $area = self::DEFAULT_AREA): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
         $this->assertArea($type, $variant, $area);
         if ($area !== self::DEFAULT_AREA) {
-            return $this->saveLayout($type, $variant, LayoutSchema::defaultLayout($schema, $variant), $user, $event, null, $area);
+            return $this->saveLayout($type, $variant, [], $user, $event, null, $area);
         }
         $this->writeRevision(['content', $type, $variant, $area], $this->layoutSnapshot($type, $variant, $area), $user, $event);
         $this->themeStore->delete('content', $type, $variant, $area);

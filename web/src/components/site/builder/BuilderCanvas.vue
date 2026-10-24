@@ -62,7 +62,7 @@ const BUILDER_CSS = `
 /* Keep empty nodes clickable at every canvas zoom. Low specificity preserves
    the larger minimum heights supplied by the page's layout classes. */
 :where([data-node]){
-  min-height:calc(32px * var(--cometcms-ui-scale,1));
+  min-height:calc(16px * var(--cometcms-ui-scale,1));
 }
 
 /* Keep the line clear of the selection outline in its enlarged hit area. */

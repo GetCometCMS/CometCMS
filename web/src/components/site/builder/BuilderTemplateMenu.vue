@@ -71,7 +71,7 @@
         </button>
         <button type="button" role="menuitem" tabindex="-1" class="menu-row" @click="choose(() => emit('new-area'))">
           <Icon icon="mdi:plus" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-          <span class="min-w-0 flex-1 truncate">{{ t("site.templates.newAreaFrom", { name: areaLabel(t, area, areas) }) }}</span>
+          <span class="min-w-0 flex-1 truncate">{{ t("site.templates.newArea") }}</span>
         </button>
 
         <router-link

@@ -146,16 +146,17 @@ test('saving templates rejects unknown parts and conditions that do not fit', fu
     assert_same([comet_template_test('a', ['header' => $blog['id']]), $default], $saved['blog']['index']);
 });
 
-test('content areas are copies to design apart and cannot be deleted while a template shows them', function (): void {
+test('content areas start empty and cannot be deleted while a template shows them', function (): void {
     $site = comet_site_test_setup();
     $site->saveLayout('blog', 'detail', [comet_template_test_section('Original')]);
     $area = $site->createContentArea('blog', 'detail', 'Compact');
-    assert_same('Original', $site->layout('blog', 'detail', 'compact')[0]['children'][0]['children'][0]['children'][0]['props']['text']);
-    assert_true($site->layout('blog', 'detail', 'compact')[0]['id'] !== $site->layout('blog', 'detail')[0]['id'], 'The copy gets its own node ids.');
+    assert_same([], $site->layout('blog', 'detail', 'compact'));
+    $site->saveLayout('blog', 'detail', [comet_template_test_section('Compact design')], [], 'saved', null, 'compact');
+    assert_same([], $site->resetLayout('blog', 'detail', [], 'reset', 'compact'), 'Resetting a named area empties it again.');
     assert_same('compact-2', $site->createContentArea('blog', 'detail', 'Compact')['id']);
     assert_same(['default', 'compact', 'compact-2'], array_column($site->contentAreas('blog', 'detail'), 'id'));
     assert_same('Short', $site->renameContentArea('blog', 'detail', $area['id'], 'Short')['name']);
-    assert_same(1, count($site->layoutRevisions('blog', 'detail', 'compact')));
+    assert_same(3, count($site->layoutRevisions('blog', 'detail', 'compact')), 'Created, saved and reset.');
 
     $site->saveTemplates(['blog' => ['detail' => [comet_template_test('short', ['content' => 'compact']), SiteRepository::defaultTemplate()]]]);
     assert_throws(ValidationException::class, fn() => $site->deleteContentArea('blog', 'detail', 'compact'));

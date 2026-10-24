@@ -1,4 +1,5 @@
 import { selectOptions } from './fieldBuilderUtils.js'
+import { resolveLocalized } from './localizedValues.js'
 
 /**
  * Templates assemble a page kind's pages from parts (see
@@ -119,11 +120,17 @@ export function conditionOps(fieldType) {
   })
 }
 
+/** Schema labels use the content type's default language, like its field editor. */
+function conditionFieldLabel(type, key) {
+  const locale = type?.default_locale || type?.locales?.[0] || 'en'
+  return resolveLocalized(type?.fields?.[key]?.label, locale, locale) || key
+}
+
 /** Fields of a content type that conditions can test, with their field type. */
 export function conditionFields(type) {
   const fields = Object.entries(type?.fields ?? {})
     .filter(([, config]) => conditionOps(config?.type).length)
-    .map(([key, config]) => ({ key, label: config?.label || key, type: config?.type }))
+    .map(([key, config]) => ({ key, label: conditionFieldLabel(type, key), type: config?.type }))
   return fields.some((field) => field.key === 'slug') ? fields : [...fields, { key: 'slug', label: 'Slug', type: 'slug' }]
 }
 
@@ -132,7 +139,7 @@ export const needsValue = (op) => !['empty', 'not_empty'].includes(op)
 /** A condition in words, e.g. "Category = Tips". */
 export function conditionLabel(t, condition, type) {
   const config = type?.fields?.[condition.field]
-  const field = config?.label || condition.field
+  const field = conditionFieldLabel(type, condition.field)
   let value = condition.value
   if (config?.type === 'select') value = selectOptions(config.options).find((option) => option.value === String(value))?.label ?? value
   if (typeof value === 'boolean') value = t(value ? 'site.templates.true' : 'site.templates.false')

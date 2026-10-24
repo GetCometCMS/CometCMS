@@ -56,6 +56,21 @@ describe('templates', () => {
     expect(conditionFields({ fields: { title: { type: 'text', label: 'Title' }, steps: { type: 'repeater' } } }).map((field) => field.key)).toEqual(['title', 'slug'])
   })
 
+  it('resolves localized condition field labels and falls back to field keys', () => {
+    const type = { default_locale: 'de', fields: {
+      body: { type: 'html', label: { type: 'localized', values: { de: 'Beitragsinhalt', en: 'Post content' }, sources: [] } },
+      title: { type: 'text' },
+      missing: { type: 'text', label: { type: 'localized', values: { en: 'Missing translation' } } },
+    } }
+    expect(conditionFields(type).map(({ label }) => label)).toEqual(['Beitragsinhalt', 'title', 'missing', 'Slug'])
+    const condition = { field: 'body', op: 'contains', value: 'Hello' }
+    expect(conditionLabel(words, condition, type)).toBe('Beitragsinhalt=Hello')
+    expect(conditionFields({ ...type, default_locale: 'en' })[0].label).toBe('Post content')
+    expect(conditionFields({ ...type, default_locale: undefined, locales: ['de'] })[0].label).toBe('Beitragsinhalt')
+    expect(conditionLabel(words, { ...condition, field: 'missing' }, type)).toBe('missing=Hello')
+    expect(reasonLabel((key, params) => params.conditions ?? words(key, params), 'conditions', { conditions: [condition] }, type)).toBe('Beitragsinhalt=Hello')
+  })
+
   it('describes parts, conditions and reasons in words', () => {
     const type = { fields: { category: { type: 'select', label: 'Category', options: { tips: 'Tips & tricks' } }, featured: { type: 'boolean', label: 'Featured' } } }
     expect(conditionLabel(t, tips.conditions[0], type)).toBe('site.templates.op.equals')
