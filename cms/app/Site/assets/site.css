@@ -115,16 +115,51 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-has-bg-image { color: inherit; }
 /* Columns and elements anchor overlay and blur layers; sections stay sticky when asked. */
 :where(.c-has-bg-image) { position: relative; }
-.c-has-bg-blur { isolation: isolate; }
-/* Clip only the decorative image layer, keeping menus and section content free to overflow. */
-.c-background-blur {
-  position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none;
+.c-has-bg-layer { isolation: isolate; }
+/*
+ * Clip only the decorative image layer, keeping menus and section content free to overflow.
+ * Clip rather than hide, so the layer is no scroll container for the parallax timeline.
+ * Without a blur the filter is invalid and falls back to none.
+ */
+.c-background-layer {
+  position: absolute; inset: 0; z-index: -2; overflow: clip; pointer-events: none;
   border-radius: inherit; background-size: inherit; background-position: inherit; background-repeat: inherit;
 }
-.c-background-blur::before {
-  content: ""; position: absolute; inset: calc(-3 * var(--c-background-blur));
+.c-background-layer::before {
+  content: ""; position: absolute; inset: calc(-3 * var(--c-background-blur, 0px));
   background-image: var(--c-background-image); background-size: inherit; background-position: inherit; background-repeat: inherit;
   filter: blur(var(--c-background-blur));
+}
+/*
+ * Fixed: the image is pinned to the viewport and the element reveals it like a window.
+ * A fixed layer instead of background-attachment, which iOS ignores and blur would break.
+ * Overflow does not clip fixed boxes, so a clip path does, following the element's radius.
+ */
+.c-bg-effect-fixed > .c-background-layer { clip-path: inset(0 round var(--c-bg-radius, 0px)); }
+.c-bg-effect-fixed > .c-background-layer::before { position: fixed; }
+.c-bg-effect-fixed.c-r-theme { --c-bg-radius: var(--radius-box); }
+.c-bg-effect-fixed.c-r-sm { --c-bg-radius: var(--radius-sm); }
+.c-bg-effect-fixed.c-r-md { --c-bg-radius: var(--radius-md); }
+.c-bg-effect-fixed.c-r-lg { --c-bg-radius: var(--radius-lg); }
+.c-bg-effect-fixed.c-r-full { --c-bg-radius: 9999px; }
+/*
+ * Parallax: the image drifts down while the element scrolls through the viewport, so it
+ * moves slower than the page. Browsers without view timelines show a still image.
+ * Rounded corners and cards clip instead of hiding, which would end the timeline at the element.
+ */
+.c-bg-effect-parallax:is(.c-r-theme, .c-r-sm, .c-r-md, .c-r-lg, .c-r-full) { overflow: clip; }
+.c-card > .c-bg-effect-parallax.c-has-bg-layer { overflow: clip; }
+@supports (animation-timeline: view()) {
+  .c-bg-effect-parallax > .c-background-layer { --c-parallax-shift: 12vh; view-timeline: --c-bg-parallax block; }
+  .c-bg-effect-parallax > .c-background-layer::before {
+    inset: calc(-3 * var(--c-background-blur, 0px) - var(--c-parallax-shift)) calc(-3 * var(--c-background-blur, 0px));
+    animation: c-bg-parallax linear both;
+    animation-timeline: --c-bg-parallax;
+  }
+}
+@keyframes c-bg-parallax {
+  from { translate: 0 calc(var(--c-parallax-shift) * -1); }
+  to { translate: 0 var(--c-parallax-shift); }
 }
 .c-overlay-dark, .c-overlay-light { isolation: isolate; }
 .c-overlay-dark::before, .c-overlay-light::before { content: ""; position: absolute; inset: 0; z-index: -1; }

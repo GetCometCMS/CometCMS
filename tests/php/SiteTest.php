@@ -1076,7 +1076,7 @@ test('background blur renders a separate decorative layer for public images only
                 $ctx = comet_site_test_context();
                 $ctx->annotate = $annotate;
                 $html = (new NodeRenderer($ctx))->render($nodes);
-                assert_same($blur > 0, str_contains($html, 'class="c-background-blur" aria-hidden="true"'));
+                assert_same($blur > 0, str_contains($html, 'class="c-background-layer" aria-hidden="true"'));
                 assert_same($blur > 0, str_contains($html, '--c-background-blur:' . $blur . 'px'));
                 assert_true(str_contains($html, 'c-bg-size-contain c-bg-pos-top-right c-bg-repeat'));
                 assert_same($overlay !== 'none', str_contains($html, 'c-overlay-' . $overlay));
@@ -1091,9 +1091,38 @@ test('background blur renders a separate decorative layer for public images only
         $ctx = comet_site_test_context();
         $ctx->annotate = true;
         $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('section', [], ['background_image' => $file, 'background_blur' => 8])]);
-        assert_false(str_contains($html, 'c-background-blur'), 'Missing, private and non-image backgrounds have no blur layer.');
+        assert_false(str_contains($html, 'c-background-layer'), 'Missing, private and non-image backgrounds have no blur layer.');
         assert_false(str_contains($html, '--c-background-image'));
     }
+});
+
+test('background scroll effects move the image to its own layer', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/background.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
+
+    foreach ([[[], 'none'], [['background_effect' => 'fixed'], 'fixed'], [['background_effect' => 'parallax'], 'parallax'], [['background_effect' => 'zoom'], 'none']] as [$style, $expected]) {
+        $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], ['background_image' => 'background.svg', ...$style])]);
+        assert_same($expected, $nodes[0]['style']['background_effect'] ?? 'none');
+        assert_same($expected === 'none', !array_key_exists('background_effect', $nodes[0]['style']), 'Defaults are not stored.');
+    }
+
+    foreach (['fixed', 'parallax'] as $effect) {
+        foreach ([0, 8] as $blur) {
+            $html = (new NodeRenderer(comet_site_test_context()))->render([LayoutSchema::node('column', [], ['background_image' => 'background.svg', 'background_effect' => $effect, 'background_blur' => $blur, 'radius' => 'lg'])]);
+            assert_true(str_contains($html, 'c-has-bg-layer c-bg-effect-' . $effect));
+            assert_same(1, substr_count($html, 'class="c-background-layer" aria-hidden="true"'));
+            assert_true(str_contains($html, '--c-background-image:url('));
+            assert_same($blur > 0, str_contains($html, '--c-background-blur:'), 'Unblurred layers carry no blur.');
+            assert_false(str_contains($html, 'style="background-image:'), 'The element itself keeps no image.');
+        }
+    }
+
+    $html = (new NodeRenderer(comet_site_test_context()))->render([LayoutSchema::node('section', [], ['background_effect' => 'parallax'])]);
+    assert_false(str_contains($html, 'c-bg-effect-'), 'Effects need an image.');
+
+    $css = Theme::stylesheet([]);
+    assert_true(str_contains($css, '.c-bg-effect-fixed > .c-background-layer::before { position: fixed; }'));
+    assert_true(str_contains($css, 'animation-timeline: --c-bg-parallax;'));
 });
 
 test('text shadows survive layout normalization and render in preview and public output', function (): void {
@@ -1208,7 +1237,7 @@ test('rows, columns and elements take a background image over their background c
     assert_same($background, $columnStyle);
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
-    assert_same(2, substr_count($html, 'class="c-background-blur" aria-hidden="true"'));
+    assert_same(2, substr_count($html, 'class="c-background-layer" aria-hidden="true"'));
     assert_same(3, substr_count($html, 'c-has-bg-image'));
     assert_true((bool) preg_match('/class="c-row [^"]*c-has-bg-image[^"]*c-r-lg c-sh-md c-bd c-bd-left c-bd-top c-bd-right c-bd-bottom"/', $html), 'Rows render their image, radius, shadow and border.');
     assert_true((bool) preg_match('/class="c-col c-col-12 c-has-bg-image[^"]*c-overlay-dark[^"]*c-bg-surface"/', $html), 'Columns keep their color under the image.');

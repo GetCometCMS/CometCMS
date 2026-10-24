@@ -144,7 +144,7 @@ final class LayoutSchema
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
     /** Background image style options. */
-    private const BACKGROUND_IMAGE_KEYS = ['background_image', 'background_size', 'background_position', 'background_repeat', 'background_blur', 'overlay'];
+    private const BACKGROUND_IMAGE_KEYS = ['background_image', 'background_size', 'background_position', 'background_repeat', 'background_blur', 'background_effect', 'overlay'];
 
     /** Border sides and how they are drawn; the look only applies once a side is picked. */
     private const BORDER_KEYS = ['border', 'border_width', 'border_style', 'border_color'];
@@ -212,6 +212,8 @@ final class LayoutSchema
             'background_position' => ['type' => 'enum', 'options' => self::POSITIONS, 'default' => 'center'],
             'background_repeat' => ['type' => 'bool', 'default' => false],
             'background_blur' => ['type' => 'int', 'min' => 0, 'max' => 40, 'default' => 0],
+            // Fixed holds the image still while the page scrolls; parallax moves it slower than the page.
+            'background_effect' => ['type' => 'enum', 'options' => ['none', 'fixed', 'parallax'], 'default' => 'none'],
             'overlay' => ['type' => 'enum', 'options' => ['none', 'light', 'dark'], 'default' => 'none'],
             'text_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
             // Links inside the node; buttons keep their own colors.

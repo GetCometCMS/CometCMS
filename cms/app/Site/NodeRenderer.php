@@ -1717,8 +1717,9 @@ final class NodeRenderer
     }
 
     /**
-     * Classes, inline style and decorative blur layer for a background.
-     * Image backgrounds only use public images.
+     * Classes, inline style and decorative image layer for a background.
+     * Image backgrounds only use public images. Blur and scroll effects
+     * apply to the separate layer, so the content stays sharp and in place.
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
@@ -1739,6 +1740,7 @@ final class NodeRenderer
         $option = static fn(string $key): mixed => $style[$key] ?? $spec[$key]['default'];
         $image = 'url(\'' . $this->imageSource($item, 1920) . '\')';
         $blur = (int) $option('background_blur');
+        $effect = (string) $option('background_effect');
         $classes = [
             'c-has-bg-image',
             'c-bg-size-' . $option('background_size'),
@@ -1750,16 +1752,19 @@ final class NodeRenderer
             $classes[] = 'c-overlay-' . $option('overlay');
         }
 
-        if ($blur === 0) {
+        if ($blur === 0 && $effect === 'none') {
             return ['classes' => $classes, 'style' => 'background-image:' . $image, 'layer' => ''];
         }
 
-        $classes[] = 'c-has-bg-blur';
+        $classes[] = 'c-has-bg-layer';
+        if ($effect !== 'none') {
+            $classes[] = 'c-bg-effect-' . $effect;
+        }
 
         return [
             'classes' => $classes,
-            'style' => '--c-background-image:' . $image . ';--c-background-blur:' . $blur . 'px',
-            'layer' => '<span class="c-background-blur" aria-hidden="true"></span>',
+            'style' => '--c-background-image:' . $image . ($blur > 0 ? ';--c-background-blur:' . $blur . 'px' : ''),
+            'layer' => '<span class="c-background-layer" aria-hidden="true"></span>',
         ];
     }
 

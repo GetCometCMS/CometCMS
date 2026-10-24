@@ -123,9 +123,11 @@ Select a **row** and enable **Reverse columns on mobile** and/or **Reverse colum
 
 ### Backgrounds and gradients
 
-Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, and **Background blur (px)** from 0 to 40. Like other images, it can be bound to a media field of the entry.
+Sections, columns and elements have a **Background image** in the **Background** group of the **Style** tab, next to the background color. The image is layered over the color, which shows through transparent images and while the image loads. Once an image is chosen, the group also offers its size, focal point, repetition (for images that do not cover the area), an overlay that darkens or lightens it, **Background blur (px)** from 0 to 40, and a **Scroll effect**. Like other images, it can be bound to a media field of the entry.
 
 Zero blur keeps the image sharp. The effect applies to a separate image layer, so headings, buttons, menus and overlays stay sharp. The image extends slightly behind the clipped edges to avoid a faded border when blurred.
+
+The **Scroll effect** makes the image react to scrolling. **Fixed** pins the image to the browser window, so the section reveals it like a window while the content scrolls past. **Parallax** moves the image a little slower than the page, giving the section depth. Both work with blur, overlays and rounded corners, and the content itself scrolls normally. Fixed images are sized to the window rather than the section. Parallax uses scroll-driven animations; browsers without them, and visitors who prefer reduced motion, see a still image. Scroll the preview to try either effect.
 
 Choose **Background gradient** in the same group for a two-color **Linear** or **Radial** gradient. Pick its start and end colors from the theme palette (including custom colors); linear gradients also have an angle from 0 to 360 degrees. The colors follow the site's light/dark mode. A gradient takes precedence over a background image; choose **None** to show the saved image again. The background color remains underneath as a fallback. Image blur, sizing and overlays apply to images only.
 

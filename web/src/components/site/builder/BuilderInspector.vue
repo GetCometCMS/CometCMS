@@ -331,7 +331,7 @@ const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color
 const STYLE_GROUPS = [
   { key: "button", part: "props", keys: BUTTON_COLORS },
   { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
-  { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "overlay"] },
+  { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "background_effect", "overlay"] },
   { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
@@ -459,7 +459,7 @@ const fieldWarning = computed(() => {
 });
 
 /** Image options only apply once there is an image; covering images never repeat. */
-const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "background_repeat", "background_blur", "overlay"];
+const BACKGROUND_IMAGE_OPTIONS = ["background_size", "background_position", "background_repeat", "background_blur", "background_effect", "overlay"];
 
 /** How a border looks only matters once a side is picked; timing only once there is an animation. */
 const BORDER_OPTIONS = ["border_width", "border_style", "border_color"];

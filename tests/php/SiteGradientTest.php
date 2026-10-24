@@ -70,9 +70,9 @@ test('gradients render in previews and public output and restore the saved backg
         assert_true(str_contains($html, 'c-bg-surface'));
         assert_false(str_contains($html, 'c-has-bg-image'));
         assert_false(str_contains($html, 'c-overlay-dark'));
-        assert_false(str_contains($html, 'c-background-blur'));
+        assert_false(str_contains($html, 'c-background-layer'));
         $html = $renderer->render([LayoutSchema::node('section', [], array_replace($style, ['background_gradient' => []]), $children)]);
-        assert_true(str_contains($html, 'c-background-blur'));
+        assert_true(str_contains($html, 'c-background-layer'));
         assert_true(str_contains($html, 'gradient-test.svg'));
 
         $textStyle = ['background' => 'surface', 'background_gradient' => $gradient, 'text_color' => 'text', 'text_gradient' => ['type' => 'linear', 'from' => 'primary', 'to' => 'accent', 'angle' => 45]];
