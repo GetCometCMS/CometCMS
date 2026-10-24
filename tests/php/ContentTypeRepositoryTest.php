@@ -5,6 +5,7 @@ declare(strict_types=1);
 use CometCMS\Content\ContentTypeRepository;
 
 test('content type repository saves normalized schemas', function (): void {
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en-us', 'de-de'], 'default_locale' => 'de-de']);
     $repository = new ContentTypeRepository();
 
     $repository->save([
@@ -84,7 +85,10 @@ test('admin content type create rejects normalized name conflicts', function ():
             ])
         );
 
-        assert_true(str_contains($http_response_header[0] ?? '', '422'));
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        assert_true(str_contains($responseHeaders[0] ?? '', '422'));
         assert_true(str_contains($response, '"code":"validation_failed"'));
         assert_true(str_contains($response, 'already exists'));
     } finally {
@@ -107,11 +111,11 @@ test('new content types require explicit API opt-in and default to no submission
     assert_false($types->find('pages')['api_enabled']);
 });
 
-test('legacy API visibility is retained until explicitly reconfigured', function (): void {
+test('API exposure requires explicit opt-in even with stored visibility', function (): void {
     $store = new \CometCMS\Storage\JsonStore(comet_test_workspace_path() . '/content-types');
     $store->write(['name' => 'legacy', 'visibility' => 'public'], 'legacy');
     $types = new ContentTypeRepository();
-    assert_true($types->find('legacy')['api_enabled']);
+    assert_false($types->find('legacy')['api_enabled']);
     $types->save([...$types->find('legacy'), 'api_enabled' => false]);
     assert_false($types->find('legacy')['api_enabled']);
 });
@@ -122,6 +126,4 @@ test('submission-enabled schemas reject unusable fields before changing storage'
         assert_throws(\CometCMS\Core\ValidationException::class, static fn() => $types->save(['name' => 'applications', 'allow_submissions' => true, 'fields' => $fields]));
         assert_false($types->exists('applications'));
     }
-    $types->save(['name' => 'about', 'singleton' => true, 'allow_submissions' => true]);
-    assert_false($types->find('about')['allow_submissions'], 'Single pages cannot receive submissions.');
 });

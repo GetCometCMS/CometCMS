@@ -1,15 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { destinationAvailable, eligibleTypes, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
+import { destinationAvailable, eligibleTypes, hasListPage, isSiteLive, entryIdentifier, entryTitle, linkIssue, menuDefaultLabel, menuErrors, safeLinkUrl, validAnchor } from './siteLinks.js'
 const types = [
-  { name: 'about', singleton: true, label: 'About' },
-  { name: 'home', singleton: true },
+  { name: 'about', label: 'About' },
+  { name: 'home' },
   { name: 'blog' }, { name: 'portfolio' },
-  { name: 'private', visibility: 'private', singleton: true },
+  { name: 'private', visibility: 'private' },
 ]
 const settings = { homepage: { type: 'home', entry: '' }, routes: {
-  about: { enabled: true }, blog: { enabled: true, index_path: '/blog' },
-  portfolio: { enabled: false }, private: { enabled: true },
+  about: { enabled: true, index_path: '/about' }, home: { enabled: false, index_enabled: true },
+  blog: { enabled: true, index_enabled: true, index_path: '/blog' },
+  portfolio: { enabled: false, index_enabled: true }, private: { enabled: true },
 } }
+
+describe('automatic menu labels', () => {
+  const t = (key) => key === 'site.link.home' ? 'Home' : key
+
+  it('uses the resolved page title and leaves missing pages without a fabricated label', () => {
+    const link = { type: 'entry', collection: 'about', entry: 'about' }
+    expect(menuDefaultLabel(link, types, settings, 'About us', t)).toBe('About us')
+    expect(menuDefaultLabel(link, types, settings, '', t)).toBe('')
+  })
+
+  it('matches website defaults for home, listings, URLs, anchors, and groups', () => {
+    expect(menuDefaultLabel({ type: 'home' }, types, settings, 'Landing Page', t)).toBe('Home')
+    expect(menuDefaultLabel({ type: 'index', collection: 'about' }, types, settings, '', t)).toBe('About')
+    expect(menuDefaultLabel({ type: 'index', collection: 'blog' }, types, { routes: { blog: { index_title: 'Latest posts' } } }, '', t)).toBe('Latest posts')
+    expect(menuDefaultLabel({ type: 'url', url: '/contact' }, types, settings, '', t)).toBe('/contact')
+    expect(menuDefaultLabel({ type: 'anchor', anchor: 'team' }, types, settings, '', t)).toBe('#team')
+    expect(menuDefaultLabel({ type: 'none' }, types, settings, '', t)).toBe('')
+  })
+})
 
 describe('website live state', () => {
   it('is live with a public homepage or public frontend pages, and headless otherwise', () => {
@@ -23,27 +43,37 @@ describe('website live state', () => {
 })
 
 describe('website destinations', () => {
-  it('separates routable pages, content and listings, retaining homepage exceptions', () => {
-    expect(eligibleTypes(types, settings, 'page').map((type) => type.name)).toEqual(['about', 'home'])
-    expect(eligibleTypes(types, settings, 'entry').map((type) => type.name)).toEqual(['blog'])
-    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['blog'])
+  it('separates routable content and listings, retaining homepage exceptions', () => {
+    expect(eligibleTypes(types, settings, 'entry').map((type) => type.name)).toEqual(['about', 'blog'])
+    expect(eligibleTypes(types, settings, 'index').map((type) => type.name)).toEqual(['home', 'blog'])
     const homepage = { ...settings, homepage: { type: 'portfolio', entry: '' } }
     expect(eligibleTypes(types, homepage, 'index').map((type) => type.name)).toEqual(['blog', 'portfolio'])
+    const homeEntry = { ...settings, homepage: { type: 'home', entry: 'welcome' } }
+    expect(eligibleTypes(types, homeEntry, 'entry').map((type) => type.name)).toEqual(['about', 'home', 'blog'])
+  })
+
+  it('hides list pages that are not turned on, even with a URL or as the homepage', () => {
+    const off = { ...settings, homepage: { type: 'blog', entry: '' }, routes: { ...settings.routes, blog: { enabled: true, index_enabled: false, index_path: '/blog' } } }
+    expect(eligibleTypes(types, off, 'index').map((type) => type.name)).toEqual([])
+    expect(destinationAvailable({ type: 'index', collection: 'blog' }, types, off)).toBe(false)
+    expect(destinationAvailable({ type: 'index', collection: 'about' }, types, settings)).toBe(false)
+    expect(hasListPage(settings, 'blog')).toBe(true)
+    expect(hasListPage(settings, 'about')).toBe(false)
   })
 
   it('does not treat unrelated entries as routable when only the homepage entry is enabled', () => {
-    const homeSettings = { ...settings, homepage: { type: 'portfolio', entry: 'welcome' } }
-    expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'welcome' }, types, homeSettings)).toBe(true)
+    const homeSettings = { ...settings, homepage: { type: 'portfolio', entry: 'stable-uid' } }
+    expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'stable-uid' }, types, homeSettings)).toBe(true)
     expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'stable-uid' }, types, homeSettings, { uid: 'stable-uid', slug: 'welcome' })).toBe(true)
     expect(destinationAvailable({ type: 'entry', collection: 'portfolio', entry: 'other' }, types, homeSettings)).toBe(false)
     expect(destinationAvailable({ type: 'index', collection: 'portfolio' }, types, homeSettings)).toBe(false)
     expect(destinationAvailable({ type: 'entry', collection: 'private', entry: 'x' }, types, settings)).toBe(false)
   })
 
-  it('uses localized titles and stable identifiers, falling back for legacy content', () => {
-    expect(entryTitle({ title: 'About', translations: { de: { title: 'Über uns' } } }, 'de')).toBe('Über uns')
+  it('uses localized titles and immutable identifiers', () => {
+    expect(entryTitle({ title: 'About', values: { title: { type: 'localized', values: { en: 'About', de: 'Über uns' } } } }, 'de')).toBe('Über uns')
     expect(entryIdentifier({ uid: 'stable', slug: 'changed', id: 'old' })).toBe('stable')
-    expect(entryIdentifier({ slug: 'legacy', id: 'old' })).toBe('legacy')
+    expect(entryIdentifier({ slug: 'legacy', id: 'old' })).toBe('')
   })
 
   it('validates manual anchors and custom links without requiring destination availability', () => {

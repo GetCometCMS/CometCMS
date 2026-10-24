@@ -24,8 +24,8 @@ function comet_site_test_user(): array
     return ['id' => 'admin', 'role' => 'admin'];
 }
 
-/** A "blog" collection, an "about" single page and a private "notes" type. */
-function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], 'about' => ['enabled' => true]], array $settings = []): SiteRepository
+/** A "blog" collection, an "about" page served at /about and a private "notes" type. */
+function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']], array $settings = []): SiteRepository
 {
     $types = new ContentTypeRepository();
     $types->save([
@@ -45,7 +45,7 @@ function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], '
             ]],
         ],
     ]);
-    $types->save(['name' => 'about', 'singleton' => true, 'fields' => ['intro' => ['type' => 'textarea']]]);
+    $types->save(['name' => 'about', 'fields' => ['intro' => ['type' => 'textarea']]]);
     $types->save(['name' => 'notes', 'visibility' => 'private', 'fields' => []]);
 
     $content = ContentRepository::make();
@@ -61,7 +61,7 @@ function comet_site_test_setup(array $routes = ['blog' => ['enabled' => true], '
         'status' => 'published',
     ], $user);
     $content->save('blog', ['title' => 'Secret draft', 'slug' => 'secret-draft', 'status' => 'draft'], $user);
-    $content->save('about', ['title' => 'About us', 'intro' => 'We build things.', 'status' => 'published'], $user);
+    $content->save('about', ['title' => 'About us', 'slug' => 'about', 'intro' => 'We build things.', 'status' => 'published'], $user);
     $content->save('notes', ['title' => 'Private note', 'status' => 'published'], $user);
 
     $site = new SiteRepository();
@@ -116,6 +116,37 @@ test('layout schema drops unknown kinds, misplaced nodes and unsafe values', fun
     $template = $column['children'][2]['children'];
     assert_same(['field'], array_column($template, 'kind'), 'Collections are not allowed in item templates.');
     assert_same([], $template[0]['children'], 'Item templates cannot nest.');
+});
+
+test('individual spacing survives saving and renders alongside legacy paired padding', function (): void {
+    $site = comet_site_test_setup();
+    $style = [
+        'padding_y' => 'lg', 'padding_x' => 'md',
+        'padding_top' => 'none', 'padding_right' => '2xl', 'padding_bottom' => 'sm', 'padding_left' => 'xs',
+        'margin_top' => 'xs', 'margin_right' => 'sm', 'margin_bottom' => 'md', 'margin_left' => 'lg',
+    ];
+    $nodes = [LayoutSchema::node('section', [], $style, [
+        LayoutSchema::node('row', [], $style, [LayoutSchema::node('column', [], $style, [
+            LayoutSchema::node('text', ['html' => '<p>Spaced</p>'], $style),
+        ])]),
+    ])];
+    $saved = $site->saveLayout('about', 'detail', $nodes);
+    $reloaded = (new SiteRepository())->layout('about', 'detail');
+    assert_same($saved, $reloaded);
+    $current = $reloaded[0];
+    foreach (['section', 'row', 'column', 'text'] as $kind) {
+        assert_same($kind, $current['kind']);
+        foreach ($style as $key => $value) {
+            assert_same($value, $current['style'][$key]);
+        }
+        $current = $current['children'][0] ?? [];
+    }
+    $html = (new NodeRenderer(comet_site_test_context($site)))->render($reloaded);
+    foreach (['py-lg', 'px-md', 'pt-none', 'pr-2xl', 'pb-sm', 'pl-xs', 'mt-xs', 'mr-sm', 'mb-md', 'ml-lg'] as $class) {
+        assert_same(4, substr_count($html, 'c-' . $class));
+    }
+    $invalid = LayoutSchema::normalize([LayoutSchema::node('section', [], ['padding_top' => '999px', 'margin_left' => '-1', 'margin_right' => 'none'])]);
+    assert_same(['margin_right' => 'none'], $invalid[0]['style']);
 });
 
 test('layout names survive saving and loading without changing rendered content', function (): void {
@@ -217,8 +248,48 @@ test('collections without a card of their own show the standard card', function 
     ]], 'layouts', 'blog', 'card');
     $template = $site->cardTemplate('blog');
     assert_same(['column'], array_column($template, 'kind'));
-    assert_same(['padding_y' => 'xl', 'background' => 'accent'], $template[0]['style'], 'The card keeps the section look columns support.');
-    assert_true(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'An old card layout keeps rendering.');
+    assert_false(str_contains(comet_site_test_get('/blog')['body'], 'Legacy card'), 'Retired per-type cards are ignored.');
+});
+
+test('default and legacy builder designs can be saved with their loaded revisions', function (): void {
+    comet_site_test_setup();
+    $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
+
+    foreach ([false, true] as $legacy) {
+        foreach ([['about', 'detail'], ['blog', 'detail'], ['blog', 'index']] as [$type, $variant]) {
+            $theme->delete('content', $type, $variant, 'default');
+            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'content', $type, $variant, 'default');
+            $site = new SiteRepository();
+            assert_same($legacy, $site->needsLayoutUpgrade($type, $variant));
+            $nodes = $site->layout($type, $variant);
+            $revision = \CometCMS\Localization\LocalizedValue::hash($nodes);
+            $reloaded = new SiteRepository();
+            assert_same($nodes, $reloaded->layout($type, $variant));
+            $saved = $reloaded->saveLayout($type, $variant, $nodes, [], 'saved', $revision);
+            assert_same($saved, (new SiteRepository())->layout($type, $variant));
+            assert_false($reloaded->needsLayoutUpgrade($type, $variant));
+            assert_throws(\CometCMS\Core\ConflictException::class, fn() => $reloaded->saveLayout($type, $variant, [], [], 'saved', 'stale'));
+            $reset = $reloaded->resetLayout($type, $variant);
+            $reloaded->saveLayout($type, $variant, $reset, [], 'saved', \CometCMS\Localization\LocalizedValue::hash($reset));
+        }
+
+        foreach (['header', 'footer'] as $region) {
+            $theme->delete('regions', $region);
+            if ($legacy) $theme->write(['format_version' => 0, 'nodes' => []], 'regions', $region);
+            $site = new SiteRepository();
+            assert_same($legacy, $site->needsRegionUpgrade($region));
+            $nodes = $site->region($region);
+            $revision = \CometCMS\Localization\LocalizedValue::hash($nodes);
+            $reloaded = new SiteRepository();
+            assert_same($nodes, $reloaded->region($region));
+            $saved = $reloaded->saveRegion($region, $nodes, [], 'saved', $revision);
+            assert_same($saved, (new SiteRepository())->region($region));
+            assert_false($reloaded->needsRegionUpgrade($region));
+            assert_throws(\CometCMS\Core\ConflictException::class, fn() => $reloaded->saveRegion($region, [], [], 'saved', 'stale'));
+            $reset = $reloaded->resetRegion($region);
+            $reloaded->saveRegion($region, $reset, [], 'saved', \CometCMS\Localization\LocalizedValue::hash($reset));
+        }
+    }
 });
 
 test('default layouts are generated from the content type fields', function (): void {
@@ -232,7 +303,6 @@ test('default layouts are generated from the content type fields', function (): 
 
     assert_true(str_contains(json_encode($site->layout('blog', 'index')), '"collection"'));
     assert_false($site->layoutCustomized('blog', 'detail'));
-    assert_throws(InvalidArgumentException::class, fn() => $site->layout('about', 'index'));
     assert_throws(InvalidArgumentException::class, fn() => $site->layout('blog', 'card'), 'Cards live in collections now.');
 });
 
@@ -243,8 +313,8 @@ test('website settings reject reserved, malformed and duplicate URLs', function 
     $cases = [
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/admin/{slug}']]],
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/blog']]],
-        ['routes' => ['about' => ['enabled' => true, 'pattern' => '/about/{slug}']]],
-        ['routes' => ['blog' => ['enabled' => true, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/about']]],
+        ['routes' => ['about' => ['enabled' => true, 'pattern' => '/about']]],
+        ['routes' => ['blog' => ['enabled' => true, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/about/{slug}', 'index_path' => '/about']]],
         ['routes' => ['blog' => ['enabled' => true, 'pattern' => '/Blog Posts/{slug}']]],
     ];
 
@@ -255,6 +325,28 @@ test('website settings reject reserved, malformed and duplicate URLs', function 
     $saved = $site->saveSettings(['enabled' => true, 'routes' => ['notes' => ['enabled' => true], 'blog' => ['enabled' => true, 'pattern' => '/posts//{slug}/']]]);
     assert_false($saved['routes']['notes']['enabled'], 'Private types can never be routed.');
     assert_same('/posts/{slug}', $saved['routes']['blog']['pattern']);
+});
+
+test('list pages are optional and only exist once turned on', function (): void {
+    comet_site_test_setup(['blog' => ['enabled' => true, 'index_enabled' => false], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']]);
+    $site = new SiteRepository();
+    assert_false($site->settings()['routes']['blog']['index_enabled']);
+    assert_false($site->settings()['routes']['about']['index_enabled'], 'Routes saved without a list URL keep having no list page.');
+    assert_same(['detail'], $site->enabledVariantsFor($site->types()['blog']));
+    assert_same(404, comet_site_test_get('/blog')['status']);
+    assert_same(200, comet_site_test_get('/blog/hello')['status']);
+    assert_null(comet_site_test_context()->indexUrl('blog'));
+    assert_false(str_contains(comet_site_test_get('/sitemap.xml')['body'], 'example.test/blog<'), 'The sitemap omits list pages that are turned off.');
+
+    // A list page cannot be the homepage until it is turned on.
+    assert_throws(ValidationException::class, fn() => $site->saveSettings(['homepage' => ['type' => 'blog', 'entry' => ''], 'routes' => ['blog' => ['enabled' => true, 'index_enabled' => false]]]));
+    // The URL of a list page that is off is neither validated nor claimed.
+    $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => false, 'index_path' => '/about'], 'about' => ['enabled' => true, 'pattern' => '/{slug}', 'index_path' => '']]]);
+    assert_throws(ValidationException::class, fn() => $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => true, 'index_path' => '']]]), 'A list page that is on needs a URL.');
+
+    $site->saveSettings(['routes' => ['blog' => ['enabled' => true, 'index_enabled' => true, 'index_path' => '/blog']]]);
+    assert_same(200, comet_site_test_get('/blog')['status']);
+    assert_same(['detail', 'index'], (new SiteRepository())->enabledVariantsFor($site->types()['blog']));
 });
 
 test('website renders published entries with escaped content and sanitized markdown', function (): void {
@@ -273,6 +365,21 @@ test('website renders published entries with escaped content and sanitized markd
     assert_true(str_contains($html, '<link rel="canonical" href="https://example.test/blog/hello">'));
     assert_true(str_contains($html, '<title>Hello &lt;script&gt;alert(1)&lt;/script&gt; · Comet Site</title>'));
     assert_true(str_contains($html, '/_site/default/style.css?v='));
+});
+
+test('a 404 page built in the Page Builder replaces the default message', function (): void {
+    $site = comet_site_test_setup();
+    assert_true(str_contains(comet_site_test_get('/nothing/here')['body'], 'Page not found'), 'The default 404 message is used until the page is customized.');
+
+    $site->saveRegion('not_found', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Lost in space', 'level' => 'h1'])])])])]);
+    $response = comet_site_test_get('/nothing/here');
+    assert_same(404, $response['status']);
+    assert_true(str_contains($response['body'], 'Lost in space'));
+    assert_true(str_contains($response['body'], 'c-header'), 'Header and footer still surround the custom 404 page.');
+    assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'Lost in space'), 'The 404 page is not shown on other pages.');
+
+    $site->resetRegion('not_found');
+    assert_false(str_contains(comet_site_test_get('/nothing/here')['body'], 'Lost in space'));
 });
 
 test('website hides drafts, private types and unknown paths', function (): void {
@@ -297,6 +404,27 @@ test('website hides drafts, private types and unknown paths', function (): void 
     assert_null((new SiteService(comet_site_test_context()))->previewEntry('notes', 'private-note'));
 });
 
+test('list page and homepage previews render saved layouts while the website is off', function (): void {
+    $site = comet_site_test_setup(['blog' => ['enabled' => true]], ['enabled' => false]);
+    $site->saveRegion('header', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Saved header'])])])])]);
+
+    $index = (new SiteService(comet_site_test_context()))->previewIndex('blog');
+    assert_true(is_string($index) && str_contains($index, '/blog/hello'));
+    assert_false(str_contains($index, 'Secret draft'), 'List pages only list published entries.');
+    assert_true(str_contains($index, 'c-preview-bar') && str_contains($index, 'noindex'));
+    assert_null((new SiteService(comet_site_test_context()))->previewIndex('notes'));
+    assert_null((new SiteService(comet_site_test_context()))->previewIndex('missing'));
+
+    $home = (new SiteService(comet_site_test_context()))->previewHome();
+    assert_true(str_contains($home, 'Saved header'), 'Without a homepage, header and footer frame a stand-in.');
+    assert_true(str_contains($home, 'c-preview-bar'));
+    assert_false(str_contains($home, ' data-node="'), 'Previews carry no builder annotations.');
+
+    $site->saveSettings(['homepage' => ['type' => 'blog', 'entry' => '']]);
+    $home = (new SiteService(comet_site_test_context()))->previewHome();
+    assert_true(str_contains($home, 'Saved header') && str_contains($home, 'Hello &lt;script'), 'The real homepage shows with the saved header.');
+});
+
 test('website homepage shows a branded placeholder until a homepage is chosen', function (): void {
     $site = comet_site_test_setup();
     $auto = comet_site_test_get('/');
@@ -309,7 +437,7 @@ test('website homepage shows a branded placeholder until a homepage is chosen', 
     assert_same(200, comet_site_test_get('/blog/hello')['status'], 'Frontend pages remain accessible.');
 
     $settings = $site->settings();
-    $settings['homepage'] = ['type' => 'about', 'entry' => ''];
+    $settings['homepage'] = ['type' => 'about', 'entry' => 'about'];
     $site->saveSettings($settings);
 
     $home = comet_site_test_get('/');
@@ -370,7 +498,7 @@ test('language switcher shows flags beside or instead of the text and keeps ever
     foreach (['none' => 0, 'with_text' => 2, 'only' => 2] as $flag => $flags) {
         $switcher = LayoutSchema::node('language_switcher', ['flag' => $flag]);
         $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$switcher])])])]);
-        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+        $html = (new NodeRenderer(comet_site_test_context($site)))->render($layout, ['alternates' => ['en' => '/', 'de-at' => '/de-at', 'tlh' => '/tlh']]);
 
         assert_same($flags, substr_count($html, 'class="c-flag"'));
         assert_same($flags > 0, str_contains($html, 'src="/_site/flags/at.svg"'));
@@ -478,7 +606,7 @@ test('layout previews annotate nodes and render unsaved changes', function (): v
     $context = comet_site_test_context();
     $context->preview = true;
     $context->annotate = true;
-    $context->override('layout:blog:detail', LayoutSchema::normalize([
+    $context->override('layout:blog:detail:default', LayoutSchema::normalize([
         ['id' => 'sec1', 'kind' => 'section', 'children' => [
             ['id' => 'row1', 'kind' => 'row', 'children' => [
                 ['id' => 'col1', 'kind' => 'column', 'children' => [
@@ -504,7 +632,7 @@ test('layout previews of a draft resolve its publish date', function (): void {
     $context = comet_site_test_context();
     $context->preview = true;
     $context->annotate = true;
-    $context->override('layout:blog:detail', LayoutSchema::normalize([
+    $context->override('layout:blog:detail:default', LayoutSchema::normalize([
         ['id' => 'sec1', 'kind' => 'section', 'children' => [
             ['id' => 'row1', 'kind' => 'row', 'children' => [
                 ['id' => 'col1', 'kind' => 'column', 'children' => [
@@ -543,21 +671,11 @@ test('theme stores custom css separately and reads direct stylesheet edits', fun
     assert_same('', $site->theme()['custom_css'], 'An empty stylesheet clears custom CSS.');
 });
 
-test('legacy themes migrate on save and restored legacy themes take precedence', function (): void {
+test('retired combined themes do not override current theme files', function (): void {
     $site = comet_site_test_setup();
-    $store = new JsonStore($site->workspace()->path('site'));
-    $legacy = ['colors' => ['primary' => '#abcdef'], 'custom_css' => '.legacy { color: red; }'];
-    $store->write($legacy, 'theme');
-    assert_same($legacy['custom_css'], $site->theme()['custom_css']);
-    $site->saveTheme($site->theme());
-    assert_null($store->read('theme'));
-    assert_same($legacy['custom_css'], file_get_contents($site->workspace()->path('site') . '/theme/style.css'));
-    assert_false(array_key_exists('custom_css', $store->read('theme', 'theme')));
-
-    $store->write([...$legacy, 'custom_css' => '.restored {}'], 'theme');
-    assert_same('.restored {}', $site->theme()['custom_css'], 'Older backups override existing migrated files.');
-    $site->saveTheme($site->theme());
-    assert_same('.restored {}', (new SiteRepository())->theme()['custom_css']);
+    $site->saveTheme(['custom_css' => '.current {}']);
+    (new JsonStore($site->workspace()->path('site')))->write(['custom_css' => '.retired {}'], 'theme');
+    assert_same('.current {}', $site->theme()['custom_css']);
 });
 
 test('custom stylesheet edits update cached page links while previews keep draft css inline', function (): void {
@@ -720,13 +838,11 @@ test('deleting a content type removes its website layouts and route', function (
     assert_true($site->layoutCustomized('blog', 'index'));
     $store = new JsonStore(comet_test_workspace_path() . '/site');
     $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
-    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => []], 'layouts', 'blog', 'card');
 
     (new ContentTypeRepository())->delete('blog');
 
-    assert_null($theme->read('layouts', 'blog', 'index'));
-    assert_null($theme->read('layouts', 'blog', 'card'), 'Old card layouts go with their type.');
-    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('layouts', 'blog', 'index'));
+    assert_null($theme->read('content', 'blog', 'index', 'default'));
+    assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('content', 'blog', 'index', 'default'));
     assert_false(isset($store->read('settings')['routes']['blog']));
 });
 
@@ -846,9 +962,9 @@ test('the locked admin role always holds new built-in permissions', function ():
 });
 
 test('background images and cropped images follow their size and focal point', function (): void {
-    // Sections stored background images as props before they became a style.
+    // Background images are stored in style.
     $nodes = LayoutSchema::normalize([
-        ['kind' => 'section', 'props' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
+        ['kind' => 'section', 'style' => ['background_image' => 'x.jpg', 'background_size' => 'contain', 'background_position' => 'top-right', 'background_repeat' => true], 'children' => [
             ['kind' => 'row', 'children' => [['kind' => 'column', 'children' => [
                 ['kind' => 'image', 'props' => ['media' => 'x.jpg', 'ratio' => '16:9', 'position' => 'bottom-left']],
                 ['kind' => 'image', 'props' => ['position' => 'somewhere']],
@@ -902,16 +1018,19 @@ test('column reversal persists independently per device and orders every column'
     }
 });
 
-test('section scroll behavior upgrades the old sticky switch and only adds effects to sections that stay in view', function (): void {
+test('section scroll behavior accepts only current sticky modes and only adds effects to sections that stay in view', function (): void {
     $site = comet_site_test_setup();
     $row = fn(): array => LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading')])]);
 
     foreach ([
-        [['sticky' => true], 'always', ['c-sticky']],
+        [['sticky' => true], 'none', []],
         [['sticky' => false], 'none', []],
         [['sticky' => 'sideways'], 'none', []],
         [['sticky' => 'reveal', 'scroll_effect' => ['shadow', 'glass', 'bogus']], 'reveal', ['c-sticky', 'c-sticky-reveal', 'c-scroll-shadow', 'c-scroll-glass']],
         [['overlap' => true, 'scroll_effect' => ['compact']], 'none', ['c-overlap', 'c-scroll-compact']],
+        // A floating section can keep its background instead of starting transparent.
+        [['sticky' => 'always', 'overlap' => true, 'overlap_background' => 'background'], 'always', ['c-sticky', 'c-overlap', 'c-overlap-opaque']],
+        [['overlap' => true, 'overlap_background' => 'bogus'], 'none', ['c-overlap']],
         // A section that scrolls away has nothing to show its effects on.
         [['scroll_effect' => ['shadow']], 'none', []],
     ] as [$props, $sticky, $classes]) {
@@ -957,7 +1076,7 @@ test('background blur renders a separate decorative layer for public images only
                 $ctx = comet_site_test_context();
                 $ctx->annotate = $annotate;
                 $html = (new NodeRenderer($ctx))->render($nodes);
-                assert_same($blur > 0, str_contains($html, 'class="c-background-blur" aria-hidden="true"'));
+                assert_same($blur > 0, str_contains($html, 'class="c-background-layer" aria-hidden="true"'));
                 assert_same($blur > 0, str_contains($html, '--c-background-blur:' . $blur . 'px'));
                 assert_true(str_contains($html, 'c-bg-size-contain c-bg-pos-top-right c-bg-repeat'));
                 assert_same($overlay !== 'none', str_contains($html, 'c-overlay-' . $overlay));
@@ -972,9 +1091,38 @@ test('background blur renders a separate decorative layer for public images only
         $ctx = comet_site_test_context();
         $ctx->annotate = true;
         $html = (new NodeRenderer($ctx))->render([LayoutSchema::node('section', [], ['background_image' => $file, 'background_blur' => 8])]);
-        assert_false(str_contains($html, 'c-background-blur'), 'Missing, private and non-image backgrounds have no blur layer.');
+        assert_false(str_contains($html, 'c-background-layer'), 'Missing, private and non-image backgrounds have no blur layer.');
         assert_false(str_contains($html, '--c-background-image'));
     }
+});
+
+test('background scroll effects move the image to its own layer', function (): void {
+    comet_site_test_setup();
+    file_put_contents(comet_test_workspace_path() . '/media/background.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
+
+    foreach ([[[], 'none'], [['background_effect' => 'fixed'], 'fixed'], [['background_effect' => 'parallax'], 'parallax'], [['background_effect' => 'zoom'], 'none']] as [$style, $expected]) {
+        $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], ['background_image' => 'background.svg', ...$style])]);
+        assert_same($expected, $nodes[0]['style']['background_effect'] ?? 'none');
+        assert_same($expected === 'none', !array_key_exists('background_effect', $nodes[0]['style']), 'Defaults are not stored.');
+    }
+
+    foreach (['fixed', 'parallax'] as $effect) {
+        foreach ([0, 8] as $blur) {
+            $html = (new NodeRenderer(comet_site_test_context()))->render([LayoutSchema::node('column', [], ['background_image' => 'background.svg', 'background_effect' => $effect, 'background_blur' => $blur, 'radius' => 'lg'])]);
+            assert_true(str_contains($html, 'c-has-bg-layer c-bg-effect-' . $effect));
+            assert_same(1, substr_count($html, 'class="c-background-layer" aria-hidden="true"'));
+            assert_true(str_contains($html, '--c-background-image:url('));
+            assert_same($blur > 0, str_contains($html, '--c-background-blur:'), 'Unblurred layers carry no blur.');
+            assert_false(str_contains($html, 'style="background-image:'), 'The element itself keeps no image.');
+        }
+    }
+
+    $html = (new NodeRenderer(comet_site_test_context()))->render([LayoutSchema::node('section', [], ['background_effect' => 'parallax'])]);
+    assert_false(str_contains($html, 'c-bg-effect-'), 'Effects need an image.');
+
+    $css = Theme::stylesheet([]);
+    assert_true(str_contains($css, '.c-bg-effect-fixed > .c-background-layer::before { position: fixed; }'));
+    assert_true(str_contains($css, 'animation-timeline: --c-bg-parallax;'));
 });
 
 test('text shadows survive layout normalization and render in preview and public output', function (): void {
@@ -1005,21 +1153,21 @@ test('text shadows survive layout normalization and render in preview and public
     assert_false(in_array('text_shadow', LayoutSchema::styleKeys('image'), true));
 });
 
-test('image elements use media library metadata instead of layout overrides', function (): void {
+test('image elements support translated overrides with media metadata as defaults', function (): void {
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/photo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>');
     $media = new \CometCMS\Media\MediaRepository();
     $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [
         LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
-            LayoutSchema::node('image', ['media' => 'photo.svg', 'alt' => 'Old alt', 'caption' => 'Old caption']),
+            LayoutSchema::node('image', ['media' => 'photo.svg']),
         ])]),
     ])]);
     $props = $nodes[0]['children'][0]['children'][0]['children'][0]['props'];
-    assert_false(array_key_exists('alt', $props));
-    assert_false(array_key_exists('caption', $props));
+    assert_true(array_key_exists('alt', $props));
+    assert_true(array_key_exists('caption', $props));
     $spec = LayoutSchema::spec()['kinds']['image']['props'];
-    assert_false(array_key_exists('alt', $spec));
-    assert_false(array_key_exists('caption', $spec));
+    assert_true($spec['alt']['localized']);
+    assert_true($spec['caption']['localized']);
 
     $media->updateMeta('photo.svg', 'Library "alt" & text', 'Library <title>');
     foreach ([false, true] as $annotate) {
@@ -1077,7 +1225,7 @@ test('rows, columns and elements take a background image over their background c
     comet_site_test_setup();
     file_put_contents(comet_test_workspace_path() . '/media/texture.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>');
     $background = ['background' => 'surface', 'background_image' => 'texture.svg', 'overlay' => 'dark', 'background_blur' => 4];
-    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg', 'radius' => 'lg', 'shadow' => 'md', 'border' => 'all'], [
+    $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], ['background_image' => 'texture.svg', 'radius' => 'lg', 'shadow' => 'md', 'border' => ['left', 'top', 'right', 'bottom']], [
         LayoutSchema::node('column', [], $background, [LayoutSchema::node('heading', ['text' => 'Column'])]),
         LayoutSchema::node('column', [], [], [LayoutSchema::node('text', ['html' => '<p>Element</p>'], $background)]),
     ])])]);
@@ -1089,7 +1237,7 @@ test('rows, columns and elements take a background image over their background c
     assert_same($background, $columnStyle);
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
-    assert_same(2, substr_count($html, 'class="c-background-blur" aria-hidden="true"'));
+    assert_same(2, substr_count($html, 'class="c-background-layer" aria-hidden="true"'));
     assert_same(3, substr_count($html, 'c-has-bg-image'));
     assert_true((bool) preg_match('/class="c-row [^"]*c-has-bg-image[^"]*c-r-lg c-sh-md c-bd c-bd-left c-bd-top c-bd-right c-bd-bottom"/', $html), 'Rows render their image, radius, shadow and border.');
     assert_true((bool) preg_match('/class="c-col c-col-12 c-has-bg-image[^"]*c-overlay-dark[^"]*c-bg-surface"/', $html), 'Columns keep their color under the image.');
@@ -1101,14 +1249,14 @@ test('borders pick their sides and only keep a look while a side is set', functi
     $nodes = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
         LayoutSchema::node('text', [], ['border' => ['bottom', 'left', 'diagonal'], 'border_width' => 9, 'border_style' => 'dashed', 'border_color' => 'custom-brand']),
         LayoutSchema::node('text', [], ['border' => [], 'border_width' => 3, 'border_style' => 'dotted', 'border_color' => 'primary']),
-        LayoutSchema::node('text', [], ['border' => 'top']),
+        LayoutSchema::node('text', [], ['border' => ['top']]),
         LayoutSchema::node('text', [], ['border' => 'none']),
     ])])])]);
     $elements = $nodes[0]['children'][0]['children'][0]['children'];
 
     assert_same(['border' => ['left', 'bottom'], 'border_width' => 6, 'border_style' => 'dashed', 'border_color' => 'custom-brand'], $elements[0]['style'], 'Sides keep their order and the width is clamped.');
     assert_same([], $elements[1]['style'], 'Without a side there is nothing to style.');
-    assert_same(['border' => ['top']], $elements[2]['style'], 'Older single-side borders still load.');
+    assert_same(['border' => ['top']], $elements[2]['style'], 'A list of border sides is preserved.');
     assert_same([], $elements[3]['style']);
 
     $html = (new NodeRenderer(comet_site_test_context()))->render([$elements[0]]);
@@ -1126,12 +1274,13 @@ test('entrance animations keep their timing only while an animation is set', fun
 
     assert_same(['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 6], $nodes[0]['style'], 'Delay steps are clamped.');
     assert_same([], $nodes[0]['children'][0]['style'], 'Unknown animations and their orphaned timing are dropped.');
-    assert_same(['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'fast', 'animation_delay' => 2], $nodes[0]['children'][1]['style'], 'Hover and its timing survive normalization.');
+    assert_same([], $nodes[0]['children'][1]['style']);
+    assert_same(['animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 2], $nodes[0]['children'][1]['states']['hover']['style'], 'Legacy hover settings move to their own state.');
     assert_same([], $nodes[0]['children'][2]['style'], 'Hover is dropped without an animation.');
 
     $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
     assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-6'));
-    assert_true(str_contains($html, 'c-anim c-anim-zoom-in c-anim-hover c-anim-fast c-anim-d-2'));
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-zoom-in c-hover-anim-fast c-hover-anim-d-2'));
     assert_true(str_contains(Theme::stylesheet([]), '@keyframes c-anim-fade-up'));
 });
 
@@ -1162,15 +1311,14 @@ test('theme spacing and radius tokens drive the stylesheet', function (): void {
 
     // Themes saved before tokens existed keep their look.
     $legacy = Theme::normalize(['spacing' => 'relaxed', 'radius' => 'xl']);
-    assert_same(40, $legacy['space']['lg'], 'A relaxed density scales the default scale.');
-    assert_same('lg', $legacy['radius']);
+    assert_same(Theme::defaults()['space']['lg'], $legacy['space']['lg'], 'Density presets are retired.');
+    assert_same(Theme::defaults()['radius'], $legacy['radius']);
     assert_false(array_key_exists('spacing', $legacy));
 });
 
-test('website status opens the homepage editor for single pages selected entries and lists', function (): void {
+test('website status opens the homepage editor for selected entries and lists', function (): void {
     $seed = <<<'PHP'
 $types = new \CometCMS\Content\ContentTypeRepository();
-$types->save(['name' => 'home', 'singleton' => true]);
 $types->save(['name' => 'pages']);
 $content = \CometCMS\Content\ContentRepository::make();
 $entry = $content->save('pages', ['title' => 'Welcome', 'slug' => 'welcome', 'status' => 'published'], ['id' => 'admin']);
@@ -1178,10 +1326,10 @@ $site = new \CometCMS\Site\SiteRepository();
 PHP;
     foreach ([
         ["['type' => '', 'entry' => '']", null],
-        ["['type' => 'home', 'entry' => '']", '/page-builder/builder/layout/home/detail'],
-        ["['type' => 'pages', 'entry' => 'welcome']", '/page-builder/builder/layout/pages/detail?entry=welcome'],
-        ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '/page-builder/builder/layout/pages/detail?entry=welcome'],
-        ["['type' => 'pages', 'entry' => '']", '/page-builder/builder/layout/pages/index'],
+        // The builder names the entry by its stable ID, whichever way the setting does.
+        ["['type' => 'pages', 'entry' => 'welcome']", '#^/page-builder/builder/layout/pages/detail\\?entry=(?!welcome$)[A-Za-z0-9_-]+$#'],
+        ["['type' => 'pages', 'entry' => \$content->stableId(\$entry)]", '#^/page-builder/builder/layout/pages/detail\\?entry=(?!welcome$)[A-Za-z0-9_-]+$#'],
+        ["['type' => 'pages', 'entry' => '']", '#^/page-builder/builder/layout/pages/index$#'],
         ["['type' => 'pages', 'entry' => 'deleted']", null],
     ] as [$homepage, $expected]) {
         [$status, $json] = comet_admin_request('admin',
@@ -1190,6 +1338,53 @@ PHP;
             '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->status();');
         assert_same(200, $status);
         assert_true($json['data']['can_manage']);
-        assert_same($expected, $json['data']['homepage_editor']);
+        if ($expected === null) assert_null($json['data']['homepage_editor']);
+        else assert_matches($expected, (string) $json['data']['homepage_editor']);
     }
+});
+
+
+test('hover animations are independent, validated and restricted to hover', function (): void {
+    $section = LayoutSchema::node('section', [], ['animation' => 'fade-up', 'animation_trigger' => 'load', 'animation_duration' => 'slow', 'animation_delay' => 1], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [LayoutSchema::node('heading', ['text' => 'Animated'])])])]);
+    $section['states'] = [
+        'hover' => ['style' => ['animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 99, 'animation_trigger' => 'load', 'background' => 'primary']],
+        'focus' => ['style' => ['animation' => 'blur', 'animation_duration' => 'slow', 'animation_delay' => 2, 'background' => 'accent']],
+    ];
+    $nodes = LayoutSchema::normalize([$section]);
+    assert_same(['background' => 'primary', 'animation' => 'zoom-in', 'animation_duration' => 'fast', 'animation_delay' => 6], $nodes[0]['states']['hover']['style']);
+    assert_same(['background' => 'accent'], $nodes[0]['states']['focus']['style']);
+    assert_same($section['style'], $nodes[0]['style']);
+    assert_same($nodes, LayoutSchema::normalize($nodes), 'Save/reload is stable.');
+    $html = (new NodeRenderer(comet_site_test_context()))->render($nodes);
+    assert_true(str_contains($html, 'c-anim c-anim-fade-up c-anim-load c-anim-slow c-anim-d-1'), $html);
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-zoom-in c-hover-anim-fast c-hover-anim-d-6'), $html);
+    $spec = LayoutSchema::spec();
+    assert_same(['scroll', 'load'], $spec['style']['animation_trigger']['options']);
+    assert_same(LayoutSchema::HOVER_ANIMATION_KEYS, $spec['kinds']['section']['states']['variants']['hover']['style']);
+    assert_false(in_array('animation', $spec['kinds']['section']['states']['style'], true));
+
+    foreach (['none', 'spin', null] as $effect) {
+        $section['states']['hover']['style'] = ['animation' => $effect, 'animation_duration' => 'slow', 'animation_delay' => 3, 'opacity' => '75'];
+        $node = LayoutSchema::normalize([$section])[0];
+        assert_false(isset($node['states']['hover']['style']['animation']));
+        assert_false(isset($node['states']['hover']['style']['animation_duration']));
+        assert_false(isset($node['states']['hover']['style']['animation_delay']));
+    }
+    $section['states']['hover']['style'] = ['animation' => 'blur', 'animation_duration' => 'invalid', 'animation_delay' => -5];
+    assert_same(['animation' => 'blur'], LayoutSchema::normalize([$section])[0]['states']['hover']['style']);
+});
+
+test('legacy hover migration preserves explicit hover settings and works without saving', function (): void {
+    $section = LayoutSchema::node('section', [], ['animation' => 'zoom-in', 'animation_trigger' => 'hover', 'animation_duration' => 'slow', 'animation_delay' => 3], [LayoutSchema::node('heading', ['text' => 'Legacy'])]);
+    $section['states'] = ['hover' => ['style' => ['animation' => 'fade-up', 'animation_duration' => 'fast']]];
+    $node = LayoutSchema::normalize([$section])[0];
+    assert_same([], $node['style']);
+    assert_same(['animation' => 'fade-up', 'animation_duration' => 'fast'], $node['states']['hover']['style']);
+    $html = (new NodeRenderer(comet_site_test_context()))->render([$section]);
+    assert_true(str_contains($html, 'c-hover-anim c-hover-anim-fade-up c-hover-anim-fast'));
+    assert_false(str_contains($html, 'c-anim-zoom-in'));
+    $section['states']['hover']['style'] = ['animation' => 'none'];
+    assert_false(isset(LayoutSchema::normalize([$section])[0]['states']));
+    $section['states'] = 'invalid';
+    assert_same('zoom-in', LayoutSchema::normalize([$section])[0]['states']['hover']['style']['animation']);
 });

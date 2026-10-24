@@ -1,6 +1,7 @@
 <template>
+  <Teleport to="body">
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 px-4"
+    class="fixed inset-0 z-[300] flex items-center justify-center bg-ink-950/50 px-4"
     @click.self="close"
   >
     <div
@@ -298,6 +299,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>

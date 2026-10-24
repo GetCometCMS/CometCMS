@@ -95,6 +95,7 @@ use CometCMS\Controllers\Admin\{
     ContentController,
     ContentTypesController,
     DashboardController,
+    FontsController,
     MediaController,
     RolesController,
     SiteController as AdminSiteController,
@@ -163,6 +164,7 @@ $routes = [
     ['GET',  '#^/admin/api/activity$#',       [DashboardController::class, 'activityLog']],
 
     // ── Content types ─────────────────────────────────────────────────────
+    ['GET', '#^/admin/api/languages$#', [\CometCMS\Controllers\Admin\LanguagesController::class, 'index']],
     ['GET',   '#^/admin/api/content-types$#',                       [ContentTypesController::class, 'index']],
     ['POST',  '#^/admin/api/content-types$#',                       [ContentTypesController::class, 'store']],
     ['PATCH', '#^/admin/api/content-types/order$#',                 [ContentTypesController::class, 'reorder']],
@@ -179,6 +181,7 @@ $routes = [
     ['PUT',    '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')$#',                                                [ContentController::class, 'update']],
     ['DELETE', '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')$#',                                                [ContentController::class, 'destroy']],
     ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/duplicate$#',                                      [ContentController::class, 'duplicate']],
+    ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/move$#',                                           [ContentController::class, 'move']],
     ['GET',    '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/revisions$#',                                      [ContentController::class, 'revisions']],
     ['POST',   '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/revisions/(' . SEG . ')/restore$#',               [ContentController::class, 'revisionRestore']],
     ['DELETE', '#^/admin/api/content/(' . SEG . ')/(' . SEG . ')/translations/(' . SEG . ')$#',                    [ContentController::class, 'destroyTranslation']],
@@ -250,13 +253,33 @@ $routes = [
     ['GET',    '#^/admin/api/site/status$#',                                  [AdminSiteController::class, 'status']],
     ['GET',    '#^/admin/api/site/links/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'links']],
     ['PUT',    '#^/admin/api/site/settings$#',                                [AdminSiteController::class, 'updateSettings']],
+    ['PUT',    '#^/admin/api/site/form-settings$#',                           [AdminSiteController::class, 'updateFormSettings']],
+    ['GET', '#^/admin/api/site/fonts$#', [FontsController::class, 'index']],
+    ['GET', '#^/admin/api/site/fonts/catalogue$#', [FontsController::class, 'catalogue']],
+    ['GET', '#^/admin/api/site/fonts/catalogue/(' . SEG . ')$#', [FontsController::class, 'details']],
+    [['GET', 'POST'], '#^/admin/api/site/fonts/catalogue/(' . SEG . ')/preview$#', [FontsController::class, 'preview']],
+    ['GET', '#^/admin/api/site/fonts/jobs$#', [FontsController::class, 'jobs']],
+    ['POST', '#^/admin/api/site/fonts/install$#', [FontsController::class, 'install']],
+    ['POST', '#^/admin/api/site/fonts/jobs/(' . SEG . ')/step$#', [FontsController::class, 'step']],
+    ['DELETE', '#^/admin/api/site/fonts/jobs/(' . SEG . ')$#', [FontsController::class, 'cancel']],
+    ['POST', '#^/admin/api/site/fonts/upload$#', [FontsController::class, 'upload']],
+    ['DELETE', '#^/admin/api/site/fonts/(' . SEG . ')$#', [FontsController::class, 'destroy']],
     ['PUT',    '#^/admin/api/site/theme$#',                                   [AdminSiteController::class, 'updateTheme']],
     ['GET',    '#^/admin/api/site/theme/revisions$#',                         [AdminSiteController::class, 'themeRevisions']],
     ['GET',    '#^/admin/api/site/theme/revisions/(' . SEG . ')$#',    [AdminSiteController::class, 'themeRevision']],
     ['POST',   '#^/admin/api/site/theme/revisions/(' . SEG . ')/restore$#',    [AdminSiteController::class, 'restoreThemeRevision']],
     ['PUT',    '#^/admin/api/site/menus$#',                                   [AdminSiteController::class, 'updateMenus']],
+    ['PUT',    '#^/admin/api/site/templates$#',                               [AdminSiteController::class, 'updateTemplates']],
+    ['POST',   '#^/admin/api/site/templates/(' . SEG . ')/(' . SEG . ')$#', [AdminSiteController::class, 'createTemplate']],
+    ['POST',   '#^/admin/api/site/preview-snapshots$#', [AdminSiteController::class, 'createPreview']],
+    ['GET',    '#^/admin/api/site/preview-search$#', [AdminSiteController::class, 'previewSearch']],
     ['POST',   '#^/admin/api/site/preview$#',                                 [AdminSiteController::class, 'preview']],
     ['GET',    '#^/admin/api/site/card-template/(' . SEG . ')$#',             [AdminSiteController::class, 'cardTemplate']],
+    ['GET',    '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'page']],
+    ['PUT',    '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'updatePage']],
+    ['DELETE', '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')$#',       [AdminSiteController::class, 'resetPage']],
+    ['GET',    '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')/revisions$#', [AdminSiteController::class, 'pageRevisions']],
+    ['GET',    '#^/admin/api/site/pages/(' . SEG . ')/(' . SEG . ')/revisions/(' . SEG . ')$#', [AdminSiteController::class, 'pageRevision']],
     ['GET',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'layout']],
     ['PUT',    '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'updateLayout']],
     ['DELETE', '#^/admin/api/site/layouts/(' . SEG . ')/(' . SEG . ')$#',     [AdminSiteController::class, 'resetLayout']],
@@ -279,9 +302,8 @@ $routes = [
     ['GET',    '#^/admin/api/site/components/(' . SEG . ')/revisions/(' . SEG . ')$#', [AdminSiteController::class, 'componentRevision']],
     ['POST',   '#^/admin/api/site/components/(' . SEG . ')/revisions/(' . SEG . ')/restore$#', [AdminSiteController::class, 'restoreComponentRevision']],
     ['GET',    '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'forms']],
-    ['POST',   '#^/admin/api/site/forms$#',                                   [AdminSiteController::class, 'createForm']],
-    ['PUT',    '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'updateForm']],
-    ['DELETE', '#^/admin/api/site/forms/(' . SEG . ')$#',                     [AdminSiteController::class, 'deleteForm']],
+    ['GET',    '#^/admin/site-preview$#', [AdminSiteController::class, 'previewSite']],
+    ['GET',    '#^/admin/site-preview/(' . SEG . ')$#',                       [AdminSiteController::class, 'previewIndex']],
     ['GET',    '#^/admin/site-preview/(' . SEG . ')/(' . SEG . ')$#',         [AdminSiteController::class, 'previewEntry']],
 
     // ── Profile & avatar ──────────────────────────────────────────────────
@@ -377,6 +399,10 @@ try {
         $api->mediaShow($m[2]);
     }
 
+    if (preg_match('#^/_site/(' . SEG . ')/fonts/([a-f0-9]{64})\.woff2$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->font($m[1], $m[2]);
+    }
+
     // ── Website (opt-in per workspace) ────────────────────────────────────
     if (preg_match('#^/_site/(' . SEG . ')/theme/style\\.css$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
         (new SiteController($http))->stylesheet($m[1], true);
@@ -388,6 +414,10 @@ try {
 
     if (preg_match('#^/_site/flags/([a-z]{2}(?:-[a-z]{3})?)\.svg$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
         (new SiteController($http))->flag($m[1]);
+    }
+
+    if (preg_match('#^/_site/search/(' . SEG . ')$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+        (new SiteController($http))->search($m[1]);
     }
 
     if (preg_match('#^/_site/forms/(' . SEG . ')/(' . SEG . ')$#', $path, $m) && $method === 'POST') {
@@ -405,6 +435,13 @@ try {
 
     $http->notFound();
 } catch (Throwable $e) {
+    if ($e instanceof \CometCMS\Core\ConflictException || $e instanceof \CometCMS\Core\ValidationException) {
+        $http->json(['error' => [
+            'code' => $e instanceof \CometCMS\Core\ConflictException ? 'conflict' : 'validation_failed',
+            'message' => $e->getMessage(),
+            'fields' => $e instanceof \CometCMS\Core\ValidationException ? $e->fields() : [],
+        ]], $e->getCode());
+    }
     $details = [
         'message' => $e->getMessage(),
         'type' => $e::class,

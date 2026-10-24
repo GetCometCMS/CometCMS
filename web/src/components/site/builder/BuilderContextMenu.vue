@@ -71,7 +71,6 @@ const QUICK = {
   [COMPONENT]: [["props", "span"]],
   heading: [["props", "level"], ["style", "align"]],
   button: [["props", "variant"], ["style", "align"]],
-  collection: [["props", "display"]],
   menu: [["props", "orientation"]],
 };
 
@@ -118,9 +117,17 @@ const actions = computed(() => {
       parent && { key: "parent", icon: "mdi:arrow-up-left", label: t("site.menu.selectParent", { name: builder.nodeLabel(parent) }), action: () => builder.select(parent.id) },
     ],
     [
-      !locked && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
+      !locked && !builder.holdsPageContent(current) && { key: "duplicate", icon: "mdi:content-copy", label: t("site.builder.duplicate"), shortcut: "Ctrl+D", action: () => builder.duplicate(current.id) },
       { key: "copy", icon: "mdi:clipboard-outline", label: t("site.menu.copy"), shortcut: "Ctrl+C", action: () => builder.copy(current.id) },
-      !instance && { key: "copyStyle", icon: "mdi:format-paint", label: t("site.menu.copyStyle"), action: () => builder.copyStyle(current.id) },
+      // Containers take the copy inside, everything else after itself (as insert() places it).
+      {
+        key: "paste",
+        icon: "mdi:clipboard-arrow-down-outline",
+        label: t(builder.isDropContainer(current) ? "site.menu.pasteInside" : "site.menu.paste"),
+        shortcut: "Ctrl+V",
+        disabled: !builder.clipboard.value || builder.translating.value,
+        action: () => builder.paste(current.id),
+      },
       !instance && { key: "pasteStyle", icon: "mdi:brush-variant", label: t("site.menu.pasteStyle"), disabled: !builder.styleClipboard.value, action: () => builder.pasteStyle(current.id) },
     ],
     [

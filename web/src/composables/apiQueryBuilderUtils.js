@@ -24,7 +24,6 @@ export function buildEndpointPath({
   typeMode,
   collectionName,
   identifier,
-  isActiveSingleton,
   contentMode,
 }) {
   if (!selectedResource) {
@@ -44,10 +43,6 @@ export function buildEndpointPath({
   const collection = collectionName || "{collection}";
   const base = `/content/${encodeURIComponent(collection)}`;
   const item = String(identifier ?? "").trim();
-
-  if (isActiveSingleton) {
-    return base;
-  }
 
   return contentMode === "single" && item !== ""
     ? `${base}/${encodeURIComponent(item)}`

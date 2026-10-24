@@ -7,28 +7,11 @@ function comet_api_controller_test_bootstrap_require_snippet(): string
     return 'require ' . var_export(__DIR__ . '/bootstrap.php', true) . ';';
 }
 
-test('singleton content collection route returns the fixed entry', function (): void {
-    $output = comet_test_run_php(['-r',
-        comet_api_controller_test_bootstrap_require_snippet() .
-        'comet_test_reset_storage();' .
-        '(new \\CometCMS\\Content\\ContentTypeRepository())->save(["name" => "homepage", "api_enabled" => true, "singleton" => true]);' .
-        '\\CometCMS\\Content\\ContentRepository::make()->save("homepage", ["title" => "Home", "status" => "published"], ["id" => "admin"]);' .
-        '$_SERVER["REQUEST_METHOD"] = "GET";' .
-        '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/content/homepage";' .
-        '$_SERVER["SCRIPT_NAME"] = "/index.php";' .
-        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default")->contentIndex("homepage");'
-    ]);
-
-    assert_true(str_contains($output, '"data": {'));
-    assert_true(str_contains($output, '"slug": "homepage"'));
-    assert_false(str_contains($output, '"meta": {'));
-});
-
 test('private content collection rejects unauthenticated reads', function (): void {
     $output = comet_test_run_php(['-r',
         comet_api_controller_test_bootstrap_require_snippet() .
         'comet_test_reset_storage();' .
-        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private"], "members");' .
+        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private", "api_enabled" => true], "members");' .
         '\\CometCMS\\Content\\ContentRepository::make()->save("members", ["title" => "Member", "status" => "published"], ["id" => "admin"]);' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/content/members";' .
@@ -44,7 +27,7 @@ test('private content collection allows a token with collection read permission'
     $output = comet_test_run_php(['-r',
         comet_api_controller_test_bootstrap_require_snippet() .
         'comet_test_reset_storage();' .
-        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private"], "members");' .
+        '(new \\CometCMS\\Storage\\JsonStore(comet_test_workspace_path() . "/content-types"))->write(["name" => "members", "visibility" => "private", "api_enabled" => true], "members");' .
         '\\CometCMS\\Content\\ContentRepository::make()->save("members", ["title" => "Member", "status" => "published"], ["id" => "admin"]);' .
         '$plain = (new \\CometCMS\\Auth\\ApiTokenRepository())->create("reader", "", [["effect" => "allow", "actions" => ["content.read"], "resources" => ["content:members:*"]]]);' .
         '$_SERVER["HTTP_AUTHORIZATION"] = "Bearer " . $plain;' .
@@ -84,7 +67,7 @@ test('media endpoint serves configured image variants', function (): void {
         'comet_test_reset_storage();' .
         '$image = imagecreatetruecolor(1200, 600);' .
         'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
-        'imagedestroy($image);' .
+        'unset($image);' .
         '$_GET = ["w" => "320", "format" => "jpeg"];' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?w=320&format=jpeg";' .
@@ -107,7 +90,7 @@ test('media listing advertises responsive variant urls', function (): void {
         'comet_test_reset_storage();' .
         '$image = imagecreatetruecolor(1200, 600);' .
         'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
-        'imagedestroy($image);' .
+        'unset($image);' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
         '$_SERVER["REQUEST_URI"] = "/api/v1/workspaces/default/media";' .
         '$_SERVER["SCRIPT_NAME"] = "/index.php";' .

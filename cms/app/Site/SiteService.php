@@ -13,8 +13,9 @@ use CometCMS\Workspaces\WorkspaceRepository;
  * Maps a request path to a website response.
  *
  * Matching order: robots.txt / sitemap.xml, an optional locale prefix, the
- * homepage, fixed URLs (single pages and list pages), then collection
- * patterns with a {slug}. Anything else renders the site's 404 page.
+ * homepage, list pages, then collection patterns with a {slug} (a slug path
+ * like about/team for hierarchical types). Anything
+ * else renders the site's 404 page.
  */
 final class SiteService
 {
@@ -26,12 +27,14 @@ final class SiteService
         $path = '/' . trim($path, '/');
         $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
         $cache = ApiCache::fromConfig($this->ctx->site->workspace());
-        // Only pagination changes the output. Include every URL component
+        $lists = ListFilters::fromQuery($query['c'] ?? null);
+        $embed = ($query['embed'] ?? '') === '1';
+        // Only pagination, list filters and embedding change the output. Include every URL component
         // used by links and canonical URLs, even for subdirectory installs.
         // File edits also need to refresh the versioned stylesheet links.
         $key = $cache->key('site|' . json_encode([
-            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(),
-        ]), $page > 1 ? 'page=' . $page : '');
+            $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), LinkModal::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(), ThemeToggle::cspSource(), ListFilters::cspSource(), (new FormCaptcha($this->ctx->site))->cacheVersion(),
+        ]), http_build_query(array_filter(['page' => $page > 1 ? $page : null, 'c' => $lists ?: null, 'embed' => $embed ? 1 : null])));
         $cached = $this->ctx->preview ? null : $cache->get($key);
 
         if ($cached !== null && isset($cached['status'], $cached['body'], $cached['content_type'])) {
@@ -39,7 +42,7 @@ final class SiteService
         }
 
         $startedAt = time();
-        $response = $this->respond($path, ['page' => $page]);
+        $response = $this->respond($path, ['page' => $page, 'c' => $lists, 'embed' => $embed ? '1' : '']);
 
         if ($response['cacheable']) {
             $cache->put($key, $response, $this->nextPublicationAt($startedAt));
@@ -62,7 +65,7 @@ final class SiteService
                 continue;
             }
 
-            foreach ($this->ctx->content->all($name) as $entry) {
+            foreach ($this->ctx->content->all($name) as $rawEntry) foreach ($rawEntry['publication'] as $entry) {
                 if (($entry['status'] ?? '') !== 'published') {
                     continue;
                 }
@@ -122,6 +125,11 @@ final class SiteService
     {
         $path = '/' . trim($path, '/');
 
+        if (!$this->ctx->preview && !empty($this->ctx->settings()['maintenance'])) {
+            [$this->ctx->locale] = $this->splitLocale($path);
+            return $this->response(503, (new PageRenderer($this->ctx))->maintenance(), 'text/html; charset=utf-8');
+        }
+
         if ($path === '/robots.txt') {
             return $this->response(200, $this->robots(), 'text/plain; charset=utf-8');
         }
@@ -132,7 +140,9 @@ final class SiteService
 
         [$locale, $path] = $this->splitLocale($path);
         $this->ctx->locale = $locale;
+        $this->ctx->embed = ($query['embed'] ?? '') === '1';
         $page = max(1, min(10000, (int) ($query['page'] ?? 1)));
+        $this->ctx->listParams = ListFilters::fromQuery($query['c'] ?? null);
         $renderer = new PageRenderer($this->ctx);
 
         if ($path === '/') {
@@ -145,27 +155,24 @@ final class SiteService
                 continue;
             }
 
-            if (!empty($type['singleton']) && $route['pattern'] === $path) {
-                $entry = $this->ctx->singletonEntry($name);
-
-                return $entry === null ? $this->notFound($renderer, $path) : $this->html($renderer->entryPage($type, $entry, $page));
-            }
-
-            if (empty($type['singleton']) && $route['index_path'] !== '' && $route['index_path'] === $path) {
+            if ($route['index_enabled'] && $route['index_path'] !== '' && $route['index_path'] === $path) {
                 return $this->html($renderer->indexPage($type, $page));
             }
         }
 
         foreach ($this->ctx->site->types() as $name => $type) {
             $route = $this->ctx->route($name);
-            if ($route === null || !empty($type['singleton'])) {
+            if ($route === null) {
                 continue;
             }
 
-            $regex = '#^' . str_replace(preg_quote('{slug}', '#'), '([A-Za-z0-9_-]+)', preg_quote($route['pattern'], '#')) . '$#';
+            // Pages of hierarchical types sit below their parents: {slug} spans several segments.
+            $hierarchical = $this->ctx->isHierarchical($name);
+            $slug = $hierarchical ? '([A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*)' : '([A-Za-z0-9_-]+)';
+            $regex = '#^' . str_replace(preg_quote('{slug}', '#'), $slug, preg_quote($route['pattern'], '#')) . '$#';
             if (preg_match($regex, $path, $match)) {
-                $entry = $this->ctx->findEntry($name, $match[1]);
-                if ($entry !== null && ($entry['slug'] ?? '') === $match[1]) {
+                $entry = $hierarchical ? $this->ctx->findEntryByPath($name, $match[1]) : $this->ctx->findEntry($name, $match[1]);
+                if ($entry !== null && ($hierarchical || ($entry['slug'] ?? '') === $match[1])) {
                     return $this->html($renderer->entryPage($type, $entry, $page));
                 }
             }
@@ -185,13 +192,40 @@ final class SiteService
             return null;
         }
 
-        if ($locale !== '' && in_array($locale, (array) ($schema['locales'] ?? []), true)) {
-            $this->ctx->locale = $locale;
-        }
+        $this->ctx->locale = $this->ctx->content->locale($locale);
 
         $entry = $this->ctx->findEntry($type, $identifier, true);
 
         return $entry === null ? null : (new PageRenderer($this->ctx))->entryPage($schema, $entry);
+    }
+
+    /** A type's index page as it looks with its saved layout, live or not; null for private types. */
+    public function previewIndex(string $type, string $locale = ''): ?string
+    {
+        $schema = $this->ctx->type($type);
+        $this->ctx->preview = true;
+        $this->ctx->previewBanner = true;
+
+        if ($schema === null || !$this->ctx->isPublicType($type)) {
+            return null;
+        }
+
+        $this->ctx->locale = $this->ctx->content->locale($locale);
+
+        return (new PageRenderer($this->ctx))->indexPage($schema);
+    }
+
+    /** The homepage with the saved header and footer, also while the website is off. */
+    public function previewHome(string $locale = ''): string
+    {
+        $this->ctx->preview = true;
+        $this->ctx->previewBanner = true;
+        $this->ctx->locale = $this->ctx->content->locale($locale);
+        $renderer = new PageRenderer($this->ctx);
+        $type = $this->ctx->settings()['homepage']['type'];
+
+        // Without a homepage the placeholder page has no header or footer; show them around a stand-in.
+        return $type !== '' && $this->ctx->isPublicType($type) ? $this->home($renderer, 1)['body'] : $renderer->regionPreview('header');
     }
 
     private function home(PageRenderer $renderer, int $page): array
@@ -203,19 +237,13 @@ final class SiteService
             return $this->html($renderer->autoHome());
         }
 
-        if (!empty($type['singleton'])) {
-            $entry = $this->ctx->singletonEntry($home['type']);
-
-            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
-        }
-
         if ($home['entry'] !== '') {
             $entry = $this->ctx->findEntry($home['type'], $home['entry']);
 
-            return $this->html($entry !== null ? $renderer->entryPage($type, $entry, $page) : $renderer->autoHome());
+            return $entry !== null ? $this->html($renderer->entryPage($type, $entry, $page)) : ($this->ctx->locale === $this->ctx->defaultLocale() ? $this->html($renderer->autoHome()) : $this->notFound($renderer, '/'));
         }
 
-        return $this->html($renderer->indexPage($type, $page));
+        return $this->ctx->hasListPage($home['type']) ? $this->html($renderer->indexPage($type, $page)) : $this->html($renderer->autoHome());
     }
 
     /** @return array{0: string, 1: string} locale ('' for the default) and the remaining path */
@@ -247,16 +275,14 @@ final class SiteService
 
         foreach ($locales as $locale) {
             $this->ctx->locale = $locale;
-            $urls[$this->ctx->homeUrl($locale)] = null;
+            $home = $this->ctx->settings()['homepage'];
+            if ($home['type'] !== '') {
+                if ($home['entry'] === '' || $this->ctx->findEntry($home['type'], $home['entry']) !== null) $urls[$this->ctx->homeUrl($locale)] = null;
+            }
 
             foreach ($this->ctx->site->types() as $name => $type) {
                 $route = $this->ctx->route($name);
                 if ($route === null || !$route['sitemap']) {
-                    continue;
-                }
-
-                $typeLocales = (array) ($type['locales'] ?? []);
-                if ($locale !== '' && $typeLocales !== [] && !in_array($locale, $typeLocales, true)) {
                     continue;
                 }
 
@@ -265,7 +291,7 @@ final class SiteService
                     $urls[$index] ??= null;
                 }
 
-                foreach ($this->ctx->content->query($name, [], false)['data'] as $entry) {
+                foreach ($this->ctx->content->query($name, ['locale' => $locale], false)['data'] as $entry) {
                     $url = $this->ctx->entryUrl($name, $entry, $locale);
                     if ($url !== null) {
                         $urls[$url] = (string) ($entry['updated_at'] ?? '');

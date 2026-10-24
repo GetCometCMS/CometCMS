@@ -46,7 +46,8 @@ final class ContentController extends BaseController
     {
         $this->requireCollection($collection);
         $body = $this->requestJson();
-        $user = $this->requirePermission('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $user = $this->requirePermission('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishPermission($user, $collection, null, $body);
         $this->verifyCsrf();
 
@@ -63,13 +64,15 @@ final class ContentController extends BaseController
     {
         $this->requireCollection($collection);
         $body = $this->requestJson();
-        $existing = $this->content->findByIdentifier($collection, $id);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $existing = $this->content->findByIdentifier($collection, $id, false, $body['locale']);
 
         if ($existing === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
         }
 
-        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+        $existing = $this->content->resolveLocaleFields($existing, $body['locale']);
+        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishPermission($user, $collection, $existing, $body);
         $this->verifyCsrf();
 
@@ -97,7 +100,8 @@ final class ContentController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'data must be a non-empty object.']], 422);
         }
 
-        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($data)]);
+        $data['locale'] = $this->content->locale((string) ($data['locale'] ?? ''));
+        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($data), 'locale' => $data['locale']]);
         $this->verifyCsrf();
 
         $updated = 0;
@@ -114,9 +118,10 @@ final class ContentController extends BaseController
                 continue;
             }
 
+            $existing = $this->content->resolveLocaleFields($existing, $data['locale']);
             // The collection-level check above cannot see per-entry grants
             // (denies, ownership) or the separate publish permission.
-            $context = ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($data), 'principal' => $user];
+            $context = ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($data), 'locale' => $data['locale'], 'principal' => $user];
             $publishing = ($data['status'] ?? null) === 'published' && ($existing['status'] ?? null) !== 'published';
             if (!$this->permissions->allows($user, 'content.update', $context)
                 || ($publishing && !$this->permissions->allows($user, 'content.publish', $context))) {
@@ -173,8 +178,37 @@ final class ContentController extends BaseController
 
         $user = $this->requirePermission('content.delete', ['type' => 'content', 'collection' => $collection, 'entry' => $entry]);
         $this->verifyCsrf();
-        $this->content->softDelete($collection, (string) $entry['id'], $user);
+
+        try {
+            $this->content->softDelete($collection, (string) $entry['id'], $user);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => (string) (array_values($e->fields())[0] ?? $e->getMessage()), 'fields' => $e->fields()]], 422);
+        }
+
         $this->json(['data' => ['ok' => true]]);
+    }
+
+    /** Move an entry of a hierarchical type: body {parent: uid or '', index}. */
+    public function move(string $collection, string $id): never
+    {
+        $this->requireCollection($collection);
+        $existing = $this->content->findByIdentifier($collection, $id);
+
+        if ($existing === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Entry not found.']], 404);
+        }
+
+        $body = $this->requestJson();
+        $user = $this->requirePermission('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => ['parent', 'position']]);
+        $this->verifyCsrf();
+
+        try {
+            $entry = $this->content->move($collection, (string) $existing['id'], is_string($body['parent'] ?? null) ? $body['parent'] : '', (int) ($body['index'] ?? 0), $user);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => (string) (array_values($e->fields())[0] ?? $e->getMessage()), 'fields' => $e->fields()]], 422);
+        }
+
+        $this->json(['data' => $entry]);
     }
 
     public function bulkDelete(string $collection): never
@@ -194,8 +228,8 @@ final class ContentController extends BaseController
         $failed  = 0;
         $errors  = [];
 
-        foreach ($ids as $id) {
-            $id = (string) $id;
+        // Children first, so selecting a whole branch deletes it.
+        foreach ($this->content->deepestFirst($collection, array_map('strval', $ids)) as $id) {
             $entry = $this->content->find($collection, $id);
 
             if ($entry === null) {
@@ -213,6 +247,9 @@ final class ContentController extends BaseController
             try {
                 $this->content->softDelete($collection, (string) $entry['id'], $user);
                 $deleted++;
+            } catch (ValidationException $e) {
+                $failed++;
+                $errors[$id] = (string) (array_values($e->fields())[0] ?? $e->getMessage());
             } catch (\Throwable $e) {
                 $failed++;
                 $errors[$id] = 'The entry could not be deleted.';
@@ -247,7 +284,34 @@ final class ContentController extends BaseController
 
         $user = $this->requirePermission('content.revisions.restore', ['type' => 'content', 'collection' => $collection, 'entry' => $current]);
         $this->verifyCsrf();
-        $entry = $this->content->restoreRevision($collection, (string) $current['id'], $revisionId, $user);
+        $entry = $this->content->restoreRevision($collection, (string) $current['id'], $revisionId, $user, function (array $current, array $restored, array $changes) use ($collection, $user): void {
+            $this->requirePermission('content.revisions.restore', ['type' => 'content', 'collection' => $collection, 'entry' => $current]);
+            foreach ($changes as $locale => $fields) {
+                $context = ['type' => 'content', 'collection' => $collection, 'entry' => $current, 'locale' => $locale, 'fields' => array_values(array_unique($fields))];
+                $this->requirePermission('content.update', $context);
+                // Publishing changed values into an already published locale is
+                // also a publication operation, including shared field changes.
+                foreach ($locale === '' ? array_keys($restored['publication']) : [$locale] as $affectedLocale) {
+                    if (($restored['publication'][$affectedLocale]['status'] ?? '') === 'published') {
+                        $this->requirePublishPermission($user, $collection, $current, ['status' => 'published', 'locale' => $affectedLocale]);
+                    }
+                }
+            }
+            // A default-language value may also change an inherited published
+            // translation. Authorize that effective publication separately.
+            foreach ($restored['publication'] as $locale => $publication) {
+                if (!in_array($locale, (new \CometCMS\Localization\LanguageSettings())->all()['locales'], true)) continue;
+                if (($publication['status'] ?? '') !== 'published') continue;
+                $before = $this->content->resolveLocaleFields($current, $locale, true);
+                $after = $this->content->resolveLocaleFields($restored, $locale, true);
+                foreach (array_unique(array_merge(array_keys($current['values']), array_keys($restored['values']))) as $field) {
+                    if (($before[$field] ?? null) !== ($after[$field] ?? null)) {
+                        $this->requirePublishPermission($user, $collection, $current, ['status' => 'published', 'locale' => $locale]);
+                        break;
+                    }
+                }
+            }
+        });
 
         if ($entry === null) {
             $this->json(['error' => ['code' => 'not_found', 'message' => 'Revision not found.']], 404);
@@ -285,7 +349,7 @@ final class ContentController extends BaseController
 
     private function payloadFields(array $payload): array
     {
-        return array_values(array_diff(array_keys($payload), ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale']));
+        return array_values(array_unique(array_merge((array) ($payload['reset_fields'] ?? []), array_diff(array_keys($payload), ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'values', 'publication', 'revision', 'reset_fields', 'locale']))));
     }
 
     private function requirePublishPermission(array $user, string $collection, ?array $entry, array $payload): void
@@ -294,7 +358,7 @@ final class ContentController extends BaseController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => \CometCMS\Workspaces\WorkspaceContext::active()->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

@@ -1,6 +1,6 @@
 # Admin API
 
-The admin API powers the Vue SPA admin interface. It uses **PHP session authentication** (cookie-based). All endpoints require an active admin session unless otherwise noted.
+The admin API powers the Vue SPA admin interface. It uses **PHP session authentication** (cookie-based). All endpoints require an active admin session unless otherwise noted. Access is checked against the user's permission grants. Mutating authenticated requests also send `X-CSRF-Token`, initially read from the admin HTML's `csrf-token` meta tag and refreshed from the response header of the same name.
 
 > These endpoints are intended for the admin frontend. For headless content access, use the [Public API](./public-api) with an access token instead.
 
@@ -20,6 +20,8 @@ https://yourdomain.com/admin/api
 | `GET`  | `/admin/api/me`     | Returns the currently authenticated user.                                |
 | `POST` | `/admin/api/login`  | Log in with `username` + `password`.                                     |
 | `POST` | `/admin/api/logout` | Log out and destroy session.                                             |
+
+Setup accepts `username`, `password`, `workspace`, `workspace_slug`, optional `starter_template` (`website` by default, or `empty`), and optional `languages`, e.g. `{"locales":["de","fr"],"default_locale":"de"}`. The default language must be included in `locales`. Omitting `languages` selects English. Languages are validated before creating the admin account and saved before generating sample content, which is assigned to the default language.
 
 ---
 
@@ -45,12 +47,16 @@ Workspace-scoped admin requests send `X-Comet-Workspace: {workspace}`. Content t
 | -------- | ----------------------------------- | ------------------------------------------------------------------------- |
 | `GET`    | `/admin/api/workspaces`             | List active workspaces.                                                   |
 | `POST`   | `/admin/api/workspaces`             | Create a workspace. Requires `workspaces.manage`.                         |
-| `PUT`    | `/admin/api/workspaces/{workspace}` | Update the workspace label/archive state. Requires `workspaces.manage`.   |
+| `PUT`    | `/admin/api/workspaces/{workspace}` | Update the workspace label, languages, or archive state. Requires `workspaces.manage`.   |
 | `DELETE` | `/admin/api/workspaces/{workspace}` | Archive a workspace without deleting files. Requires `workspaces.manage`. |
+| `POST` | `/admin/api/workspaces/{workspace}/default` | Set the default workspace. Requires `workspaces.manage`. |
+| `GET` | `/admin/api/workspaces/{workspace}/icon` | Serve the workspace icon. |
+| `POST` | `/admin/api/workspaces/{workspace}/icon` | Upload a workspace icon. Requires `workspaces.manage`. |
+| `DELETE` | `/admin/api/workspaces/{workspace}/icon` | Remove a workspace icon. Requires `workspaces.manage`. |
 
 ---
 
-Workspace creation accepts `label`, `slug`, and optional `starter_template` (`website` or `empty`). `website` creates Landing Page and Pages, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
+Workspace creation accepts `label`, `slug`, optional `languages` (the same shape as setup), and optional `starter_template` (`website` or `empty`). `website` creates a Pages collection whose Landing Page entry is the homepage, enables the Page Builder, and configures the homepage and navigation. It omits Events. Omitting `starter_template` keeps the existing empty-workspace API behavior. Creating a workspace with an existing slug returns a validation error.
 
 ## Content types
 
@@ -65,7 +71,7 @@ Workspace creation accepts `label`, `slug`, and optional `starter_template` (`we
 
 List and reorder responses include available field type names in `meta.field_types`.
 
-Content type schemas include `singleton`. When `singleton` is `true`, the type represents one fixed entry instead of a repeatable collection. Reordering applies to both collections and single page types; the admin sidebar lists them in this order under **Content**.
+Every content type is a collection of entries. The admin sidebar lists them in the saved order under **Content**.
 
 ---
 
@@ -104,8 +110,6 @@ arrays; single select and relation fields are one value or `null`.
 For localized content types, send `locale` when listing entries to resolve translated values before filtering and sorting. Create and update requests can include `locale` in the JSON body to edit a specific locale variant. The default locale cannot be deleted with the translation delete endpoint.
 
 When a content type field defines a supported `default`, omitted values are created with that default before validation and normalization.
-
-Single page content types use the content type name as the fixed entry id/slug. For example, the admin editor and API use `/admin/api/content/start-page/start-page` for the `start-page` single page. Creating a second active entry is rejected.
 
 ### Revisions
 
@@ -203,7 +207,7 @@ Role management uses `roles.read`, `roles.create`, `roles.update`, and `roles.de
 | -------- | ----------------------------- | -------------------------------- |
 | `GET`    | `/admin/api/tokens`           | List application access tokens.     |
 | `POST`   | `/admin/api/tokens`           | Create an application access token. |
-| `DELETE` | `/admin/api/tokens/{tokenId}` | Revoke a token.                  |
+| `DELETE` | `/admin/api/tokens/{tokenId}` | Revoke an active token; delete it if already revoked. |
 
 ---
 
@@ -237,3 +241,34 @@ Role management uses `roles.read`, `roles.create`, `roles.update`, and `roles.de
 | ------ | --------------------- | ---------------------------- |
 | `GET`  | `/admin/api/webhooks` | List configured webhooks.    |
 | `PUT`  | `/admin/api/webhooks` | Replace configured webhooks. |
+
+
+## Website and Page Builder
+
+These endpoints use the active workspace. Website management requires `site.manage`; saving workspace languages also requires `workspaces.manage`. Entry page-content operations additionally check the entry's content permissions.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/admin/api/site` | Website settings, theme, menus, types and language settings. |
+| `GET` | `/admin/api/site/status` | Website state and available routes. |
+| `GET` | `/admin/api/site/links/{type}/{id}` | Website, preview and builder links for an entry. |
+| `PUT` | `/admin/api/site/settings` | Save homepage, routes, identity, maintenance and SEO settings. |
+| `PUT` | `/admin/api/site/form-settings` | Save workspace CAPTCHA overrides; responses omit secrets. |
+| `PUT` | `/admin/api/site/theme` | Save shared design and custom CSS. |
+| `PUT` | `/admin/api/site/menus` | Save navigation menus. |
+| `PUT` | `/admin/api/site/templates` | Save page templates and their conditions. |
+| `GET`, `PUT`, `DELETE` | `/admin/api/site/layouts/{type}/{variant}` | Read, save or reset a shared layout; `variant` is `detail` or `index`. |
+| `POST` | `/admin/api/site/layouts/{type}/{variant}/areas` | Create a named content area. |
+| `PATCH`, `DELETE` | `/admin/api/site/layouts/{type}/{variant}/areas/{area}` | Rename or delete a content area. |
+| `GET`, `PUT`, `DELETE` | `/admin/api/site/pages/{type}/{id}` | Read, save or reset one entry's page content. |
+| `GET`, `PUT`, `DELETE` | `/admin/api/site/regions/{region}` | Read, save or reset a shared region or special-page design. |
+| `GET`, `POST` | `/admin/api/site/components` | List or create reusable components. |
+| `GET`, `PUT`, `PATCH`, `DELETE` | `/admin/api/site/components/{id}` | Read, save, rename or delete a component. |
+| `GET` | `/admin/api/site/fonts` | Installed workspace font library. |
+| `GET` | `/admin/api/site/fonts/catalogue` | Search the online font catalogue. |
+| `POST` | `/admin/api/site/fonts/install` | Start a catalogue installation job. |
+| `POST` | `/admin/api/site/fonts/upload` | Upload custom WOFF2 files. |
+| `POST` | `/admin/api/site/preview` | Render an unsaved builder preview. |
+| `POST` | `/admin/api/site/preview-snapshots` | Create a preview snapshot. |
+
+Layouts, regions, components, and entry pages expose revision lists at their `/revisions` subpath and individual revisions at `/revisions/{revision}`. Shared layout, region, component and theme endpoints also offer `POST .../revisions/{revision}/restore`. See the [website guide](../guide/website) for the editing workflow.

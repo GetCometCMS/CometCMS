@@ -176,7 +176,7 @@
                 class="rounded-lg border border-slate-200 bg-white p-2"
               >
                 <p
-                  v-if="collectionTypes.length > 0"
+                  v-if="collections.length > 0"
                   class="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
                 >
                   {{ t("apiBuilder.collections") }}
@@ -188,12 +188,9 @@
                   {{ t("apiBuilder.noTypes") }}
                 </p>
                 <template v-else>
-                  <div
-                    v-if="collectionTypes.length > 0"
-                    class="flex flex-wrap gap-2"
-                  >
+                  <div class="flex flex-wrap gap-2">
                     <button
-                      v-for="collection in collectionTypes"
+                      v-for="collection in collections"
                       :key="collection.name"
                       type="button"
                       class="rounded-md border px-3 py-1.5 text-sm transition"
@@ -203,26 +200,6 @@
                       {{ collection.label || collection.name }}
                     </button>
                   </div>
-
-                  <template v-if="singletonTypes.length > 0">
-                    <p
-                      class="px-2 pb-2 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-500"
-                    >
-                      {{ t("apiBuilder.singles") }}
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="collection in singletonTypes"
-                        :key="collection.name"
-                        type="button"
-                        class="rounded-md border px-3 py-1.5 text-sm transition"
-                        :class="collectionButtonClass(collection)"
-                        @click="selectCollection(collection.name)"
-                      >
-                        {{ collection.label || collection.name }}
-                      </button>
-                    </div>
-                  </template>
                 </template>
               </div>
             </div>
@@ -259,11 +236,8 @@
                   :class="
                     contentMode === 'list'
                       ? 'bg-white text-slate-900 shadow-sm'
-                      : isActiveSingleton
-                        ? 'text-slate-300'
-                        : 'text-slate-500 hover:text-slate-800'
+                      : 'text-slate-500 hover:text-slate-800'
                   "
-                  :disabled="isActiveSingleton"
                   @click="contentMode = 'list'"
                 >
                   {{ t("apiBuilder.modeList") }}
@@ -278,23 +252,12 @@
                   "
                   @click="contentMode = 'single'"
                 >
-                  {{ t("apiBuilder.singles") }}
+                  {{ t("apiBuilder.modeEntry") }}
                 </button>
               </div>
             </div>
 
-            <div v-if="isActiveSingleton">
-              <label for="api-fixed-slug" class="form-label">{{ t("apiBuilder.fixedSlug") }}</label>
-              <input
-                id="api-fixed-slug"
-                :value="collectionName"
-                type="text"
-                disabled
-                class="form-input w-full rounded-lg border-slate-300 bg-slate-50 text-sm text-slate-500"
-              />
-            </div>
-
-            <div v-else-if="contentMode === 'single'">
+            <div v-if="contentMode === 'single'">
               <label class="form-label">{{ t("apiBuilder.identifier") }}</label>
               <SearchableSelect
                 v-model="identifier"
@@ -385,7 +348,7 @@
                     </optgroup>
                     <optgroup
                       v-if="contentFilterFields.length > 0"
-                      :label="t('apiBuilder.contentFields')"
+                      :label="t('apiBuilder.customFields')"
                     >
                       <option
                         v-for="field in contentFilterFields"
@@ -523,8 +486,7 @@
                   :key="collection.name"
                   :value="collection.name"
                 >
-                  {{ collection.label || collection.name
-                  }}{{ collection.singleton ? " (Single)" : "" }}
+                  {{ collection.label || collection.name }}
                 </option>
               </select>
             </div>
@@ -754,26 +716,15 @@ const activeCollection = computed(
       (collection) => collection.name === selectedCollection.value,
     ) ?? null,
 );
-const collectionTypes = computed(() =>
-  props.collections.filter((collection) => !collection.singleton),
-);
-const singletonTypes = computed(() =>
-  props.collections.filter((collection) => collection.singleton),
-);
-const isActiveSingleton = computed(() => !!activeCollection.value?.singleton);
 const collectionLocales = computed(() =>
   Array.isArray(activeCollection.value?.locales)
     ? activeCollection.value.locales
     : [],
 );
 const collectionName = computed(() => selectedCollection.value || "");
-const selectedCollectionLabel = computed(() => {
-  const label =
-    activeCollection.value?.label || activeCollection.value?.name || "";
-  return activeCollection.value?.singleton && label
-    ? `${label} (Single)`
-    : label;
-});
+const selectedCollectionLabel = computed(
+  () => activeCollection.value?.label || activeCollection.value?.name || "",
+);
 const relationFields = computed(() => {
   const fields = activeCollection.value?.fields ?? {};
   return Object.entries(fields)
@@ -846,7 +797,6 @@ const endpointPath = computed(() =>
     typeMode: typeMode.value,
     collectionName: collectionName.value,
     identifier: identifier.value,
-    isActiveSingleton: isActiveSingleton.value,
     contentMode: contentMode.value,
   }),
 );
@@ -914,10 +864,7 @@ watch(
 );
 
 watch(selectedCollection, () => {
-  if (isActiveSingleton.value) {
-    contentMode.value = "single";
-    identifier.value = collectionName.value;
-  } else if (identifier.value === selectedCollection.value) {
+  if (identifier.value === selectedCollection.value) {
     identifier.value = "";
   }
 
@@ -966,18 +913,6 @@ watch(mediaCategories, (categories) => {
 
 async function loadEntries() {
   if (!selectedCollection.value) return;
-  if (isActiveSingleton.value) {
-    entries.value = [
-      {
-        id: collectionName.value,
-        slug: collectionName.value,
-        title: selectedCollectionLabel.value,
-      },
-    ];
-    entriesLoaded = true;
-    return;
-  }
-
   entriesLoading.value = true;
   entriesError.value = "";
 
@@ -1046,9 +981,7 @@ function selectCollection(collectionName) {
 function collectionButtonClass(collection) {
   return selectedCollection.value === collection.name
     ? "border-theme-300 bg-theme-50 text-theme-800 ring-1 ring-theme-200"
-    : collection.singleton
-      ? "border-violet-200 text-violet-700 hover:bg-violet-50"
-      : "border-slate-200 text-slate-700 hover:bg-slate-50";
+    : "border-slate-200 text-slate-700 hover:bg-slate-50";
 }
 
 function resetBuilder() {

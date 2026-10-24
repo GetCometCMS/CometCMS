@@ -9,7 +9,7 @@
         <Icon icon="mdi:arrow-left" class="w-[18px] h-[18px]" />
       </router-link>
       <div class="min-w-0">
-        <div v-if="!isSingleton && contentTypeSchema" class="truncate text-xs font-medium text-slate-500">
+        <div v-if="contentTypeSchema" class="truncate text-xs font-medium text-slate-500">
           {{ contentTypeSchema.label }}
         </div>
         <h1 class="text-xl font-semibold tracking-tight text-slate-900 truncate">
@@ -28,6 +28,17 @@
           <Icon icon="mdi:open-in-new" class="h-4 w-4" />
           <span class="hidden sm:inline">{{ t("site.entry.view") }}</span>
         </a>
+        <button
+          v-if="siteLinks?.previewable"
+          type="button"
+          class="btn-secondary"
+          :disabled="fullPreview.opening.value"
+          :title="t('site.entry.previewHint')"
+          @click="openWebsitePreview"
+        >
+          <Icon icon="mdi:eye-outline" class="h-4 w-4" />
+          <span class="hidden sm:inline">{{ t("site.entry.preview") }}</span>
+        </button>
         <button
           v-if="!isNew"
           @click="openRevisions"
@@ -170,6 +181,7 @@
 
           <div class="col-span-1">
             <label for="content-title" class="form-label">{{ t("contentEdit.title") }}</label>
+            <TranslationInfo v-if="fullEntry" :value="fullEntry.values?.title" :locale="currentLocale" :default-locale="defaultLocale" :readonly="isReadOnly" @reset="resetTranslation('title')" />
             <input
               id="content-title"
               v-model="form.title"
@@ -177,16 +189,16 @@
               required
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.title }"
+              :aria-invalid="!!fieldErrors.title || undefined"
             />
+            <p v-if="fieldErrors.title" class="mt-1 text-xs text-red-600">{{ fieldErrors.title }}</p>
           </div>
 
-          <div v-if="!isSingleton">
+          <div>
             <label for="content-slug" class="form-label">
               {{ t("contentEdit.slug") }}
-              <span
-                v-if="contentTypeLocales.length > 0"
-                class="text-slate-400 font-normal text-xs ml-1"
-              >{{ t("contentEdit.slugShared") }}</span>
+
             </label>
             <input
               id="content-slug"
@@ -194,7 +206,46 @@
               type="text"
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.slug }"
+              :aria-invalid="!!fieldErrors.slug || undefined"
             />
+            <p v-if="fieldErrors.slug" class="mt-1 text-xs text-red-600">{{ fieldErrors.slug }}</p>
+          </div>
+
+          <div v-if="contentTypeSchema?.hierarchical">
+            <label for="content-parent" class="form-label">{{ t("contentEdit.parent") }}</label>
+            <select
+              id="content-parent"
+              v-model="parentUid"
+              :disabled="isReadOnly"
+              class="form-select w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.parent }"
+              :aria-invalid="!!fieldErrors.parent || undefined"
+            >
+              <option value="">{{ t("contentEdit.noParent") }}</option>
+              <option v-for="option in parentOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <p v-if="fieldErrors.parent" class="mt-1 text-xs text-red-600">{{ fieldErrors.parent }}</p>
+          </div>
+
+          <!-- The website template of this entry's page: automatic, or one chosen here. -->
+          <div v-if="templateOptions.length > 1">
+            <label for="content-template" class="form-label">{{ t("contentEdit.template") }}</label>
+            <select
+              id="content-template"
+              v-model="pageTemplate"
+              :disabled="isReadOnly"
+              class="form-select w-full rounded-lg border-slate-300 text-sm"
+              :class="{ 'border-red-400': fieldErrors.page_template }"
+              aria-describedby="content-template-hint"
+            >
+              <option value="">{{ t("contentEdit.templateAutomatic") }}</option>
+              <option v-for="option in templateOptions" :key="option.id" :value="option.id">{{ option.name }}</option>
+            </select>
+            <p id="content-template-hint" class="mt-1 text-xs text-slate-500">{{ templateHint }}</p>
+            <p v-if="fieldErrors.page_template" class="mt-1 text-xs text-red-600">{{ fieldErrors.page_template }}</p>
           </div>
 
 
@@ -210,6 +261,7 @@
                 {{ s.label }}
               </option>
             </select>
+            <p v-if="fieldErrors.status" class="mt-1 text-xs text-red-600">{{ fieldErrors.status }}</p>
           </div>
 
           <div v-if="isNew && contentTypeLocales.length > 0">
@@ -274,8 +326,38 @@
               :readonly="isReadOnly"
               class="form-input w-full rounded-lg border-slate-300 text-sm"
             />
+            <p v-if="fieldErrors.published_at" class="mt-1 text-xs text-red-600">{{ fieldErrors.published_at }}</p>
           </div>
         </div>
+
+        <dl v-if="!isNew && (siteLinks?.url || contentTypeSchema?.api_enabled)" class="space-y-3 border-t border-slate-100 pt-4 text-xs">
+          <div v-if="siteLinks?.url" class="space-y-1">
+            <dt class="font-medium text-slate-500">{{ t("contentEdit.websiteUrl") }}</dt>
+            <dd>
+              <a :href="siteLinks.url" target="_blank" rel="noopener" class="inline-flex max-w-full items-start gap-1.5 text-theme-700 hover:underline">
+                <span class="min-w-0 break-all">{{ siteLinks.url }}</span>
+                <Icon icon="mdi:open-in-new" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </a>
+              <div v-if="siteLinks.url_conflict" role="status" class="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-amber-900">
+                <Icon icon="mdi:alert-outline" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div class="space-y-1">
+                  <p>{{ t("contentEdit.websiteUrlConflict") }}</p>
+                  <router-link v-if="siteLinks.can_manage" to="/page-builder/overview" class="inline-block font-medium underline hover:no-underline">{{ t("contentEdit.websiteUrlDomains") }}</router-link>
+                  <p v-else>{{ t("contentEdit.websiteUrlAskAdmin") }}</p>
+                </div>
+              </div>
+            </dd>
+          </div>
+          <div v-if="contentTypeSchema?.api_enabled" class="space-y-1">
+            <dt class="font-medium text-slate-500">{{ t("contentEdit.apiUrl") }}</dt>
+            <dd>
+              <a :href="apiEndpointUrl" target="_blank" rel="noopener" class="inline-flex max-w-full items-start gap-1.5 text-theme-700 hover:underline">
+                <span class="min-w-0 break-all">{{ apiEndpointUrl }}</span>
+                <Icon icon="mdi:open-in-new" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </a>
+            </dd>
+          </div>
+        </dl>
 
         <!-- Entry metadata (read-only) -->
         <div
@@ -297,11 +379,80 @@
         </div>
       </div>
 
+      <!-- Entries with page content design their own page; the layout around it is shared. -->
+      <section
+        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed && pageAreas.length"
+        class="card page-builder-cta page-builder-overview"
+        :aria-label="t('site.page.layoutAndContent')"
+      >
+        <div class="page-builder-overview-main">
+          <div class="page-builder-overview-content">
+            <h2 class="page-builder-overview-heading">{{ t('site.page.layoutAndContent') }}</h2>
+            <div class="page-builder-overview-areas">
+              <button
+                v-for="field in pageAreas"
+                :key="field.key"
+                type="button"
+                class="page-builder-overview-area"
+                :aria-pressed="activePageArea?.key === field.key"
+                @click="selectedPageArea = field.key"
+              >
+                <span class="page-builder-overview-icon" aria-hidden="true">
+                  <Icon icon="mdi:file-document-outline" class="h-7 w-7" />
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-slate-900">{{ field.label }}</span>
+                  <span class="page-builder-cta-description mt-1 block text-sm text-slate-500">
+                    {{ t(field.customized ? 'site.page.ownHint' : 'site.page.defaultHint') }}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="page-builder-overview-actions">
+            <div class="page-builder-overview-illustration" aria-hidden="true">
+              <span class="page-builder-overview-pencil"><Icon icon="mdi:pencil-outline" class="h-7 w-7" /></span>
+            </div>
+            <template v-if="!isReadOnly && activePageArea">
+              <router-link
+                :to="pageLink(activePageArea.key)"
+                class="btn-primary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.editInBuilder', { label: activePageArea.label })"
+              >
+                <Icon icon="mdi:square-edit-outline" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.design') }}
+                <Icon icon="mdi:arrow-right" class="ml-auto h-5 w-5 shrink-0" aria-hidden="true" />
+              </router-link>
+              <button
+                v-if="activePageArea.customized"
+                type="button"
+                class="btn-secondary w-full !whitespace-normal !py-2.5"
+                :title="t('site.page.resetArea', { label: activePageArea.label })"
+                :disabled="resettingPage"
+                @click="pendingPageReset = activePageArea.key"
+              >
+                <Icon icon="mdi:restore" class="h-5 w-5 shrink-0" aria-hidden="true" />
+                {{ t('site.page.reset') }}
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="page-builder-overview-footer">
+          <span class="page-builder-overview-icon" aria-hidden="true"><Icon icon="mdi:layers-triple-outline" class="h-6 w-6" /></span>
+          <p class="page-builder-cta-description text-sm text-slate-500">
+            {{ t('site.page.layoutHint') }}
+            <router-link :to="designLink" class="inline-flex items-center gap-1.5 font-semibold text-theme-700 hover:underline">
+              {{ t('site.page.editLayout') }}
+              <Icon icon="mdi:open-in-new" class="h-4 w-4 shrink-0" aria-hidden="true" />
+            </router-link>
+          </p>
+        </div>
+      </section>
       <!-- Pages and collection entries keep their design action alongside their content. -->
       <PageBuilderCta
-        v-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
+        v-else-if="!isNew && siteLinks?.can_manage && siteLinks.routed"
         :title="t('site.builderCta.title')"
-        :description="t(isSingleton ? 'site.entry.editSingletonDesignHint' : 'site.entry.editDesignHint')"
+        :description="t('site.entry.editDesignHint')"
         :to="designLink"
         :action-label="t('site.entry.editDesign')"
       />
@@ -332,12 +483,15 @@
             <BaseField
               :name="fieldName"
               :config="config"
+              :locale="currentLocale"
               :error="fieldErrors[fieldName]"
               :readonly="isReadOnly || isReadonlyUniversalField(config)"
             >
+              <TranslationInfo v-if="fullEntry && config.localized !== false" :value="fullEntry.values?.[fieldName]" :locale="currentLocale" :default-locale="defaultLocale" :readonly="isReadOnly" @reset="resetTranslation(fieldName)" />
               <FieldInput
                 :name="fieldName"
                 :config="config"
+              :locale="currentLocale"
                 v-model="form[fieldName]"
                 :readonly="isReadOnly || isReadonlyUniversalField(config)"
               />
@@ -372,6 +526,16 @@
       :cancel-label="t('unsaved.stay')"
       variant="warning"
       @confirm="confirmLeave"
+    />
+    <ConfirmModal
+      :model-value="pendingPageReset !== ''"
+      :title="t('site.page.resetTitle')"
+      :message="t('site.page.resetEntryMessage')"
+      :confirm-label="t('site.page.reset')"
+      :loading="resettingPage"
+      variant="warning"
+      @update:model-value="(open) => { if (!open) pendingPageReset = '' }"
+      @confirm="resetPage"
     />
     <ConfirmModal
       v-model="showDeleteModal"
@@ -560,6 +724,7 @@
 </template>
 
 <script setup>
+import { useSitePreview } from "../composables/useSitePreview.js";
 import { ADMIN_API_BASE } from "../basePath.js";
 import {
   ref,
@@ -581,11 +746,12 @@ import SlidePanel from "../components/SlidePanel.vue";
 import TabNavigation from "../components/TabNavigation.vue";
 import { api } from "../api/index.js";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
-import {
-  localeFlagCountry,
-  localeName,
-} from "../composables/localeOptions.js";
+import { hasEntryDraftChanges } from "../composables/entryDraftChanges.js";
+import { languageTabItem } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
+import TranslationInfo from "../components/TranslationInfo.vue";
+import { entryForLocale, resolveLocalized } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 import { useAuthStore } from "../stores/auth.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
@@ -594,6 +760,8 @@ import {
   contentEntryEndpoint,
 } from "../composables/apiEndpoint.js";
 import { orderLocales } from "../composables/contentDisplay.js";
+import { entryKey, subtreeKeys, treeRows } from "../composables/entryTree.js";
+import { reasonLabel, templateName } from "../composables/templates.js";
 
 const users = ref([]);
 const userMap = computed(() =>
@@ -610,6 +778,34 @@ async function loadUsers() {
   }
 }
 
+// ── Page hierarchy ────────────────────────────────────────────────────────────
+// The parent is shared by all languages, so it lives outside the per-language form.
+const parentUid = ref("");
+/** The website template the entry chose ("" = automatic, see SiteRepository::resolveTemplate()). */
+const pageTemplate = ref("");
+const pageTemplateBaseline = ref("");
+const parentBaseline = ref("");
+const siblingPages = ref([]);
+const parentOptions = computed(() => {
+  // A page cannot move below itself or its own children.
+  const self = fullEntry.value ? entryKey(fullEntry.value) : "";
+  const excluded = self ? subtreeKeys(siblingPages.value, self) : new Set();
+  return treeRows(siblingPages.value)
+    .filter(({ entry }) => !excluded.has(entryKey(entry)))
+    .map(({ entry, depth }) => ({
+      value: entryKey(entry),
+      label: `${"\u00a0\u00a0\u00a0".repeat(depth)}${entry.title || entry.slug}`,
+    }));
+});
+
+async function loadSiblingPages() {
+  try {
+    siblingPages.value = (await api.content.list(collection, { limit: 10000, locale: defaultLocale.value || undefined })).data ?? [];
+  } catch {
+    siblingPages.value = [];
+  }
+}
+
 const route = useRoute();
 const router = useRouter();
 const toast = useToastStore();
@@ -619,34 +815,16 @@ const { canContent } = usePermissions();
 const apiEndpointStore = useApiEndpointStore();
 const collection = route.params.collection;
 const apiEndpointOwner = "content-edit";
-const singletonCreateMode = ref(false);
-const isSingleton = computed(() => !!contentTypeSchema.value?.singleton);
-const entryId = computed(
-  () => route.params.id || (isSingleton.value ? collection : ""),
-);
-const isNew = computed(() => !entryId.value || singletonCreateMode.value);
-const backLink = computed(() =>
-  isSingleton.value ? "/dashboard" : `/content/${collection}`,
-);
+const entryId = computed(() => route.params.id || "");
+const isNew = computed(() => !entryId.value);
+const backLink = computed(() => `/content/${collection}`);
 const editorTitle = computed(() => {
-  if (isSingleton.value)
-    return (
-      contentTypeSchema.value?.label ||
-      form.value.title ||
-      t("contentEdit.singlePage")
-    );
   return isNew.value
     ? t("contentEdit.newEntryTitle")
     : t("contentEdit.editEntryTitle", { title: form.value.title });
 });
-const saveLabel = computed(() =>
-  isSingleton.value ? t("contentEdit.savePage") : t("contentEdit.saveEntry"),
-);
-const deleteLabel = computed(() =>
-  isSingleton.value
-    ? t("contentEdit.deletePage")
-    : t("contentEdit.deleteEntry"),
-);
+const saveLabel = computed(() => t("contentEdit.saveEntry"));
+const deleteLabel = computed(() => t("contentEdit.deleteEntry"));
 const contentTypeEditLink = computed(() => `/content-types/${collection}/edit`);
 const canEditContentType = computed(() => {
   const resource = `schema:${collection}`;
@@ -666,11 +844,7 @@ const canSaveEntry = computed(() =>
   isNew.value ? canCreateEntry.value : canUpdateEntry.value,
 );
 const isReadOnly = computed(() => !isNew.value && !canUpdateEntry.value);
-const deleteMessage = computed(() => {
-  return isSingleton.value
-    ? t("contentEdit.pageTrashMessage")
-    : t("contentEdit.entryTrashMessage");
-});
+const deleteMessage = computed(() => t("contentEdit.entryTrashMessage"));
 const statuses = computed(() =>
   ["draft", "published", "protected", "archived"].map((value) => ({
     value,
@@ -699,9 +873,13 @@ const form = ref({
   locale: "",
 });
 const contentTypeLocales = ref([]);
-const fullEntry = ref(null); // full raw entry including translations sub-object
+const fullEntry = ref(null);
+const localeDrafts = ref({});
+const resetFields = ref([]);
 const liveEntryBeforeRestore = ref(null);
-const currentLocale = ref(""); // active locale tab
+const editorLanguages = useLanguages();
+const currentLocale = ref("");
+watch(currentLocale, (value) => { if (value) editorLanguages.activeLocale.value = value; }); // active locale tab
 const defaultLocale = computed(
   () =>
     contentTypeSchema.value?.default_locale ||
@@ -712,12 +890,11 @@ const orderedContentTypeLocales = computed(() =>
   orderLocales(contentTypeLocales.value, defaultLocale.value),
 );
 const apiEndpointUrl = computed(() => {
-  if (!isNew.value || isSingleton.value) {
+  if (!isNew.value) {
     return contentEntryEndpoint({
       collection,
-      entryId: entryId.value || collection,
+      entryId: entryId.value,
       locale: currentLocale.value,
-      singleton: isSingleton.value,
     });
   }
 
@@ -730,7 +907,7 @@ const apiEndpointUrl = computed(() => {
   });
 });
 const unsupportedTranslationLocales = computed(() => {
-  const translations = fullEntry.value?.translations;
+  const translations = fullEntry.value?.publication;
   if (!translations || contentTypeLocales.value.length === 0) return [];
   return Object.keys(translations).filter(
     (loc) => !contentTypeLocales.value.includes(loc),
@@ -738,19 +915,14 @@ const unsupportedTranslationLocales = computed(() => {
 });
 function hasTranslation(loc) {
   return (
-    fullEntry.value?.translations != null && loc in fullEntry.value.translations
+    fullEntry.value?.publication != null && loc in fullEntry.value.publication
   );
 }
 const localeTabs = computed(() =>
   orderedContentTypeLocales.value.map((loc) => {
     const available = hasTranslation(loc);
     return {
-      value: loc,
-      label: localeName(loc),
-      flagCountry: localeFlagCountry(loc),
-      suffix: `(${loc})`,
-      metaIcon: loc === defaultLocale.value ? "mdi:home" : "",
-      metaLabel: loc === defaultLocale.value ? t("contentEdit.default") : "",
+      ...languageTabItem(loc, defaultLocale.value, { defaultLabel: t("contentEdit.default") }),
       icon: available ? "" : "mdi:plus",
       muted: !available,
       disabled: !available && isReadOnly.value,
@@ -768,69 +940,54 @@ function selectLocaleTab(tab) {
   }
 }
 
-function populateFormFromLocale(entry, loc) {
-  // translations[loc] is always the authoritative source for per-locale content.
-  // Root-level fields are only a search/sort copy and may be stale after a default
-  // locale change, so we always prefer the translation data and fall back to root.
-  const translation = entry.translations?.[loc] ?? null;
-  const source = translation ?? entry;
-  const defaultSource = localeContentSource(defaultLocale.value) ?? entry;
-  form.value.title = source.title ?? "";
-  for (const name of Object.keys(customSchema.value)) {
-    const config = customSchema.value[name];
-    form.value[name] = isUniversalField(config)
-      ? fieldValueForForm(defaultSource[name] ?? entry[name] ?? null, config)
-      : fieldValueForForm(source[name] ?? null, config);
+function formFromEntry(entry, loc = "") {
+  const source = contentTypeLocales.value.length > 0 && loc
+    ? entryForLocale(entry, loc, defaultLocale.value)
+    : { ...revisionFieldSource(entry), status: entry.status, slug: entry.slug, published_at: entry.published_at };
+  const values = {
+    status: source.status ?? "draft",
+    slug: source.slug ?? "",
+    published_at: source.published_at ? toDatetimeLocal(source.published_at) : "",
+    author_id: entry.author_id ?? null,
+    locale: loc,
+    title: source.title ?? "",
+  };
+  for (const [name, config] of Object.entries(customSchema.value)) {
+    values[name] = fieldValueForForm(source[name] ?? null, config);
   }
-  form.value.locale = loc;
+  return applyFieldDefaults(values);
+}
+
+function populateFormFromLocale(entry, loc) {
+  form.value = formFromEntry(entry, loc);
+  resetFields.value = [];
 }
 
 function populateFormFromEntry(entry, loc = "") {
-  form.value = {
-    status: entry.status ?? "draft",
-    slug: entry.slug ?? "",
-    published_at: entry.published_at ? toDatetimeLocal(entry.published_at) : "",
-    author_id: entry.author_id ?? form.value.author_id,
-    locale: loc,
-    title: "",
-  };
-
-  if (contentTypeLocales.value.length > 0 && loc) {
-    populateFormFromLocale(entry, loc);
-  } else {
-    const source = revisionFieldSource(entry);
-    form.value.title = source.title ?? "";
-    for (const name of Object.keys(customSchema.value)) {
-      form.value[name] = fieldValueForForm(
-        source[name] ?? null,
-        customSchema.value[name],
-      );
-    }
-  }
-
-  form.value = applyFieldDefaults(form.value);
+  populateFormFromLocale(entry, loc);
 }
 
 function switchLocale(loc) {
   if (!fullEntry.value) return;
+  if (currentLocale.value) localeDrafts.value[currentLocale.value] = { form: cloneLocaleValue(form.value), resets: [...resetFields.value] };
   currentLocale.value = loc;
-  populateFormFromLocale(fullEntry.value, loc);
+  if (localeDrafts.value[loc]) {
+    form.value = cloneLocaleValue(localeDrafts.value[loc].form);
+    resetFields.value = [...localeDrafts.value[loc].resets];
+  } else populateFormFromLocale(fullEntry.value, loc);
 }
 
 function createTranslation(loc) {
   if (isReadOnly.value) return;
   localeMenu.value = null;
-  currentLocale.value = loc;
-  const defaultSource =
-    localeContentSource(defaultLocale.value) ?? fullEntry.value ?? {};
-  form.value.title = "";
-  for (const name of Object.keys(customSchema.value)) {
-    const config = customSchema.value[name];
-    form.value[name] = isUniversalField(config)
-      ? fieldValueForForm(defaultSource[name] ?? null, config)
-      : null;
-  }
-  form.value.locale = loc;
+  switchLocale(loc);
+  if (!hasTranslation(loc)) { form.value.slug = ''; form.value.status = 'draft'; }
+}
+
+function resetTranslation(name) {
+  if (!resetFields.value.includes(name)) resetFields.value.push(name);
+  const source = entryForLocale(fullEntry.value, defaultLocale.value, defaultLocale.value);
+  form.value[name] = cloneLocaleValue(source[name]);
 }
 
 async function handleDeleteTranslation(loc) {
@@ -893,10 +1050,7 @@ function fieldLayoutClass(config) {
 function localeContentSource(loc) {
   const entry = fullEntry.value;
   if (!entry) return null;
-  const translation = entry.translations?.[loc];
-  return translation && typeof translation === "object"
-    ? { ...entry, ...translation }
-    : entry;
+  return entryForLocale(entry, loc, defaultLocale.value);
 }
 
 function syncLocaleFromDefault(loc) {
@@ -952,23 +1106,31 @@ async function confirmDeleteTranslation() {
     pendingDeleteLocale.value = "";
   }
 }
-const isDirty = ref(false);
+const formLoaded = ref(false);
+const newEntryBaseline = ref(null);
+const isDirty = computed(() => {
+  if (!formLoaded.value) return false;
+  if (parentUid.value !== parentBaseline.value) return true;
+  if (pageTemplate.value !== pageTemplateBaseline.value) return true;
+  const base = liveEntryBeforeRestore.value ?? fullEntry.value;
+  const drafts = {
+    ...localeDrafts.value,
+    [currentLocale.value]: { form: form.value, resets: resetFields.value },
+  };
+  return hasEntryDraftChanges(
+    drafts,
+    (language) => base ? formFromEntry(base, language) : newEntryBaseline.value,
+    (language) => !isNew.value && contentTypeLocales.value.length > 0 && !base?.publication?.[language],
+  );
+});
 const {
   leavePromptOpen,
   confirmLeave,
   bypass: bypassLeaveGuard,
 } = useUnsavedChangesGuard(isDirty);
-let _formLoaded = false;
 const entryMeta = ref({ created_at: null, updated_at: null, id: null });
 const contentTypeSchema = ref(null);
 
-watch(
-  form,
-  () => {
-    if (_formLoaded) isDirty.value = true;
-  },
-  { deep: true },
-);
 const customSchema = ref({});
 const fieldErrors = ref({});
 const loadError = ref("");
@@ -992,24 +1154,106 @@ const hasCustomFields = computed(
 
 // Website preview and live links; absent when the website is off.
 const siteLinks = ref(null);
+const fullPreview = useSitePreview();
+async function openWebsitePreview() {
+  try {
+    await fullPreview.open({
+      target: "entry", type: collection, entry: isNew.value ? "" : entryId.value, locale: currentLocale.value,
+      entries: canSaveEntry.value ? [{ type: collection, id: isNew.value ? "" : entryId.value, values: payloadForSave() }] : [],
+    });
+  } catch (error) {
+    toast.error(error.message);
+  }
+}
 
 // The type's page layout in the builder, previewed with this entry.
 const designLink = computed(() => ({
   path: `/page-builder/builder/layout/${collection}/detail`,
-  query: { entry: entryId.value, back: route.fullPath },
+  // Builders name entries by stable ID; slugs differ between languages.
+  query: { entry: fullEntry.value?.uid || entryId.value, back: route.fullPath },
 }));
 
+/** Templates the entry can choose; the one applying now explains "Automatic". */
+const templateOptions = computed(() => (siteLinks.value?.templates ?? []).map((template) => ({ id: template.id, name: templateName(t, template) })));
+const templateHint = computed(() => {
+  const applied = siteLinks.value?.template;
+  if (pageTemplate.value) return t("contentEdit.templatePicked");
+  if (!applied) return "";
+  return t("contentEdit.templateUses", { name: templateName(t, applied), reason: reasonLabel(t, applied.reason, applied, contentTypeSchema.value) });
+});
+
+/** The type's page fields and whether this entry has page content of its own in each. */
+const pageFields = computed(() => Object.entries(contentTypeSchema.value?.fields ?? {})
+  .filter(([, config]) => config?.type === "page")
+  .map(([key, config]) => ({
+    key,
+    label: !config.label || config.label === "Page content" || config.label === "site.page.fieldLabel"
+      ? t("site.page.fieldLabel")
+      : resolveLocalized(config.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || t("site.page.fieldLabel"),
+    customized: (fullEntry.value?.values?.[key]?.nodes?.length ?? 0) > 0,
+  })));
+
+/**
+ * Page fields with an area in the template this entry uses: only those show on the website.
+ * Without any, the design action opens the shared template instead.
+ */
+const pageAreas = computed(() => {
+  const placed = siteLinks.value?.page_fields ?? [];
+  return pageFields.value.filter((field) => placed.includes(field.key));
+});
+
+// A single action panel follows the selected content area.
+const selectedPageArea = ref("");
+const activePageArea = computed(() => pageAreas.value.find((field) => field.key === selectedPageArea.value) ?? pageAreas.value[0]);
+
+function pageLink(field) {
+  return {
+    path: `/page-builder/builder/page/${collection}/${fullEntry.value?.uid || entryId.value}`,
+    query: { field, back: route.fullPath },
+  };
+}
+
+const pendingPageReset = ref("");
+const resettingPage = ref(false);
+
+/** Back to the layout's default content; the entry's other unsaved edits stay in the form. */
+async function resetPage() {
+  const field = pendingPageReset.value;
+  if (!field || resettingPage.value || !fullEntry.value) return;
+  resettingPage.value = true;
+  try {
+    const res = await api.site.resetPage(collection, fullEntry.value.uid || entryId.value, field, fullEntry.value.revision);
+    fullEntry.value = { ...fullEntry.value, revision: res.data.revision, values: { ...fullEntry.value.values, [field]: null } };
+    // Saving the form while a restored version is shown builds on the live entry.
+    if (liveEntryBeforeRestore.value) liveEntryBeforeRestore.value = { ...liveEntryBeforeRestore.value, revision: res.data.revision };
+    pendingPageReset.value = "";
+    toast.success(t("site.page.resetDone"));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    resettingPage.value = false;
+  }
+}
+
+let siteLinksRequest = 0;
 async function loadSiteLinks() {
-  if (isNew.value || !entryId.value) {
-    siteLinks.value = null;
+  const request = ++siteLinksRequest;
+  if (isNew.value) {
+    try {
+      const status = (await api.site.status()).data;
+      if (request === siteLinksRequest) siteLinks.value = { previewable: !!status?.types?.[collection]?.routed };
+    } catch {
+      if (request === siteLinksRequest) siteLinks.value = null;
+    }
     return;
   }
+  if (!entryId.value) return;
 
   try {
     const res = await api.site.links(collection, entryId.value, currentLocale.value ? { locale: currentLocale.value } : {});
-    siteLinks.value = res.data;
+    if (request === siteLinksRequest) siteLinks.value = res.data;
   } catch {
-    siteLinks.value = null;
+    if (request === siteLinksRequest) siteLinks.value = null;
   }
 }
 
@@ -1023,31 +1267,28 @@ onMounted(async () => {
   document.addEventListener("keydown", onLocaleMenuKeydown);
 
   loadUsers();
+  loadSiteLinks();
 
   try {
     const typeRes = await api.contentTypes.get(collection);
     contentTypeSchema.value = typeRes.data;
     const builtins = new Set(["title", "slug"]);
+    // Page content is designed in the page builder, not edited as a form field.
     customSchema.value = Object.fromEntries(
       Object.entries(typeRes.data.fields ?? {}).filter(
-        ([k]) => !builtins.has(k),
+        ([k, config]) => !builtins.has(k) && config?.type !== "page",
       ),
     );
     contentTypeLocales.value = typeRes.data.locales ?? [];
-
-    if (isSingleton.value && route.params.id) {
-      router.replace(`/content/${collection}`);
-      return;
+    if (typeRes.data.hierarchical) {
+      loadSiblingPages();
+      if (isNew.value && typeof route.query.parent === "string") parentUid.value = parentBaseline.value = route.query.parent;
     }
 
     if (isNew.value) {
-      if (isSingleton.value) {
-        form.value.title = typeRes.data.label || collection;
-        form.value.slug = collection;
-      }
       if (defaultLocale.value) {
-        form.value.locale = defaultLocale.value;
-        currentLocale.value = defaultLocale.value;
+        form.value.locale = contentTypeLocales.value.includes(route.query.locale) ? route.query.locale : defaultLocale.value;
+        currentLocale.value = form.value.locale;
       }
     }
 
@@ -1068,55 +1309,21 @@ onMounted(async () => {
       };
 
       const initLocale =
-        contentTypeLocales.value.length > 0 ? defaultLocale.value : "";
+        contentTypeLocales.value.includes(route.query.locale) ? route.query.locale
+          : contentTypeLocales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : defaultLocale.value;
       currentLocale.value = initLocale;
 
-      form.value = {
-        status: entry.status ?? "draft",
-        slug: entry.slug ?? "",
-        published_at: entry.published_at
-          ? toDatetimeLocal(entry.published_at)
-          : "",
-        author_id: entry.author_id ?? null,
-        locale: initLocale,
-        title: "",
-      };
-
-      if (contentTypeLocales.value.length > 0 && initLocale) {
-        populateFormFromLocale(entry, initLocale, defaultLocale.value);
-      } else {
-        form.value.title = entry.title ?? "";
-        for (const name of Object.keys(customSchema.value)) {
-          form.value[name] = fieldValueForForm(
-            entry[name] ?? null,
-            customSchema.value[name],
-          );
-        }
-      }
-
-      form.value = applyFieldDefaults(form.value);
+      form.value = formFromEntry(entry, initLocale);
+      parentUid.value = parentBaseline.value = entry.parent || "";
+      pageTemplate.value = pageTemplateBaseline.value = entry.page_template || "";
     } catch (err) {
-      if (
-        isSingleton.value &&
-        entryId.value === collection &&
-        err.status === 404
-      ) {
-        singletonCreateMode.value = true;
-        form.value = applyFieldDefaults({
-          ...form.value,
-          title: contentTypeSchema.value?.label || collection,
-          slug: collection,
-          locale: defaultLocale.value,
-        });
-        currentLocale.value = defaultLocale.value;
-      } else {
-        loadError.value = err.message;
-      }
+      loadError.value = err.message;
     }
   }
 
   await nextTick();
-  _formLoaded = true;
+  newEntryBaseline.value = cloneLocaleValue(form.value);
+  formLoaded.value = true;
 });
 
 onBeforeUnmount(() => {
@@ -1134,7 +1341,7 @@ watch(
     }
     apiEndpointStore.setEndpoint(
       {
-        label: isNew.value && !isSingleton.value ? "Collection" : "Entry",
+        label: isNew.value ? "Collection" : "Entry",
         url,
       },
       apiEndpointOwner,
@@ -1150,60 +1357,67 @@ async function handleSave() {
   saving.value = true;
 
   try {
-    if (isSingleton.value) {
-      form.value.slug = collection;
-    }
-
     if (isNew.value) {
-      const res = await api.content.create(collection, payloadForSave());
-      toast.success(
-        isSingleton.value
-          ? t("contentEdit.pageCreated")
-          : t("contentEdit.entryCreated"),
-      );
-      if (isSingleton.value) {
-        singletonCreateMode.value = false;
-        isDirty.value = false;
-        fullEntry.value = res.data;
-        liveEntryBeforeRestore.value = null;
-        previewingRevision.value = null;
-        entryMeta.value = {
-          created_at: res.data.created_at ?? null,
-          updated_at: res.data.updated_at ?? null,
-          id: res.data.id ?? null,
-        };
-      } else {
-        isDirty.value = false;
-        router.push(`/content/${collection}/${res.data.id}`);
-      }
+      const res = await api.content.create(collection, {
+        ...payloadForSave(),
+        ...(contentTypeSchema.value?.hierarchical ? { parent: parentUid.value } : {}),
+      });
+      parentBaseline.value = parentUid.value;
+      toast.success(t("contentEdit.entryCreated"));
+      newEntryBaseline.value = cloneLocaleValue(form.value);
+      router.push(`/content/${collection}/${res.data.uid || res.data.id}`);
     } else {
-      const res = await api.content.update(
-        collection,
-        entryId.value,
-        payloadForSave(),
-      );
-      toast.success(
-        isSingleton.value
-          ? t("contentEdit.pageSaved")
-          : t("contentEdit.entrySaved"),
-      );
-      isDirty.value = false;
+      const drafts = { ...localeDrafts.value, [currentLocale.value]: { form: cloneLocaleValue(form.value), resets: [...resetFields.value] } };
+      let latest = liveEntryBeforeRestore.value ?? fullEntry.value;
+      for (const [language, draft] of Object.entries(drafts)) {
+        const payload = payloadForSave(draft.form, language, draft.resets, latest);
+        const changed = Object.keys(payload).some((key) => !['locale', 'revision', 'reset_fields'].includes(key)) || payload.reset_fields.length || !latest.publication?.[language];
+        if (!changed) continue;
+        try {
+          latest = (await api.content.update(collection, latest.uid || latest.id, payload)).data;
+          fullEntry.value = latest;
+          delete localeDrafts.value[language];
+        } catch (error) {
+          switchLocale(language);
+          throw error;
+        }
+      }
+      if (contentTypeSchema.value?.hierarchical && parentUid.value !== (latest.parent || "")) {
+        latest = (await api.content.update(collection, latest.uid || latest.id, {
+          parent: parentUid.value, locale: currentLocale.value || undefined, revision: latest.revision,
+        })).data;
+        fullEntry.value = latest;
+      }
+      parentBaseline.value = parentUid.value = latest.parent || "";
+      if (pageTemplate.value !== (latest.page_template || "")) {
+        latest = (await api.content.update(collection, latest.uid || latest.id, {
+          page_template: pageTemplate.value, locale: currentLocale.value || undefined, revision: latest.revision,
+        })).data;
+        fullEntry.value = latest;
+      }
+      pageTemplateBaseline.value = pageTemplate.value = latest.page_template || "";
+      const res = { data: latest };
+      localeDrafts.value = {};
+      toast.success(t("contentEdit.entrySaved"));
       fullEntry.value = res.data;
+      delete localeDrafts.value[currentLocale.value];
+      resetFields.value = [];
       liveEntryBeforeRestore.value = null;
       previewingRevision.value = null;
+      populateFormFromEntry(res.data, currentLocale.value);
       entryMeta.value = {
         created_at: res.data.created_at ?? null,
         updated_at: res.data.updated_at ?? null,
         id: res.data.id ?? null,
       };
-      if (!isSingleton.value && res.data.id && res.data.id !== entryId.value) {
-        router.replace(`/content/${collection}/${res.data.id}`);
+      if (res.data.id && (res.data.uid || res.data.id) !== entryId.value) {
+        router.replace(`/content/${collection}/${res.data.uid || res.data.id}`);
       }
     }
   } catch (err) {
-    saveError.value = err.message;
+    saveError.value = errorMessage(err);
     fieldErrors.value = err.fields ?? {};
-    toast.error(err.message);
+    toast.error(saveError.value);
   } finally {
     saving.value = false;
   }
@@ -1241,8 +1455,17 @@ function restoreRevision(revision) {
   toast.success(t("contentEdit.revisionLoaded"));
 }
 
-function payloadForSave() {
-  const payload = { ...form.value };
+function payloadForSave(values = form.value, language = currentLocale.value, resets = resetFields.value, base = liveEntryBeforeRestore.value ?? fullEntry.value) {
+  const payload = { ...values, revision: base?.revision, reset_fields: [...resets] };
+  for (const name of resets) delete payload[name];
+  for (const [name, config] of Object.entries(customSchema.value)) {
+    if (config.localized === false && language !== defaultLocale.value) delete payload[name];
+    if (base && config.localized !== false && !resets.includes(name)) {
+      const previous = entryForLocale(base, language, defaultLocale.value)[name];
+      if (JSON.stringify(fieldValueForForm(previous ?? null, config)) === JSON.stringify(payload[name])) delete payload[name];
+    }
+  }
+  if (base && payload.title === entryForLocale(base, language, defaultLocale.value).title) delete payload.title;
   payload.published_at = localDatetimeToUtcIso(payload.published_at);
 
   for (const [fieldName, config] of Object.entries(customSchema.value)) {
@@ -1254,7 +1477,28 @@ function payloadForSave() {
     }
   }
 
+  if (base) {
+    const source = entryForLocale(base, language, defaultLocale.value);
+    for (const key of Object.keys(payload)) {
+      if (['locale', 'revision', 'reset_fields'].includes(key)) continue;
+      if (JSON.stringify(payload[key]) === JSON.stringify(source[key] ?? null)) delete payload[key];
+    }
+  }
+  if (language !== defaultLocale.value) delete payload.author_id;
   return payload;
+}
+
+/** A failed save names the fields it is about, so they can be found even where the form has no place for the message. */
+function errorMessage(err) {
+  const fields = Object.entries(err.fields ?? {});
+  if (!fields.length) return err.message;
+  const label = (name) => {
+    if (["title", "slug", "status", "parent"].includes(name)) return t(`contentEdit.${name}`);
+    if (name === "published_at") return t("contentEdit.publishedAt");
+    const config = contentTypeSchema.value?.fields?.[name];
+    return resolveLocalized(config?.label, currentLocale.value || defaultLocale.value, defaultLocale.value) || name;
+  };
+  return fields.map(([name, message]) => `${label(name)}: ${message}`).join(" ");
 }
 
 function fieldValueForForm(value, config) {
@@ -1286,10 +1530,10 @@ async function cancelRestore() {
     populateFormFromEntry(currentEntry, restoreLocale);
   }
 
+  localeDrafts.value = {};
+  resetFields.value = [];
   liveEntryBeforeRestore.value = null;
   previewingRevision.value = null;
-  await nextTick();
-  isDirty.value = false;
 }
 
 function applyFieldDefaults(source) {
@@ -1329,7 +1573,7 @@ const REVISION_SKIP = new Set([
   "deleted_by",
   "updated_by",
   "data",
-  "translations",
+  "values", "publication", "revision",
 ]);
 
 const currentVsFirstDiff = computed(() => {
@@ -1342,6 +1586,8 @@ const currentVsFirstDiff = computed(() => {
   const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
   const changes = [];
   for (const key of allKeys) {
+    // The form never holds page content; it is saved from the page builder.
+    if (pageFields.value.some((field) => field.key === key)) continue;
     if (
       JSON.stringify(normDiffVal(current[key])) !==
       JSON.stringify(normDiffVal(previous[key]))
@@ -1384,17 +1630,7 @@ function revisionDiff(index) {
 }
 
 function revisionFieldSource(entry, loc = "") {
-  const source = { ...(entry ?? {}) };
-  const legacyData =
-    source.data && typeof source.data === "object" ? source.data : {};
-  const translation =
-    loc &&
-    source.translations?.[loc] &&
-    typeof source.translations[loc] === "object"
-      ? source.translations[loc]
-      : {};
-
-  return { ...source, ...legacyData, ...translation };
+  return entryForLocale(entry, loc || currentLocale.value || defaultLocale.value, defaultLocale.value);
 }
 
 function normDiffVal(v) {
@@ -1406,6 +1642,7 @@ function formatRevVal(v) {
   if (typeof v === "boolean") return v ? "true" : "false";
   if (Array.isArray(v))
     return `[${t("contentEdit.items", { count: v.length })}]`;
+  if (Array.isArray(v.nodes)) return t("site.page.own");
   if (typeof v === "object") return "{…}";
   const s = String(v);
   return s.length > 35 ? s.slice(0, 35) + "…" : s;
@@ -1416,13 +1653,9 @@ async function handleDelete() {
   try {
     deleting.value = true;
     await api.content.delete(collection, entryId.value);
-    toast.success(
-      isSingleton.value
-        ? t("contentEdit.pageMovedTrash")
-        : t("contentEdit.entryMovedTrash"),
-    );
+    toast.success(t("contentEdit.entryMovedTrash"));
     bypassLeaveGuard();
-    router.push(isSingleton.value ? "/dashboard" : `/content/${collection}`);
+    router.push(`/content/${collection}`);
   } catch (err) {
     saveError.value = err.message;
     toast.error(err.message);
@@ -1456,3 +1689,5 @@ function formatDateTime(iso) {
   });
 }
 </script>
+
+<style scoped src="../components/site/pageBuilderCta.css"></style>

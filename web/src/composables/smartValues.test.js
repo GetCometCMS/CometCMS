@@ -3,7 +3,7 @@ import { compatibleField, fieldShortcut, hasInvalidValues, parseReference, parse
 
 describe('smart tag grammar and structured values', () => {
   it('round trips each source, formatting and literal delimiters', () => {
-    for (const syntax of ['current.intro_text', 'item.heading', 'single.company.phone', 'entry.services["stable_uid"].description', 'site.year', 'current.author.name | fallback:"Our team" | truncate:30', 'current.published_at | date:"long"']) {
+    for (const syntax of ['current.intro_text', 'item.heading', 'entry.services["stable_uid"].description', 'site.year', 'current.author.name | fallback:"Our team" | truncate:30', 'current.published_at | date:"long"']) {
       const value = parseSmartValue(`{{ ${syntax} }}`)
       expect(parseSmartValue(serializeSmartValue(value))).toEqual(value)
     }
@@ -13,12 +13,15 @@ describe('smart tag grammar and structured values', () => {
     expect(parseSmartValue('{{ current.title | fallback:"A }} B | C" }}').filters[0].value).toBe('A }} B | C')
   })
   it('rejects expressions, malformed tags, unsafe positions and scalar/list ambiguity', () => {
-    for (const text of ['{{ current.name', '{{ fetch("evil") }}', '{{ current.a + current.b }}', '{{ current.title | execute:"x" }}', '{{ current.title | truncate:0 }}', '{{ current.date | date:"arbitrary" }}', '{{ current.a.b.c.d.e.f.g }}']) {
+    for (const text of ['{{ current.name', '{{ fetch("evil") }}', '{{ current.a + current.b }}', '{{ current.title | execute:"x" }}', '{{ current.title | truncate:0 }}', '{{ current.date | date:"arbitrary" }}', '{{ current.a.b.c.d.e.f.g }}', '{{ single.company.phone }}']) {
       expect(() => parseSmartValue(text)).toThrow()
     }
     expect(() => parseSmartValue('prefix {{ current.photo }}', 'media')).toThrow()
     expect(() => parseSmartValue('<a href="{{ current.url }}">link</a>', 'html')).toThrow()
     expect(() => parseSmartValue('{{ current.photo | date:"long" }}', 'media')).toThrow()
+    expect(() => parseSmartValue('{{ current.photos | truncate:5 }}', 'media_list')).toThrow()
+    expect(() => parseSmartValue('prefix {{ current.photos }}', 'media_list')).toThrow()
+    expect(parseSmartValue('{{ current.photos }}', 'media_list')).toEqual(reference('photos'))
   })
   it('keeps invalid edits detectable after selection changes or copy/paste', () => {
     expect(hasInvalidValues([{ props: { html: { type: 'invalid', text: '{{ unfinished' } } }])).toBe(true)
@@ -41,6 +44,9 @@ describe('binding compatibility, context and shortcuts', () => {
   it('filters incompatible fields without silently selecting the first item', () => {
     expect(compatibleField({ type: 'media' }, 'media')).toBe(true)
     expect(compatibleField({ type: 'media', multiple: true }, 'media')).toBe(false)
+    expect(compatibleField({ type: 'media', multiple: true }, 'media_list')).toBe(true)
+    expect(compatibleField({ type: 'media' }, 'media_list')).toBe(true)
+    expect(compatibleField({ type: 'text', multiple: true }, 'media_list')).toBe(false)
     expect(compatibleField({ type: 'repeater' }, 'text')).toBe(false)
     expect(compatibleField({ type: 'select', multiple: true }, 'text')).toBe(false)
     expect(compatibleField({ type: 'repeater' }, 'value')).toBe(true)
@@ -50,6 +56,8 @@ describe('binding compatibility, context and shortcuts', () => {
     expect(fieldShortcut({ key: 'title', type: 'text' }, make)).toMatchObject({ kind: 'heading', props: { text: reference('title') } })
     expect(fieldShortcut({ key: 'intro', type: 'textarea' }, make)).toMatchObject({ kind: 'text', props: { html: reference('intro') } })
     expect(fieldShortcut({ key: 'photo', type: 'media', config: {} }, make).kind).toBe('image')
+    expect(fieldShortcut({ key: 'photos', type: 'media', config: { multiple: true } }, make)).toMatchObject({ kind: 'gallery', props: { media: reference('photos') } })
+    expect(fieldShortcut({ key: 'photos', type: 'media', config: { multiple: true } }, make, { source: 'item' }).props.media).toEqual(reference('photos', 'item'))
     const repeater = fieldShortcut({ key: 'steps', type: 'repeater', config: { subfields: [{ key: 'title', type: 'text' }, { key: 'detail', type: 'html' }] } }, make)
     expect(repeater.kind).toBe('field')
     expect(repeater.children[0]).toMatchObject({ kind: 'heading', props: { text: reference('title', 'item'), level: 'h4' } })

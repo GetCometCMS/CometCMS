@@ -49,7 +49,7 @@
           >
             <div class="min-w-0">
               <div class="truncate text-sm font-medium text-slate-800">
-                {{ field.label || field.key || t("fieldBuilder.untitled") }}
+                {{ labelText(field.label) || field.key || t("fieldBuilder.untitled") }}
               </div>
               <div
                 class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500"
@@ -150,7 +150,7 @@
 
           <div class="flex-1 min-w-0">
             <div class="truncate text-sm font-medium text-slate-800">
-              {{ field.label || field.key || t("fieldBuilder.untitled") }}
+              {{ labelText(field.label) || field.key || t("fieldBuilder.untitled") }}
             </div>
             <div
               class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500"
@@ -229,13 +229,13 @@
           >
             <div>
               <label :for="`field-${index}-label`" class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.label") }}</label>
-              <input
+              <LocalizedInput
                 :id="`field-${index}-label`"
                 v-model="field.label"
-                type="text"
+
                 :placeholder="t('fieldBuilder.labelPlaceholder')"
-                class="form-input w-full rounded-lg border-slate-300 text-sm"
-                @input="onLabelInput(field)"
+                class="w-full"
+                @update:model-value="onLabelInput(field)"
               />
             </div>
 
@@ -289,7 +289,8 @@
               />
             </div>
 
-            <div>
+            <!-- Page content is optional: without it an entry shows its layout's default content. -->
+            <div v-if="field.type !== 'page'">
               <span class="text-xs text-slate-500 block mb-1">{{ t("fieldBuilder.required") }}</span>
               <button
                 type="button"
@@ -345,7 +346,8 @@
           <div class="mt-4 rounded-lg border border-slate-200">
             <div class="grid gap-0 lg:grid-cols-[26rem_1fr]">
               <div class="space-y-5 border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
-                <label class="flex items-start gap-3">
+                <p v-if="field.type === 'page'" class="text-sm text-slate-500">{{ t("fieldBuilder.pageHint") }}</p>
+                <label v-else class="flex items-start gap-3">
                   <input
                     type="checkbox"
                     :checked="field.localized === false"
@@ -490,12 +492,12 @@
                     >{{ t("fieldBuilder.description") }}
                     <span class="font-normal text-slate-400">{{ t("fieldBuilder.descriptionHint") }}</span></label
                   >
-                  <textarea
+                  <LocalizedInput multiline
                     :id="`field-${index}-description`"
                     v-model="field.description"
                     rows="2"
                     :placeholder="t('fieldBuilder.descriptionPlaceholder')"
-                    class="form-textarea w-full rounded-lg border-slate-300 text-sm"
+                    class="w-full"
                   />
                 </div>
 
@@ -581,6 +583,9 @@ import {
   setJsonFieldDefault,
   validColorDefault,
 } from "../composables/fieldSchemaUtils.js";
+import LocalizedInput from "./LocalizedInput.vue";
+import { isLocalized, resolveLocalized } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
 const props = defineProps({
@@ -593,6 +598,9 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 const { fieldTypeIcon } = useFieldTypeMeta();
 const { t } = useI18n();
+const languages = useLanguages();
+const labelText = (value) => String(resolveLocalized(value, languages.defaultLocale.value, languages.defaultLocale.value) ?? '').trim();
+
 
 const fieldTypeOptions = computed(() => props.fieldTypes.map(fieldTypeOption));
 let uid = 0;
@@ -675,7 +683,7 @@ function toInternal(arr) {
       ...f,
       label: f.label ?? "",
       target: f.target ?? f.collection ?? "",
-      _optionsText: optionsToText(f.options),
+      _optionsText: optionsToText(f.options, languages.defaultLocale.value),
       _defaultJsonText: formatJsonDefaultText(f),
       ...(f.type === "range" ? rangeDefaults(f) : {}),
       subfields: Array.isArray(f.subfields)
@@ -702,8 +710,8 @@ function toExternal(arr) {
       ...rest
     }) => {
       const field = { ...rest };
-      if (!field.label?.trim()) delete field.label;
-      if (!field.description?.trim()) delete field.description;
+      if (!isLocalized(field.label) && !labelText(field.label)) delete field.label;
+      if (!isLocalized(field.description) && !labelText(field.description)) delete field.description;
       if (field.localized !== false) delete field.localized;
       normalizeExternalLayout(field);
 
@@ -721,7 +729,7 @@ function toExternal(arr) {
 
       if (field.type === "select") {
         field.options = serializeSelectOptions(
-          parseSelectOptions(_optionsText),
+          parseSelectOptions(_optionsText), field.options, languages.defaultLocale.value,
         );
       } else {
         delete field.options;
@@ -761,7 +769,7 @@ function toInternalNestedField(field) {
   return {
     ...field,
     target: field.target ?? field.collection ?? "",
-    _optionsText: optionsToText(field.options),
+    _optionsText: optionsToText(field.options, languages.defaultLocale.value),
     _defaultJsonText: formatJsonDefaultText(field),
     ...(field.type === "range" ? rangeDefaults(field) : {}),
     _id: uid++,
@@ -778,8 +786,8 @@ function toExternalNestedField({
   ...rest
 }) {
   const field = { ...rest };
-  if (!field.label?.trim()) delete field.label;
-  if (!field.description?.trim()) delete field.description;
+  if (!isLocalized(field.label) && !labelText(field.label)) delete field.label;
+  if (!isLocalized(field.description) && !labelText(field.description)) delete field.description;
   if (field.localized !== false) delete field.localized;
   normalizeExternalLayout(field);
 
@@ -796,7 +804,7 @@ function toExternalNestedField({
   }
 
   if (field.type === "select") {
-    field.options = serializeSelectOptions(parseSelectOptions(_optionsText));
+    field.options = serializeSelectOptions(parseSelectOptions(_optionsText), field.options, languages.defaultLocale.value);
   } else {
     delete field.options;
   }
@@ -940,7 +948,7 @@ function onLabelInput(field) {
   // For brand-new fields (never saved), auto-derive the key from the label,
   // but only while the user hasn't manually edited the key field yet.
   if (field._originalKey === "" && !field._keyTouched) {
-    field.key = normalizeKey(field.label || "");
+    field.key = normalizeKey(labelText(field.label));
   }
 }
 

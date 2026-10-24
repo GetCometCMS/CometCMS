@@ -13,13 +13,6 @@ use CometCMS\Workspaces\WorkspaceContext;
 /** Validates genuine public form uploads and tracks files for rollback. */
 final class FormUploads
 {
-    private const SAFE_EXTENSIONS = [
-        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif',
-        'mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'mpeg', 'mpg', 'ogv', '3gp', '3g2',
-        'pdf', 'txt', 'csv', 'md', 'rtf', 'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'ppt', 'pptx', 'odp',
-        'zip', '7z', 'rar', 'gz', 'tar', 'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac',
-    ];
-
     private array $stored = [];
     private ?MediaRepository $media = null;
 
@@ -67,11 +60,13 @@ final class FormUploads
                         throw new \RuntimeException('Attachments exceed the total upload size limit.');
                     }
                     $mime = MimeDetector::detect($file['tmp_name'], $file['name']);
-                    // Never retain an executable extension, even when its contents look like plain text.
-                    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-                    if (!in_array($mime, is_array($allowed) ? $allowed : [], true)
-                        || !in_array($extension, self::SAFE_EXTENSIONS, true)) {
+                    if (!in_array($mime, is_array($allowed) ? $allowed : [], true)) {
                         throw new \RuntimeException('File type is not allowed.');
+                    }
+                    try {
+                        $file['extension'] = MimeDetector::validatedExtension($mime, $file['name']);
+                    } catch (\InvalidArgumentException $e) {
+                        throw new \RuntimeException($e->getMessage());
                     }
                     $pending[$key][] = $file;
                 }
@@ -95,7 +90,7 @@ final class FormUploads
             foreach ($uploads as $file) {
                 $this->media ??= new MediaRepository($this->workspace);
                 $base = Security::slug(pathinfo($file['name'], PATHINFO_FILENAME)) ?: 'upload';
-                $name = substr($base, 0, 80) . '-' . bin2hex(random_bytes(16)) . '.' . strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $name = substr($base, 0, 80) . '-' . bin2hex(random_bytes(16)) . '.' . $file['extension'];
                 if (!move_uploaded_file($file['tmp_name'], $this->media->directory() . '/' . $name)) {
                     throw new ValidationException([$key => 'Could not store uploaded file.']);
                 }

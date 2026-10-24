@@ -1,3 +1,4 @@
+import { entryForLocale, isLocalized, localizedState, resolveLocalized } from './localizedValues.js'
 import { computed, ref, watch } from 'vue'
 import { fieldDefaultValue } from './fieldDefaults.js'
 
@@ -22,8 +23,8 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
   const records = ref({})
   const saving = ref(false)
   const fields = computed(() => Object.fromEntries(Object.entries(type.value?.fields ?? {})
-    // Routing stays in the entry editor; this panel owns title and content fields.
-    .filter(([name]) => name !== 'slug' && name !== (type.value?.slug_field ?? 'slug'))))
+    // Routing stays in the entry editor and page content on the canvas; this panel owns title and custom fields.
+    .filter(([name, config]) => name !== 'slug' && name !== (type.value?.slug_field ?? 'slug') && config?.type !== 'page')))
   const defaultLocale = computed(() => type.value?.default_locale || type.value?.locales?.[0] || '')
   const activeLocale = computed(() => type.value?.locales?.length ? locale.value || defaultLocale.value : '')
   const key = computed(() => type.value?.name && entryId.value ? `${type.value.name}:${entryId.value}` : '')
@@ -40,11 +41,11 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
   }
 
   function valuesFor(entry, language) {
-    const source = entry.translations?.[language] ?? entry
-    const shared = entry.translations?.[defaultLocale.value] ?? entry
+    const source = entryForLocale(entry, language, defaultLocale.value)
+    const shared = entryForLocale(entry, defaultLocale.value, defaultLocale.value)
     return Object.fromEntries(Object.entries(fields.value).map(([name, config]) => {
       const value = (isUniversal(name) ? shared : source)[name]
-      return [name, formValue(value ?? fieldDefaultValue(config), config)]
+      return [name, formValue(value === undefined ? fieldDefaultValue(config) : value, config)]
     }))
   }
 
@@ -52,7 +53,7 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     if (!item.entry) return
     if (!item.drafts[language]) {
       const values = valuesFor(item.entry, language)
-      item.drafts[language] = { values, baseline: clone(values), error: '', errors: {} }
+      item.drafts[language] = { values, baseline: clone(values), resets: [], error: '', errors: {} }
     }
     // Converting a canvas element to a field updates the schema while the panel is open.
     const defaults = valuesFor(item.entry, language)
@@ -72,7 +73,7 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
 
   function dirty(item, language) {
     const form = item.drafts[language]
-    return JSON.stringify(editableValues(form.values, language)) !== JSON.stringify(editableValues(form.baseline, language))
+    return form.resets.length > 0 || JSON.stringify(editableValues(form.values, language)) !== JSON.stringify(editableValues(form.baseline, language))
   }
 
   const isDirty = computed(() => Object.values(records.value).some((item) => Object.keys(item.drafts).some((language) => dirty(item, language))))
@@ -83,11 +84,21 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
       return sharedDraft ? sharedDraft.values[name]
         : (record.value?.entry ? valuesFor(record.value.entry, defaultLocale.value)[name] : null)
     }
+    if (draft.value && activeLocale.value !== defaultLocale.value) {
+      const value = record.value?.entry.values?.[name]
+      const inherited = !isLocalized(value) || !Object.prototype.hasOwnProperty.call(value.values, activeLocale.value)
+      const unchanged = JSON.stringify(draft.value.values[name]) === JSON.stringify(draft.value.baseline[name])
+      if ((inherited && unchanged) || draft.value.resets.includes(name)) {
+        const sharedDraft = record.value?.drafts[defaultLocale.value]
+        return sharedDraft ? sharedDraft.values[name] : valuesFor(record.value.entry, defaultLocale.value)[name]
+      }
+    }
     return draft.value?.values[name] ?? null
   }
 
   function update(name, value) {
     if (!draft.value || fieldReadonly(name) || saving.value) return
+    draft.value.resets = draft.value.resets.filter((key) => key !== name)
     draft.value.values[name] = value
     delete draft.value.errors[name]
   }
@@ -112,10 +123,35 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     }
   }
 
+  /** Drop unsaved edits and loaded entries, e.g. when the builder moves to another page. */
+  function discard() {
+    records.value = {}
+    load()
+  }
+
   watch([key, activeLocale, fields], () => {
     if (record.value?.entry) ensureDraft(record.value, activeLocale.value)
     else load()
   }, { immediate: true })
+
+  /** All unsaved entry values, with shared fields applied before translations. */
+  function previewEntries() {
+    const entries = []
+    for (const item of Object.values(records.value)) {
+      const languages = Object.keys(item.drafts).sort((a, b) => Number(b === defaultLocale.value) - Number(a === defaultLocale.value))
+      for (const language of languages) {
+        if (!dirty(item, language)) continue
+        const form = item.drafts[language]
+        const values = Object.fromEntries(Object.entries(editableValues(form.values, language))
+          .filter(([name, value]) => !form.resets.includes(name) && JSON.stringify(value) !== JSON.stringify(form.baseline[name]))
+          .map(([name, value]) => [name, savedValue(value, fields.value[name])]))
+        if (form.resets.length) values.reset_fields = [...form.resets]
+        if (language) values.locale = language
+        entries.push({ type: item.collection, id: item.entry.uid || item.identifier, values })
+      }
+    }
+    return entries
+  }
 
   /** Save each edited entry/language, preserving failed drafts and unrelated entry metadata. */
   async function save() {
@@ -129,6 +165,11 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
           const sent = clone(form.values)
           const payload = Object.fromEntries(Object.entries(editableValues(sent, language))
             .map(([name, value]) => [name, savedValue(value, fields.value[name])]))
+          for (const name of Object.keys(payload)) {
+            if (JSON.stringify(form.values[name]) === JSON.stringify(form.baseline[name])) delete payload[name]
+          }
+          payload.revision = item.entry.revision
+          payload.reset_fields = [...form.resets]
           if (language) payload.locale = language
           form.error = ''
           form.errors = {}
@@ -141,6 +182,7 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
               if (JSON.stringify(form.values[name]) === JSON.stringify(sent[name])) form.values[name] = normalized[name]
             }
             form.baseline = normalized
+            form.resets = []
             saved.push(item.entry)
           } catch (error) {
             form.error = error.message
@@ -158,5 +200,16 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     }
   }
 
-  return { fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save }
+  /** The shown entry was saved elsewhere (its page content): the next save builds on that version. */
+  function setRevision(revision) {
+    if (record.value?.entry) record.value.entry.revision = revision
+  }
+
+  function reset(name) {
+    if (!draft.value || fieldReadonly(name) || activeLocale.value === defaultLocale.value) return
+    draft.value.resets.push(name)
+    draft.value.values[name] = formValue(resolveLocalized(record.value.entry.values?.[name], defaultLocale.value, defaultLocale.value), fields.value[name])
+  }
+
+  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard, previewEntries }
 }

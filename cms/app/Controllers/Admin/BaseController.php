@@ -170,7 +170,15 @@ abstract class BaseController
     {
         $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
-        if (!in_array($method, ['GET', 'HEAD'], true) || session_status() !== PHP_SESSION_ACTIVE) {
+        if (in_array($method, ['GET', 'HEAD'], true)) {
+            $this->releaseSession();
+        }
+    }
+
+    /** Release the session lock before slow work that no longer writes session data. */
+    protected function releaseSession(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
             return;
         }
 
@@ -198,7 +206,6 @@ abstract class BaseController
                         'name' => $name,
                         'label' => $type['label'] ?? $name,
                         'icon' => $type['icon'] ?? null,
-                        'singleton' => !empty($type['singleton']),
                     ];
                 }
             }

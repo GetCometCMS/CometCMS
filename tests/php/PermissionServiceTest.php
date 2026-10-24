@@ -155,3 +155,13 @@ test('delegation is refused when the actor lacks an action or scope', function (
         ['effect' => 'deny', 'actions' => ['*'], 'resources' => ['*']],
     ]));
 });
+
+test('permissions require plural list keys and preserve canonical restrictions', function (): void {
+    assert_same([], PermissionService::normalizeGrants([
+        ['action' => 'content.read', 'resource' => 'content:*'],
+        ['actions' => 'content.read', 'resources' => ['content:*']],
+        ['actions' => ['content.read'], 'resources' => 'content:*'],
+    ]));
+    $grant = ['effect' => 'deny', 'actions' => ['content.update'], 'resources' => ['content:*'], 'fields' => ['secret'], 'conditions' => ['own' => true]];
+    assert_same([$grant], PermissionService::normalizeGrants([$grant]));
+});

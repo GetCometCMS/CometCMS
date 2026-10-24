@@ -2,6 +2,8 @@
 
 CometCMS includes a built-in backup and restore system for saving CMS data to ZIP files and restoring selected parts later.
 
+ZIP backups require the PHP `zip` extension. Inspection and restore accept CometCMS **2.0.0 or newer** archives; pre-2.0 backups are unsupported.
+
 ## Backup storage
 
 Backups are stored in:
@@ -10,7 +12,7 @@ Backups are stored in:
 cms/storage/backups/
 ```
 
-The admin panel can list, inspect, download, delete, upload, and restore backups from this folder.
+The admin panel can list, inspect, download, delete, upload, and restore backups from this folder. Content, media, and website data are taken from the **active workspace** and restored into the active workspace. Users, access tokens, and webhooks are installation-wide. Select the destination workspace before restoring.
 
 ![Backup and restore screen in the CometCMS admin](../screenshots/view-backups.png)
 
@@ -24,7 +26,9 @@ When creating a backup, you can choose which parts to include:
 | Type entries  | On      | Entries and revision history               |
 | Media         | On      | Uploaded files, categories, and metadata   |
 | Webhooks      | On      | Outbound webhook URLs, secrets, and events |
-| Users         | Off     | User accounts, roles, and application access tokens |
+| Website       | On      | Website settings, menus, theme, templates, components and installed fonts |
+| Access tokens | On      | Application access token records (hashes excluded by default) |
+| Users         | Off     | User accounts and roles |
 
 > **Passwords & access tokens:** By default, password hashes and access token hashes are stripped from backups. To include them for full account and token restore, set `'include_password_hashes' => true` under `'backups'` in `cms/config/config.php`.
 
@@ -36,19 +40,21 @@ Users are intentionally off by default to prevent accidentally overwriting accou
 
 ## Admin workflow
 
-1. Go to **Backup / Restore** in the admin panel.
+1. Go to **Administration → Backups** in the admin panel.
 2. Create a new backup or upload an existing backup ZIP.
 3. Inspect the backup preview.
 4. Select the parts to restore.
 5. Choose whether to overwrite existing files and records.
 6. Click **Restore selected parts**.
 
+CAPTCHA credentials in `workspaces/{workspace}/form-captcha.json` and installation configuration are outside website ZIP backups. Configure CAPTCHA keys again on the destination. Generated media variants are omitted and rebuilt as needed.
+
 ## Full filesystem backup
 
-For a complete server-side backup, copy the entire `storage/` directory via FTP or SSH:
+For a complete server-side backup, copy `config/config.php` and the entire `storage/` directory via FTP or SSH:
 
 ```bash
 cp -r cms/storage/ /path/to/backup/storage-$(date +%Y%m%d)/
 ```
 
-To restore, copy the backup back to `cms/storage/`.
+To restore, copy the saved storage back to `cms/storage/` and restore `config/config.php` to its original location.

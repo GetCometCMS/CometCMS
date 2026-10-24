@@ -94,26 +94,35 @@
     >
       {{ t("activity.empty") }}
     </div>
-    <ul v-else class="divide-y divide-slate-100">
+    <ul v-else>
       <li
         v-for="(item, i) in items"
         :key="i"
-        class="flex items-start gap-3 py-2.5 text-sm"
+        class="relative flex items-start gap-3 py-2 text-sm"
       >
         <span
-          class="mt-1 h-2 w-2 shrink-0 rounded-full"
-          :class="dotClass(item)"
+          v-if="i < items.length - 1"
+          class="absolute -bottom-2 left-3.5 top-9 w-px bg-slate-200"
+          aria-hidden="true"
         />
-        <span class="min-w-0 flex-1">
+        <span
+          class="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 ring-inset"
+          :class="iconClass(item)"
+          aria-hidden="true"
+        >
+          <Icon :icon="eventIcon(item)" class="h-4 w-4" />
+        </span>
+        <span class="min-w-0 flex-1 pt-0.5 leading-5 [overflow-wrap:anywhere]">
           <span class="font-medium text-slate-800">{{ label(item) }}</span>
           <span
             v-if="sub(item)"
-            class="ml-1.5 text-slate-500 truncate text-xs"
+            class="ml-1.5 text-xs text-slate-500"
             >{{ sub(item) }}</span
           >
         </span>
         <time
-          class="shrink-0 text-xs text-slate-400 tabular-nums whitespace-nowrap"
+          class="shrink-0 pt-1 text-xs text-slate-400 tabular-nums whitespace-nowrap"
+          :datetime="item.time"
           :title="item.time"
           >{{ relativeTime(item.time) }}</time
         >
@@ -248,6 +257,8 @@ const EVENT_LABELS = {
   "site.menus_updated": "activity.siteMenusUpdated",
   "site.layout_updated": "activity.siteLayoutUpdated",
   "site.layout_reset": "activity.siteLayoutReset",
+  "site.page_updated": "activity.sitePageUpdated",
+  "site.page_reset": "activity.sitePageReset",
   "site.region_updated": "activity.siteRegionUpdated",
   "site.region_reset": "activity.siteRegionReset",
   "site.component_created": "activity.siteComponentCreated",
@@ -283,24 +294,84 @@ function sub(item) {
   return null;
 }
 
-function dotClass(item) {
+const EVENT_ICONS = {
+  "content.created": "mdi:file-document-plus-outline",
+  "content.updated": "mdi:file-document-edit-outline",
+  "content.published": "mdi:publish",
+  "content.unpublished": "mdi:publish-off",
+  "content.deleted": "mdi:delete-outline",
+  "content.restored": "mdi:restore",
+  "content_type.created": "mdi:shape-plus-outline",
+  "content_type.updated": "mdi:shape-outline",
+  "content_type.deleted": "mdi:delete-outline",
+  "media.uploaded": "mdi:upload-outline",
+  "media.deleted": "mdi:delete-outline",
+  "media.bulk_deleted": "mdi:delete-sweep-outline",
+  "user.created": "mdi:account-plus-outline",
+  "user.updated": "mdi:account-edit-outline",
+  "user.deleted": "mdi:account-remove-outline",
+  "role.created": "mdi:shield-plus-outline",
+  "role.updated": "mdi:shield-edit-outline",
+  "role.deleted": "mdi:shield-remove-outline",
+  "token.created": "mdi:key-plus",
+  "token.revoked": "mdi:key-remove",
+  "token.deleted": "mdi:key-remove",
+  login: "mdi:login",
+  logout: "mdi:logout",
+  "failed login": "mdi:account-alert-outline",
+  "backup created": "mdi:database-plus-outline",
+  "backup restored": "mdi:database-refresh-outline",
+  "backup uploaded": "mdi:database-arrow-up-outline",
+  "update downloaded": "mdi:download-outline",
+  "update installed": "mdi:package-variant-closed-check",
+  "webhook failed": "mdi:webhook",
+  "content purged": "mdi:delete-sweep-outline",
+  "site.settings_updated": "mdi:cog-outline",
+  "site.theme_updated": "mdi:palette-outline",
+  "site.menus_updated": "mdi:menu",
+  "site.layout_updated": "mdi:view-dashboard-outline",
+  "site.layout_reset": "mdi:restore",
+  "site.page_updated": "mdi:file-document-edit-outline",
+  "site.page_reset": "mdi:restore",
+  "site.region_updated": "mdi:view-grid-outline",
+  "site.region_reset": "mdi:restore",
+  "site.component_created": "mdi:puzzle-plus-outline",
+  "site.component_updated": "mdi:puzzle-edit-outline",
+  "site.component_renamed": "mdi:form-textbox",
+  "site.component_deleted": "mdi:puzzle-remove-outline",
+  "site.form_created": "mdi:form-select",
+  "site.form_updated": "mdi:form-select",
+  "site.form_deleted": "mdi:delete-outline",
+  "site.form_submitted": "mdi:send-outline",
+  "site.revision_restored": "mdi:history",
+};
+
+function eventIcon(item) {
+  return EVENT_ICONS[item.message] ?? (
+    item.level === "error" ? "mdi:alert-circle-outline" :
+    item.level === "warning" ? "mdi:alert-outline" : "mdi:information-outline"
+  );
+}
+
+function iconClass(item) {
   const msg = item.message ?? "";
-  if (item.level === "error") return "bg-red-500";
-  if (item.level === "warning" || msg === "failed login") return "bg-amber-400";
+  if (item.level === "error") return "bg-red-50 text-red-600 ring-red-200";
+  if (item.level === "warning" || msg === "failed login")
+    return "bg-amber-50 text-amber-600 ring-amber-200";
   if (
     msg.endsWith(".deleted") ||
     msg.endsWith(".bulk_deleted") ||
     msg === "content purged"
   )
-    return "bg-red-400";
+    return "bg-red-50 text-red-600 ring-red-200";
   if (
     msg.endsWith(".created") ||
     msg.endsWith(".uploaded") ||
     msg.endsWith(".restored") ||
     msg.endsWith(".published")
   )
-    return "bg-emerald-400";
-  return "bg-blue-400";
+    return "bg-emerald-50 text-emerald-600 ring-emerald-200";
+  return "bg-blue-50 text-blue-600 ring-blue-200";
 }
 
 function relativeTime(iso) {

@@ -6,13 +6,15 @@ namespace CometCMS\Site;
 
 use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\Security;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\Messages;
 
 /**
  * Turns layout trees into HTML.
  *
  * Every dynamic value is escaped with Security::e() or passed through the
- * HTML allow-list; style values only ever become class names from a fixed
- * vocabulary (see LayoutSchema), so layouts cannot inject markup.
+ * HTML allow-list; style values use a fixed vocabulary (see LayoutSchema)
+ * and generated CSS declarations, so layouts cannot inject markup.
  *
  * Render state ($state) carries what the nodes are bound to:
  *   entry      the entry the layout shows (null for header/footer without one)
@@ -21,6 +23,7 @@ use CometCMS\Core\Security;
  *   row_fields subfield configs of that repeater, keyed by subfield key
  *   depth      nesting of card renders, to stop relation cycles
  *   nested     inside a column: rows here size their columns by the column's width
+ *   embedded   sections of page content placed in a column: they fill the column
  *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
  *   page       current page number for paginated collections
@@ -34,11 +37,65 @@ final class NodeRenderer
 
     private const MAX_COMPONENT_DEPTH = 5;
 
+    /** Utility class of each style value, without its `c-` (see styleClasses). */
+    private const STYLE_TOKENS = [
+        'padding_y' => 'py-',
+        'padding_x' => 'px-',
+        'padding_top' => 'pt-',
+        'padding_right' => 'pr-',
+        'padding_bottom' => 'pb-',
+        'padding_left' => 'pl-',
+        'margin_top' => 'mt-',
+        'margin_right' => 'mr-',
+        'margin_left' => 'ml-',
+        'margin_bottom' => 'mb-',
+        'background' => 'bg-',
+        'text_color' => 'fg-',
+        'link_color' => 'lc-',
+        'align' => 'ta-',
+        'font_size' => 'fs-',
+        'font_weight' => 'fw-',
+        'font_family' => 'ff-',
+        'text_shadow' => 'ts-',
+        'radius' => 'r-',
+        'shadow' => 'sh-',
+        'max_width' => 'mw-',
+        'border_color' => 'bdc-',
+        'position' => 'pos-',
+        'pin' => 'pin-',
+        'z_index' => 'z-',
+        'opacity' => 'op-',
+    ];
+
+    /** Offset variables of each device; site.css resolves them, mobile following tablet. */
+    private const OFFSET_VARIABLES = [
+        'normal' => ['offset_x' => '--c-ox', 'offset_y' => '--c-oy'],
+        'tablet' => ['offset_x' => '--c-t-ox', 'offset_y' => '--c-t-oy'],
+        'mobile' => ['offset_x' => '--c-m-ox', 'offset_y' => '--c-m-oy'],
+    ];
+
+    /** Utility class of each prop a device may change on the node's own element. */
+    private const PROP_TOKENS = [
+        'section' => ['vertical_align' => 'v-'],
+        'row' => ['gap' => 'gap-', 'align' => 'items-'],
+        'column' => ['vertical_align' => 'self-', 'spacing' => 'stack-', 'content_justify' => 'flow-justify-', 'content_align' => 'flow-align-'],
+        'spacer' => ['size' => 'spacer-'],
+    ];
+
+    /** Button color props and their classes on the button itself. */
+    private const BUTTON_COLOR_TOKENS = ['button_color' => 'btn-bg-', 'button_text_color' => 'btn-fg-', 'button_border_color' => 'btn-bdc-'];
+
     private int $annotationsSuspended = 0;
 
     private int $menuSequence = 0;
 
     private int $formSequence = 0;
+
+    private int $tabsSequence = 0;
+
+    private int $accordionSequence = 0;
+
+    private int $searchSequence = 0;
 
     private SmartValue $smart;
 
@@ -72,6 +129,11 @@ final class NodeRenderer
 
     private function node(array $node, array $state, ?int $order = null): string
     {
+        $node = LayoutSchema::migrateHoverAnimation($node);
+        if (($node['kind'] ?? '') === 'accordion') $node['props'] = LayoutSchema::migrateAccordionProps($node['props'] ?? []);
+        foreach ($node['props'] ?? [] as $key => $value) if (LocalizedValue::is($value)) $node['_localized'][$key] = true;
+        $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
+        $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $warnings = false;
         foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
             $binding = $node['props'][$key] ?? null;
@@ -84,10 +146,21 @@ final class NodeRenderer
             if (!SmartValue::isDynamic($binding) || $key === 'source') continue;
             $resolved = $this->resolveBinding($binding, $target, $state);
             $node['props'][$key] = $resolved['value'];
+            if ($target === 'media_list') $node['_gallery_label'] = $resolved['label'] ?? '';
             if (in_array($target, ['text', 'html'], true)) {
                 $node['_resolved'][$key] = true;
             }
             $warnings = $warnings || $resolved['missing'];
+        }
+        if (($node['kind'] ?? '') === 'accordion') {
+            foreach ($node['props']['items'] ?? [] as $index => $item) {
+                foreach (['title' => 'text', 'html' => 'html'] as $key => $target) {
+                    if (!SmartValue::isDynamic($item[$key] ?? null)) continue;
+                    $resolved = $this->resolveBinding($item[$key], $target, $state);
+                    $node['props']['items'][$index][$key] = $resolved['value'];
+                    $warnings = $warnings || $resolved['missing'];
+                }
+            }
         }
         foreach (SmartValue::STYLE_PROPERTIES as $key => $target) {
             $binding = $node['style'][$key] ?? null;
@@ -101,24 +174,35 @@ final class NodeRenderer
             'row' => $this->row($node, $state),
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
+            LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
+            LayoutSchema::MODAL => $this->modal($node, $state),
+            LayoutSchema::SITE_CONTENT => $this->siteContent($node, $state),
+            'modal_title' => $this->modalTitle($node, $state),
+            'modal_close' => $this->modalClose($node, $state),
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
             'image' => $this->image($node, $state),
+            'video' => $this->video($node),
+            'gallery' => $this->gallery($node, $state),
             'button' => $this->button($node, $state),
             'accordion' => $this->accordion($node),
+            'tabs' => $this->tabs($node, $state),
+            'tab' => $this->element($node, $this->render($node['children'], $state)),
             'icon' => $this->icon($node, $state),
             'spacer' => $this->element($node, '', ['c-spacer', 'c-spacer-' . $node['props']['size']]),
             'divider' => $this->element($node, '<hr class="c-divider' . (!empty($node['style']['text_color']) ? ' c-divider-colored' : '') . '">'),
             'collection' => $this->collection($node, $state),
             'form' => $this->form($node, $state),
             'menu' => $this->menu($node, $state),
+            'search' => $this->search($node),
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
+            'theme_toggle' => $this->themeToggle($node),
             default => '',
         };
         if ($warnings && $this->annotating()) {
-            $warning = '<div class="c-placeholder c-placeholder-warning" role="status">Unresolved content reference (using fallback if configured)</div>';
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('unresolvedFallback') . '>Unresolved content reference (using fallback if configured)</div>';
             // Keep the warning inside the annotated root so hover, selection and
             // the node badge use its full bounds even when the content is empty.
             $html = $html === ''
@@ -133,7 +217,7 @@ final class NodeRenderer
      * The value of a bound property or style: text and HTML are rendered,
      * media must come from a media field, links become URLs.
      *
-     * @return array{value: mixed, missing: bool}
+     * @return array{value: mixed, missing: bool, label?: string}
      */
     private function resolveBinding(array $binding, string $target, array $state): array
     {
@@ -148,6 +232,14 @@ final class NodeRenderer
 
         $value = $resolved['value'];
         $missing = $resolved['missing'];
+        if ($target === 'media_list') {
+            $valid = ($resolved['config']['type'] ?? '') === 'media';
+            return [
+                'value' => $valid ? (is_array($value) ? $value : (is_string($value) && $value !== '' ? [$value] : [])) : [],
+                'missing' => $missing || !$valid,
+                'label' => $valid ? $this->fieldLabel(implode('.', $binding['path']), $resolved['config']) : '',
+            ];
+        }
         $fallback = array_filter($binding['filters'] ?? [], static fn(array $filter): bool => $filter['name'] === 'fallback') !== [];
         if ($target === 'media' && ($resolved['config']['type'] ?? '') !== 'media' && !($missing && $fallback)) {
             $value = '';
@@ -197,6 +289,9 @@ final class NodeRenderer
         }
         if ($props['overlap']) {
             $classes[] = 'c-overlap';
+            if ($props['overlap_background'] === 'background') {
+                $classes[] = 'c-overlap-opaque';
+            }
         }
         // Scroll effects only show on a section that is still in view once the page scrolls.
         if ($props['sticky'] !== 'none' || $props['overlap']) {
@@ -207,14 +302,39 @@ final class NodeRenderer
 
         $background = $this->background($node['style']);
 
-        $inner = $this->render($node['children'], ['nested' => false] + $state);
+        $embedded = ($state['embedded'] ?? false) === true;
+        $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false] + $state);
         if ($inner === '' && !$this->annotating()) {
             return '';
         }
 
         $container = $props['width'] === 'full' ? $inner : '<div class="c-container c-container-' . $props['width'] . '">' . $inner . '</div>';
+        $dividers = $this->divider($node, 'top') . $this->divider($node, 'bottom');
+        if ($dividers !== '') {
+            $classes[] = 'c-has-shape';
+        }
 
-        return '<section' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $container . '</section>';
+        return '<section' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $dividers . $container . '</section>';
+    }
+
+    /** A section's shape along one edge, behind its content; its height may differ per device. */
+    private function divider(array $node, string $edge): string
+    {
+        $props = $node['props'];
+        $prefix = 'divider_' . $edge;
+        $svg = Shapes::dividerSvg((string) ($props[$prefix] ?? 'none'), $edge, ($props[$prefix . '_flip'] ?? false) === true, ($props[$prefix . '_invert'] ?? false) === true);
+        if ($svg === '') {
+            return '';
+        }
+
+        $classes = ['c-shape', 'c-shape-' . $edge, 'c-fg-' . $props[$prefix . '_color']];
+        $heights = ['--c-shape-h:' . (int) $props[$prefix . '_height']];
+        foreach (['tablet' => '--c-t-shape-h', 'mobile' => '--c-m-shape-h'] as $device => $variable) {
+            $height = $node['responsive'][$device]['props'][$prefix . '_height'] ?? null;
+            if (is_int($height)) $heights[] = $variable . ':' . $height;
+        }
+
+        return '<div class="' . Security::e(implode(' ', $classes)) . '" style="' . implode(';', $heights) . '" aria-hidden="true">' . $svg . '</div>';
     }
 
     private function row(array $node, array $state): string
@@ -241,8 +361,17 @@ final class NodeRenderer
             $order = $reverse ? -$index : null;
             $inner .= $this->node($column, $columnState, $order);
         }
-        if (trim(strip_tags($inner, '<img><video><audio><hr><svg><input>')) === '' && !$this->annotating()) {
-            return '';
+        // Spacers contribute height without text or media, including inside nested rows.
+        $hasSpacer = preg_match('/class="[^"]*\bc-spacer\b/', $inner) === 1;
+        if (!$hasSpacer && trim(strip_tags($inner, '<img><video><audio><iframe><hr><svg><input>')) === '' && !$this->annotating()) {
+            // The entry builder renders shared rows without annotations. Keep
+            // rows around empty page areas so their drop targets and area
+            // switchers survive, including all enclosing rows and sections.
+            $hasPageAreas = $this->ctx->annotate && $this->ctx->pageDraft !== null
+                && LayoutSchema::pagePlaces($node['children']) !== [];
+            if (!$hasPageAreas) {
+                return '';
+            }
         }
 
         $background = $this->background($node['style']);
@@ -277,7 +406,7 @@ final class NodeRenderer
 
         $inner = $this->render($node['children'], ['nested' => true, 'nested_cols' => false] + $state);
         if ($inner === '' && $this->annotating()) {
-            $inner = '<div class="c-placeholder c-placeholder-drop">Empty column</div>';
+            $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('emptyColumn') . '>Empty column</div>';
         }
 
         $background = $this->background($node['style']);
@@ -300,9 +429,10 @@ final class NodeRenderer
         $tree = $component['nodes'][0] ?? null;
 
         if ($tree === null || $tree['kind'] !== $root || in_array($id, $stack, true) || count($stack) >= self::MAX_COMPONENT_DEPTH) {
-            return $this->componentPlaceholder($node, $tree === null ? 'Missing component' : 'A component cannot contain itself');
+            return $tree === null ? $this->componentPlaceholder($node, 'missingComponent', 'Missing component') : $this->componentPlaceholder($node, 'componentLoop', 'A component cannot contain itself');
         }
 
+        $tree = LayoutSchema::applyOverrides([$tree], $node['overrides'] ?? [])[0];
         if ($root === 'column') {
             $tree['props']['span'] = $node['props']['span'];
         }
@@ -320,20 +450,121 @@ final class NodeRenderer
             return $html;
         }
         if ($html === '') {
-            return $this->componentPlaceholder($node, 'Empty component');
+            return $this->componentPlaceholder($node, 'emptyComponent', 'Empty component');
         }
 
         return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
     }
 
-    private function componentPlaceholder(array $node, string $message): string
+    /**
+     * The page's own content: the sections the entry designed in its page
+     * field, or the layout's default content (the node's children) while it
+     * has none. The layout builder always shows the default content, which
+     * it edits; the page builder of one entry shows that entry's draft.
+     */
+    private function pageContent(array $node, array $state): string
+    {
+        $field = (string) $node['props']['field'];
+        $draft = $this->ctx->pageDraft !== null && $this->ctx->pageDraft['field'] === $field ? $this->ctx->pageDraft['nodes'] : null;
+        $value = ($state['type']['fields'][$field]['type'] ?? '') === 'page' ? ($state['entry'][$field] ?? null) : null;
+        $nodes = $draft ?? (!$this->annotating() && LayoutSchema::hasPageContent($value) ? LayoutSchema::pageNodes($value) : $node['children']);
+        // In a column, the sections fill the column instead of the page.
+        $embedded = ($state['nested'] ?? false) === true;
+        $classes = ['c-page-content', ...($embedded ? ['c-page-content-embedded'] : [])];
+        $state = ['embedded' => $embedded] + $state;
+
+        if ($draft !== null) {
+            // Only the draft is edited: it carries annotations inside an otherwise plain page.
+            $suspended = $this->annotationsSuspended;
+            $this->annotationsSuspended = 0;
+            try {
+                $inner = $this->render($nodes, $state);
+            } finally {
+                $this->annotationsSuspended = $suspended;
+            }
+
+            return '<div class="' . implode(' ', $classes) . '" data-drop-root>' . $inner . '</div>';
+        }
+
+        $inner = $this->render($nodes, $state);
+        if ($this->annotating()) {
+            if ($inner === '') {
+                $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('pageContent') . '>Page content: each entry designs this area. Add sections here as the default content.</div>';
+            }
+
+            return '<div' . $this->attributes($node, $classes) . '>' . $inner . '</div>';
+        }
+
+        if ($this->ctx->pageDraft !== null) {
+            // Another area of the entry being edited: the builder switches to it on click.
+            return '<div class="' . implode(' ', [...$classes, 'c-page-area']) . '" data-page-area="' . Security::e($field) . '">' . $inner . '</div>';
+        }
+
+        return $inner === '' ? '' : '<div class="' . implode(' ', $classes) . '">' . $inner . '</div>';
+    }
+
+    /**
+     * The modal template's panel. It is the dialog itself, so its style is
+     * the look of the modal; builder previews ($state['modal_preview']) show
+     * it open in place, with nothing to press.
+     */
+    private function modal(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $preview = !empty($state['modal_preview']);
+        $background = $this->background($node['style']);
+        $classes = ['c-modal', 'c-modal-' . $props['size'], 'c-modal-at-' . $props['placement'], 'c-modal-h-' . $props['height'], 'c-modal-backdrop-' . $props['backdrop'],
+            ...($preview ? ['c-modal-preview'] : []), ...$background['classes'], ...$this->styleClasses($node['style'])];
+
+        return '<dialog' . $this->attributes($node, $classes, $background['style'])
+            . ($preview ? ' open' : ' data-link-modal-dialog' . ($props['backdrop_close'] ? ' data-backdrop-close' : ''))
+            . ' aria-label="' . Security::e(Messages::get('modal', $this->ctx->htmlLang())) . '">'
+            . $background['layer'] . $this->render($node['children'], $state) . '</dialog>';
+    }
+
+    /** Where the opened page appears; the modal script loads it into a frame of its own. */
+    private function siteContent(array $node, array $state): string
+    {
+        $inner = !empty($state['modal_preview'])
+            ? '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('siteContent') . '>' . Security::e(Messages::get('site_content_placeholder', $this->ctx->htmlLang())) . '</div>'
+            : '';
+
+        return $this->element($node, $inner);
+    }
+
+    /** The text of the link that opened the modal; previews show a sample. */
+    private function modalTitle(array $node, array $state): string
+    {
+        $tag = $node['props']['level'];
+        $sample = !empty($state['modal_preview']) ? Messages::get('modal_title_sample', $this->ctx->htmlLang()) : '';
+
+        return $this->element($node, '<' . $tag . ' class="' . ($tag === 'p' ? '' : 'c-heading ') . 'c-modal-title" data-modal-title>' . Security::e($sample) . '</' . $tag . '>');
+    }
+
+    private function modalClose(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $icon = Icons::catalog()[$props['icon']] ?? null;
+        $size = (int) $props['size'];
+        $label = $props['label'] !== '' ? $props['label'] : Messages::get('close', $this->ctx->htmlLang());
+        $svg = $icon !== null
+            ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . $size . '" height="' . $size . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+        $text = $props['show_label'] ? '<span>' . Security::e($label) . '</span>' : '';
+
+        return $this->element($node, '<button type="button" class="c-modal-close c-modal-close-' . $props['variant'] . '" data-modal-close'
+            . ($text === '' ? ' aria-label="' . Security::e($label) . '" title="' . Security::e($label) . '"' : '')
+            . (!empty($state['modal_preview']) ? ' tabindex="-1"' : '') . '>' . $svg . $text . '</button>');
+    }
+
+    private function componentPlaceholder(array $node, string $key, string $message): string
     {
         if (!$this->annotating()) {
             return '';
         }
         $classes = $node['props']['root'] === 'column' ? 'c-col c-col-12 ' : '';
 
-        return '<div class="' . $classes . 'c-placeholder c-placeholder-warning" role="status"' . $this->componentAttributes($node) . '>' . $message . '</div>';
+        return '<div class="' . $classes . 'c-placeholder c-placeholder-warning" role="status"' . $this->placeholder($key) . $this->componentAttributes($node) . '>' . $message . '</div>';
     }
 
     private function componentAttributes(array $node): string
@@ -355,7 +586,7 @@ final class NodeRenderer
             $text = $this->anchor($link, $text);
         }
 
-        return $this->element($node, '<' . $level . ' class="c-heading">' . $text . '</' . $level . '>');
+        return $this->element($node, '<' . $level . $this->textGradientAttributes($node, 'c-heading') . '>' . $text . '</' . $level . '>');
     }
 
     private function text(array $node, array $state): string
@@ -363,15 +594,51 @@ final class NodeRenderer
         $html = HtmlSanitizer::sanitize($node['props']['html']);
         if (!empty($node['_resolved']['html']) && trim(strip_tags($html, '<img><video><audio><hr>')) === '' && !$this->annotating()) return '';
 
-        return $this->element($node, '<div class="c-prose">' . $html . '</div>');
+        return $this->element($node, '<div' . $this->textGradientAttributes($node, 'c-prose') . '>' . $html . '</div>');
+    }
+
+    private function tabs(array $node, array $state): string
+    {
+        $tabs = $node['children'];
+        if ($tabs === []) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('addTab') . '>Add a tab</div>') : '';
+        }
+        // A layout can repeat in cards and components, so node IDs alone are not unique here.
+        $id = 'tabs-' . $node['id'] . '-' . ++$this->tabsSequence;
+        $initial = min(count($tabs), max(1, (int) $node['props']['initial_tab'])) - 1;
+        $buttons = '';
+        $panels = '';
+        foreach ($tabs as $index => $tab) {
+            $key = $id . '-' . $index;
+            $title = Security::e(trim($tab['props']['title']) ?: 'Tab ' . ($index + 1));
+            $buttons .= '<button type="button" role="tab" id="' . $key . '-button" aria-controls="' . $key . '-panel"'
+                . ' aria-selected="' . ($index === $initial ? 'true' : 'false') . '" tabindex="' . ($index === $initial ? '0' : '-1') . '"'
+                . ' data-tab-key="' . Security::e($tab['id']) . '">' . $title . '</button>';
+            // All content remains readable when scripts are unavailable.
+            $panels .= '<div class="c-tabs-panel" role="tabpanel" id="' . $key . '-panel" aria-labelledby="' . $key . '-button" tabindex="0">'
+                . '<h3 class="c-tabs-fallback-title">' . $title . '</h3>' . $this->render([$tab], $state) . '</div>';
+        }
+        return $this->element($node, '<div class="c-tabs" data-tabs="' . Security::e($id) . '" data-tabs-initial="' . Security::e($tabs[$initial]['id']) . '">'
+            . '<div class="c-tabs-list" role="tablist" aria-label="' . Security::e($node['props']['title']) . '">' . $buttons . '</div>'
+            . $panels . '</div>');
     }
 
     private function accordion(array $node): string
     {
         $props = $node['props'];
-        $html = '<details class="c-accordion"' . ($props['open'] ? ' open' : '') . '>'
-            . '<summary class="c-accordion-title">' . Security::e($props['title']) . '</summary>'
-            . '<div class="c-accordion-content c-prose">' . HtmlSanitizer::sanitize($props['html']) . '</div></details>';
+        $single = !empty($props['single_open']);
+        // A unique native disclosure group for each render, including repeated components.
+        $name = 'accordion-' . ++$this->accordionSequence;
+        $opened = false;
+        $html = '';
+        foreach ($props['items'] ?? [] as $item) {
+            $open = !empty($item['open']) && (!$single || !$opened);
+            $opened = $opened || $open;
+            $html .= '<details class="c-accordion"' . ($single ? ' name="' . $name . '"' : '') . ($open ? ' open' : '') . '>'
+                . '<summary class="c-accordion-title">' . Security::e($item['title'] ?? '') . '</summary>'
+                . '<div class="c-accordion-content c-prose">' . HtmlSanitizer::sanitize($item['html'] ?? '') . '</div></details>';
+        }
+        $html = '<div class="c-accordion-group">' . $html . '</div>';
 
         return $this->element($node, $html);
     }
@@ -396,22 +663,71 @@ final class NodeRenderer
         return $this->element($node, $html);
     }
 
+    /** Provider marks for canvas placeholders, so editors can tell what will play without loading it. */
+    private const VIDEO_BADGES = [
+        'youtube' => '<span class="c-video-badge"><svg viewBox="0 0 28 20" width="28" height="20" aria-hidden="true"><rect width="28" height="20" rx="5" fill="#f00"/><path d="M11 5.5v9l8-4.5z" fill="#fff"/></svg>YouTube</span>',
+        'vimeo' => '<span class="c-video-badge"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><rect width="20" height="20" rx="4" fill="#1ab7ea"/><path d="M4 7.5l1 1.2c1-.8 1.5-1 1.8-.3l1.9 6.3c.6 1.3 1.3 1.6 2.6.4C13.8 12.6 16 9.4 16 7c0-2.2-2.6-2.4-4.3-.2 2-.8 2.4.6 1 2.7-1.5 2.2-2.2 2.1-2.6.4L9.3 6.2C8.8 4.6 7.5 4.8 4 7.5z" fill="#fff"/></svg>Vimeo</span>',
+        'file' => '<span class="c-video-badge"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><rect width="20" height="20" rx="4" fill="#64748b"/><path d="M8 6v8l6-4z" fill="#fff"/></svg>Video file</span>',
+    ];
+
+    private function video(array $node): string
+    {
+        $props = $node['props'];
+        // Canvas previews never load third-party sources or autoplay media; library
+        // videos are same-origin, so the canvas shows their player. The full-page
+        // preview uses the same interactive player as the website.
+        $item = ($props['media'] ?? '') !== '' ? $this->ctx->mediaItem($props['media']) : null;
+        $library = $item !== null && str_starts_with((string) ($item['mime'] ?? ''), 'video/');
+        $source = $library
+            ? ['type' => 'file', 'url' => $this->ctx->mediaUrl($item['name']) . ($props['start_time'] ? '#t=' . $props['start_time'] : '')]
+            : VideoEmbed::source($props);
+        $canvas = $this->ctx->preview && !$this->ctx->browsePreview;
+        $title = Security::e($props['title'] ?: 'Video');
+        $ratio = 'c-ratio c-ratio-' . str_replace(':', '-', $props['ratio']);
+        if ($source === null || ($canvas && !$library)) {
+            if (!$this->ctx->annotate && $source === null) return '';
+            $key = $source === null ? 'chooseVideo' : 'videoPreview';
+            $label = $source === null ? 'Choose a library video or enter a YouTube, Vimeo or direct video URL' : 'Video preview: open the full-page preview to play';
+            $badge = $source === null ? '' : self::VIDEO_BADGES[$source['provider']];
+            return $this->element($node, '<div class="' . $ratio . ' c-video-placeholder">' . $badge . '<div class="c-placeholder"' . $this->placeholder($key) . '>' . $label . '</div><span>' . $title . '</span></div>');
+        }
+        $src = Security::e($source['url']);
+        $autoplay = $props['autoplay'] && !$canvas;
+        if ($source['type'] === 'file') {
+            $attrs = ' playsinline preload="metadata"';
+            foreach (['controls', 'loop'] as $key) if ($props[$key]) $attrs .= ' ' . $key;
+            if ($props['muted'] || $autoplay) $attrs .= ' muted';
+            if ($autoplay) $attrs .= ' autoplay';
+            if (!$props['fullscreen']) $attrs .= ' controlslist="nofullscreen"';
+            $poster = ($props['poster'] ?? '') !== '' ? $this->ctx->mediaItem($props['poster']) : null;
+            if ($poster !== null && str_starts_with((string) ($poster['mime'] ?? ''), 'image/')) $attrs .= ' poster="' . Security::e($this->imageSource($poster, 1280)) . '"';
+            $player = '<video src="' . $src . '" aria-label="' . $title . '"' . $attrs . '></video>';
+        } else {
+            $allow = 'autoplay; encrypted-media; picture-in-picture';
+            if ($props['fullscreen']) $allow .= '; fullscreen';
+            $player = '<iframe src="' . $src . '" title="' . $title . '" loading="' . ($autoplay ? 'eager' : 'lazy') . '" allow="' . $allow . '"'
+                . ($props['fullscreen'] ? ' allowfullscreen' : '') . ' referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+        }
+        return $this->element($node, '<div class="' . $ratio . ' c-video-embed">' . $player . '</div>');
+    }
+
     private function image(array $node, array $state): string
     {
         $props = $node['props'];
         $item = $props['media'] !== '' ? $this->ctx->mediaItem($props['media']) : null;
 
         if ($item === null) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose an image</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseImage') . '>Choose an image</div>') : '';
         }
 
+        if (isset($node['_localized']['alt']) || ($props['alt'] ?? '') !== '') $item['alt'] = $props['alt'];
         $html = $this->mediaElement($item, $props, $state);
         $link = $this->resolveLink($props['link'], $state);
         if ($link !== null) {
             $html = $this->anchor($link, $html, 'c-image-link');
         }
 
-        $caption = (string) ($item['title'] ?? '');
+        $caption = (string) ((isset($node['_localized']['caption']) || ($props['caption'] ?? '') !== '') ? $props['caption'] : ($item['title'] ?? ''));
         if ($caption !== '') {
             $html = '<figure class="c-figure">' . $html . '<figcaption>' . Security::e($caption) . '</figcaption></figure>';
         }
@@ -441,15 +757,95 @@ final class NodeRenderer
         return $style === [] ? [[], ''] : [['c-img-sized'], implode(';', $style)];
     }
 
+    private function gallery(array $node, array $state): string
+    {
+        $props = $node['props'];
+        // Masonry uses natural image heights; keep the saved crop for grid mode.
+        if ($props['masonry']) $props['ratio'] = '';
+        $items = [];
+        foreach (is_array($props['media']) ? $props['media'] : [] as $file) {
+            $item = is_string($file) ? $this->ctx->mediaItem($file) : null;
+            if ($item !== null) $items[] = $item;
+        }
+        if ($items === []) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseGallery') . '>Choose gallery images</div>') : '';
+        }
+
+        $columns = $props['columns'];
+        $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) ' . ($columns > 1 ? '50' : '100') . 'vw, 100vw';
+        $link = $this->resolveLink($props['link'], $state);
+        $html = '';
+        foreach ($items as $item) {
+            $image = $this->mediaElement($item, $props, $state);
+            if ($props['lightbox'] && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . Messages::get('enlarge', $this->ctx->htmlLang()) . '"'
+                    . ($props['captions'] ? ' data-caption="' . Security::e((string) ($item['title'] ?? '')) . '"' : '') . '>' . $image . '</a>';
+            } elseif ($link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
+                $image = $this->anchor($link, $image, 'c-image-link');
+            }
+            $caption = $props['captions'] ? (string) ($item['title'] ?? '') : '';
+            $html .= '<figure class="c-gallery-item c-figure">' . $image
+                . ($caption !== '' ? '<figcaption>' . Security::e($caption) . '</figcaption>' : '') . '</figure>';
+        }
+        $layout = $props['masonry'] ? 'c-gallery-masonry' : 'c-grid';
+        $masonryStyle = $props['masonry']
+            ? ' style="--c-gallery-columns:' . $columns . ';--c-gallery-gap:' . ($props['gap'] === 'none' ? '0px' : 'var(--space-' . $props['gap'] . ')') . '"'
+            : '';
+        $lightbox = $props['lightbox']
+            ? ' data-gallery-lightbox data-gallery-navigation="' . ($props['lightbox_navigation'] ? 'true' : 'false') . '"'
+                . ' data-gallery-label="' . Messages::get('gallery', $this->ctx->htmlLang()) . '" data-gallery-close="' . Messages::get('close', $this->ctx->htmlLang()) . '"'
+                . ' data-gallery-previous="' . Messages::get('previous_image', $this->ctx->htmlLang()) . '" data-gallery-next="' . Messages::get('next_image', $this->ctx->htmlLang()) . '"'
+            : '';
+        $html = '<div class="' . $layout . ' c-gallery c-cols-' . $columns . ' c-gap-' . $props['gap'] . '"' . $masonryStyle . $lightbox . '>' . $html . '</div>';
+        if ($props['label'] && ($node['_gallery_label'] ?? '') !== '') {
+            $html = '<div class="c-field-label">' . Security::e($node['_gallery_label']) . '</div>' . $html;
+        }
+        return $this->element($node, $html);
+    }
+
     private function button(array $node, array $state): string
     {
         $props = $node['props'];
         $link = $this->resolveLink($props['link'], $state);
-        $classes = 'c-button c-button-' . $props['variant'] . ' c-button-' . $props['size'] . ($props['full_width'] ? ' c-button-block' : '');
-        $label = Security::e($props['label']);
+        $classes = ['c-button', 'c-button-' . $props['variant'], 'c-button-' . $props['size']];
+        if ($props['full_width']) {
+            $classes[] = 'c-button-block';
+        }
+        foreach (array_keys(StyleVariants::DEVICES) as $device) {
+            $override = $node['responsive'][$device]['props'] ?? [];
+            if (isset($override['size'])) {
+                $classes[] = StyleVariants::PREFIXES[$device] . 'button-' . $override['size'];
+            }
+            if (isset($override['full_width'])) {
+                $classes[] = StyleVariants::PREFIXES[$device] . 'button-' . ($override['full_width'] ? 'block' : 'inline');
+            }
+        }
+        foreach (self::BUTTON_COLOR_TOKENS as $key => $token) {
+            if (($props[$key] ?? '') !== '') {
+                $classes[] = 'c-' . $token . $props[$key];
+            }
+            foreach (StyleVariants::STATES as $variant) {
+                if (($node['states'][$variant]['props'][$key] ?? '') !== '') {
+                    $classes[] = StyleVariants::PREFIXES[$variant] . $token . $node['states'][$variant]['props'][$key];
+                }
+            }
+        }
+        if ($props['icon'] !== '' && ($props['icon_gap'] ?? 'sm') !== 'sm') {
+            $classes[] = 'c-button-gap-' . $props['icon_gap'];
+        }
+        $classes = implode(' ', $classes);
+        // The label has an element of its own, so the builder edits it apart from the icon.
+        $label = '<span class="c-button-label">' . Security::e($props['label']) . '</span>';
+        $icon = $props['icon'] !== '' ? (Icons::catalog()[$props['icon']] ?? null) : null;
+        if ($icon !== null) {
+            $svg = '<svg class="c-button-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>';
+            $label = $props['icon_position'] === 'end' ? $label . $svg : $svg . $label;
+        }
 
         if ($link === null) {
-            return $this->annotating() ? $this->element($node, '<span class="' . $classes . '">' . $label . '</span>') : '';
+            // A missing destination removes the link, not the button's content.
+            // Shared regions must render the same inside and outside their builder.
+            return $this->element($node, '<span class="' . $classes . '">' . $label . '</span>');
         }
 
         return $this->element($node, $this->anchor($link, $label, $classes));
@@ -486,7 +882,7 @@ final class NodeRenderer
         $locales = $this->ctx->locales();
 
         if (count($locales) < 2) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Add website languages to show the switcher</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noLanguages') . '>Add website languages to show the switcher</div>') : '';
         }
 
         $alternates = is_array($state['alternates'] ?? null) ? $state['alternates'] : [];
@@ -494,7 +890,8 @@ final class NodeRenderer
         $items = '';
 
         foreach ($locales as $locale) {
-            $url = $alternates[$locale] ?? $this->ctx->homeUrl($locale);
+            if (!isset($alternates[$locale])) continue;
+            $url = $alternates[$locale];
             $name = $this->localeName($locale);
             $label = $node['props']['format'] === 'names' ? $name : strtoupper($locale);
             $current = $locale === ($this->ctx->locale !== '' ? $this->ctx->locale : $this->ctx->defaultLocale());
@@ -507,7 +904,33 @@ final class NodeRenderer
                 . ($current ? ' aria-current="true"' : '') . '>' . $image . ($named ? '' : '<span>' . Security::e($label) . '</span>') . '</a></li>';
         }
 
-        return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="Language"><ul>' . $items . '</ul></nav>');
+        if ($items === '') return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noTranslations') . '>No published translations for this page</div>') : '';
+        return $this->element($node, '<nav class="c-languages' . ($flag === 'only' ? ' c-languages-flags' : '') . '" aria-label="' . Security::e(Messages::get('language', $this->ctx->htmlLang())) . '"><ul>' . $items . '</ul></nav>');
+    }
+
+    /**
+     * A light/dark switch. It shows the icon of the mode that is on and is
+     * pressed while dark; the head script (ThemeToggle) keeps both in sync.
+     */
+    private function themeToggle(array $node): string
+    {
+        $props = $node['props'];
+        $catalog = Icons::catalog();
+        $size = (int) $props['size'];
+        $svg = static fn(?array $icon, string $mode): string => $icon !== null
+            ? '<svg class="c-theme-icon c-theme-icon-' . $mode . '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . $size . '" height="' . $size
+                . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+        $label = $props['label'] !== '' ? $props['label'] : Messages::get('dark_mode', $this->ctx->htmlLang());
+        $text = $props['show_label'] ? '<span>' . Security::e($label) . '</span>' : '';
+
+        return $this->element($node, '<button type="button" class="c-theme-toggle c-theme-toggle-' . $props['variant'] . '" data-theme-toggle'
+            . ' aria-pressed="' . (($this->ctx->theme()['mode'] ?? '') === 'dark' ? 'true' : 'false') . '"'
+            . ($text === '' ? ' aria-label="' . Security::e($label) . '" title="' . Security::e($label) . '"' : '')
+            // In the builder the button is part of the canvas, not something to press.
+            . ($this->annotating() ? ' tabindex="-1"' : '') . '>'
+            . $svg($catalog[$props['light_icon']] ?? null, 'light') . $svg($catalog[$props['dark_icon']] ?? null, 'dark') . $text
+            . '</button>');
     }
 
     /**
@@ -520,18 +943,18 @@ final class NodeRenderer
     {
         $props = $node['props'];
         $form = $this->ctx->form($props['form']);
-        $inputs = $form !== null ? $this->ctx->forms()->inputs($form) : [];
+        $inputs = $form !== null ? $this->ctx->forms()->inputs($form, $this->ctx->htmlLang()) : [];
 
         if ($inputs === []) {
-            $message = $form === null ? 'Choose a form' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">' . $message . '</div>') : '';
+            $message = $form === null ? 'Choose a content type' : 'The form “' . Security::e($form['name']) . '” has no fields to show';
+            $key = $form === null ? $this->placeholder('chooseFormType') : $this->placeholder('formEmpty', ['name' => (string) $form['name']]);
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $key . '>' . $message . '</div>') : '';
         }
 
-        $german = str_starts_with($this->ctx->htmlLang(), 'de');
         $anchor = 'form-' . $node['id'] . (++$this->formSequence > 1 ? '-' . $this->formSequence : '');
-        $success = $form['success_message'] !== '' ? $form['success_message'] : ($german ? 'Vielen Dank! Ihre Nachricht wurde gesendet.' : 'Thank you! Your message has been sent.');
-        $failure = $form['error_message'] !== '' ? $form['error_message'] : ($german ? 'Ihre Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.' : 'Your message could not be sent. Please check your input and try again later.');
-        $submit = $form['submit_label'] !== '' ? $form['submit_label'] : ($german ? 'Senden' : 'Send');
+        $success = ($form['success_message'] !== '' || !empty($form['_localized']['success_message'])) ? $form['success_message'] : Messages::get('form_success', $this->ctx->htmlLang());
+        $failure = ($form['error_message'] !== '' || !empty($form['_localized']['error_message'])) ? $form['error_message'] : Messages::get('form_error', $this->ctx->htmlLang());
+        $submit = ($form['submit_label'] !== '' || !empty($form['_localized']['submit_label'])) ? $form['submit_label'] : Messages::get('send', $this->ctx->htmlLang());
         $fields = '';
 
         foreach ($inputs as $input) {
@@ -540,18 +963,19 @@ final class NodeRenderer
 
         $hasMedia = in_array('media', array_column(array_column($inputs, 'config'), 'type'), true);
         $hidden = ($hasMedia ? '<input type="hidden" name="MAX_FILE_SIZE" value="' . FormUploads::maxBytes() . '">' : '')
-            . '<input type="hidden" name="_return" value="' . Security::e((string) ($state['path'] ?? '/')) . '">'
+            . '<input type="hidden" name="_return" value="' . Security::e($this->ctx->embedUrl((string) ($state['path'] ?? '/'))) . '">'
             . '<input type="hidden" name="_anchor" value="' . Security::e($anchor) . '">'
             . ($this->ctx->locale !== '' ? '<input type="hidden" name="_locale" value="' . Security::e($this->ctx->locale) . '">' : '');
         // Hidden from people and assistive technology; bots filling in every input give themselves away.
         $honeypot = '<div class="c-form-hp" aria-hidden="true"><label>Website <input type="text" name="' . FormSubmission::HONEYPOT . '" value="" tabindex="-1" autocomplete="off"></label></div>';
+        $captcha = (new FormCaptcha($this->ctx->site))->markup($form, $this->ctx->htmlLang(), $this->ctx->preview);
         $button = '<button type="' . ($this->annotating() ? 'button' : 'submit') . '" class="c-button c-button-' . $props['button_variant'] . ' c-button-md' . ($props['button_full_width'] ? ' c-button-block' : '') . '">' . Security::e($submit) . '</button>';
 
         return $this->element($node,
             '<div id="' . Security::e($anchor) . '-sent" class="c-form-status c-form-sent" role="status">' . $this->paragraphs($success) . '</div>'
             . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
             . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8"' . ($hasMedia ? ' enctype="multipart/form-data"' : '') . '>'
-            . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot
+            . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot . $captcha
             . '<div class="c-form-actions">' . $button . '</div></form>'
         );
     }
@@ -571,9 +995,7 @@ final class NodeRenderer
         $help = trim((string) ($config['description'] ?? ''));
         if ($type === 'media') {
             $limit = rtrim(rtrim(number_format(FormUploads::maxBytes() / 1048576, 2, '.', ''), '0'), '.');
-            $uploadHelp = str_starts_with($this->ctx->htmlLang(), 'de')
-                ? 'Maximal ' . $limit . ' MiB pro Datei und insgesamt pro Formular.'
-                : 'Maximum ' . $limit . ' MiB per file and in total per form.';
+            $uploadHelp = Messages::get('upload_limit', $this->ctx->htmlLang(), ['{limit}' => $limit]);
             $help = trim($help . ' ' . $uploadHelp);
         }
         $describedBy = $help !== '' ? ' aria-describedby="' . Security::e($id) . '-help"' : '';
@@ -660,10 +1082,12 @@ final class NodeRenderer
         $menu = $this->ctx->menu($props['menu']);
 
         if ($menu === null || $menu['items'] === []) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Menu “' . Security::e($props['menu']) . '” has no items</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('menuEmpty', ['name' => (string) $props['menu']]) . '>Menu “' . Security::e($props['menu']) . '” has no items</div>') : '';
         }
 
-        $list = $this->menuItems($menu['items'], $state, 'c-menu-list');
+        // A component or card can render the same menu node several times.
+        $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
+        $list = $this->menuItems($menu['items'], $state, 'c-menu-list', $id);
         $collapsible = $props['always_button'] || $props['collapse_mobile'];
         $hasPanel = $collapsible && $props['panel'] !== 'dropdown';
         $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
@@ -672,19 +1096,23 @@ final class NodeRenderer
             . ($hasPanel && $props['panel'] === 'drawer' ? ' c-menu-drawer-' . $props['panel_side'] : '');
         $toggle = $close = '';
         $panelStyle = [];
-        if ($hasPanel) {
-            foreach (['panel_background' => '--c-menu-background', 'panel_text_color' => '--c-menu-text'] as $key => $variable) {
-                if ($props[$key] !== '') {
-                    $color = $props[$key] === 'inverse' ? 'background' : $props[$key];
-                    $panelStyle[] = $variable . ':var(--c-' . $color . ')';
-                }
-            }
+        if (!empty($node['style']['text_color'])) {
+            $color = $node['style']['text_color'] === 'inverse' ? 'background' : $node['style']['text_color'];
+            $panelStyle[] = '--c-menu-color:var(--c-' . $color . ')';
+        }
+        // Submenu dropdowns and the button's panel share one palette.
+        if ($props['panel_background'] !== '') {
+            $panelStyle[] = '--c-menu-background:var(--c-' . $props['panel_background'] . ')';
+        }
+        if ($props['panel_text_color'] !== '') {
+            $panelStyle[] = '--c-menu-text:var(--c-' . ($props['panel_text_color'] === 'inverse' ? 'background' : $props['panel_text_color']) . ')';
+        } elseif ($props['panel_background'] !== '') {
+            // Without a text color of its own, a panel reads like a section with that fill.
+            $panelStyle[] = '--c-menu-text:var(--c-' . (in_array($props['panel_background'], ['background', 'surface'], true) ? 'text' : 'on-' . $props['panel_background']) . ')';
         }
 
         if ($collapsible) {
-            // A component or card can render the same menu node several times.
-            $id = 'menu-' . Security::e($node['id']) . '-' . ++$this->menuSequence;
-            $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="Menu">'
+            $toggle = '<input type="checkbox" id="' . $id . '" class="c-menu-toggle" aria-label="' . Security::e(Messages::get('menu', $this->ctx->htmlLang())) . '">'
                 . '<label for="' . $id . '" class="c-menu-button" aria-hidden="true"><span></span><span></span><span></span></label>';
             // A full-screen or side panel covers the menu button, so it brings its own way to close.
             if ($props['panel'] !== 'dropdown') {
@@ -695,17 +1123,21 @@ final class NodeRenderer
 
         $style = $panelStyle !== [] ? ' style="' . Security::e(implode(';', $panelStyle)) . '"' : '';
 
-        return $this->element($node, '<nav class="' . $classes . '"' . $style . ' aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
+        // The menu script only closes submenus and panels that are open; the markup works without it.
+        $script = $hasPanel || str_contains($list, 'c-menu-disclosure') ? ' data-menu' : '';
+
+        return $this->element($node, '<nav class="' . $classes . '"' . $style . $script . ' aria-label="' . Security::e($menu['label']) . '">' . $toggle . $list . $close . '</nav>');
     }
 
-    private function menuItems(array $items, array $state, string $class): string
+    /** Opening an item closes its siblings, which share the disclosure name $group. */
+    private function menuItems(array $items, array $state, string $class, string $group): string
     {
         $html = '';
         $currentPath = (string) ($state['path'] ?? '');
 
-        foreach ($items as $item) {
+        foreach ($items as $index => $item) {
             $link = $this->resolveLink($item['link'], $state);
-            $label = (string) (($item['labels'][$this->ctx->locale] ?? '') ?: $item['label']);
+            $label = (string) $item['label'];
 
             if ($label === '') {
                 $label = $this->linkTitle($item['link']);
@@ -716,15 +1148,78 @@ final class NodeRenderer
             $inner = $link !== null
                 ? '<a href="' . Security::e($link['href']) . '"' . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . ($active ? ' aria-current="page"' : '') . '>' . $text . '</a>'
                 : '<span>' . $text . '</span>';
-            $children = $item['children'] !== []
-                ? '<details class="c-menu-disclosure"><summary aria-label="' . Security::e($label) . '"><span aria-hidden="true">⌄</span></summary>'
-                    . $this->menuItems($item['children'], $state, 'c-submenu') . '</details>'
-                : '';
 
-            $html .= '<li' . ($children !== '' ? ' class="c-has-children"' : '') . '><div class="c-menu-label">' . $inner . '</div>' . $children . '</li>';
+            if ($item['children'] === []) {
+                $html .= '<li><div class="c-menu-label">' . $inner . '</div></li>';
+                continue;
+            }
+
+            $submenu = $this->menuItems($item['children'], $state, 'c-submenu', $group . '-' . $index);
+            $details = '<details class="c-menu-disclosure" name="' . $group . '">';
+            $chevron = '<span class="c-menu-chevron" aria-hidden="true"></span>';
+            // A heading without a link opens its submenu itself; a link keeps its target beside a toggle.
+            $html .= $link === null
+                ? '<li class="c-has-children c-menu-group">' . $details . '<summary class="c-menu-label">' . $inner . $chevron . '</summary>' . $submenu . '</details></li>'
+                : '<li class="c-has-children"><div class="c-menu-label">' . $inner . '</div>' . $details . '<summary aria-label="' . Security::e($label) . '">' . $chevron . '</summary>' . $submenu . '</details></li>';
         }
 
         return '<ul class="' . $class . '">' . $html . '</ul>';
+    }
+
+    /**
+     * A search field whose hits drop down below it. The search runs in
+     * SiteController::search() and the bundled search script draws the hits,
+     * so the page itself stays cacheable; the element only says what to search.
+     */
+    private function search(array $node): string
+    {
+        $props = $node['props'];
+        $lang = $this->ctx->htmlLang();
+        $id = 'search-' . $node['id'] . '-' . ++$this->searchSequence;
+        $placeholder = $props['placeholder'] !== '' ? $props['placeholder'] : Messages::get('search_placeholder', $lang);
+        $empty = $props['no_results_text'] !== '' ? $props['no_results_text'] : Messages::get('no_results', $lang);
+        $icon = $props['icon_position'] !== 'none' ? (Icons::catalog()[$props['icon']] ?? null) : null;
+        $classes = 'c-search c-search-' . $props['size'] . ' c-search-' . $props['variant'] . ($icon !== null ? ' c-search-icon-' . $props['icon_position'] : '');
+        $data = [
+            'search' => $this->ctx->searchUrl(),
+            'search-types' => implode(',', $props['collections']),
+            'search-fields' => implode(',', $props['fields']),
+            'search-limit' => (string) $props['max_results'],
+            'search-min' => (string) $props['min_chars'],
+            'search-locale' => $this->ctx->locale,
+            'search-empty' => $empty,
+            'search-count' => Messages::get('search_results', $lang),
+        ];
+        $attributes = '';
+        foreach (array_filter($data, static fn(string $value): bool => $value !== '') as $name => $value) {
+            $attributes .= ' data-' . $name . '="' . Security::e($value) . '"';
+        }
+        if ($props['show_type']) {
+            $attributes .= ' data-search-show-type';
+        }
+
+        $warning = '';
+        if ($this->annotating() && (new SiteSearch($this->ctx))->targets($props['collections'], $props['fields']) === []) {
+            $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('searchNothing') . '>Nothing to search: choose content types with website pages and fields they have</div>';
+        }
+        $svg = $icon !== null
+            ? '<svg class="c-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            : '';
+
+        return $this->element($node, $warning
+            . '<div class="' . $classes . '" role="search"' . $attributes . '>'
+            . '<label for="' . Security::e($id) . '" class="c-visually-hidden">' . Security::e(Messages::get('search', $lang)) . '</label>'
+            . '<div class="c-search-field">' . $svg
+            . '<input type="search" id="' . Security::e($id) . '" class="c-search-input" placeholder="' . Security::e($placeholder) . '"'
+            . ' autocomplete="off" spellcheck="false" enterkeyhint="search" maxlength="' . SiteSearch::MAX_QUERY_LENGTH . '"'
+            . ' role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' . Security::e($id) . '-results"'
+            // In the builder the field is part of the canvas, not something to type into.
+            . ($this->annotating() ? ' readonly tabindex="-1"' : '') . '>'
+            . '</div>'
+            . '<ul id="' . Security::e($id) . '-results" class="c-search-results" role="listbox" aria-label="' . Security::e(Messages::get('search_results_label', $lang)) . '" hidden></ul>'
+            . '<p class="c-search-status c-visually-hidden" role="status" aria-live="polite"></p>'
+            . '</div>'
+        );
     }
 
     private function collection(array $node, array $state): string
@@ -733,19 +1228,25 @@ final class NodeRenderer
         $type = $props['type'];
 
         if ($type === '' || !$this->ctx->isPublicType($type) || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder">Choose a public content type</div>') : '';
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseType') . '>Choose a public content type</div>') : '';
         }
 
         $schema = $this->ctx->type($type);
+        $filters = new ListFilters($this->ctx, $node, $schema ?? []);
         $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
         $params = [
-            'sort' => ($props['sort_order'] === 'desc' ? '-' : '') . $props['sort_field'],
+            'sort' => $filters->sort() ?? ($props['sort_order'] === 'desc' ? '-' : '') . $props['sort_field'],
             'limit' => $props['limit'],
             'offset' => ($page - 1) * $props['limit'],
         ];
 
         if ($props['filter_field'] !== '' && $props['filter_value'] !== '') {
-            $params['filter'] = [$props['filter_field'] => $props['filter_value']];
+            $params['filter'] = [$props['filter_field'] => ['eq' => $props['filter_value']]];
+        }
+
+        // Visitor filters narrow the editor's own filter further.
+        foreach ($filters->conditions() as $field => $condition) {
+            $params['filter'][$field] = ($params['filter'][$field] ?? []) + $condition;
         }
 
         $current = $state['entry'] ?? null;
@@ -754,22 +1255,25 @@ final class NodeRenderer
         }
 
         $result = $this->ctx->query($type, $params);
+        $bar = $filters->html((string) ($state['path'] ?? ''));
 
         if ($result['data'] === []) {
             $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';
+            if ($empty === '' && $filters->chosen() !== []) {
+                $empty = '<p class="c-empty">' . Security::e(Messages::get('no_results', $this->ctx->htmlLang())) . '</p>';
+            }
             if ($empty === '' && $this->annotating()) {
-                $empty = '<div class="c-placeholder">No published ' . Security::e((string) ($schema['label'] ?? $type)) . ' yet</div>';
+                $empty = '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => (string) ($schema['label'] ?? $type)]) . '>No published ' . Security::e((string) ($schema['label'] ?? $type)) . ' yet</div>';
             }
 
-            return $empty === '' ? '' : $this->element($node, $empty);
+            // A filter that matches nothing keeps its bar, so it can be changed again.
+            return $empty === '' && $bar === '' ? '' : $this->element($node, $bar . $empty);
         }
 
-        $html = $props['display'] === 'list'
-            ? $this->entryList($type, $result['data'], $state)
-            : $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
+        $html = $bar . $this->cardGrid($type, $result['data'], $props['columns'], $state, $node['children']);
 
         if ($props['paginate'] && $result['total'] > $props['limit']) {
-            $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), $state);
+            $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), ['path' => $filters->url((string) ($state['path'] ?? ''), $filters->chosen())] + $state);
         }
 
         return $this->element($node, $html);
@@ -802,26 +1306,11 @@ final class NodeRenderer
         return '<div class="c-grid c-cols-' . max(1, min(6, $columns)) . '">' . $items . '</div>';
     }
 
-    private function entryList(string $type, array $entries, array $state): string
-    {
-        $items = '';
-
-        foreach ($entries as $entry) {
-            $entry = $this->ctx->localize($type, $entry);
-            $url = $this->ctx->entryUrl($type, $entry);
-            $title = Security::e((string) ($entry['title'] ?? ''));
-            $date = !empty($entry['published_at']) ? ' <time class="c-muted" datetime="' . Security::e((string) $entry['published_at']) . '">' . Security::e($this->formatDate((string) $entry['published_at'], 'date')) . '</time>' : '';
-            $items .= '<li>' . ($url !== null ? '<a href="' . Security::e($url) . '">' . $title . '</a>' : $title) . $date . '</li>';
-        }
-
-        return '<ul class="c-entry-list">' . $items . '</ul>';
-    }
-
     private function pagination(int $page, int $pages, array $state): string
     {
         $path = (string) ($state['path'] ?? '');
-        $link = static fn(int $target): string => Security::e($path . ($target > 1 ? '?page=' . $target : ''));
-        $html = '<nav class="c-pagination" aria-label="Pagination"><ul>';
+        $link = static fn(int $target): string => Security::e($path . ($target > 1 ? (str_contains($path, '?') ? '&' : '?') . 'page=' . $target : ''));
+        $html = '<nav class="c-pagination" aria-label="' . Security::e(Messages::get('pagination', $this->ctx->htmlLang())) . '"><ul>';
 
         $html .= $page > 1
             ? '<li><a href="' . $link($page - 1) . '" rel="prev">‹</a></li>'
@@ -860,7 +1349,7 @@ final class NodeRenderer
 
         if ($config === null) {
             return $this->annotating()
-                ? $this->element($node, '<div class="c-placeholder c-placeholder-warning">' . ($name === '' ? 'Choose a field' : 'Missing field “' . Security::e($name) . '”') . '</div>')
+                ? $this->element($node, '<div class="c-placeholder c-placeholder-warning"' . ($name === '' ? $this->placeholder('chooseField') : $this->placeholder('missingField', ['name' => $name])) . '>' . ($name === '' ? 'Choose a field' : 'Missing field “' . Security::e($name) . '”') . '</div>')
                 : '';
         }
 
@@ -872,7 +1361,7 @@ final class NodeRenderer
 
         if ($html === '') {
             return $this->annotating()
-                ? $this->element($node, '<div class="c-placeholder">' . Security::e($this->fieldLabel($name, $config)) . ' (empty)</div>')
+                ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('fieldEmpty', ['name' => $this->fieldLabel($name, $config)]) . '>' . Security::e($this->fieldLabel($name, $config)) . ' (empty)</div>')
                 : '';
         }
 
@@ -880,7 +1369,7 @@ final class NodeRenderer
             $html = '<div class="c-field-label">' . Security::e($this->fieldLabel($name, $config)) . '</div>' . $html;
         }
 
-        if (!empty($resolved['missing']) && $this->annotating()) $html = '<div class="c-placeholder c-placeholder-warning">Unresolved content reference</div>' . $html;
+        if (!empty($resolved['missing']) && $this->annotating()) $html = '<div class="c-placeholder c-placeholder-warning"' . $this->placeholder('unresolved') . '>Unresolved content reference</div>' . $html;
         return $this->element($node, $html, ['c-field', 'c-field-' . $fieldType]);
     }
 
@@ -911,17 +1400,13 @@ final class NodeRenderer
         };
     }
 
-    /** Wrap text in the chosen tag, linking it to the entry when asked. */
+    /** Wrap text in the chosen tag, with the configured link destination. */
     private function textTag(array $props, string $html, array $state, string $defaultTag): string
     {
         $tag = $props['tag'] !== '' ? $props['tag'] : $defaultTag;
 
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null && $tag !== 'div') {
-                $html = '<a href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        $link = $this->resolveLink($props['link'], $state);
+        if ($link !== null) $html = $this->anchor($link, $html);
 
         $class = str_starts_with($tag, 'h') ? ' class="c-heading"' : '';
 
@@ -937,7 +1422,7 @@ final class NodeRenderer
 
     private function booleanHtml(bool $value, array $props, string $display): string
     {
-        $text = $value ? ($props['true_text'] !== '' ? $props['true_text'] : 'Yes') : ($props['false_text'] !== '' ? $props['false_text'] : 'No');
+        $text = $value ? ($props['true_text'] !== '' ? $props['true_text'] : Messages::get('yes', $this->ctx->htmlLang())) : ($props['false_text'] !== '' ? $props['false_text'] : Messages::get('no', $this->ctx->htmlLang()));
 
         return $display === 'badge'
             ? '<span class="c-badge' . ($value ? ' c-badge-on' : '') . '">' . Security::e($text) . '</span>'
@@ -1008,21 +1493,21 @@ final class NodeRenderer
             $gallery = '';
             $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, 50vw';
             foreach ($items as $item) {
-                $gallery .= '<div class="c-gallery-item">' . $this->mediaElement($item, $props, $state) . '</div>';
+                $gallery .= '<div class="c-gallery-item">' . $this->linkedMedia($item, $props, $state) . '</div>';
             }
 
-            return '<div class="c-grid c-gallery c-cols-' . $columns . '">' . $gallery . '</div>';
+            return '<div class="c-grid c-gallery c-gap-sm c-cols-' . $columns . '">' . $gallery . '</div>';
         }
 
-        $html = $this->mediaElement($items[0], $props, $state);
-        if ($props['link']) {
-            $url = $this->currentEntryUrl($state);
-            if ($url !== null) {
-                $html = '<a class="c-image-link" href="' . Security::e($url) . '">' . $html . '</a>';
-            }
-        }
+        return $this->linkedMedia($items[0], $props, $state);
+    }
 
-        return $html;
+    private function linkedMedia(array $item, array $props, array $state): string
+    {
+        $html = $this->mediaElement($item, $props, $state);
+        $link = $this->resolveLink($props['link'], $state);
+        return $link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')
+            ? $this->anchor($link, $html, 'c-image-link') : $html;
     }
 
     private function relationField(mixed $value, array $config, array $props, string $display, array $state): string
@@ -1182,9 +1667,10 @@ final class NodeRenderer
 
     // ─── Links ───────────────────────────────────────────────────────────────
 
-    /** @return array{href: string, new_tab: bool}|null */
-    private function resolveLink(array $link, array $state): ?array
+    /** @return array{href: string, new_tab: bool, open_modal: bool}|null */
+    private function resolveLink(array|bool $link, array $state): ?array
     {
+        if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
             // Bound destinations, resolved by boundLink() before rendering.
@@ -1202,7 +1688,10 @@ final class NodeRenderer
             $href .= '#' . $link['anchor'];
         }
 
-        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => (bool) ($link['new_tab'] ?? false)];
+        // Older or hand-edited links may carry the flag on other destinations.
+        $modal = in_array($link['type'] ?? '', LayoutSchema::MODAL_LINK_TYPES, true) && !empty($link['open_modal']);
+
+        return $href === null || $href === '' ? null : ['href' => $href, 'new_tab' => !$modal && (bool) ($link['new_tab'] ?? false), 'open_modal' => $modal];
     }
 
     private function linkedEntryUrl(string $type, string $slug): ?string
@@ -1219,7 +1708,7 @@ final class NodeRenderer
     private function linkTitle(array $link): string
     {
         return match ($link['type'] ?? 'none') {
-            'home' => 'Home',
+            'home' => Messages::get('home', $this->ctx->htmlLang()),
             'index' => (string) ($this->ctx->route((string) ($link['collection'] ?? ''))['index_title'] ?? '') ?: (string) ($this->ctx->type((string) ($link['collection'] ?? ''))['label'] ?? ''),
             'entry' => (string) ($this->ctx->findEntry((string) ($link['collection'] ?? ''), (string) ($link['entry'] ?? ''))['title'] ?? ''),
             'url' => (string) ($link['url'] ?? ''),
@@ -1252,6 +1741,7 @@ final class NodeRenderer
     private function anchor(array $link, string $html, string $class = ''): string
     {
         return '<a href="' . Security::e($link['href']) . '"' . ($class !== '' ? ' class="' . $class . '"' : '')
+            . (!empty($link['open_modal']) ? ' data-link-modal aria-haspopup="dialog"' : '')
             . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . '>' . $html . '</a>';
     }
 
@@ -1266,14 +1756,27 @@ final class NodeRenderer
         return '<div' . $this->attributes($node, $classes, $style) . '>' . $background['layer'] . $inner . '</div>';
     }
 
+    private function textGradientAttributes(array $node, string $class): string
+    {
+        $gradient = Gradient::css($node['style']['text_gradient'] ?? []);
+
+        return ' class="' . $class . ($gradient !== '' ? ' c-text-gradient' : '') . '"'
+            . ($gradient !== '' ? ' style="--c-text-gradient:' . Security::e($gradient) . '"' : '');
+    }
+
     /**
-     * Classes, inline style and decorative blur layer for a background image.
-     * Only public images are used; anything else renders no background.
+     * Classes, inline style and decorative image layer for a background.
+     * Image backgrounds only use public images. Blur and scroll effects
+     * apply to the separate layer, so the content stays sharp and in place.
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
     private function background(array $style): array
     {
+        $gradient = Gradient::css($style['background_gradient'] ?? []);
+        if ($gradient !== '') {
+            return ['classes' => [], 'style' => 'background-image:' . $gradient, 'layer' => ''];
+        }
         $file = (string) ($style['background_image'] ?? '');
         $item = $file !== '' ? $this->ctx->mediaItem($file) : null;
 
@@ -1285,6 +1788,7 @@ final class NodeRenderer
         $option = static fn(string $key): mixed => $style[$key] ?? $spec[$key]['default'];
         $image = 'url(\'' . $this->imageSource($item, 1920) . '\')';
         $blur = (int) $option('background_blur');
+        $effect = (string) $option('background_effect');
         $classes = [
             'c-has-bg-image',
             'c-bg-size-' . $option('background_size'),
@@ -1296,21 +1800,26 @@ final class NodeRenderer
             $classes[] = 'c-overlay-' . $option('overlay');
         }
 
-        if ($blur === 0) {
+        if ($blur === 0 && $effect === 'none') {
             return ['classes' => $classes, 'style' => 'background-image:' . $image, 'layer' => ''];
         }
 
-        $classes[] = 'c-has-bg-blur';
+        $classes[] = 'c-has-bg-layer';
+        if ($effect !== 'none') {
+            $classes[] = 'c-bg-effect-' . $effect;
+        }
 
         return [
             'classes' => $classes,
-            'style' => '--c-background-image:' . $image . ';--c-background-blur:' . $blur . 'px',
-            'layer' => '<span class="c-background-blur" aria-hidden="true"></span>',
+            'style' => '--c-background-image:' . $image . ($blur > 0 ? ';--c-background-blur:' . $blur . 'px' : ''),
+            'layer' => '<span class="c-background-layer" aria-hidden="true"></span>',
         ];
     }
 
     private function attributes(array $node, array $classes, string $style = ''): string
     {
+        $classes = [...$classes, ...$this->overrideClasses($node)];
+        $style = implode(';', array_filter([$style, $this->offsetStyle($node), $this->shadowStyle($node)]));
         $attributes = ' class="' . Security::e(implode(' ', array_unique(array_filter($classes)))) . '"';
 
         if (($node['style']['anchor'] ?? '') !== '') {
@@ -1328,28 +1837,86 @@ final class NodeRenderer
         return $attributes;
     }
 
+    /**
+     * Classes of a node's tablet, mobile, hover and focus values (see
+     * StyleVariants). Button props go on the button itself (see button()).
+     */
+    private function overrideClasses(array $node): array
+    {
+        $classes = [];
+        $tokens = ['props' => self::PROP_TOKENS[$node['kind']] ?? [], 'style' => self::STYLE_TOKENS];
+
+        foreach (['responsive', 'states'] as $group) {
+            foreach ($node[$group] ?? [] as $variant => $values) {
+                foreach (['props', 'style'] as $part) {
+                    foreach ($values[$part] ?? [] as $key => $value) {
+                        if ($part === 'style' && in_array($key, ['shadow', 'text_shadow'], true) && is_array($value)) {
+                            $classes[] = StyleVariants::PREFIXES[$variant] . $tokens[$part][$key] . 'custom-' . $variant;
+                        }
+                        if (isset($tokens[$part][$key]) && is_string($value) && $value !== '') {
+                            $classes[] = StyleVariants::PREFIXES[$variant] . $tokens[$part][$key] . $value;
+                        }
+                    }
+                }
+            }
+        }
+        $hover = $node['states']['hover']['style'] ?? [];
+        if (($hover['animation'] ?? 'none') !== 'none') {
+            $classes[] = 'c-hover-anim';
+            $classes[] = 'c-hover-anim-' . $hover['animation'];
+            if (($hover['animation_duration'] ?? 'normal') !== 'normal') $classes[] = 'c-hover-anim-' . $hover['animation_duration'];
+            if (($hover['animation_delay'] ?? 0) > 0) $classes[] = 'c-hover-anim-d-' . $hover['animation_delay'];
+        }
+        if (($node['states'] ?? []) !== []) {
+            $classes[] = 'c-stateful';
+        }
+
+        return $classes;
+    }
+
+    /** Each variant owns its variable, so its settings never overwrite another variant. */
+    private function shadowStyle(array $node): string
+    {
+        $declarations = [];
+        $variants = ['normal' => $node['style'] ?? []];
+        foreach (['responsive', 'states'] as $group) {
+            foreach ($node[$group] ?? [] as $variant => $values) $variants[$variant] = $values['style'] ?? [];
+        }
+        foreach ($variants as $variant => $style) {
+            foreach (['shadow' => 'sh', 'text_shadow' => 'ts'] as $key => $token) {
+                if (is_array($style[$key] ?? null)) {
+                    $css = Shadow::css($style[$key], $key === 'text_shadow');
+                    if ($css !== '') $declarations[] = '--c-' . $token . '-custom-' . $variant . ':' . $css;
+                }
+            }
+        }
+        return implode(';', $declarations);
+    }
+
+    /** A free node's offsets in tenths of a percent of the page width, per device. */
+    private function offsetStyle(array $node): string
+    {
+        $declarations = [];
+
+        foreach (self::OFFSET_VARIABLES as $device => $variables) {
+            $values = $device === 'normal' ? $node['style'] : ($node['responsive'][$device]['style'] ?? []);
+            foreach ($variables as $key => $variable) {
+                if (is_int($values[$key] ?? null) && ($device !== 'normal' || $values[$key] !== 0)) {
+                    $declarations[] = $variable . ':' . $values[$key];
+                }
+            }
+        }
+
+        return implode(';', $declarations);
+    }
+
     private function styleClasses(array $style): array
     {
         $classes = [];
-        $prefixes = [
-            'padding_y' => 'c-py-',
-            'padding_x' => 'c-px-',
-            'margin_bottom' => 'c-mb-',
-            'background' => 'c-bg-',
-            'text_color' => 'c-fg-',
-            'align' => 'c-ta-',
-            'font_size' => 'c-fs-',
-            'font_weight' => 'c-fw-',
-            'font_family' => 'c-ff-',
-            'text_shadow' => 'c-ts-',
-            'radius' => 'c-r-',
-            'shadow' => 'c-sh-',
-            'max_width' => 'c-mw-',
-        ];
 
-        foreach ($prefixes as $key => $prefix) {
-            if (($style[$key] ?? '') !== '') {
-                $classes[] = $prefix . $style[$key];
+        foreach (self::STYLE_TOKENS as $key => $token) {
+            if ($key !== 'border_color' && ($style[$key] ?? '') !== '') {
+                $classes[] = 'c-' . $token . (is_array($style[$key]) ? 'custom-normal' : $style[$key]);
             }
         }
 
@@ -1373,7 +1940,7 @@ final class NodeRenderer
         if (($style['animation'] ?? 'none') !== 'none') {
             $classes[] = 'c-anim';
             $classes[] = 'c-anim-' . $style['animation'];
-            if (in_array($style['animation_trigger'] ?? 'scroll', ['load', 'hover'], true)) {
+            if (($style['animation_trigger'] ?? 'scroll') === 'load') {
                 $classes[] = 'c-anim-' . $style['animation_trigger'];
             }
             if (($style['animation_duration'] ?? 'normal') !== 'normal') {
@@ -1393,6 +1960,16 @@ final class NodeRenderer
         }
 
         return $classes;
+    }
+
+    /**
+     * Marks a builder placeholder so the admin shows it in its own language
+     * (see BuilderCanvas); the English text stays as the fallback.
+     */
+    private function placeholder(string $key, array $params = []): string
+    {
+        return ' data-placeholder="' . Security::e($key) . '"'
+            . ($params !== [] ? ' data-placeholder-params="' . Security::e((string) json_encode($params, JSON_UNESCAPED_UNICODE)) . '"' : '');
     }
 
     private function annotating(): bool

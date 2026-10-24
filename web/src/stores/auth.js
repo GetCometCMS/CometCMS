@@ -60,6 +60,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username, password, remember = false) {
     const res  = await api.login(username, password, remember)
     adoptUser(res.data)
+    // A new sign-in starts in the configured default, regardless of the
+    // workspace remembered from a previous session in this browser.
+    if (res.data?.default_workspace) setActiveWorkspace(res.data.default_workspace)
   }
 
   async function logout() {
@@ -80,8 +83,8 @@ export const useAuthStore = defineStore('auth', () => {
     initPromise = null
   }
 
-  async function setup(username, password, workspaceName, workspaceSlug, starterTemplate = 'website') {
-    const res  = await api.setup(username, password, workspaceName, workspaceSlug, starterTemplate)
+  async function setup(username, password, workspaceName, workspaceSlug, starterTemplate = 'website', languages) {
+    const res  = await api.setup(username, password, workspaceName, workspaceSlug, starterTemplate, languages)
     adoptUser(res.data)
     const ws = res.meta?.workspace
     if (ws) setActiveWorkspace(ws)

@@ -1,5 +1,6 @@
 import { ADMIN_API_BASE, ADMIN_BASE } from '../basePath.js'
 import { t } from '../i18n/index.js'
+import { withPreviewReturn } from '../previewNavigation.js'
 
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
 // then kept up-to-date from the X-CSRF-Token response header.
@@ -17,6 +18,13 @@ const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 // server applies its configured default instead of guessing a slug.
 export function getActiveWorkspace() {
   return activeWorkspace || defaultWorkspace || ''
+}
+
+/** A draft preview page of the website in the active workspace, opened in a new tab. */
+function sitePreviewUrl(path, locale = '') {
+  const params = new URLSearchParams({ workspace: getActiveWorkspace() })
+  if (locale) params.set('locale', locale)
+  return withPreviewReturn(`${ADMIN_BASE}/site-preview${path}?${params}`)
 }
 
 export function setActiveWorkspace(workspace) {
@@ -90,9 +98,9 @@ function isRetryableNetworkError(err) {
   return err?.name === 'AbortError' || err instanceof TypeError
 }
 
-async function fetchWithTimeout(url, options) {
+async function fetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController()
-  const timer = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     return await fetch(url, { ...options, signal: controller.signal })
@@ -101,17 +109,17 @@ async function fetchWithTimeout(url, options) {
   }
 }
 
-async function request(method, path, body = null) {
+async function request(method, path, body = null, workspace = getActiveWorkspace()) {
   const normalizedMethod = method.toUpperCase()
   const readKey = normalizedMethod === 'GET' && body === null
-    ? `${getActiveWorkspace()} ${normalizedMethod} ${path}`
+    ? `${workspace} ${normalizedMethod} ${path}`
     : null
 
   if (readKey && inFlightReads.has(readKey)) {
     return inFlightReads.get(readKey)
   }
 
-  const promise = requestOnce(normalizedMethod, path, body)
+  const promise = requestOnce(normalizedMethod, path, body, workspace)
 
   if (readKey) {
     inFlightReads.set(readKey, promise)
@@ -124,9 +132,9 @@ async function request(method, path, body = null) {
   return promise
 }
 
-async function requestOnce(method, path, body = null) {
+async function requestOnce(method, path, body = null, workspace = getActiveWorkspace()) {
   const headers = { 'X-Requested-With': 'XMLHttpRequest' }
-  if (getActiveWorkspace()) headers['X-Comet-Workspace'] = getActiveWorkspace()
+  if (workspace) headers['X-Comet-Workspace'] = workspace
 
   if (csrfToken) {
     headers['X-CSRF-Token'] = csrfToken
@@ -154,7 +162,7 @@ async function requestOnce(method, path, body = null) {
         headers,
         body: finalBody,
         credentials: 'same-origin',
-      })
+      }, path.startsWith('/site/fonts') ? 60000 : REQUEST_TIMEOUT_MS)
 
       if (attempt < maxAttempts && RETRYABLE_STATUSES.has(res.status)) {
         await sleep(retryDelay(attempt, res))
@@ -290,8 +298,9 @@ export const api = {
   me:     ()                  => request('GET',    '/me'),
   login:  (username, password, remember = false)=> request('POST', '/login', { username, password, remember }),
   logout: ()                  => request('POST',   '/logout'),
-  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'website')=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate }),
+  setup:  (username, password, workspace, workspaceSlug, starterTemplate = 'website', languages = { locales: ['en'], default_locale: 'en' })=> request('POST', '/setup', { username, password, workspace, workspace_slug: workspaceSlug, starter_template: starterTemplate, languages }),
   appInfo: ()                  => request('GET',    '/app'),
+  languages: ()                => request('GET', '/languages'),
   workspaces: {
     list:       () => request('GET', '/workspaces'),
     create:     (data) => request('POST', '/workspaces', data),
@@ -338,6 +347,7 @@ export const api = {
     revisions:   (col, id)                   => request('GET',    `/content/${col}/${id}/revisions`),
     restoreRevision: (col, id, revisionId)   => request('POST',   `/content/${col}/${id}/revisions/${revisionId}/restore`),
     duplicate:       (col, id)               => request('POST',   `/content/${col}/${id}/duplicate`),
+    move:            (col, id, placement)    => request('POST',   `/content/${col}/${id}/move`, placement),
     deleteTranslation: (col, id, locale)     => request('DELETE', `/content/${col}/${id}/translations/${locale}`),
   },
 
@@ -358,7 +368,7 @@ export const api = {
     deleteCategory: (name) => request('DELETE', `/media/categories/${encodeURIComponent(name)}`),
     updateCategory: (name, category) => request('PUT', `/media/${encodeURIComponent(name)}/category`, { category }),
     rename: (oldName, name) => request('PUT', `/media/${encodeURIComponent(oldName)}/rename`, { name }),
-    updateMeta: (name, alt, title) => request('PUT', `/media/${encodeURIComponent(name)}/meta`, { alt, title }),
+    updateMeta: (name, alt, title, revision) => request('PUT', `/media/${encodeURIComponent(name)}/meta`, { alt, title, revision }),
     updateVisibility: (name, visibility) => request('PUT', `/media/${encodeURIComponent(name)}/visibility`, { visibility }),
     bulkUpdateVisibility: (files, visibility) => request('PUT', '/media/bulk-visibility', { files, visibility }),
     bulkUpdateCategory: (files, category) => request('PUT', '/media/bulk-category', { files, category }),
@@ -413,24 +423,36 @@ export const api = {
 
   // Website
   site: {
-    get:          ()                     => request('GET',    '/site'),
+    get:          (workspace)            => request('GET',    '/site', null, workspace),
     status:       ()                     => request('GET',    '/site/status'),
     links:        (type, id, params = {}) => request('GET',   withQuery(`/site/links/${type}/${encodeURIComponent(id)}`, params)),
     saveSettings: (data)                 => request('PUT',    '/site/settings', data),
-    saveTheme:    (data)                 => request('PUT',    '/site/theme', data),
+    saveFormSettings: (data)             => request('PUT',    '/site/form-settings', data),
+    saveTheme:    (data, workspace)      => request('PUT',    '/site/theme', data, workspace),
     themeRevisions: () => request('GET', '/site/theme/revisions'),
     themeRevision: (id) => request('GET', `/site/theme/revisions/${encodeURIComponent(id)}`),
     restoreThemeRevision: (id) => request('POST', `/site/theme/revisions/${encodeURIComponent(id)}/restore`),
-    saveMenus:    (menus)                => request('PUT',    '/site/menus', { menus }),
+    saveMenus:    (menus, revision)      => request('PUT',    '/site/menus', { menus, revision }),
+    /** Templates of some page kinds: `{ type: { variant: [template, …] } }`; page kinds left out stay. */
+    saveTemplates: (templates, revision) => request('PUT',    '/site/templates', { templates, revision }),
+    /** A new template of a page kind, starting as a copy of `from` (default: the default template); saved right away. */
+    createTemplate: (type, variant, name, from = '', parts = {}) => request('POST', `/site/templates/${type}/${variant}`, { name, from, parts }),
     cardTemplate: (type) => request('GET', `/site/card-template/${type}`),
-    layout:       (type, variant, entry = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, entry ? { entry } : {})),
-    saveLayout:   (type, variant, nodes) => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes }),
-    resetLayout:  (type, variant)        => request('DELETE', `/site/layouts/${type}/${variant}`),
-    layoutRevisions: (type, variant) => request('GET', `/site/layouts/${type}/${variant}/revisions`),
-    layoutRevision: (type, variant, id) => request('GET', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`),
-    restoreLayoutRevision: (type, variant, id) => request('POST', `/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`),
+    /** A template's content area; without `template`, the entry's (or the default) template. */
+    layout:       (type, variant, entry = '', template = '') => request('GET', withQuery(`/site/layouts/${type}/${variant}`, { ...(entry ? { entry } : {}), ...(template ? { template } : {}) })),
+    saveLayout:   (type, variant, nodes, revision, template = 'default') => request('PUT',    `/site/layouts/${type}/${variant}`, { nodes, revision, template }),
+    resetLayout:  (type, variant, template = 'default') => request('DELETE', withQuery(`/site/layouts/${type}/${variant}`, { template })),
+    layoutRevisions: (type, variant, template = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions`, { template })),
+    layoutRevision: (type, variant, id, template = 'default') => request('GET', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}`, { template })),
+    restoreLayoutRevision: (type, variant, id, template = 'default') => request('POST', withQuery(`/site/layouts/${type}/${variant}/revisions/${encodeURIComponent(id)}/restore`, { template })),
+    /** An entry's own page content ({ field } picks the page field; the type's first by default). */
+    page:         (type, id, field = '') => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}`, field ? { field } : {})),
+    savePage:     (type, id, field, nodes, revision) => request('PUT', `/site/pages/${type}/${encodeURIComponent(id)}`, { field, nodes, revision }),
+    resetPage:    (type, id, field, revision) => request('DELETE', `/site/pages/${type}/${encodeURIComponent(id)}`, { field, revision }),
+    pageRevisions: (type, id, field) => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}/revisions`, { field })),
+    pageRevision: (type, id, field, revision) => request('GET', withQuery(`/site/pages/${type}/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}`, { field })),
     region:       (region)               => request('GET',    `/site/regions/${region}`),
-    saveRegion:   (region, nodes)        => request('PUT',    `/site/regions/${region}`, { nodes }),
+    saveRegion:   (region, nodes, revision)        => request('PUT',    `/site/regions/${region}`, { nodes, revision }),
     resetRegion:  (region)               => request('DELETE', `/site/regions/${region}`),
     regionRevisions: (region) => request('GET', `/site/regions/${region}/revisions`),
     regionRevision: (region, id) => request('GET', `/site/regions/${region}/revisions/${encodeURIComponent(id)}`),
@@ -438,23 +460,34 @@ export const api = {
     components:   ()                     => request('GET',    '/site/components'),
     component:    (id, entry = '')       => request('GET',    withQuery(`/site/components/${encodeURIComponent(id)}`, entry ? { entry } : {})),
     createComponent: (data)              => request('POST',   '/site/components', data),
-    saveComponent: (id, nodes)           => request('PUT',    `/site/components/${encodeURIComponent(id)}`, { nodes }),
+    saveComponent: (id, nodes, revision)           => request('PUT',    `/site/components/${encodeURIComponent(id)}`, { nodes, revision }),
     renameComponent: (id, name)          => request('PATCH',  `/site/components/${encodeURIComponent(id)}`, { name }),
     deleteComponent: (id)                => request('DELETE', `/site/components/${encodeURIComponent(id)}`),
     componentRevisions: (id) => request('GET', `/site/components/${encodeURIComponent(id)}/revisions`),
     componentRevision: (id, revision) => request('GET', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}`),
     restoreComponentRevision: (id, revision) => request('POST', `/site/components/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision)}/restore`),
     forms:        ()                     => request('GET',    '/site/forms'),
-    createForm:   (data)                 => request('POST',   '/site/forms', data),
-    updateForm:   (id, data)             => request('PUT',    `/site/forms/${encodeURIComponent(id)}`, data),
-    deleteForm:   (id)                   => request('DELETE', `/site/forms/${encodeURIComponent(id)}`),
+    createPreview: (body)               => request('POST', '/site/preview-snapshots', body),
     preview:      (body)                 => request('POST',   '/site/preview', body),
     /** Full-page draft preview of an entry, opened in a new tab. */
-    entryPreviewUrl: (type, id, locale = '') => {
-      const params = new URLSearchParams({ workspace: getActiveWorkspace() })
-      if (locale) params.set('locale', locale)
-      return `${ADMIN_BASE}/site-preview/${encodeURIComponent(type)}/${encodeURIComponent(id)}?${params}`
-    },
+    entryPreviewUrl: (type, id, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, locale),
+    /** A type's index page with its saved layout. */
+    indexPreviewUrl: (type, locale = '') => sitePreviewUrl(`/${encodeURIComponent(type)}`, locale),
+    /** The homepage with the saved header and footer. */
+    homePreviewUrl: (locale = '') => sitePreviewUrl('', locale),
+  },
+
+  fonts: {
+    list: () => request('GET', '/site/fonts'),
+    catalogue: (query = {}) => request('GET', withQuery('/site/fonts/catalogue', query)),
+    details: (id) => request('GET', `/site/fonts/catalogue/${encodeURIComponent(id)}`),
+    preview: (id) => request('POST', `/site/fonts/catalogue/${encodeURIComponent(id)}/preview`),
+    jobs: () => request('GET', '/site/fonts/jobs'),
+    install: (body, workspace) => request('POST', '/site/fonts/install', body, workspace),
+    step: (id, cursor, workspace) => request('POST', `/site/fonts/jobs/${encodeURIComponent(id)}/step`, { cursor }, workspace),
+    cancel: (id) => request('DELETE', `/site/fonts/jobs/${encodeURIComponent(id)}`),
+    upload: (body) => request('POST', '/site/fonts/upload', body),
+    remove: (id) => request('DELETE', `/site/fonts/${encodeURIComponent(id)}`),
   },
 
   // Profile (current user)

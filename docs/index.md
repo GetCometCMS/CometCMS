@@ -27,8 +27,8 @@ features:
     link: /guide/content-types
     linkText: Content types
   - icon: 🔌
-    title: Visual pages & content fields
-    details: Design consistent pages with shared layouts and structured content fields. Developers can also enable the headless API.
+    title: Visual pages & custom fields
+    details: Design consistent pages with shared layouts and structured custom fields. Developers can also enable the headless API.
     link: /guide/website
     linkText: Page Builder
   - icon: 🧩
@@ -38,7 +38,7 @@ features:
     linkText: Field types
   - icon: 🚀
     title: Zero server dependencies
-    details: PHP 8.1+ is the only production requirement. No Composer, no database, no CLI, no SSH, no Node.js on the server.
+    details: PHP 8.2+ is the only production requirement. No Composer, no database, no CLI, no SSH, no Node.js on the server.
     link: /guide/installation
     linkText: Installation
   - icon: 🔑

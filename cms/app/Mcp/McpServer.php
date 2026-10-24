@@ -9,6 +9,7 @@ use CometCMS\Auth\PermissionService;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Content\ExternalReadPolicy;
 use CometCMS\Core\Http;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
@@ -22,8 +23,9 @@ final class McpServer
     private const PROTOCOL_VERSION = '2025-06-18';
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT = 100;
-    private const SYSTEM_FIELDS = ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale'];
+    private const SYSTEM_FIELDS = ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'values', 'publication', 'revision', 'reset_fields', 'locale'];
 
+    private string $readLocale = '';
     private ApiTokenRepository $tokens;
     private PermissionService $permissions;
     private ContentRepository $content;
@@ -83,6 +85,7 @@ final class McpServer
 
     private function boot(string $workspace, ?string $token): void
     {
+        $this->readLocale = '';
         $workspace = Security::slug($workspace);
         $registry = new WorkspaceRepository();
 
@@ -138,7 +141,7 @@ final class McpServer
                 'name' => 'cometcms',
                 'title' => 'CometCMS',
                 'version' => $this->version(),
-                'description' => 'Headless CMS content, schema, and media tools.',
+                'description' => 'CMS content, schema, media, and permission-scoped page-builder tools.',
                 'icons' => [[
                     'src' => $icon,
                     'mimeType' => 'image/png',
@@ -149,9 +152,10 @@ final class McpServer
             'instructions' => implode(' ', [
                 $this->principal === [] ? 'Unauthenticated access is read-only: only public schemas, published entries, and public media are available. Send a bearer access token for private reads or writes.' : 'Authenticated access uses the bearer token permission grants.',
                 'Use CometCMS tools to inspect schemas, manage entries, and work with media.',
-                'Content type updates are surgical by default: omitted label, icon, locales, default_locale, and fields are preserved.',
+                $this->canUseBuilder() ? 'Page-builder tools edit shared, live content areas and templates of collections. Start with get_builder_schema, list_templates and get_layout; every layout write requires the latest revision.' : 'Page-builder tools are available to bearer tokens with site.manage permission.',
+                'Content type updates are surgical by default: omitted label, icon, and fields are preserved. All content types use the workspace languages and default language.',
                 'When updating content type fields, pass only the fields to add or change; use remove_fields to delete fields, or replace_fields for a full field map replacement.',
-                'For localized entries, include locale in create_entry or update_entry only when targeting a specific translation; otherwise the CMS default locale is used.',
+                'Entry writes target one locale and preserve other languages. Include locale, revision for optimistic concurrency, and reset_fields to remove translated overrides. Publication status and URL slugs belong to each locale.',
             ]),
         ];
     }
@@ -170,7 +174,7 @@ final class McpServer
                 throw new McpError('A bearer token is required for write tools.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool($name, $args));
             }
             $callback = $this->toolCallbacks()[$name];
-            return $this->textResult($callback($args));
+            return $this->textResult($callback($args), false, in_array($name, PageBuilderTools::NAMES, true));
         } catch (McpError $e) {
             return $this->textResult([
                 'error' => [
@@ -181,6 +185,8 @@ final class McpServer
                     'recovery' => $this->recovery($e),
                 ],
             ], true);
+        } catch (\CometCMS\Core\ConflictException $e) {
+            return $this->textResult(['error' => ['message' => $e->getMessage(), 'status' => 409, 'details' => ['code' => 'conflict']]], true);
         } catch (ValidationException $e) {
             return $this->textResult([
                 'error' => [
@@ -206,7 +212,14 @@ final class McpServer
 
     private function toolCallbacks(): array
     {
-        return [
+        $builder = [];
+        foreach (PageBuilderTools::NAMES as $name) {
+            $builder[$name] = function (array $args) use ($name): array {
+                $this->requirePermission($name, $args);
+                return (new PageBuilderTools($this->workspace, $this->principal))->call($name, $args);
+            };
+        }
+        return $builder + [
             'comet_health' => fn(array $args): array => $this->health(),
             'list_content_types' => fn(array $args): array => $this->listContentTypes(),
             'get_content_type' => fn(array $args): array => $this->getContentType($args),
@@ -248,7 +261,7 @@ final class McpServer
     private function listContentTypes(): array
     {
         $this->requirePermission('list_content_types', []);
-        return ['data' => array_values(array_filter($this->types->all(), fn(array $type): bool => $this->principal !== [] || ($type['visibility'] ?? 'public') !== 'private'))];
+        return ['data' => array_values(array_filter($this->types->all(), fn(array $type): bool => $this->principal !== [] || (ExternalReadPolicy::apiEnabled($type) && ($type['visibility'] ?? 'public') !== 'private')))];
     }
 
     private function getContentType(array $args): array
@@ -270,14 +283,10 @@ final class McpServer
         }
 
         $body = ['name' => $name];
-        foreach (['label', 'icon', 'fields', 'locales', 'default_locale', 'singleton', 'visibility'] as $key) {
+        foreach (['label', 'icon', 'fields', 'visibility'] as $key) {
             if (array_key_exists($key, $args)) {
                 $body[$key] = $args[$key];
             }
-        }
-
-        if (!empty($body['singleton']) && count($this->content->all($name)) > 1) {
-            throw new McpError('Single page content types can only be enabled when there is at most one active entry.', 422, ['code' => 'validation_failed']);
         }
 
         $this->types->save($body);
@@ -296,13 +305,8 @@ final class McpServer
         $current = $this->types->find($collection);
         $body = $this->mergeContentTypeSchema($current, $args + ['collection' => $collection]);
 
-        if (!empty($body['singleton']) && count($this->content->all($collection)) > 1) {
-            throw new McpError('Single page content types can only be enabled when there is at most one active entry.', 422, ['code' => 'validation_failed']);
-        }
-
         $this->types->save($body);
         $schema = $this->types->find($collection);
-        $this->content->syncLocalization($collection, $schema);
         $this->cache->clear();
         (new Logger())->info('content_type.updated', ['name' => $collection, 'user_id' => $this->principal['id'] ?? null]);
 
@@ -341,7 +345,7 @@ final class McpServer
         $result = $this->content->query($collection, $params, $admin);
         $include = $this->includeFields($params['include']);
         $locale = $params['locale'];
-        $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
+        $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale, fn(array $target): bool => $this->canReadRelatedEntry($target)), $result['data']);
         $result['data'] = array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data']));
 
         return $this->pageInfo($result);
@@ -357,21 +361,16 @@ final class McpServer
             $this->requirePermission('get_entry', ['collection' => $collection]);
         }
         $admin = $this->principal !== [];
-        $entry = $this->content->findByIdentifier($collection, $identifier, $admin);
-        if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry))) {
+        $locale = $this->content->locale((string) ($args['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($collection, $identifier, $admin, $locale);
+        if ($entry === null || (!$admin && !$this->content->isPubliclyVisible($entry, $locale))) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
         }
 
         $this->requirePermission('get_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $entry]);
-        $locale = (string) ($args['locale'] ?? '');
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
+        $entry = $this->content->resolveLocaleFields($entry, $locale, !$admin);
 
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $entry = $this->content->resolveLocaleFields($entry, $locale);
-        }
-
-        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale);
+        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields((string) ($args['include'] ?? '')), $locale, fn(array $target): bool => $this->canReadRelatedEntry($target));
 
         return ['data' => $this->publicEntry($entry, $collection, $admin)];
     }
@@ -380,8 +379,9 @@ final class McpServer
     {
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
+        $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
-        $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry]);
+        $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, null, $entry);
 
         $saved = $this->content->save($collection, $entry, $this->principal, null, true);
@@ -394,14 +394,16 @@ final class McpServer
         $collection = $this->segment($args['collection'] ?? '', 'collection');
         $identifier = $this->segment($args['identifier'] ?? '', 'identifier');
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
+        $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
-        $existing = $this->content->findByIdentifier($collection, $identifier, true);
+        $existing = $this->content->findByIdentifier($collection, $identifier, true, $entry['locale']);
 
         if ($existing === null) {
             throw new McpError('Content entry not found.', 404, ['code' => 'not_found']);
         }
 
-        $this->requirePermission('update_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $existing, 'entry_payload' => $entry]);
+        $existing = $this->content->resolveLocaleFields($existing, $entry['locale']);
+        $this->requirePermission('update_entry', ['collection' => $collection, 'identifier' => $identifier, 'entry' => $existing, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, $existing, $entry);
         $saved = $this->content->save($collection, $entry, $this->principal, (string) $existing['id'], true);
 
@@ -447,6 +449,7 @@ final class McpServer
 
     private function getMediaItem(array $args): array
     {
+        $this->readLocale = (new \CometCMS\Localization\LanguageSettings($this->workspace))->requireLocale((string) ($args['locale'] ?? ''));
         $filename = trim((string) ($args['filename'] ?? ''));
         $this->requirePermission('get_media_item', ['filename' => $filename]);
         $item = $this->media->find($filename);
@@ -511,6 +514,9 @@ final class McpServer
     private function tools(): array
     {
         $schemas = $this->toolSchemas();
+        if (!$this->canUseBuilder()) {
+            $schemas = array_diff_key($schemas, array_flip(PageBuilderTools::NAMES));
+        }
         if ($this->principal === []) {
             $schemas = array_filter($schemas, static fn(array $schema): bool => $schema['annotations']['readOnlyHint']);
         }
@@ -534,12 +540,12 @@ final class McpServer
         $object = ['type' => 'object', 'additionalProperties' => true];
         $visibility = ['type' => 'string', 'enum' => ['public', 'private']];
 
-        return [
+        return PageBuilderTools::schemas() + [
             'comet_health' => ['title' => 'CometCMS health', 'description' => 'Check the configured CometCMS public API health endpoint.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'list_content_types' => ['title' => 'List content types', 'description' => 'List CometCMS content type schemas.', 'inputSchema' => $this->schema([]), 'annotations' => $this->toolAnnotations(true)],
             'get_content_type' => ['title' => 'Get content type', 'description' => 'Fetch a single CometCMS content type schema.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(true)],
-            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
-            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'locales' => ['type' => 'array', 'items' => $string], 'default_locale' => $string, 'singleton' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'create_content_type' => ['title' => 'Create content type', 'description' => 'Create a new content type schema. Requires schema.create permission.', 'inputSchema' => $this->schema(['name' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'visibility' => $visibility], ['name']), 'annotations' => $this->toolAnnotations(false, false, false)],
+            'update_content_type' => ['title' => 'Update content type', 'description' => 'Surgically update an existing content type schema. Omitted schema parts are preserved.', 'inputSchema' => $this->schema(['revision' => $optionalString, 'collection' => $string, 'label' => $string, 'icon' => $string, 'fields' => $object, 'remove_fields' => ['type' => 'array', 'items' => $string], 'replace_fields' => ['type' => 'boolean'], 'visibility' => $visibility], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_content_type' => ['title' => 'Delete content type', 'description' => 'Permanently delete a content type and all its entries.', 'inputSchema' => $this->schema(['collection' => $string], ['collection']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection']), 'annotations' => $this->toolAnnotations(true)],
             'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(true)],
@@ -547,7 +553,7 @@ final class McpServer
             'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination), 'annotations' => $this->toolAnnotations(true)],
-            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(true)],
+            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string, 'locale' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(true)],
             'create_media_category' => ['title' => 'Create media category', 'description' => 'Create a media category or subcategory.', 'inputSchema' => $this->schema(['name' => $string, 'parent' => $optionalString], ['name']), 'annotations' => $this->toolAnnotations(false, false, true)],
             'set_media_category' => ['title' => 'Set media category', 'description' => 'Assign or clear a media file category.', 'inputSchema' => $this->schema(['filename' => $string, 'category' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_media' => ['title' => 'Delete media', 'description' => 'Delete a media file.', 'inputSchema' => $this->schema(['filename' => $string], ['filename']), 'annotations' => $this->toolAnnotations(false, true, true)],
@@ -577,8 +583,20 @@ final class McpServer
         ], static fn(mixed $value): bool => $value !== [] || $value === $required);
     }
 
+    private function canUseBuilder(): bool
+    {
+        return $this->principal !== [] && $this->permissions->allows($this->principal, 'site.manage', [
+            'type' => 'site', 'workspace' => $this->workspace->slug(), 'principal' => $this->principal,
+        ]);
+    }
+
     private function requirePermission(string $tool, array $args): void
     {
+        if (in_array($tool, PageBuilderTools::NAMES, true) && !$this->canUseBuilder()) {
+            throw new McpError('Page-builder tools require a bearer token with site.manage permission.', $this->principal === [] ? 401 : 403, ['code' => $this->principal === [] ? 'unauthorized' : 'forbidden'], $this->requiredPermissionsForTool($tool, $args), [
+                'Use an access token with site.manage on workspace:' . $this->workspace->slug() . ':site:*. Headless content grants do not grant builder access.',
+            ]);
+        }
         if ($this->principal === []) {
             $schema = isset($args['collection']) ? $this->types->find((string) $args['collection']) : null;
             if ($this->toolSchemas()[$tool]['annotations']['readOnlyHint'] && ($schema['visibility'] ?? 'public') !== 'private') {
@@ -605,7 +623,7 @@ final class McpServer
             return;
         }
 
-        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug()];
+        $context = ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $this->principal, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()];
         if (!$this->permissions->allows($this->principal, 'content.publish', $context)) {
             throw new McpError('Forbidden.', 403, ['code' => 'forbidden'], [permissionGrant('content.publish', $this->workspace->slug(), $this->contentResource(['collection' => $collection], $entry !== null))]);
         }
@@ -621,8 +639,8 @@ final class McpServer
             'delete_content_type' => [['schema.delete', ['type' => 'schema', 'name' => (string) ($args['collection'] ?? '*')]]],
             'list_entries' => [['content.read', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*')]]],
             'get_entry' => [['content.read', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
-            'create_entry' => [['content.create', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'fields' => $this->changedEntryFields($args)]]],
-            'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args)]]],
+            'create_entry' => [['content.create', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'fields' => $this->changedEntryFields($args), 'locale' => $args['locale'] ?? '']]],
+            'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args), 'locale' => $args['locale'] ?? '']]],
             'delete_entry' => [['content.delete', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
             'list_media' => [['media.read', ['type' => 'media']]],
             'get_media_item' => [['media.read', $this->mediaPermissionContext($args)]],
@@ -643,6 +661,7 @@ final class McpServer
     private function requiredPermissionsForTool(string $tool, array $args): array
     {
         $workspace = $this->workspace->slug();
+        if (in_array($tool, PageBuilderTools::NAMES, true)) return [permissionGrant('site.manage', $workspace, 'site:*')];
 
         return match ($tool) {
             'list_content_types' => [permissionGrant('schema.read', $workspace, 'schema:*')],
@@ -667,6 +686,7 @@ final class McpServer
     private function recovery(McpError $error): array
     {
         $recovery = $error->recovery();
+        if ($recovery !== [] && in_array($error->status(), [404, 409, 422], true)) return $recovery;
 
         if ($error->status() === 401) {
             $recovery[] = 'Check the bearer access token and make sure it has permission grants for the operation.';
@@ -686,14 +706,12 @@ final class McpServer
         $currentFields = is_array($current['fields'] ?? null) ? $current['fields'] : [];
         $body = [
             'name' => (string) ($updates['collection'] ?? $current['name'] ?? ''),
+            'revision' => $updates['revision'] ?? null,
             'label' => $updates['label'] ?? $current['label'] ?? null,
             'icon' => $updates['icon'] ?? $current['icon'] ?? null,
-            'singleton' => array_key_exists('singleton', $updates) ? (bool) $updates['singleton'] : (bool) ($current['singleton'] ?? false),
             'visibility' => $updates['visibility'] ?? $current['visibility'] ?? 'public',
             'slug_field' => $current['slug_field'] ?? null,
             'slug_source' => $current['slug_source'] ?? null,
-            'locales' => array_key_exists('locales', $updates) ? $updates['locales'] : (is_array($current['locales'] ?? null) ? $current['locales'] : []),
-            'default_locale' => $updates['default_locale'] ?? $current['default_locale'] ?? null,
             'fields' => !empty($updates['replace_fields'])
                 ? (is_array($updates['fields'] ?? null) ? $updates['fields'] : [])
                 : array_replace($currentFields, is_array($updates['fields'] ?? null) ? $updates['fields'] : []),
@@ -717,7 +735,7 @@ final class McpServer
             }
 
             if (array_key_exists($field, $entry)) {
-                $fields[$field] = $this->publicValue($entry[$field], is_array($config) ? $config : [], $admin);
+                $fields[$field] = $this->publicValue($entry[$field], is_array($config) ? $config : [], $admin, (string) $entry['locale']);
             }
         }
 
@@ -725,8 +743,12 @@ final class McpServer
             'id' => $this->content->stableId($entry),
             'slug' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
             'type' => $collection,
+            'locale' => $entry['locale'],
+            'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
+            'parent' => !empty($schema['hierarchical']) ? \CometCMS\Content\PageTree::parent($entry) : null,
+            'position' => !empty($schema['hierarchical']) ? (int) ($entry['position'] ?? 0) : null,
             'published_at' => $entry['published_at'] ?? null,
             'created_at' => (string) ($entry['created_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),
@@ -736,7 +758,7 @@ final class McpServer
         ], static fn(mixed $value): bool => $value !== null);
     }
 
-    private function publicValue(mixed $value, array $config, bool $admin): mixed
+    private function publicValue(mixed $value, array $config, bool $admin, string $locale = ''): mixed
     {
         if (($config['type'] ?? '') === 'media') {
             if (!is_array($value)) {
@@ -746,8 +768,30 @@ final class McpServer
             return array_values(array_filter(array_map(fn(mixed $file): ?string => $this->mediaUrl((string) $file), $value)));
         }
 
-        if (($config['type'] ?? '') === 'repeater' && $admin) {
-            return is_array($value) ? $value : [];
+        if (($config['type'] ?? '') === 'relation' && !(is_array($value) && isset($value['collection'], $value['id']))) {
+            if (is_array($value)) {
+                return array_values(array_filter(array_map(fn(mixed $item): mixed => $this->publicValue($item, $config, $admin, $locale), $value), static fn(mixed $item): bool => $item !== null));
+            }
+            if ($value === null || $value === '') return $value;
+            $target = (string) ($config['target'] ?? '');
+            if ($target === '' || !$this->types->exists($target)) return null;
+            $related = $this->content->findByIdentifier($target, (string) $value, false, $locale);
+            if ($related === null) return null;
+            $related = $this->content->resolveLocaleFields($related, $this->content->locale($locale), !$admin);
+            return $this->canReadRelatedEntry($related) ? $value : null;
+        }
+
+        if (($config['type'] ?? '') === 'repeater' && is_array($value)) {
+            $subfields = [];
+            foreach ((array) ($config['subfields'] ?? []) as $subfield) {
+                if (is_array($subfield) && isset($subfield['key'])) $subfields[(string) $subfield['key']] = $subfield;
+            }
+            return array_map(function (mixed $row) use ($subfields, $admin, $locale): mixed {
+                if (!is_array($row)) return $row;
+                $mapped = [];
+                foreach ($row as $key => $item) $mapped[$key] = $this->publicValue($item, $subfields[$key] ?? [], $admin, $locale);
+                return $mapped;
+            }, $value);
         }
 
         if (!is_array($value)) {
@@ -755,7 +799,7 @@ final class McpServer
         }
 
         if (isset($value['collection'], $value['id'])) {
-            if (!$admin && (!$this->content->isPubliclyVisible($value) || ($this->types->find((string) $value['collection'])['visibility'] ?? 'public') === 'private')) {
+            if (!$this->canReadRelatedEntry($value)) {
                 return null;
             }
 
@@ -764,14 +808,21 @@ final class McpServer
 
         $mapped = [];
         foreach ($value as $key => $item) {
-            $mapped[$key] = $admin ? $item : $this->publicValue($item, [], $admin);
+            $mapped[$key] = $this->publicValue($item, [], $admin, $locale);
         }
 
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
     }
 
+    private function canReadRelatedEntry(array $entry): bool
+    {
+        return ExternalReadPolicy::allowsEntry($entry, $this->content, $this->types, $this->workspace, $this->principal ?: null, true);
+    }
+
     private function publicMediaItem(array $file): array
     {
+        $languages = (new \CometCMS\Localization\LanguageSettings($this->workspace))->all();
+        $file = \CometCMS\Localization\LocalizedValue::tree($file, $this->readLocale ?: $languages['default_locale'], $languages['default_locale']);
         return [
             'filename' => $file['name'],
             'name' => $file['name'],
@@ -829,13 +880,14 @@ final class McpServer
         );
     }
 
-    private function textResult(mixed $value, bool $isError = false): array
+    private function textResult(mixed $value, bool $isError = false, bool $structured = false): array
     {
         return array_filter([
             'content' => [[
                 'type' => 'text',
-                'text' => json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                'text' => json_encode($value, ($structured ? 0 : JSON_PRETTY_PRINT) | JSON_UNESCAPED_SLASHES),
             ]],
+            'structuredContent' => $structured ? $value : null,
             'isError' => $isError ?: null,
         ], static fn(mixed $item): bool => $item !== null);
     }
@@ -873,7 +925,7 @@ final class McpServer
 
     private function requireCollection(string $collection, string $message): void
     {
-        if (!$this->types->exists($collection)) {
+        if (!$this->types->exists($collection) || ($this->principal === [] && !ExternalReadPolicy::apiEnabled($this->types->find($collection)))) {
             throw new McpError($message, 404, ['code' => 'not_found']);
         }
     }
@@ -912,7 +964,7 @@ final class McpServer
             ? $args['entry_payload']
             : (is_array($args['entry'] ?? null) ? $args['entry'] : []);
 
-        return array_values(array_diff(array_keys($entry), self::SYSTEM_FIELDS));
+        return array_values(array_unique(array_merge((array) ($entry['reset_fields'] ?? []), array_diff(array_keys($entry), self::SYSTEM_FIELDS))));
     }
 
     private function contentResource(array $args, bool $includeEntry = false): string

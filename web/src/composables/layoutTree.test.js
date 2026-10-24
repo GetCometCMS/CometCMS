@@ -22,6 +22,7 @@ import {
   shiftNode,
   templateCollection,
   usesCurrentEntry,
+  withOverrides,
   wrapFor,
 } from './layoutTree.js'
 
@@ -242,4 +243,14 @@ describe('layout tree', () => {
     expect(templateCollection(tree, 't').id).toBe('list')
     expect(templateCollection(tree, 'c2')).toBeNull()
   })
+})
+
+
+it('preserves legacy accordion component overrides after entry migration', () => {
+  const node = { id: 'accordion', kind: 'accordion', editable: ['items'], props: { items: [{ title: 'Base question', html: '<p>Answer</p>', open: false }] }, children: [] }
+  const legacy = withOverrides(node, { accordion: { title: 'Instance question' } })
+  expect(legacy.props.items).toEqual([{ title: 'Instance question', html: '<p>Answer</p>', open: false }])
+  expect(node.props.items[0].title).toBe('Base question')
+  const current = withOverrides(node, { accordion: { title: 'Ignored legacy title', items: [] } })
+  expect(current.props.items).toEqual([])
 })

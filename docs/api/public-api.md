@@ -75,7 +75,7 @@ The response includes runtime extension capabilities that affect key features:
 
 ### `GET /api/v1/workspaces/{workspace}/content-types`
 
-Returns all content type schemas.
+Returns all content type schemas. Each schema reports the workspace languages as read-only `locales` and `default_locale`; configure languages in workspace settings, not through content type writes.
 
 ### `GET /api/v1/workspaces/{workspace}/content-types/{collection}`
 
@@ -87,7 +87,7 @@ Creates a new content type schema.
 
 **Required permission:** `schema.create` on `schema:{name}`
 
-Request body fields: `name` (required), `label`, `icon`, `singleton`, `fields`, `locales`, `default_locale`.
+Request body fields include `name` (required), `label`, `icon`, `fields`, `api_enabled`, `visibility`, `hierarchical`, `allow_submissions`, and `submission_settings`. `locales` and `default_locale` are read-only workspace values and are ignored on schema writes.
 
 ### `PUT /api/v1/workspaces/{workspace}/content-types/{collection}`
 
@@ -96,8 +96,6 @@ Updates an existing content type schema.
 **Required permission:** `schema.update` on `schema:{collection}`
 
 Existing entries are not modified — new fields will be absent until entries are re-saved.
-
-Setting `singleton: true` makes the content type a single page. Single pages allow at most one active entry and use the content type name as their fixed slug.
 
 ### `DELETE /api/v1/workspaces/{workspace}/content-types/{collection}`
 
@@ -109,11 +107,11 @@ Permanently deletes a content type and all its entries. This action is irreversi
 
 ### `GET /api/v1/workspaces/{workspace}/content/{collection}`
 
-Returns entries in a collection. For single page content types, this route returns the fixed entry object instead of a list.
+Returns entries in a collection.
 
 Without a token, only `published` entries and `scheduled` entries whose `published_at` is in the past are returned. With a token that has `content.read` on the collection, drafts and protected entries are included.
 
-New content types have `api_enabled: false`. Explicitly enable API exposure to make published, unprotected entries publicly readable. Disabled types are omitted from schema discovery, their content and schema read endpoints return 404, and relations cannot expose their entries. Website pages are independent of this setting. Existing legacy schemas retain their prior public or token-protected access until reconfigured.
+New content types have `api_enabled: false`. Explicitly enable API exposure to make published, unprotected entries publicly readable. Disabled types are omitted from schema discovery, their content and schema read endpoints return 404, and relations cannot expose their entries. Enabling API exposure sets the type to public visibility. Website pages are independent of this setting. Existing legacy schemas retain their prior public or token-protected access until reconfigured.
 
 **Query parameters:**
 
@@ -136,7 +134,7 @@ New content types have `api_enabled: false`. Explicitly enable API exposure to m
 
 Boolean fields accept `true`/`false` (also `1`/`0`). Select fields, including multi-select fields, match against the stored option value. When a stored field value is an array, filters match if any item in the array matches the requested value. Media fields are always returned as arrays of absolute media URLs, including single-file media fields. Multi-select and multi-relation fields are returned as arrays; single select and relation fields are returned as one value or `null`. The stable entry identifier is filterable as `id`; the URL slug is filterable as `slug`.
 
-For localized content types, `locale` resolves translated `title` and field values before search, filters, sorting, and relation expansion. Without `locale`, entries use the content type's default-locale fallback copy. Unsupported locale codes are ignored.
+`locale` resolves titles, slugs, publication state, and field values before search, filters, sorting, and relation expansion. Without it, the workspace default is used. Unsupported languages return a validation error. Public reads include only published variants of the requested language, and fallback never exposes another language's draft. Responses include `locale` and `revision`.
 
 Sorting is type-aware for numeric values and ISO-style dates, then falls back to case-insensitive string sorting.
 
@@ -170,7 +168,7 @@ Public reads return only public entries. Reading drafts, protected entries, or e
   "data": {
     "is_promo_material": true,
     "category": "launch",
-    "hero_image": ["https://yourdomain.com/media/hero.png"]
+    "hero_image": ["https://yourdomain.com/media/site-a/hero.png"]
   }
 }
 ```
@@ -191,8 +189,6 @@ For localized content types, include `locale` in the body to create that locale 
 
 When a content type field defines a supported `default`, omitted values are created with that default before validation and normalization.
 
-For single page content types, creation is allowed only while no active entry exists. The entry slug is forced to the content type name.
-
 ### `PUT /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
 
 Updates an existing entry by slug or stable ID.
@@ -201,7 +197,21 @@ Updates an existing entry by slug or stable ID.
 
 Updating an entry to `status: "published"` also requires `content.publish` on the entry.
 
-For localized content types, include `locale` in the body to update that locale variant. Slug, status, author, and publish date remain shared by the entry.
+Include `locale` in the body to target one language. Title, slug, status, publication date, and localized custom fields belong to that language; IDs, authors, and shared fields remain shared. Omitted fields and other languages are preserved.
+
+Send the response's `revision` with an update to detect stale writes. A mismatch returns HTTP **409**; reload before retrying while preserving your local draft. Send `reset_fields: ["intro"]` to remove overrides and inherit from the default language. Explicit empty strings, `null`, `false`, zero, and empty arrays do not inherit (field validation still applies). Shared fields are edited in the default language. Whole translation maps, `values`, and `publication` are not accepted by entry write endpoints.
+
+```json
+{"locale":"de","revision":"<revision from GET>","title":"Über uns","slug":"ueber-uns","status":"published"}
+```
+
+Schemas can use localized presentation text for labels, help text, and select-option labels:
+
+```json
+{"type":"localized","values":{"en":"Your name","de":"Ihr Name"}}
+```
+
+Admin entry reads expose the resource-owned `values` and `publication` maps alongside a resolved projection. Existing flat entries and legacy translation maps remain readable and are converted to the new storage format on their next save. Existing workspace language choices are imported from website and content type settings when no workspace language settings exist.
 
 ### `DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}`
 

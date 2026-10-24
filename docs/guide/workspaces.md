@@ -18,6 +18,9 @@ Workspace-scoped data:
 - Revisions
 - Trash
 - Public API cache
+- Workspace languages
+- Website settings, menus, theme, templates, components and fonts
+- Form CAPTCHA overrides
 
 Shared installation-wide data:
 
@@ -74,24 +77,25 @@ For public endpoints, use `/api/v1/workspaces/{slug}/...`.
 
 ## Default workspace
 
-The built-in workspace is always named `default` and cannot be deleted. You can rename it and upload a custom icon.
+The workspace chosen during setup becomes the configured default. Its slug comes from the name you entered; an installation does not require a workspace named `default`.
 
-To change which workspace is served at the root API path:
+To change the default:
 
-1. Open **Settings → Workspaces**.
-2. Click **Set as default** next to the workspace you want to promote.
+1. Open **Administration → Workspaces**.
+2. Click **Set as default** next to an active workspace.
 
-The previously default workspace is not automatically reassigned — it remains accessible via its `/workspaces/{slug}` prefix.
+The default selects the workspace for admin requests without `X-Comet-Workspace` and the website served on the installation's own address. Public API requests always need `/api/v1/workspaces/{slug}/...`, including for the default workspace.
 
-> **Note:** The built-in `default` workspace and the _configured_ default workspace are two separate things. The configured default can be any workspace; it just means that workspace's content is served at the root API path.
+![Workspace management with fictional production and staging workspaces](../screenshots/view-workspaces.png)
 
 ## Creating a workspace
 
-1. Go to **Settings → Workspaces**.
+1. Go to **Administration → Workspaces**.
 2. Click **New workspace**.
 3. Enter a label and (optionally) a custom slug. The slug is derived from the label automatically.
-4. Choose a starting point. **Start with a website** is selected by default and creates Landing Page and Pages with sample content, navigation, and a configured homepage. The Page Builder is enabled. **Start empty** creates no content types or entries.
-5. Click **Create**.
+4. Select the workspace languages and default language. Sample content is assigned to the default language, and additional languages are available for translations.
+5. Choose a starting point. **Start with a website** is selected by default and creates a Pages collection with sample content, a Landing Page entry as the homepage, navigation, and a configured homepage. The Page Builder is enabled. **Start empty** creates no content types or entries.
+6. Click **Create**.
 
 New-workspace website starters omit Events; the first-install website starter still includes them.
 
@@ -101,19 +105,9 @@ Slugs are immutable after creation. Choose them carefully.
 
 Archived workspaces are hidden from the workspace switcher and from the API. Their data is preserved on disk.
 
-- The **built-in default** workspace (`default` slug) cannot be archived.
-- The **configured default** workspace cannot be archived until you assign a new default.
+The last active workspace cannot be archived. Archiving the configured default automatically selects another active workspace as the default. Archived data stays on disk, and its slug remains reserved.
 
-To archive: click **Archive** next to the workspace.
-
-## Deleting a workspace
-
-Deleting a workspace permanently removes its record. The underlying content files remain in `cms/storage/` but are no longer accessible through the API.
-
-- The built-in `default` workspace cannot be deleted.
-- The configured default workspace cannot be deleted until you set a different default.
-
-To delete: click **Delete** next to the workspace, then type the workspace slug to confirm.
+To archive, click **Archive** next to the workspace and confirm. The admin UI provides archival rather than permanent workspace deletion; the Admin API's `DELETE /admin/api/workspaces/{slug}` also archives without removing files.
 
 ## Workspace icons
 
@@ -125,11 +119,13 @@ Click the workspace avatar to upload a new icon. To remove an existing icon, cli
 
 Permission grants can be scoped to a specific workspace. For example:
 
-| Grant                                 | Effect                                                 |
-| ------------------------------------- | ------------------------------------------------------ |
-| `workspace:*:content:*`               | Read/write content in all workspaces                   |
-| `workspace:site-b:content:*`          | Read/write content only in the `site-b` workspace      |
-| `workspace:site-b:content:posts:read` | Read-only access to the `posts` collection in `site-b` |
+| Action | Resource | Effect |
+| --- | --- | --- |
+| `content.read` | `workspace:*:content:*` | Read content in all workspaces |
+| `content.update` | `workspace:site-b:content:*` | Update content only in `site-b` |
+| `content.read` | `workspace:site-b:content:posts:*` | Read only the `posts` collection in `site-b` |
+
+Actions and resources are separate grant properties. Publication also requires `content.publish`; update access alone does not grant it.
 
 When creating or editing an access token or user role, choose a workspace from the **Scope** dropdown in the permission grants editor to restrict a grant to a single workspace.
 
@@ -150,4 +146,4 @@ cms/storage/
     trash/                       # Soft-deleted entries
 ```
 
-The default workspace uses `default` as its directory name regardless of the configured default slug.
+Every workspace directory uses its own slug, including whichever workspace is configured as the default.

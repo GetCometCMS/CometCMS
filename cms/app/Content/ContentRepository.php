@@ -6,9 +6,13 @@ namespace CometCMS\Content;
 
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
+use CometCMS\Core\ConflictException;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 use CometCMS\Core\ValidationException;
 use CometCMS\Fields\FieldRegistry;
 use CometCMS\Logging\Logger;
+use CometCMS\Site\LayoutSchema;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Trash\TrashStore;
 use CometCMS\Webhooks\WebhookDispatcher;
@@ -50,8 +54,7 @@ final class ContentRepository
     public function all(string $collection, bool $includeDeleted = false): array
     {
         Security::assertSafeName($collection);
-        $definedFields = $this->definedFieldNames($collection);
-        $entries = array_map(fn(array $entry): array => $this->normalizeStoredEntry($entry, $definedFields), $this->store->all($collection));
+        $entries = array_map(fn(array $entry): array => $this->normalizeStoredEntry($entry), $this->store->all($collection));
 
         if (!$includeDeleted) {
             $entries = array_values(array_filter($entries, static fn(array $entry): bool => empty($entry['deleted_at'])));
@@ -79,40 +82,38 @@ final class ContentRepository
         return $entry;
     }
 
-    public function findByIdentifier(string $collection, string $identifier, bool $includeDeleted = false): ?array
+    public function findByIdentifier(string $collection, string $identifier, bool $includeDeleted = false, string $locale = ''): ?array
     {
-        $entry = $this->find($collection, $identifier, $includeDeleted);
-
-        if ($entry !== null) {
-            return $entry;
-        }
-
-        if ($identifier === $collection && $this->isSingleton($collection)) {
-            return $this->singletonEntry($collection, $includeDeleted);
-        }
-
+        $locale = $this->locale($locale);
+        $direct = $this->find($collection, $identifier, $includeDeleted);
+        if ($direct !== null && ($this->stableId($direct) === $identifier || $this->resolveLocaleFields($direct, $locale)['slug'] === $identifier)) return $direct;
         foreach ($this->all($collection, $includeDeleted) as $candidate) {
-            if ($this->stableId($candidate) === $identifier) {
-                return $candidate;
-            }
+            if ($this->stableId($candidate) === $identifier || $this->resolveLocaleFields($candidate, $locale)['slug'] === $identifier) return $candidate;
         }
-
         return null;
+    }
+
+    public function locale(string $locale = ''): string
+    {
+        return (new LanguageSettings($this->workspace))->requireLocale($locale);
     }
 
     public function stableId(array $entry): string
     {
-        $uid = trim((string) ($entry['uid'] ?? ''));
+        return trim((string) ($entry['uid'] ?? ''));
+    }
 
-        if ($uid !== '') {
-            return $uid;
+    /** Normalize an editor draft without writing entries, revisions or events. */
+    public function preview(string $collection, array $payload, array $user, ?array $existing): array
+    {
+        Security::assertSafeName($collection);
+        $entry = $this->normalizeAndValidate($collection, $payload, $user, $existing, true, array_keys($payload));
+        if ($existing !== null) {
+            // A preview does not change the saved modification date or editor.
+            $entry['updated_at'] = $existing['updated_at'];
+            $entry['updated_by'] = $existing['updated_by'] ?? null;
         }
-
-        return substr(hash('sha256', implode('|', [
-            (string) ($entry['collection'] ?? ''),
-            (string) ($entry['created_at'] ?? ''),
-            (string) ($entry['id'] ?? ''),
-        ])), 0, 12);
+        return $entry;
     }
 
     public function save(
@@ -123,17 +124,20 @@ final class ContentRepository
         bool $autoResolveSlugConflicts = true,
         ?array $validateOnlyFields = null,
     ): array {
+        return (new JsonStore($this->workspace->root()))->synchronized(fn(): array => $this->saveUnlocked($collection, $payload, $user, $existingId, $autoResolveSlugConflicts, $validateOnlyFields), 'routing');
+    }
+
+    private function saveUnlocked(string $collection, array $payload, array $user, ?string $existingId, bool $autoResolveSlugConflicts, ?array $validateOnlyFields): array
+    {
         Security::assertSafeName($collection);
         $existing = $existingId !== null ? $this->find($collection, $existingId, true) : null;
+        if (isset($payload['revision']) && $existing !== null && $payload['revision'] !== ($existing['revision'] ?? '')) throw new ConflictException();
         $entry = $this->normalizeAndValidate($collection, $payload, $user, $existing, $autoResolveSlugConflicts, $validateOnlyFields);
-        $oldStatus = $existing['status'] ?? null;
+        $site = new \CometCMS\Site\SiteRepository($this->workspace);
+        $site->validateEntryUrls($site->settings(), $entry);
+        $locale = $this->locale((string) ($payload['locale'] ?? ''));
+        $oldStatus = $existing['publication'][$locale]['status'] ?? null;
         $oldId = $existing['id'] ?? null;
-
-        if ($existing === null && $this->isSingleton($collection) && $this->singletonEntry($collection) !== null) {
-            throw new ValidationException([
-                'singleton' => 'This single page already has content. Edit the existing page instead.',
-            ]);
-        }
 
         if ($existing !== null) {
             if ($oldId !== null && $oldId !== $entry['id']) {
@@ -143,7 +147,7 @@ final class ContentRepository
             $this->writeRevision($collection, (string) $entry['id'], $existing, 'content.updated', $user);
         }
 
-        $this->store->write($entry, $collection, (string) $entry['id']);
+        $this->store->write($this->stored($entry), $collection, (string) $entry['id']);
 
         if ($oldId !== null && $oldId !== $entry['id']) {
             $this->store->delete($collection, (string) $oldId);
@@ -152,176 +156,190 @@ final class ContentRepository
         $event = $existing === null ? 'content.created' : 'content.updated';
         $this->afterWrite($event, $collection, (string) $entry['id'], $user);
 
-        if (($entry['status'] ?? '') === 'published' && $oldStatus !== 'published') {
+        if (($entry['publication'][$locale]['status'] ?? '') === 'published' && $oldStatus !== 'published') {
             $this->afterWrite('content.published', $collection, (string) $entry['id'], $user);
         }
 
-        if ($oldStatus === 'published' && ($entry['status'] ?? '') !== 'published') {
+        if ($oldStatus === 'published' && ($entry['publication'][$locale]['status'] ?? '') !== 'published') {
             $this->afterWrite('content.unpublished', $collection, (string) $entry['id'], $user);
         }
 
-        return $entry;
+        return $this->resolveLocaleFields($entry, $this->locale((string) ($payload['locale'] ?? '')));
+    }
+
+    /**
+     * Save an entry's page content from the page builder, or clear it with
+     * null so the entry shows its layout's default content again. Page
+     * content is shared by all languages, so this works from any of them.
+     */
+    public function savePage(string $collection, string $id, string $field, ?array $nodes, array $user, ?string $revision = null): array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($collection, $id, $field, $nodes, $user, $revision): array {
+            $existing = $this->find($collection, $id);
+            if ($existing === null) throw new \RuntimeException('Entry not found.');
+            if ($revision !== null && $revision !== ($existing['revision'] ?? '')) throw new ConflictException();
+            if (($this->types->find($collection)['fields'][$field]['type'] ?? '') !== 'page') throw new ValidationException([$field => 'Choose a page content field.']);
+            $entry = $this->stored($existing);
+            $entry['values'][$field] = $this->fields->get('page')->normalize($nodes, []);
+            $entry['revision'] = bin2hex(random_bytes(12));
+            $entry['updated_at'] = Security::now();
+            $entry['updated_by'] = $user['id'] ?? null;
+            $this->writeRevision($collection, $id, $existing, 'content.updated', $user);
+            $this->store->write($entry, $collection, $id);
+            $this->afterWrite('content.updated', $collection, $id, $user);
+
+            return $this->normalizeStoredEntry($entry);
+        }, 'routing');
+    }
+
+    /**
+     * Rewrite the page content of every entry of $collection's page fields
+     * with $change (stored value => new stored value), including entries in
+     * the trash and their revisions, without new revisions of their own.
+     */
+    public function rewritePages(string $collection, callable $change): int
+    {
+        $fields = array_keys(array_filter($this->types->find($collection)['fields'], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+        if ($fields === []) return 0;
+        $rewrite = function (array $entry) use ($fields, $change): ?array {
+            $changed = false;
+            foreach ($fields as $field) {
+                $value = $entry['values'][$field] ?? null;
+                if (!LayoutSchema::hasPageContent($value)) continue;
+                $next = $change($value);
+                if ($next !== $value) {
+                    $entry['values'][$field] = $next;
+                    $changed = true;
+                }
+            }
+            return $changed ? $entry : null;
+        };
+        $updated = 0;
+        foreach ($this->all($collection, true) as $entry) {
+            $next = $rewrite($this->stored($entry));
+            if ($next !== null) {
+                $this->store->write($next, $collection, (string) $entry['id']);
+                $updated++;
+            }
+            foreach ($this->revisions->all($collection, (string) $entry['id']) as $revision) {
+                $next = is_array($revision['entry'] ?? null) && array_key_exists('values', $revision['entry']) ? $rewrite($revision['entry']) : null;
+                if ($next !== null) {
+                    $revision['entry'] = $next;
+                    $this->revisions->write($revision, $collection, (string) $entry['id'], (string) $revision['id']);
+                }
+            }
+        }
+        if ($updated) $this->cache->clear();
+        return $updated;
     }
 
     public function bulkUpdateFields(string $collection, array $existing, array $data, array $user): array
     {
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
+        return $this->save($collection, $data, $user, $existing['id'], true, array_keys($data));
+    }
 
-        if ($locales === [] || !$this->containsLocalizedBulkField($data, $schema)) {
-            return $this->save($collection, array_merge($existing, $data), $user, (string) ($existing['id'] ?? ''), true, array_keys($data));
-        }
+    public function isHierarchical(string $collection): bool
+    {
+        return !empty($this->types->find($collection)['hierarchical']);
+    }
 
-        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $slugField = (string) ($schema['slug_field'] ?? 'slug');
-        $localizedData = [];
-        $rootData = [];
-        $errors = [];
+    /** @return list<array> the direct children of $parentUid ('' for top-level pages), in their saved order */
+    public function children(string $collection, string $parentUid): array
+    {
+        $children = array_values(array_filter($this->all($collection), static fn(array $entry): bool => PageTree::parent($entry) === $parentUid));
+        usort($children, static fn(array $a, array $b): int => [(int) ($a['position'] ?? 0), (string) $a['created_at']] <=> [(int) ($b['position'] ?? 0), (string) $b['created_at']]);
+        return $children;
+    }
 
-        foreach ($data as $name => $value) {
-            $name = (string) $name;
-
-            if ($name === 'title') {
-                $localizedData[$name] = (string) $value;
-                continue;
+    /**
+     * Place an entry of a hierarchical type under $parent ('' for top level)
+     * at $index among its new siblings, renumbering the siblings in between.
+     */
+    public function move(string $collection, string $id, string $parent, int $index, array $user): array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($collection, $id, $parent, $index, $user): array {
+            if (!$this->isHierarchical($collection)) throw new ValidationException(['parent' => 'This content type has no page hierarchy.']);
+            $existing = $this->find($collection, $id);
+            if ($existing === null) throw new \RuntimeException('Entry not found.');
+            $siblings = array_values(array_filter($this->children($collection, $parent), static fn(array $entry): bool => $entry['id'] !== $existing['id']));
+            $index = max(0, min($index, count($siblings)));
+            // Save in a language the entry has, so moving never adds a translation.
+            $locale = isset($existing['publication'][$this->locale()]) ? $this->locale() : (string) (array_key_first($existing['publication']) ?? $this->locale());
+            $saved = $this->saveUnlocked($collection, ['parent' => $parent, 'position' => $index, 'locale' => $locale], $user, (string) $existing['id'], true, ['parent', 'position']);
+            array_splice($siblings, $index, 0, [null]);
+            foreach ($siblings as $position => $sibling) {
+                if ($sibling === null || (int) ($sibling['position'] ?? 0) === $position) continue;
+                // Reordering is not a content change: no revision, date or webhook.
+                $sibling['position'] = $position;
+                $this->store->write($this->stored($sibling), $collection, (string) $sibling['id']);
             }
+            $this->cache->clear();
+            return $saved;
+        }, 'routing');
+    }
 
-            $config = $fields[$name] ?? null;
+    /** Entry ids ordered so that children come before their parents, e.g. for deleting a whole branch. */
+    public function deepestFirst(string $collection, array $ids): array
+    {
+        if (!$this->isHierarchical($collection)) return $ids;
+        $byUid = PageTree::byUid($this->all($collection));
+        $depth = [];
+        foreach ($byUid as $entry) $depth[(string) $entry['id']] = count(PageTree::ancestors($byUid, $entry));
+        usort($ids, static fn(string $a, string $b): int => ($depth[$b] ?? 0) <=> ($depth[$a] ?? 0));
+        return $ids;
+    }
 
-            if (is_array($config) && $name !== $slugField) {
-                $typeName = (string) ($config['type'] ?? 'text');
-                $type = $this->fields->get($typeName);
-                $result = $type->validate($value, $config, ['collection' => $collection, 'entry' => $existing]);
+    private function nextPosition(string $collection, string $parentUid): int
+    {
+        $children = $this->children($collection, $parentUid);
+        return $children === [] ? 0 : max(array_map(static fn(array $entry): int => (int) ($entry['position'] ?? 0), $children)) + 1;
+    }
 
-                if (($result['valid'] ?? false) === false) {
-                    $errors[$name] = (string) ($result['message'] ?? 'Invalid value.');
-                    continue;
-                }
-
-                $normalized = $type->normalize($value, $config, ['collection' => $collection, 'entry' => $existing]);
-
-                if ($this->isLocalizedField($config)) {
-                    $localizedData[$name] = $normalized;
-                } else {
-                    $rootData[$name] = $normalized;
-                }
-
-                continue;
-            }
-
-            $rootData[$name] = $value;
+    /** The parent's uid, or '' with an error in $errors when it cannot hold $entry. */
+    private function validParent(string $collection, mixed $value, array $entry, array &$errors): string
+    {
+        $identifier = is_string($value) ? trim($value) : '';
+        if ($identifier === '') return '';
+        $byUid = PageTree::byUid($this->all($collection));
+        $parent = $byUid[$identifier] ?? (preg_match('/^[A-Za-z0-9_-]+$/', $identifier) ? $this->findByIdentifier($collection, $identifier) : null);
+        if ($parent === null) {
+            $errors['parent'] = 'Choose an existing entry of this type.';
+            return PageTree::parent($entry);
         }
-
-        if ($errors !== []) {
-            throw new ValidationException($errors);
+        $uid = (string) $parent['uid'];
+        $ancestors = PageTree::ancestors($byUid, $parent);
+        if ($uid === $entry['uid'] || in_array($entry['uid'], $ancestors, true)) {
+            $errors['parent'] = 'A page cannot be placed below itself.';
+        } elseif (count($ancestors) + 2 + PageTree::height($byUid, (string) $entry['uid']) > PageTree::MAX_DEPTH) {
+            $errors['parent'] = 'Pages can be nested at most ' . PageTree::MAX_DEPTH . ' levels deep.';
         }
-
-        $entry = array_merge($existing, $rootData);
-        $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
-
-        foreach ($this->bulkUpdateLocales($entry, $schema) as $locale) {
-            $translation = is_array($translations[$locale] ?? null) ? $translations[$locale] : [];
-
-            if (!array_key_exists('title', $translation)) {
-                $translation['title'] = (string) ($entry['title'] ?? '');
-            }
-
-            $translations[$locale] = array_merge($translation, $localizedData);
-        }
-
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-        $translations = $this->syncUniversalTranslationFields($translations, $fields, $slugField, $defaultLocale);
-        $entry['translations'] = $translations;
-
-        $defaultTranslation = $translations[$defaultLocale] ?? null;
-        if (is_array($defaultTranslation)) {
-            $entry = $this->applyTranslationToRoot($entry, $defaultTranslation, $schema);
-        }
-
-        $entry['updated_at'] = Security::now();
-        $entry['updated_by'] = $user['id'] ?? null;
-
-        $id = (string) ($entry['id'] ?? '');
-        if ($id === '') {
-            throw new ValidationException(['id' => 'Entry ID is required.']);
-        }
-
-        $this->writeRevision($collection, $id, $existing, 'content.updated', $user);
-        $this->store->write($entry, $collection, $id);
-        $this->afterWrite('content.updated', $collection, $id, $user);
-
-        return $entry;
+        return isset($errors['parent']) ? PageTree::parent($entry) : $uid;
     }
 
     public function duplicate(string $collection, string $id, array $user): ?array
     {
-        Security::assertSafeName($collection);
-        Security::assertSafeName($id);
-
         $existing = $this->find($collection, $id, true);
-
-        if ($existing === null) {
-            return null;
-        }
-
-        if ($this->isSingleton($collection)) {
-            throw new ValidationException([
-                'singleton' => 'This single page already has content. Edit the existing page instead.',
-            ]);
-        }
-
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-        $now = Security::now();
-        $baseSlug = Security::slug((string) ($existing['slug'] ?? $existing['id'] ?? $existing['title'] ?? 'copy'));
-        $slug = $this->uniqueSlug($collection, $baseSlug !== '' ? $baseSlug : 'copy');
-
-        $entry = $existing;
-        $entry['id'] = $slug;
+        if ($existing === null) return null;
+        $entry = $this->stored($existing);
+        $entry['id'] = Security::opaqueId();
         $entry['uid'] = Security::opaqueId();
-        $entry['collection'] = $collection;
-        $entry['slug'] = $slug;
-        $entry['status'] = 'draft';
-        $entry['created_at'] = $now;
-        $entry['updated_at'] = $now;
-        $entry['author_id'] = $user['id'] ?? null;
-        $entry['updated_by'] = $user['id'] ?? null;
-
-        unset($entry['scheduled_at'], $entry['deleted_at'], $entry['deleted_by'], $entry['_links']);
-
-        $this->prefixCopyTitle($entry);
-
-        if ($locales !== [] && is_array($entry['translations'] ?? null)) {
-            foreach ($entry['translations'] as $locale => $translation) {
-                if (!is_array($translation)) {
-                    continue;
-                }
-
-                $this->prefixCopyTitle($translation);
-                $entry['translations'][$locale] = $translation;
-            }
-
-            $entry['translations'] = $this->syncUniversalTranslationFields(
-                $entry['translations'],
-                is_array($schema['fields'] ?? null) ? $schema['fields'] : [],
-                (string) ($schema['slug_field'] ?? 'slug'),
-                $defaultLocale
-            );
-            $defaultTranslation = $defaultLocale !== '' ? ($entry['translations'][$defaultLocale] ?? null) : null;
-
-            if (is_array($defaultTranslation)) {
-                $entry = $this->applyTranslationToRoot($entry, $defaultTranslation, $schema);
-            }
-
-            $entry['id'] = $slug;
-            $entry['slug'] = $slug;
+        $entry['revision'] = bin2hex(random_bytes(12));
+        $entry['created_at'] = $entry['updated_at'] = Security::now();
+        $entry['author_id'] = $entry['updated_by'] = $user['id'] ?? null;
+        unset($entry['deleted_at'], $entry['deleted_by']);
+        $siblingsOf = $this->isHierarchical($collection) ? PageTree::parent($entry) : null;
+        if ($siblingsOf !== null) $entry['position'] = $this->nextPosition($collection, $siblingsOf);
+        foreach ($entry['publication'] as $locale => &$publication) {
+            $publication = ['status' => 'draft', 'published_at' => null];
+            $title = LocalizedValue::resolve($entry['values']['title'], $locale, $locale);
+            $entry['values']['title'] = LocalizedValue::set($entry['values']['title'], $locale, 'Copy of ' . $title, $this->locale());
+            $slug = (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $locale);
+            $entry['values']['slug'] = LocalizedValue::set($entry['values']['slug'], $locale, $this->uniqueSlug($collection, $slug, '', $locale, $siblingsOf), $this->locale());
         }
-
-        $this->store->write($entry, $collection, $slug);
-        $this->afterWrite('content.created', $collection, $slug, $user);
-
-        return $entry;
+        unset($publication);
+        $this->store->write($this->stored($entry), $collection, $entry['id']);
+        $this->afterWrite('content.created', $collection, $entry['id'], $user);
+        return $this->normalizeStoredEntry($entry);
     }
 
     public function revisions(string $collection, string $id): array
@@ -335,7 +353,15 @@ final class ContentRepository
         );
     }
 
-    public function restoreRevision(string $collection, string $id, string $revisionId, array $user): ?array
+    public function restoreRevision(string $collection, string $id, string $revisionId, array $user, ?callable $authorize = null): ?array
+    {
+        return (new JsonStore($this->workspace->root()))->synchronized(
+            fn(): ?array => $this->restoreRevisionUnlocked($collection, $id, $revisionId, $user, $authorize),
+            'routing',
+        );
+    }
+
+    private function restoreRevisionUnlocked(string $collection, string $id, string $revisionId, array $user, ?callable $authorize): ?array
     {
         Security::assertSafeName($collection);
         Security::assertSafeName($id);
@@ -347,15 +373,18 @@ final class ContentRepository
             return null;
         }
 
-        $current = $this->find($collection, $id, true);
-        $entry = $this->normalizeStoredEntry($revision['entry']);
+        $current = $this->find($collection, $id);
+        if ($current === null) return null;
+        // History restores content, never ownership or creation metadata.
+        $historical = $this->normalizeStoredEntry($revision['entry']);
+        $entry = $this->normalizeStoredEntry(array_replace($this->stored($current), array_intersect_key($historical, array_flip(['values', 'publication']))));
         $entry['collection'] = $collection;
-        $entry['id'] = Security::slug((string) ($entry['id'] ?? $entry['slug'] ?? $id));
-        $entry['slug'] = (string) ($entry['slug'] ?? $entry['id']);
+        $entry['id'] = $id;
         // Preserve the current entry's immutable uid
-        $currentUid = $current !== null ? trim((string) ($current['uid'] ?? '')) : '';
-        $revisionUid = trim((string) ($entry['uid'] ?? ''));
-        $entry['uid'] = $currentUid !== '' ? $currentUid : ($revisionUid !== '' ? $revisionUid : Security::opaqueId());
+        $entry['uid'] = $current['uid'] ?? $entry['uid'] ?? '';
+        if ($entry['uid'] === '') {
+            throw new \RuntimeException('Cannot restore an entry without an immutable uid.');
+        }
         $entry['updated_at'] = Security::now();
         $entry['updated_by'] = $user['id'] ?? null;
         unset($entry['deleted_at'], $entry['deleted_by']);
@@ -365,10 +394,11 @@ final class ContentRepository
             $entry['slug'] = $id;
         }
 
-        if ($this->isSingleton($collection)) {
-            $entry['id'] = $collection;
-            $entry['slug'] = $collection;
-        }
+        $entry['revision'] = bin2hex(random_bytes(12));
+
+        if ($authorize !== null) $authorize($current, $entry, $this->revisionChanges($current, $entry));
+        $site = new \CometCMS\Site\SiteRepository($this->workspace);
+        $site->validateEntryUrls($site->settings(), $entry);
 
         if ($current !== null) {
             if ($id !== $entry['id']) {
@@ -378,7 +408,7 @@ final class ContentRepository
             $this->writeRevision($collection, (string) $entry['id'], $current, 'content.revision_restore', $user);
         }
 
-        $this->store->write($entry, $collection, (string) $entry['id']);
+        $this->store->write($this->stored($entry), $collection, (string) $entry['id']);
 
         if ($id !== $entry['id']) {
             $this->store->delete($collection, $id);
@@ -386,7 +416,42 @@ final class ContentRepository
 
         $this->afterWrite('content.updated', $collection, (string) $entry['id'], $user);
 
-        return $entry;
+        return $this->normalizeStoredEntry($entry);
+    }
+
+    /** Raw override changes matter even when their resolved values agree. */
+    private function revisionChanges(array $current, array $restored): array
+    {
+        $changes = [];
+        foreach (array_unique(array_merge(array_keys($current['values']), array_keys($restored['values']))) as $field) {
+            $before = $current['values'][$field] ?? null;
+            $after = $restored['values'][$field] ?? null;
+            if ($before === $after && array_key_exists($field, $current['values']) === array_key_exists($field, $restored['values'])) continue;
+            if ($before === null && $after === null) {
+                $changes[''][] = $field;
+                continue;
+            }
+            if ((LocalizedValue::is($before) || $before === null) && (LocalizedValue::is($after) || $after === null)) {
+                $before ??= ['values' => []];
+                $after ??= ['values' => []];
+                foreach (array_unique(array_merge(array_keys($before['values']), array_keys($after['values']), array_keys($before['sources'] ?? []), array_keys($after['sources'] ?? []))) as $locale) {
+                    if (($before['values'][$locale] ?? null) !== ($after['values'][$locale] ?? null)
+                        || array_key_exists($locale, $before['values']) !== array_key_exists($locale, $after['values'])
+                        || ($before['sources'][$locale] ?? null) !== ($after['sources'][$locale] ?? null)) {
+                        $changes[$locale][] = $field;
+                    }
+                }
+            } else {
+                // Shared fields (including page content) require a global grant.
+                $changes[''][] = $field;
+            }
+        }
+        foreach (array_unique(array_merge(array_keys($current['publication']), array_keys($restored['publication']))) as $locale) {
+            $before = $current['publication'][$locale] ?? [];
+            $after = $restored['publication'][$locale] ?? [];
+            if ($before !== $after) $changes[$locale] = array_merge($changes[$locale] ?? [], ['status', 'published_at']);
+        }
+        return $changes;
     }
 
     public function softDelete(string $collection, string $id, ?array $user = null): void
@@ -397,10 +462,14 @@ final class ContentRepository
             return;
         }
 
+        if ($this->isHierarchical($collection) && $this->children($collection, (string) $entry['uid']) !== []) {
+            throw new ValidationException(['parent' => 'Move or delete its child pages first.']);
+        }
+
         $entry['deleted_at'] = Security::now();
         $entry['deleted_by'] = $user['id'] ?? null;
-        $this->store->write($entry, $collection, $id);
-        (new TrashStore($this->workspace))->putContent($collection, $id, $entry);
+        $this->store->write($this->stored($entry), $collection, $id);
+        (new TrashStore($this->workspace))->putContent($collection, $id, $this->stored($entry));
         $this->afterWrite('content.deleted', $collection, $id, $user ?? []);
     }
 
@@ -416,28 +485,21 @@ final class ContentRepository
             return null;
         }
 
-        $targetId = $id;
-        if ($this->isSingleton($collection)) {
-            $active = $this->singletonEntry($collection);
-            if ($active !== null) {
-                return null;
-            }
-
-            $targetId = $collection;
-            $entry['id'] = $collection;
-            $entry['slug'] = $collection;
-        }
-
         unset($entry['deleted_at'], $entry['deleted_by']);
-        $entry['updated_at'] = Security::now();
-        $this->store->write($entry, $collection, $targetId);
-        if ($targetId !== $id) {
-            $this->store->delete($collection, $id);
+        // A page whose parent is gone comes back as a top-level page.
+        if (PageTree::parent($entry) !== '' && !isset(PageTree::byUid($this->all($collection))[PageTree::parent($entry)])) {
+            $entry['parent'] = '';
+            $entry['position'] = $this->nextPosition($collection, '');
         }
+        $entry['updated_at'] = Security::now();
+        $entry['revision'] = bin2hex(random_bytes(12));
+        $site = new \CometCMS\Site\SiteRepository($this->workspace);
+        $site->validateEntryUrls($site->settings(), $entry);
+        $this->store->write($this->stored($entry), $collection, $id);
         (new TrashStore($this->workspace))->removeContent($collection, $id);
-        $this->afterWrite('content.restored', $collection, $targetId, $user ?? []);
+        $this->afterWrite('content.restored', $collection, $id, $user ?? []);
 
-        return $entry;
+        return $this->normalizeStoredEntry($entry);
     }
 
     public function purge(string $collection, string $id, ?array $user = null): void
@@ -451,293 +513,79 @@ final class ContentRepository
     public function deleteTranslation(string $collection, string $id, string $locale, array $user): ?array
     {
         $entry = $this->find($collection, $id);
-
-        if ($entry === null) {
-            return null;
-        }
-
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-
-        if ($locale === $defaultLocale || !in_array($locale, $locales, true)) {
-            return null; // cannot delete the default locale
-        }
-
-        $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
-        unset($translations[$locale]);
-        $entry['translations'] = $translations;
+        if ($entry === null || $locale === $this->locale()) return null;
+        $this->locale($locale);
+        $entry = $this->stored($entry);
+        $this->writeRevision($collection, $id, $entry, 'content.translation_deleted', $user);
+        foreach ($entry['values'] as &$value) $value = LocalizedValue::remove($value, $locale);
+        unset($value, $entry['publication'][$locale]);
+        $entry['revision'] = bin2hex(random_bytes(12));
         $entry['updated_at'] = Security::now();
-        $entry['updated_by'] = $user['id'] ?? null;
-
-        $this->store->write($entry, $collection, (string) $entry['id']);
-        $this->cache->clear();
-        $this->logger->info('content translation deleted', ['type' => $collection, 'id' => $id, 'locale' => $locale, 'user_id' => $user['id'] ?? null]);
-
+        $this->store->write($this->stored($entry), $collection, $id);
+        $this->afterWrite('content.updated', $collection, $id, $user);
         return $this->normalizeStoredEntry($entry);
     }
 
     public function replaceMediaFilename(string $oldFilename, string $newFilename): int
     {
-        $oldFilename = basename($oldFilename);
-        $newFilename = basename($newFilename);
-
-        if ($oldFilename === '' || $newFilename === '' || $oldFilename === $newFilename) {
-            return 0;
-        }
-
         $updated = 0;
-
-        foreach ($this->types->all() as $schema) {
-            $collection = (string) ($schema['name'] ?? '');
-            $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-
-            if ($collection === '' || $fields === []) {
-                continue;
+        foreach ($this->types->all() as $schema) foreach ($this->all($schema['name'], true) as $entry) {
+            $before = $entry['values'];
+            foreach ($schema['fields'] as $name => $config) {
+                $value = $entry['values'][$name] ?? null;
+                if (LocalizedValue::is($value)) {
+                    foreach ($value['values'] as &$item) $item = $this->replaceMediaValue($item, $config, $oldFilename, $newFilename);
+                    unset($item);
+                } else $value = $this->replaceMediaValue($value, $config, $oldFilename, $newFilename);
+                $entry['values'][$name] = $value;
             }
-
-            foreach ($this->all($collection, true) as $entry) {
-                $changed = false;
-
-                foreach ($fields as $name => $config) {
-                    if (!is_array($config)) {
-                        continue;
-                    }
-
-                    if (array_key_exists($name, $entry)) {
-                        $value = $this->replaceMediaValue($entry[$name], $config, $oldFilename, $newFilename);
-                        if ($value !== $entry[$name]) {
-                            $entry[$name] = $value;
-                            $changed = true;
-                        }
-                    }
-
-                    if (is_array($entry['translations'] ?? null)) {
-                        foreach ($entry['translations'] as $locale => $translation) {
-                            if (!is_array($translation) || !array_key_exists($name, $translation)) {
-                                continue;
-                            }
-
-                            $value = $this->replaceMediaValue($translation[$name], $config, $oldFilename, $newFilename);
-
-                            if ($value !== $translation[$name]) {
-                                $translation[$name] = $value;
-                                $entry['translations'][$locale] = $translation;
-                                $changed = true;
-                            }
-                        }
-                    }
-                }
-
-                if ($changed) {
-                    $id = (string) ($entry['id'] ?? '');
-
-                    if ($id !== '') {
-                        $this->store->write($entry, $collection, $id);
-                        $updated++;
-                    }
-                }
+            if ($before !== $entry['values']) {
+                $this->store->write($this->stored($entry), $schema['name'], $entry['id']);
+                $updated++;
             }
         }
-
-        if ($updated > 0) {
-            $this->cache->clear();
-        }
-
+        if ($updated) $this->cache->clear();
         return $updated;
     }
 
-    /**
-     * Bulk-rename field keys across all stored entries.
-     * Each migration item must contain 'from_key' and 'to_key'.
-     * Data under the old key is copied to the new key only when the old key
-     * has a value and the new key is not yet populated, so existing data is
-     * never silently overwritten.
-     *
-     * @param array<int, array{from_key: string, to_key: string}> $migrations
-     */
     public function migrateFields(string $collection, array $migrations): void
     {
-        Security::assertSafeName($collection);
-
-        $keyRenames = [];
-
-        foreach ($migrations as $migration) {
-            if (!is_array($migration)) {
-                continue;
-            }
-
-            $fromKey = Security::slug((string) ($migration['from_key'] ?? ''));
-            $toKey   = Security::slug((string) ($migration['to_key']   ?? ''));
-
-            if ($fromKey !== '' && $toKey !== '' && $fromKey !== $toKey) {
-                $keyRenames[$fromKey] = $toKey;
-            }
-        }
-
-        if ($keyRenames === []) {
-            return;
-        }
-
-        foreach ($this->store->all($collection) as $entry) {
-            $changed = false;
-
-            foreach ($keyRenames as $fromKey => $toKey) {
-                if (array_key_exists($fromKey, $entry) && !array_key_exists($toKey, $entry)) {
-                    $entry[$toKey] = $entry[$fromKey];
-                    unset($entry[$fromKey]);
-                    $changed = true;
-                }
-
-                if (is_array($entry['translations'] ?? null)) {
-                    foreach ($entry['translations'] as $locale => $translation) {
-                        if (!is_array($translation) || !array_key_exists($fromKey, $translation) || array_key_exists($toKey, $translation)) {
-                            continue;
-                        }
-
-                        $translation[$toKey] = $translation[$fromKey];
-                        unset($translation[$fromKey]);
-                        $entry['translations'][$locale] = $translation;
-                        $changed = true;
-                    }
+        foreach ($this->all($collection, true) as $entry) {
+            foreach ($migrations as $migration) {
+                $from = $migration['from_key']; $to = $migration['to_key'];
+                if (array_key_exists($from, $entry['values']) && !array_key_exists($to, $entry['values'])) {
+                    $entry['values'][$to] = $entry['values'][$from];
+                    unset($entry['values'][$from]);
                 }
             }
-
-            if ($changed) {
-                $id = (string) ($entry['id'] ?? '');
-
-                if ($id !== '') {
-                    $this->store->write($entry, $collection, $id);
-                }
-            }
+            $this->store->write($this->stored($entry), $collection, $entry['id']);
         }
-
         $this->cache->clear();
     }
 
-    public function syncLocalization(string $collection, array $schema): void
+    public function isPubliclyVisible(array $entry, string $locale = ''): bool
     {
-        Security::assertSafeName($collection);
-
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-
-        if ($locales === [] || $defaultLocale === '') {
-            return;
-        }
-
-        foreach ($this->store->all($collection) as $entry) {
-            $translation = is_array($entry['translations'] ?? null) ? ($entry['translations'][$defaultLocale] ?? null) : null;
-
-            if (!is_array($translation)) {
-                continue;
-            }
-
-            $entry['translations'] = $this->syncUniversalTranslationFields(
-                is_array($entry['translations'] ?? null) ? $entry['translations'] : [],
-                is_array($schema['fields'] ?? null) ? $schema['fields'] : [],
-                (string) ($schema['slug_field'] ?? 'slug'),
-                $defaultLocale
-            );
-            $translation = $entry['translations'][$defaultLocale] ?? $translation;
-            $updated = $this->applyTranslationToRoot($entry, $translation, $schema);
-
-            if ($updated !== $entry) {
-                $id = (string) ($entry['id'] ?? '');
-
-                if ($id !== '') {
-                    $this->store->write($updated, $collection, $id);
-                }
-            }
-        }
-
-        $this->cache->clear();
+        if (!empty($entry['deleted_at'])) return false;
+        $locale = $locale ?: ($entry['locale'] ?? $this->locale());
+        if (!in_array($locale, (new LanguageSettings($this->workspace))->all()['locales'], true)) return false;
+        $publication = $entry['publication'][$locale] ?? null;
+        if (!is_array($publication) || ($publication['status'] ?? '') !== 'published') return false;
+        $at = strtotime((string) ($publication['published_at'] ?? ''));
+        return $at === false || $at <= time();
     }
 
-    public function seedDefaultLocaleFromRoot(string $collection, array $schema): void
-    {
-        Security::assertSafeName($collection);
-
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-
-        if ($locales === [] || $defaultLocale === '') {
-            return;
-        }
-
-        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $slugField = (string) ($schema['slug_field'] ?? 'slug');
-
-        foreach ($this->store->all($collection) as $entry) {
-            $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
-
-            if (is_array($translations[$defaultLocale] ?? null)) {
-                continue;
-            }
-
-            $translation = [];
-
-            if (array_key_exists('title', $entry)) {
-                $translation['title'] = $entry['title'];
-            }
-
-            foreach ($fields as $name => $config) {
-                if (!is_array($config) || $name === $slugField || !array_key_exists($name, $entry)) {
-                    continue;
-                }
-
-                $translation[$name] = $entry[$name];
-            }
-
-            if ($translation === []) {
-                continue;
-            }
-
-            $translations[$defaultLocale] = $translation;
-            $entry['translations'] = $translations;
-            $id = (string) ($entry['id'] ?? '');
-
-            if ($id !== '') {
-                $this->store->write($entry, $collection, $id);
-            }
-        }
-
-        $this->cache->clear();
-    }
-
-    public function isPubliclyVisible(array $entry): bool
-    {
-        if (!empty($entry['deleted_at'])) {
-            return false;
-        }
-
-        if (($entry['status'] ?? 'draft') !== 'published') {
-            return false;
-        }
-
-        $publishedAt = strtotime((string) ($entry['published_at'] ?? ''));
-
-        return $publishedAt === false || $publishedAt <= time();
-    }
-
-    public function query(string $collection, array $params, bool $admin = false): array
+    public function query(string $collection, array $params, bool $admin = false, array $overrides = []): array
     {
         $entries = $this->all($collection, $admin && (($params['trash'] ?? '') === '1'));
-
-        if (!$admin) {
-            $entries = array_values(array_filter($entries, fn(array $entry): bool => $this->isPubliclyVisible($entry)));
+        foreach ($overrides as $override) {
+            $entries = array_values(array_filter($entries, static fn(array $entry): bool =>
+                ($entry['uid'] ?? $entry['id']) !== ($override['uid'] ?? $override['id'])));
+            $entries[] = $override;
         }
 
-        $locale = (string) ($params['locale'] ?? '');
-
-        if ($locale !== '') {
-            $schema = $this->types->find($collection);
-            $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-
-            if (in_array($locale, $locales, true)) {
-                $entries = array_map(fn(array $entry): array => $this->resolveLocaleFields($entry, $locale), $entries);
-            }
-        }
+        $locale = $this->locale((string) ($params['locale'] ?? ''));
+        if (!$admin) $entries = array_values(array_filter($entries, fn(array $entry): bool => $this->isPubliclyVisible($entry, $locale)));
+        $entries = array_map(fn(array $entry): array => $this->resolveLocaleFields($entry, $locale, !$admin), $entries);
 
         $entries = ContentQuery::applySearch($this->types, $entries, (string) ($params['q'] ?? ''), $collection);
         $entries = ContentQuery::applyFilters($entries, ContentQuery::filtersFromParams($this->types, $params, $collection));
@@ -776,7 +624,7 @@ final class ContentRepository
         ];
     }
 
-    public function expandRelations(array $entry, string $collection, array $include, string $locale = ''): array
+    public function expandRelations(array $entry, string $collection, array $include, string $locale = '', ?callable $authorize = null): array
     {
         if ($include === []) {
             return $entry;
@@ -799,343 +647,171 @@ final class ContentRepository
             }
 
             if ($config['multiple'] ?? false) {
-                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($target, $this->find($target, (string) $id), $locale), (array) $entry[$field])));
+                $entry[$field] = array_values(array_filter(array_map(fn(mixed $id): ?array => $this->resolveRelationLocale($this->findByIdentifier($target, (string) $id, false, $locale), $locale, $authorize), (array) $entry[$field])));
             } else {
-                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($target, $this->find($target, (string) $entry[$field]), $locale) : null;
+                $entry[$field] = $entry[$field] ? $this->resolveRelationLocale($this->findByIdentifier($target, (string) $entry[$field], false, $locale), $locale, $authorize) : null;
             }
         }
 
         return $entry;
     }
 
-    public function normalizeStoredEntry(array $entry, ?array $definedFields = null): array
+    public function normalizeStoredEntry(array $entry): array
     {
-        $entry['status'] ??= 'draft';
-        $entry['published_at'] ??= ($entry['status'] === 'published' ? ($entry['created_at'] ?? Security::now()) : null);
-        $entry['created_at'] ??= Security::now();
-        $entry['updated_at'] ??= $entry['created_at'];
-
-        // Pre-release entries kept a raw "data" bag and a "body" at the root.
-        // Drop those leftovers, but never a field the content type defines:
-        // "body" in particular is one of the most common field names.
-        $definedFields ??= $this->definedFieldNames((string) ($entry['collection'] ?? ''));
-        foreach (['data', 'body'] as $legacyKey) {
-            if (!isset($definedFields[$legacyKey])) {
-                unset($entry[$legacyKey]);
-            }
-        }
-
-        return $entry;
+        if (!array_key_exists('values', $entry)) $entry = $this->upgradeEntry($entry);
+        return $this->resolveLocaleFields($entry, $this->locale());
     }
 
-    /** @return array<string, true> */
-    private function definedFieldNames(string $collection): array
+    /** Read old flat entries without rewriting files; the next save stores the new format. */
+    private function upgradeEntry(array $entry): array
     {
-        if ($collection === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $collection)) {
-            return [];
-        }
-
-        $fields = $this->types->find($collection)['fields'] ?? [];
-
-        return is_array($fields) ? array_fill_keys(array_map('strval', array_keys($fields)), true) : [];
-    }
-
-    private function normalizeAndValidate(
-        string $collection,
-        array $payload,
-        array $user,
-        ?array $existing,
-        bool $autoResolveSlugConflicts,
-        ?array $validateOnlyFields = null,
-    ): array {
+        $collection = (string) $entry['collection'];
         $schema = $this->types->find($collection);
-        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $now = Security::now();
-        $isCreating = $existing === null;
-        $payload = array_replace($existing ?? [], $payload);
-        $partialFields = $validateOnlyFields !== null ? array_flip(array_map('strval', $validateOnlyFields)) : null;
-        $status = (string) ($payload['status'] ?? 'draft');
-        $publishedAt = $this->normalizeDateTime($payload['published_at'] ?? null);
-        $errors = [];
-
-        if (!in_array($status, ['draft', 'published', 'protected', 'archived'], true)) {
-            $errors['status'] = 'Choose a valid status.';
-        }
-
-        if ($status === 'published' && $publishedAt === null) {
-            $publishedAt = $existing['published_at'] ?? $now;
-        }
-
-        // Locale handling
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $isLocalized = $locales !== [];
-        $locale = '';
-        $defaultLocale = '';
-
-        if ($isLocalized) {
-            $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
-            $locale = (string) ($payload['locale'] ?? $defaultLocale);
-
-            if ($locale === '' || !in_array($locale, $locales, true)) {
-                $errors['locale'] = 'Choose a valid locale (' . implode(', ', $locales) . ').';
-            }
-        }
-
-        $slugField = (string) ($schema['slug_field'] ?? 'slug');
-
-        if ($isLocalized) {
-            $defaultSource = is_array($existing['translations'] ?? null) && is_array($existing['translations'][$defaultLocale] ?? null)
-                ? $existing['translations'][$defaultLocale]
-                : ($existing ?? []);
-
-            foreach ($fields as $name => $config) {
-                if (!is_array($config) || $name === $slugField || $this->isLocalizedField($config) || $locale === $defaultLocale) {
-                    continue;
-                }
-
-                if (array_key_exists($name, $defaultSource)) {
-                    $payload[$name] = $defaultSource[$name];
-                } elseif (is_array($existing) && array_key_exists($name, $existing)) {
-                    $payload[$name] = $existing[$name];
-                }
-            }
-        }
-
-        $slugSource = (string) ($schema['slug_source'] ?? 'title');
-        $source = (string) ($payload[$slugSource] ?? $payload['title'] ?? '');
-        $manualSlug = isset($payload[$slugField]) && trim((string) $payload[$slugField]) !== '';
-        $slug = Security::slug($manualSlug ? (string) $payload[$slugField] : $source);
-
-        if (!empty($schema['singleton'])) {
-            $slug = $collection;
-        }
-
-        if ($slug === '') {
-            $errors[$slugField] = 'Slug cannot be empty.';
-        } else {
-            $uniqueSlug = $this->uniqueSlug($collection, $slug, (string) ($existing['id'] ?? ''));
-
-            if ($uniqueSlug !== $slug && empty($schema['singleton'])) {
-                if ($manualSlug && !$autoResolveSlugConflicts) {
-                    $errors[$slugField] = 'Slug must be unique.';
-                } else {
-                    $slug = $uniqueSlug;
-                }
-            }
-        }
-
-        $existingUid = trim((string) ($existing['uid'] ?? ''));
-        $uid = $existingUid !== '' ? $existingUid : Security::opaqueId();
-
-        $entry = [
-            'id' => $slug,
-            'uid' => $uid,
-            'collection' => $collection,
-            'status' => $status,
-            'published_at' => $publishedAt,
-            'created_at' => $existing['created_at'] ?? $now,
-            'updated_at' => $now,
-            'author_id' => $payload['author_id'] ?? $existing['author_id'] ?? $user['id'] ?? null,
-            'updated_by' => $user['id'] ?? null,
-        ];
-
-        foreach ($fields as $name => $config) {
-            if (!is_array($config)) {
-                continue;
-            }
-
-            if ($partialFields !== null && !array_key_exists($name, $partialFields)) {
-                $entry[$name] = $existing[$name] ?? null;
-                continue;
-            }
-
-            $typeName = (string) ($config['type'] ?? 'text');
-            $type = $this->fields->get($typeName);
-            $raw = $name === $slugField ? $slug : $this->fieldPayloadValue($name, $payload, $config, $typeName, $isCreating);
-            $result = $type->validate($raw, $config, ['collection' => $collection, 'entry' => $entry]);
-
-            if (($result['valid'] ?? false) === false) {
-                $errors[$name] = (string) ($result['message'] ?? 'Invalid value.');
-                continue;
-            }
-
-            $entry[$name] = $name === $slugField ? $slug : $type->normalize($raw, $config, ['collection' => $collection, 'entry' => $entry]);
-        }
-
-        $entry['title'] = (string) ($entry['title'] ?? $payload['title'] ?? '');
-        $entry['slug'] = $slug;
-
-        if ($entry['title'] === '') {
-            $errors['title'] = 'Title is required.';
-        }
-
-        if ($errors !== []) {
-            throw new ValidationException($errors);
-        }
-
-        // For localized content types: store translatable content in translations sub-object
-        if ($isLocalized && $locale !== '') {
-            // Collect translatable fields (all schema fields except the slug field) + title
-            $translationContent = ['title' => $entry['title']];
-
-            foreach ($fields as $name => $config) {
-                if (is_array($config) && $name !== $slugField && array_key_exists($name, $entry)) {
-                    $translationContent[$name] = $entry[$name];
-                }
-            }
-
-            // Preserve existing translations for other locales
-            $existingTranslations = is_array($existing['translations'] ?? null) ? $existing['translations'] : [];
-            $existingTranslations[$locale] = $translationContent;
-            $existingTranslations = $this->syncUniversalTranslationFields($existingTranslations, $fields, $slugField, $defaultLocale);
-
-            $entry['translations'] = $existingTranslations;
-
-            $defaultTranslation = $existingTranslations[$defaultLocale] ?? null;
-
-            if (is_array($defaultTranslation)) {
-                $entry = $this->applyTranslationToRoot($entry, $defaultTranslation, $schema);
-            } elseif ($locale !== $defaultLocale && $existing !== null) {
-                $entry = $this->applyTranslationToRoot($entry, $existing, $schema);
-            }
-        } elseif ($existing !== null && is_array($existing['translations'] ?? null)) {
-            $entry['translations'] = $existing['translations'];
-        }
-
-        if (!empty($existing['deleted_at'])) {
-            $entry['deleted_at'] = $existing['deleted_at'];
-            $entry['deleted_by'] = $existing['deleted_by'] ?? null;
-        }
-
-        return $entry;
-    }
-
-    private function syncUniversalTranslationFields(array $translations, array $fields, string $slugField, string $defaultLocale): array
-    {
-        if ($defaultLocale === '' || !is_array($translations[$defaultLocale] ?? null)) {
-            return $translations;
-        }
-
-        $defaultTranslation = $translations[$defaultLocale];
-        $universalValues = [];
-
-        foreach ($fields as $name => $config) {
-            if (!is_string($name) || !is_array($config) || $name === $slugField || $this->isLocalizedField($config) || !array_key_exists($name, $defaultTranslation)) {
-                continue;
-            }
-
-            $universalValues[$name] = $defaultTranslation[$name];
-        }
-
-        if ($universalValues === []) {
-            return $translations;
-        }
-
-        foreach ($translations as $locale => $translation) {
-            if (!is_array($translation)) {
-                continue;
-            }
-
-            foreach ($universalValues as $name => $value) {
-                $translation[$name] = $value;
-            }
-
-            $translations[$locale] = $translation;
-        }
-
-        return $translations;
-    }
-
-    private function isLocalizedField(array $config): bool
-    {
-        return ($config['localized'] ?? true) !== false;
-    }
-
-    private function containsLocalizedBulkField(array $data, array $schema): bool
-    {
-        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $slugField = (string) ($schema['slug_field'] ?? 'slug');
-
-        foreach (array_keys($data) as $name) {
-            if ($name === 'title') {
-                return true;
-            }
-
-            $config = $fields[$name] ?? null;
-            if (is_array($config) && $name !== $slugField && $this->isLocalizedField($config)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function bulkUpdateLocales(array $entry, array $schema): array
-    {
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-        $defaultLocale = (string) ($schema['default_locale'] ?? ($locales[0] ?? ''));
+        $originalSchema = (new JsonStore($this->workspace->path('content-types')))->read($collection)
+            ?? (array) comet_config('content_types.' . $collection, []);
+        $default = LanguageSettings::code($originalSchema['default_locale'] ?? '') ?: $schema['default_locale'];
         $translations = is_array($entry['translations'] ?? null) ? $entry['translations'] : [];
-        $existingLocales = array_values(array_filter(
-            $locales,
-            static fn(string $locale): bool => is_array($translations[$locale] ?? null)
-        ));
-
-        if ($existingLocales === []) {
-            return $defaultLocale !== '' ? [$defaultLocale] : [];
+        $entry['revision'] = LocalizedValue::hash($entry);
+        $entry['values'] = [];
+        $slugField = $schema['slug_field'];
+        foreach ($schema['fields'] as $name => $config) {
+            $localized = in_array($name, ['title', 'slug', $slugField], true) || ($config['localized'] ?? true) !== false;
+            $source = $translations[$default] ?? [];
+            if (array_key_exists($name, $source) || array_key_exists($name, $entry)) {
+                $value = array_key_exists($name, $source) ? $source[$name] : $entry[$name];
+                $entry['values'][$name] = $localized ? LocalizedValue::set(null, $default, $value, $default) : $value;
+            }
+            if (!$localized) continue;
+            foreach ($translations as $locale => $translation) {
+                if ($locale === $default || !is_array($translation) || !array_key_exists($name, $translation)) continue;
+                $entry['values'][$name] = LocalizedValue::set($entry['values'][$name] ?? null, $locale, $translation[$name], $default);
+            }
         }
-
-        if ($defaultLocale !== '' && in_array($defaultLocale, $existingLocales, true)) {
-            return [$defaultLocale, ...array_values(array_filter($existingLocales, static fn(string $locale): bool => $locale !== $defaultLocale))];
+        // Old translations shared the entry slug and publication state.
+        $entry['values'][$slugField] ??= LocalizedValue::set(null, $default, $entry['slug'] ?? $entry['id'], $default);
+        $publication = ['status' => $entry['status'] ?? 'draft', 'published_at' => $entry['published_at'] ?? (($entry['status'] ?? '') === 'published' ? ($entry['created_at'] ?? null) : null)];
+        $entry['publication'] = [$default => $publication];
+        foreach ($translations as $locale => $translation) {
+            if (!is_array($translation)) continue;
+            $entry['publication'][$locale] = $publication;
+            if (!array_key_exists($locale, $entry['values'][$slugField]['values'])) {
+                $entry['values'][$slugField] = LocalizedValue::set($entry['values'][$slugField], $locale, $entry['slug'] ?? $entry['id'], $default);
+            }
         }
-
-        return $existingLocales;
+        if ($slugField !== 'slug') $entry['values']['slug'] = $entry['values'][$slugField];
+        return $this->stored($entry);
     }
 
-    private function isSingleton(string $collection): bool
+    private function stored(array $entry): array
+    {
+        return array_intersect_key($entry, array_flip(['id', 'uid', 'collection', 'parent', 'position', 'page_template', 'values', 'publication', 'revision', 'created_at', 'updated_at', 'author_id', 'updated_by', 'deleted_at', 'deleted_by']));
+    }
+
+    private function normalizeAndValidate(string $collection, array $payload, array $user, ?array $existing, bool $autoResolveSlugConflicts, ?array $validateOnlyFields = null): array
     {
         $schema = $this->types->find($collection);
-
-        return !empty($schema['singleton']);
-    }
-
-    private function singletonEntry(string $collection, bool $includeDeleted = false): ?array
-    {
-        foreach ($this->all($collection, $includeDeleted) as $entry) {
-            return $entry;
+        $default = $this->locale();
+        $locale = $this->locale((string) ($payload['locale'] ?? ''));
+        foreach (['values', 'publication', 'translations'] as $reserved) {
+            if (array_key_exists($reserved, $payload)) throw new ValidationException([$reserved => 'Write ordinary field values for one explicit locale.']);
         }
-
-        return null;
-    }
-
-    private function fieldPayloadValue(string $name, array $payload, array $config, string $type, bool $isCreating): mixed
-    {
-        if (array_key_exists($name, $payload)) {
-            return $payload[$name];
+        $entry = $existing !== null ? $this->stored($existing) : [
+            'id' => '', 'uid' => Security::opaqueId(), 'collection' => $collection,
+            'values' => [], 'publication' => [], 'created_at' => Security::now(),
+            'author_id' => $user['id'] ?? null,
+        ];
+        $resolved = $existing !== null ? $this->resolveLocaleFields($existing, $locale) : [];
+        $status = (string) ($payload['status'] ?? $entry['publication'][$locale]['status'] ?? 'draft');
+        $errors = [];
+        if (!in_array($status, ['draft', 'published', 'protected', 'archived'], true)) $errors['status'] = 'Choose a valid status.';
+        $resets = $payload['reset_fields'] ?? [];
+        if (!is_array($resets)) throw new ValidationException(['reset_fields' => 'Expected a list of field keys.']);
+        foreach ($resets as $name) if (!is_string($name) || !array_key_exists($name, $schema['fields'])) throw new ValidationException(['reset_fields' => 'Choose an existing localized field.']);
+        $slugField = $schema['slug_field'] ?? 'slug';
+        $hierarchical = !empty($schema['hierarchical']);
+        $siblingsOf = null;
+        if ($hierarchical) {
+            $previousParent = PageTree::parent($entry);
+            $entry['parent'] = array_key_exists('parent', $payload) ? $this->validParent($collection, $payload['parent'], $entry, $errors) : $previousParent;
+            $entry['position'] = array_key_exists('position', $payload)
+                ? max(0, (int) $payload['position'])
+                : ($existing !== null && $entry['parent'] === $previousParent ? (int) ($entry['position'] ?? 0) : $this->nextPosition($collection, $entry['parent']));
+            // Slugs only need to be unique among the pages that share a parent.
+            $siblingsOf = $entry['parent'];
         }
-
-        if ($isCreating && $this->supportsConfiguredDefault($type) && array_key_exists('default', $config)) {
-            return $config['default'];
+        // The website template the entry's page uses instead of the automatic one (see SiteRepository::resolveTemplate()).
+        if (array_key_exists('page_template', $payload)) {
+            $picked = is_string($payload['page_template']) ? trim($payload['page_template']) : '';
+            if ($picked !== '' && !preg_match('/^[A-Za-z0-9_-]{1,80}$/', $picked)) $errors['page_template'] = 'Choose a template of this content type.';
+            elseif ($picked === '') unset($entry['page_template']);
+            else $entry['page_template'] = $picked;
         }
-
-        return null;
-    }
-
-    private function supportsConfiguredDefault(string $type): bool
-    {
-        return in_array($type, [
-            'text',
-            'textarea',
-            'markdown',
-            'html',
-            'number',
-            'range',
-            'boolean',
-            'select',
-            'date',
-            'datetime',
-            'json',
-            'color',
-        ], true);
+        $fields = $schema['fields'];
+        foreach ($fields as $name => $config) {
+            $localized = in_array($name, ['title', 'slug', $slugField], true) || ($config['localized'] ?? true) !== false;
+            if (in_array($name, $resets, true)) {
+                if (!$localized || $locale === $default || in_array($name, ['slug', $slugField], true)) {
+                    $errors[$name] = 'This value cannot inherit.';
+                } else $entry['values'][$name] = LocalizedValue::remove($entry['values'][$name] ?? null, $locale);
+                continue;
+            }
+            $provided = array_key_exists($name, $payload);
+            if (!$provided && $existing !== null) continue;
+            if (!$localized && $locale !== $default) {
+                if ($provided && ($entry['values'][$name] ?? null) !== $payload[$name]) $errors[$name] = 'Shared values can only be edited in the default language.';
+                continue;
+            }
+            $type = $this->fields->get((string) ($config['type'] ?? 'text'));
+            $value = $provided ? $payload[$name] : ($config['default'] ?? null);
+            if (LocalizedValue::is($value)) { $errors[$name] = 'Write one locale at a time.'; continue; }
+            if ($name === $slugField || $name === 'slug') {
+                $source = $payload[$schema['slug_source'] ?? 'title'] ?? $resolved['title'] ?? '';
+                $value = Security::slug((string) ($value ?: $source));
+                $unique = $this->uniqueSlug($collection, $value, (string) ($existing['id'] ?? ''), $locale, $siblingsOf);
+                if ($unique !== $value && $provided) $errors[$name] = 'Slug must be unique in this language.';
+                elseif ($autoResolveSlugConflicts) $value = $unique;
+            }
+            $validation = $type->validate($value, $config, ['collection' => $collection, 'entry' => $resolved]);
+            if (!($validation['valid'] ?? false)) { $errors[$name] = $validation['message'] ?? 'Invalid value.'; continue; }
+            $value = $type->normalize($value, $config, ['collection' => $collection, 'entry' => $resolved]);
+            $entry['values'][$name] = $localized ? LocalizedValue::set($entry['values'][$name] ?? null, $locale, $value, $default) : $value;
+        }
+        // Slugs are explicit for every locale, even when its other content inherits.
+        if (!isset($entry['values'][$slugField]['values'][$locale])) {
+            $source = (string) ($payload['title'] ?? $resolved['title'] ?? $collection);
+            $slug = $this->uniqueSlug($collection, Security::slug($source), (string) ($existing['id'] ?? ''), $locale, $siblingsOf);
+            $entry['values'][$slugField] = LocalizedValue::set($entry['values'][$slugField] ?? null, $locale, $slug, $default);
+        }
+        if ($hierarchical && $existing !== null && $entry['parent'] !== $previousParent && !isset($errors['parent'])) {
+            foreach (array_keys($entry['publication']) as $other) {
+                $slug = (string) LocalizedValue::resolve($entry['values'][$slugField] ?? null, $other, $default);
+                if ($this->uniqueSlug($collection, $slug, (string) $existing['id'], $other, $entry['parent']) !== $slug) {
+                    $errors['parent'] = 'A page with the same slug already exists there.';
+                    break;
+                }
+            }
+        }
+        if ($slugField !== 'slug') $entry['values']['slug'] = $entry['values'][$slugField];
+        if ($errors !== []) throw new ValidationException($errors);
+        $publishedAt = $this->normalizeDateTime($payload['published_at'] ?? $entry['publication'][$locale]['published_at'] ?? null);
+        if ($status === 'published' && $publishedAt === null) $publishedAt = Security::now();
+        $entry['publication'][$locale] = ['status' => $status, 'published_at' => $publishedAt];
+        $entry['id'] = $existing['id'] ?? (string) LocalizedValue::resolve($entry['values']['slug'], $locale, $default);
+        if ($existing === null && $this->store->read($collection, $entry['id']) !== null) $entry['id'] = $entry['uid'];
+        $entry['revision'] = bin2hex(random_bytes(12));
+        $entry['updated_at'] = Security::now();
+        $entry['updated_by'] = $user['id'] ?? null;
+        if (isset($payload['author_id'])) $entry['author_id'] = $payload['author_id'];
+        if ($status === 'published' && $validateOnlyFields === null) {
+            $visible = $this->resolveLocaleFields($entry, $locale, true);
+            foreach ($fields as $name => $config) {
+                if (empty($config['required'])) continue;
+                $validation = $this->fields->get($config['type'] ?? 'text')->validate($visible[$name] ?? null, $config, ['collection' => $collection, 'entry' => $visible]);
+                if (!($validation['valid'] ?? false)) $errors[$name] = $validation['message'] ?? 'A published translation needs a visible value.';
+            }
+            if ($errors !== []) throw new ValidationException($errors);
+        }
+        return $entry;
     }
 
     private function normalizeRevision(array $revision): array
@@ -1167,7 +843,7 @@ final class ContentRepository
             'created_at' => Security::now(),
             'created_by' => $user['id'] ?? null,
             'event' => $event,
-            'entry' => $this->normalizeStoredEntry($entry),
+            'entry' => $this->stored($entry),
         ];
 
         $this->revisions->write($revision, $collection, $id, $revisionId);
@@ -1256,81 +932,45 @@ final class ContentRepository
         }, $value);
     }
 
-    private function uniqueSlug(string $collection, string $slug, string $ignoreId = ''): string
+    /** $siblingsOf limits the check to the children of one parent ('' for top-level pages). */
+    private function uniqueSlug(string $collection, string $slug, string $ignoreId = '', string $locale = '', ?string $siblingsOf = null): string
     {
-        $base = $slug;
+        $locale = $locale ?: $this->locale();
+        $used = [];
+        foreach ($this->all($collection, true) as $entry) {
+            if ($siblingsOf !== null && PageTree::parent($entry) !== $siblingsOf) continue;
+            if ($entry['id'] !== $ignoreId && isset($entry['publication'][$locale])) {
+                // Shared tree moves and duplication also check dormant slugs.
+                $used[] = LocalizedValue::resolve($entry['values']['slug'], $locale, $this->locale());
+            }
+        }
         $candidate = $slug;
         $count = 2;
-
-        while (($existing = $this->find($collection, $candidate, true)) !== null && (string) ($existing['id'] ?? '') !== $ignoreId) {
-            $candidate = $base . '-' . $count++;
-        }
-
+        while (in_array($candidate, $used, true)) $candidate = $slug . '-' . $count++;
         return $candidate;
     }
 
-    private function prefixCopyTitle(array &$entry): void
+    public function resolveLocaleFields(array $entry, string $locale, bool $public = false): array
     {
-        foreach (['title', 'name', 'heading', 'label'] as $titleField) {
-            if (isset($entry[$titleField]) && is_string($entry[$titleField]) && $entry[$titleField] !== '') {
-                $entry[$titleField] = 'Copy of ' . $entry[$titleField];
-                return;
-            }
+        $default = $this->locale();
+        $this->locale($locale);
+        $resolved = $this->stored($entry);
+        foreach ($entry['values'] ?? [] as $key => $value) {
+            if ($public && $locale !== $default && LocalizedValue::is($value) && !array_key_exists($locale, $value['values']) && !$this->isPubliclyVisible($entry, $default)) {
+                $resolved[$key] = null;
+            } else $resolved[$key] = LocalizedValue::resolve($value, $locale, $default);
         }
+        $publication = $entry['publication'][$locale] ?? ['status' => 'draft', 'published_at' => null];
+        return $publication + ['locale' => $locale] + $resolved;
     }
 
-    public function resolveLocaleFields(array $entry, string $locale): array
+    private function resolveRelationLocale(?array $entry, string $locale, ?callable $authorize = null): ?array
     {
-        $translation = is_array($entry['translations'] ?? null) ? ($entry['translations'][$locale] ?? null) : null;
-
-        if ($translation !== null) {
-            $collection = (string) ($entry['collection'] ?? '');
-            $schema = $collection !== '' ? $this->types->find($collection) : [];
-            $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-
-            foreach ($translation as $key => $value) {
-                $config = $fields[$key] ?? null;
-                if (is_array($config) && !$this->isLocalizedField($config)) {
-                    continue;
-                }
-
-                $entry[$key] = $value;
-            }
-        }
-
-        return $entry;
-    }
-
-    private function applyTranslationToRoot(array $entry, array $translation, array $schema): array
-    {
-        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $slugField = (string) ($schema['slug_field'] ?? 'slug');
-
-        if (array_key_exists('title', $translation)) {
-            $entry['title'] = $translation['title'];
-        }
-
-        foreach ($fields as $name => $config) {
-            if (!is_array($config) || $name === $slugField || !array_key_exists($name, $translation)) {
-                continue;
-            }
-
-            $entry[$name] = $translation[$name];
-        }
-
-        return $entry;
-    }
-
-    private function resolveRelationLocale(string $collection, ?array $entry, string $locale): ?array
-    {
-        if ($entry === null || $locale === '') {
-            return $entry;
-        }
-
-        $schema = $this->types->find($collection);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
-
-        return in_array($locale, $locales, true) ? $this->resolveLocaleFields($entry, $locale) : $entry;
+        if ($entry === null) return null;
+        $locale = $this->locale($locale);
+        if (!$this->isPubliclyVisible($entry, $locale)) return null;
+        $entry = $this->resolveLocaleFields($entry, $locale, true);
+        return $authorize === null || $authorize($entry) ? $entry : null;
     }
 
     private function normalizeDateTime(mixed $value): ?string

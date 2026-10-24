@@ -1,7 +1,7 @@
 <template>
   <div class="relative space-y-2">
     <div class="flex items-center justify-end gap-1">
-      <span class="mr-auto text-xs font-medium text-slate-700">{{ label }}</span>
+      <span class="mr-auto inline-flex items-center gap-1.5 text-xs text-slate-500">{{ label }}<slot name="label-status" /></span>
       <button ref="pickerTrigger" type="button" class="rounded p-1 text-slate-400 hover:bg-theme-50 hover:text-theme-700 focus-visible:ring-2 focus-visible:ring-theme-500" :title="t('site.binding.insert')" :aria-label="t('site.binding.insert')" :aria-expanded="pickerOpen" @click="openPicker()"><Icon icon="mdi:database-arrow-right-outline" class="h-4 w-4" /></button>
       <button type="button" class="rounded px-1.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100" :aria-pressed="syntaxMode" @click="toggleSyntax">{{ syntaxMode ? t('site.binding.visual') : t('site.binding.syntax') }}</button>
       <button v-if="isSmartValue(content)" type="button" class="rounded p-1 text-slate-400 hover:bg-slate-100" :title="t('site.binding.clear')" :aria-label="t('site.binding.clear')" @click="clear"><Icon icon="mdi:link-off" class="h-4 w-4" /></button>
@@ -29,7 +29,7 @@ import { EditorContent, Node, mergeAttributes, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '@iconify/vue'
 import SmartReferencePicker from './SmartReferencePicker.vue'
-import RichTextToolbar from './RichTextToolbar.vue'
+import RichTextToolbar from '../../RichTextToolbar.vue'
 import { richTextExtensions } from '../../../composables/richTextEditor.js'
 import { useSiteBuilder } from '../../../composables/useSiteBuilder.js'
 import { useI18n } from '../../../i18n/index.js'
@@ -135,10 +135,10 @@ watch(content, (value) => {
 }, { deep: true })
 function updateSyntax(text) {
   raw.value = text
-  if (!text && !textual.value) { syntaxError.value = false; if (props.target === 'link') emit('update:modelValue', { type: 'none' }); else output(''); return }
+  if (!text && !textual.value) { syntaxError.value = false; if (props.target === 'link') emit('update:modelValue', { type: 'none' }); else output(props.target === 'media_list' ? [] : ''); return }
   try {
     const value = parseSmartValue(text, props.target)
-    if (['media', 'link', 'value'].includes(props.target) && !isReference(value) && text) throw new Error('syntax')
+    if (['media', 'media_list', 'link', 'value'].includes(props.target) && !isReference(value) && text) throw new Error('syntax')
     syntaxError.value = false
     output(value)
   } catch { syntaxError.value = true; output({ type: 'invalid', text }) }
@@ -171,7 +171,7 @@ function clear() {
   syntaxError.value = false
   syntaxMode.value = false
   if (props.target === 'link') emit('update:modelValue', { type: 'none' })
-  else emit('update:modelValue', props.target === 'html' ? '<p></p>' : '')
+  else emit('update:modelValue', props.target === 'media_list' ? [] : props.target === 'html' ? '<p></p>' : '')
 }
 </script>
 

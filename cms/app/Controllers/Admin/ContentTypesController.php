@@ -81,13 +81,6 @@ final class ContentTypesController extends BaseController
 
         $body['name'] = $name;
 
-        if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
-            $this->json(['error' => [
-                'code' => 'validation_failed',
-                'message' => 'Single page content types can only be enabled when there is at most one active entry.',
-            ]], 422);
-        }
-
         try {
             $this->types->save($body);
         } catch (ValidationException $e) {
@@ -129,15 +122,6 @@ final class ContentTypesController extends BaseController
         $migrations = is_array($body['migrations'] ?? null) ? $body['migrations'] : [];
         unset($body['migrations']);
         $body['name'] = $name;
-        $previousSchema = $this->types->find($name);
-        $previousLocales = is_array($previousSchema['locales'] ?? null) ? $previousSchema['locales'] : [];
-
-        if (!empty($body['singleton']) && count($this->content->all($name)) > 1) {
-            $this->json(['error' => [
-                'code' => 'validation_failed',
-                'message' => 'Single page content types can only be enabled when there is at most one active entry.',
-            ]], 422);
-        }
 
         try {
             $this->types->save($body);
@@ -145,17 +129,10 @@ final class ContentTypesController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
         }
         $schema = $this->types->find($name);
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
 
         if ($migrations !== []) {
             $this->content->migrateFields($name, $migrations);
         }
-
-        if ($previousLocales === [] && $locales !== []) {
-            $this->content->seedDefaultLocaleFromRoot($name, $schema);
-        }
-
-        $this->content->syncLocalization($name, $schema);
 
         $this->cache->clear();
         $this->logger->info('content_type.updated', ['name' => $name, 'user_id' => $user['id'] ?? null]);

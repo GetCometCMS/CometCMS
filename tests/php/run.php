@@ -85,6 +85,8 @@ foreach (glob(__DIR__ . '/*Test.php') ?: [] as $file) {
 
 $failures = [];
 
+if (getenv('COMET_TEST_FILTER')) $cometTests = array_values(array_filter($cometTests, static fn(array $test): bool => str_contains($test[0], getenv('COMET_TEST_FILTER'))));
+
 foreach ($cometTests as [$name, $callback]) {
     comet_test_reset_storage();
 

@@ -2,26 +2,28 @@
 
 ## Browsing entries
 
-Select a collection from the **sidebar** to see a list of all entries in that collection. The list shows the title/slug, status, author, and last-updated date.
+Select a collection from the **sidebar** to see a list of all entries in that collection. The list shows entry titles, publication status, and other columns selected for the collection. Hierarchical collections such as Pages can display entries as a tree.
 
-Single page content types appear under **Content** in the sidebar like collections. They open directly in the editor instead of showing a list.
+![Pages collection with fictional entries and publication states](../screenshots/view-content-entries.png)
 
 ## Creating an entry
 
 1. Open a collection from the sidebar.
 2. Click **New entry**.
 3. Fill in the fields.
-4. Click **Save**.
+4. Click **Save entry**.
 
-Entries are created with a `draft` status by default. Toggle the **Published** switch (or a `boolean` / `datetime` field of your choice) to publish them.
+Entries start as **Draft**. Choose **Published** in the **Status** dropdown to publish, then save. Set a future **Published at** date to schedule publication. **Protected** entries require authorized access; **Archived** entries stay out of public reads. Custom boolean and datetime fields do not control publication.
 
-If the content type has locales, new entries start in the default locale unless you choose another locale. The entry slug, status, author, and publish date are shared across locales.
+![Entry editor with language tabs, publication settings and the page-design action](../screenshots/edit-content-entry.png)
+
+New entries start in the workspace default language unless you choose another enabled language. Each language has its own slug, publication status, and publication date; authors and stable IDs are shared.
 
 ## Editing an entry
 
 Click any row in the list to open the entry editor. Changes are saved when you click **Save entry**.
 
-Localized entries show locale pills above the form. Solid pills have saved translations, dashed pills create a missing locale variant, and the default locale is labeled. Deleting a locale variant only removes that translation; the entry and other locales remain.
+Language tabs above the form let you switch between translations. Missing translations show a plus icon; select one to start a new locale variant. The language selector identifies the default locale. Deleting a locale variant only removes that translation; the entry and other locales remain. Source text and inherited-value indicators appear beside translated fields. **Reset to default language** removes an override. A source change marks saved translations for review without changing their text. Saving preserves drafts prepared in other language tabs. A stale save reports a conflict and keeps the draft.
 
 ## Entry history
 
@@ -39,11 +41,9 @@ The top of the history list always shows the **current** state with a blue _(Cur
 
 Click **Delete** on an entry to move it to the **Trash**. Trashed entries can be restored or permanently deleted from the Trash section.
 
-Deleting a single page also moves its one entry to Trash. While it is trashed, the direct editor/API route returns not found for public reads. Restoring the trashed page brings it back at the same fixed slug, unless another active entry already exists for that single page content type.
-
 ## Entry metadata
 
-Every entry automatically gets these system fields (not editable):
+Every entry includes these system fields. IDs and timestamps are managed automatically; users with edit access can select the author in the entry editor:
 
 | Field        | Description                                          |
 | ------------ | ---------------------------------------------------- |
@@ -51,5 +51,5 @@ Every entry automatically gets these system fields (not editable):
 | `collection` | The collection this entry belongs to.                |
 | `created_at` | ISO 8601 timestamp when the entry was first created. |
 | `updated_at` | ISO 8601 timestamp of the last save.                 |
-| `author_id`  | ID of the user who created the entry.                |
+| `author_id`  | Assigned author (initially the entry creator).                |
 | `updated_by` | ID of the user who last updated the entry.           |

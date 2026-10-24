@@ -21,14 +21,26 @@ register_shutdown_function(static function (): void {
     $workspace = new \CometCMS\Workspaces\WorkspaceContext('my-website');
     $types = new \CometCMS\Content\ContentTypeRepository($workspace);
     $content = \CometCMS\Content\ContentRepository::make($workspace);
+    $site = new \CometCMS\Site\SiteRepository($workspace);
+    $rendered = [];
+    if ($types->find('pages') !== null) {
+        $service = new \CometCMS\Site\SiteService(\CometCMS\Site\SiteContext::make($site));
+        foreach (['/', '/about', '/events/community-meetup'] as $path) {
+            $response = $service->respond($path, []);
+            preg_match('/<html lang="([^"]+)"/', $response['body'], $match);
+            $rendered[$path] = ['status' => $response['status'], 'language' => $match[1] ?? null];
+        }
+    }
     echo "\n--state--\n" . json_encode([
         'users' => count((new \CometCMS\Auth\UserRepository())->all()),
         'types' => array_column($types->all(), 'name'),
         'api_enabled' => array_column($types->all(), 'api_enabled'),
-        'home' => $content->all('landing-page'),
+        'type_languages' => array_map(static fn(array $type): array => [$type['locales'], $type['default_locale']], $types->all()),
+        'languages' => (new \CometCMS\Localization\LanguageSettings($workspace))->all(),
         'pages' => $content->all('pages'),
         'events' => $content->all('events'),
-        'settings' => (new \CometCMS\Site\SiteRepository($workspace))->settings(),
+        'settings' => $site->settings(),
+        'rendered' => $rendered,
     ]);
 });
 PHP;
@@ -54,7 +66,10 @@ PHP;
                 ], $body)),
             ],
         ]));
-        preg_match('#^HTTP/\S+\s+(\d{3})#', $http_response_header[0] ?? '', $match);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        preg_match('#^HTTP/\S+\s+(\d{3})#', $responseHeaders[0] ?? '', $match);
         [$json, $state] = explode("\n--state--\n", $response, 2);
 
         return [(int) ($match[1] ?? 0), json_decode($json, true), json_decode($state, true)];
@@ -71,7 +86,6 @@ test('setup supports an explicit empty workspace', function (): void {
         assert_same('my-website', $json['meta']['workspace']);
         assert_same(1, $state['users']);
         assert_same([], $state['types']);
-        assert_same([], $state['home']);
         assert_same([], $state['pages']);
         assert_same([], $state['events']);
         assert_false($state['settings']['enabled']);
@@ -79,22 +93,24 @@ test('setup supports an explicit empty workspace', function (): void {
     }
 });
 
-test('setup defaults to the website starter with a singleton homepage pages and events', function (): void {
+test('setup defaults to the website starter with a landing page entry pages and events', function (): void {
     [$status, $json, $state] = comet_setup_request([]);
 
     assert_same(201, $status);
     assert_same('my-website', $json['meta']['workspace']);
-    assert_same(['landing-page', 'pages', 'events'], $state['types']);
-    assert_same([false, false, false], $state['api_enabled']);
-    assert_same(1, count($state['home']));
-    assert_same('published', $state['home'][0]['status']);
-    assert_same(['about', 'hello-world'], array_column($state['pages'], 'slug'));
-    assert_same(['published', 'published'], array_column($state['pages'], 'status'));
+    assert_same(['locales' => ['en'], 'default_locale' => 'en'], $state['languages']);
+    assert_same(['pages', 'events'], $state['types']);
+    assert_same([false, false], $state['api_enabled']);
+    $slugs = array_column($state['pages'], 'slug');
+    sort($slugs);
+    assert_same(['about', 'hello-world', 'landing-page'], $slugs);
+    assert_same(['published', 'published', 'published'], array_column($state['pages'], 'status'));
     assert_same(['community-meetup', 'creative-workshop'], array_column($state['events'], 'slug'));
     assert_same(['published', 'published'], array_column($state['events'], 'status'));
     assert_true($state['settings']['enabled']);
-    assert_same('landing-page', $state['settings']['homepage']['type']);
-    assert_true($state['settings']['routes']['landing-page']['enabled']);
+    assert_same('pages', $state['settings']['homepage']['type']);
+    $home = array_values(array_filter($state['pages'], static fn(array $page): bool => $page['uid'] === $state['settings']['homepage']['entry']));
+    assert_same('landing-page', $home[0]['slug'] ?? null);
     assert_true($state['settings']['routes']['pages']['enabled']);
     assert_true($state['settings']['routes']['events']['enabled']);
 });
@@ -110,6 +126,64 @@ test('setup rejects unknown and malformed starting points before creating an acc
     }
 });
 
+test('setup assigns sample content to the chosen default workspace language', function (): void {
+    [$status, , $state] = comet_setup_request([
+        'languages' => ['locales' => ['de_AT', 'fr'], 'default_locale' => 'de_AT'],
+    ]);
+
+    assert_same(201, $status);
+    assert_same(['locales' => ['de-at', 'fr'], 'default_locale' => 'de-at'], $state['languages']);
+    assert_same(['de-at', 'fr'], $state['settings']['locales']);
+    assert_same('de-at', $state['settings']['default_locale']);
+    foreach ($state['type_languages'] as [$locales, $default]) {
+        assert_same(['de-at', 'fr'], $locales);
+        assert_same('de-at', $default);
+    }
+    assert_same(5, count([...$state['pages'], ...$state['events']]));
+    foreach ([...$state['pages'], ...$state['events']] as $entry) {
+        assert_same('de-at', $entry['locale']);
+        assert_same(['de-at'], array_keys($entry['publication']));
+        assert_same('published', $entry['publication']['de-at']['status']);
+        foreach ($entry['values'] as $value) {
+            if (\CometCMS\Localization\LocalizedValue::is($value)) assert_same(['de-at'], array_keys($value['values']));
+        }
+    }
+
+    foreach (['/', '/about', '/events/community-meetup'] as $path) {
+        assert_same(['status' => 200, 'language' => 'de-at'], $state['rendered'][$path]);
+    }
+});
+
+test('empty setup saves workspace languages without creating sample data', function (): void {
+    [$status, , $state] = comet_setup_request([
+        'starter_template' => 'empty',
+        'languages' => ['locales' => ['de'], 'default_locale' => 'de'],
+    ]);
+
+    assert_same(201, $status);
+    assert_same(['locales' => ['de'], 'default_locale' => 'de'], $state['languages']);
+    assert_same([], $state['types']);
+    assert_same([], $state['pages']);
+    assert_same([], $state['events']);
+});
+
+test('setup rejects invalid workspace languages before creating an account', function (): void {
+    foreach ([
+        null, 'de', [],
+        ['locales' => [], 'default_locale' => 'de'],
+        ['locales' => ['de'], 'default_locale' => 'en'],
+        ['locales' => ['invalid!'], 'default_locale' => 'invalid!'],
+        ['locales' => [['de']], 'default_locale' => 'de'],
+        ['locales' => ['de'], 'default_locale' => ['de']],
+    ] as $languages) {
+        [$status, $json, $state] = comet_setup_request(['languages' => $languages]);
+        assert_same(422, $status);
+        assert_same('validation_failed', $json['error']['code']);
+        assert_same(0, $state['users']);
+        assert_same([], $state['types']);
+    }
+});
+
 test('website starter renders all pages with working navigation and remains editable', function (): void {
     (new WorkspaceRepository())->save(['slug' => 'my-website', 'label' => 'My Website']);
     $workspace = new WorkspaceContext('my-website');
@@ -117,19 +191,16 @@ test('website starter renders all pages with working navigation and remains edit
     (new WebsiteStarter($workspace))->create($user);
 
     $types = new ContentTypeRepository($workspace);
-    assert_true($types->find('landing-page')['singleton']);
-    assert_false($types->find('pages')['singleton']);
-    assert_false($types->find('events')['singleton']);
+    assert_same(['pages', 'events'], array_column($types->all(), 'name'));
+    assert_same(['title', 'slug', 'intro', 'body', 'page_content'], array_keys($types->find('pages')['fields']));
     assert_same([], (new ContentTypeRepository(new WorkspaceContext('default')))->all());
 
     $site = new SiteRepository($workspace);
     $service = new SiteService(SiteContext::make($site));
     foreach ([
-        '/' => 'Welcome to your website',
-        '/landing-page' => 'Welcome to your website',
-        '/pages/about' => 'Our story',
-        '/pages/hello-world' => 'Hello, world!',
-        '/pages' => 'Pages',
+        '/' => 'Make it yours',
+        '/about' => 'Our story',
+        '/hello-world' => 'Hello, world!',
         '/events' => 'Events',
         '/events/community-meetup' => 'Come say hello',
         '/events/creative-workshop' => 'An afternoon of making',
@@ -137,18 +208,18 @@ test('website starter renders all pages with working navigation and remains edit
         $response = $service->respond($path, []);
         assert_same(200, $response['status'], $path . ' should render.');
         assert_true(str_contains($response['body'], $text), $path . ' should show its content.');
-        assert_true(str_contains($response['body'], 'href="/pages/about"'));
-        assert_true(str_contains($response['body'], 'href="/pages/hello-world"'));
+        assert_true(str_contains($response['body'], 'href="/about"'));
+        assert_true(str_contains($response['body'], 'href="/hello-world"'));
         assert_true(str_contains($response['body'], 'href="/events"'));
     }
 
     $content = ContentRepository::make($workspace);
+    assert_same(404, $service->respond('/pages', [])['status']);
     $content->save('pages', ['title' => 'Another page'], $user);
-    assert_same(3, count($content->all('pages')));
-    assert_throws(ValidationException::class, fn() => $content->save('landing-page', ['title' => 'Another home'], $user));
+    assert_same(4, count($content->all('pages')));
 
     $about = $content->findByIdentifier('pages', 'about');
-    $content->save('pages', array_replace($about, ['title' => 'About us']), $user, $about['id']);
+    $content->save('pages', ['title' => 'About us'], $user, $about['id']);
     assert_same('About us', $content->findByIdentifier('pages', 'about')['title']);
 
     $site->saveSettings(['homepage' => [], 'routes' => []]);

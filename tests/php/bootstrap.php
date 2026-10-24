@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+// CLI progress output must not prevent authentication tests from starting sessions.
+ini_set('session.use_cookies', '0');
+ini_set('session.cache_limiter', '');
+
 define('COMET_TEST_ROOT', dirname(__DIR__, 2));
 define('COMET_ROOT', COMET_TEST_ROOT . '/cms');
 define('COMET_APP', COMET_ROOT . '/app');
@@ -44,7 +48,7 @@ function comet_config(string $key, mixed $default = null): mixed
 
 function comet_version(): string
 {
-    return 'test';
+    return require __DIR__ . '/../../cms/app/version.php';
 }
 
 function comet_test_reset_storage(): void
@@ -95,6 +99,7 @@ function comet_test_reset_storage(): void
 
     $_SESSION = [];
     \CometCMS\Workspaces\WorkspaceContext::reset();
+    (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de', 'de-at', 'tlh', 'en-us', 'de-de'], 'default_locale' => 'en']);
 }
 
 function comet_test_workspace_path(string $workspace = 'default'): string

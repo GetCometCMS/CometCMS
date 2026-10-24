@@ -9,6 +9,10 @@
 
 ---
 
+## Upgrading to 2.0.0
+
+Version 2.0.0 requires a fresh installation. Recreate content and website designs as needed; pre-2.0 storage and backups are unsupported. Backup inspection and restore accept only archives from version 2.0.0 or newer. Existing storage is never reset automatically. See [LEGACY.md](LEGACY.md) for the removal decisions and retained behavior.
+
 ## Why CometCMS
 
 The entire CMS is a single PHP folder you upload to your server. That's it.
@@ -18,11 +22,11 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 - **No Composer.** Nothing to install on the server.
 - **No build step to deploy.** Run `make build` locally once, upload the `dist/` folder, done.
 - **Visual Page Builder.** Build a server-rendered website with shared layouts, a theme, header, footer and menus. Keep design consistent while editors manage content.
-- **Content fields and an optional headless API.** Bind structured content to your designs, or explicitly expose a content type through the API for Next.js, Astro, mobile apps or any other consumer.
+- **Custom Fields and an optional headless API.** Bind structured content to your designs, or explicitly expose a content type through the API for Next.js, Astro, mobile apps or any other consumer.
 - **Forms from content types.** Enable submissions on a collection, customize its messages and review incoming entries in the CMS.
 - **Fine-grained access token permissions.** Scope tokens by action, content type, media category, and field. No overly broad keys.
 - **Integrated backup system.** Create and restore full backups of all content, media, and settings from the admin UI.
-- **Built-in localization.** Content types support multiple locales; the API resolves translations with a single `?locale=` parameter.
+- **Built-in localization.** Share one design across languages, translate builder content and structured fields, and publish each language with its own URLs. The API resolves content with `?locale=`.
 - **Intentionally simple.** Not a framework, not extensible to infinity. Visual editing, structured content and a clean JSON API in one admin UI.
 
 <p align="center">
@@ -34,8 +38,8 @@ The entire CMS is a single PHP folder you upload to your server. That's it.
 1. Download the latest release from the Github releases.
 2. Upload the contents of the .zip to your hosting account via FTP or your host's file manager.
 3. Navigate to `https://yourdomain.com/admin` in your browser.
-4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Landing Page single content type, a Pages collection with About and Hello World examples, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages and sets the landing page as your homepage. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
-5. Edit your pages in the Page Builder, add content fields as needed, and enable API exposure only for types you want to use headlessly.
+4. Configure your workspace and create your admin account on the setup screen. **Start with a website** is selected by default for a Pages collection with Landing Page, About and Hello World entries, and an Events collection with two sample events. Events demonstrate custom fields for date and time, location, event type, capacity, and registration status. The website starter enables frontend pages, sets the Landing Page entry as your homepage, and downloads Inter and Lora as normal installed fonts that you can replace or remove. If font downloads are unavailable, the website uses system fonts. Empty workspaces start without installed fonts. You can change or remove these defaults anytime, or choose **Start empty** for a blank workspace.
+5. Edit your pages in the Page Builder, add custom fields as needed, and enable API exposure only for types you want to use headlessly.
 
 No SSH. No CLI. No `composer install`. No environment variables required. Runs on the cheapest php hosting you can find.
 
@@ -62,11 +66,11 @@ DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}
 
 Entry payloads use `id` for a stable opaque identifier and `slug` for the URL-safe slug. `{identifier}` may be either value.
 
-Content types can be repeatable collections or single pages. Single pages use one fixed entry whose slug matches the content type name, and the default read URL is the collection path itself, e.g. `GET /api/v1/workspaces/{workspace}/content/start-page`.
+Every content type is a collection. One-off content such as a start page is an entry, read like any other, e.g. `GET /api/v1/workspaces/{workspace}/content/pages/landing-page`.
 
 Public reads return only `published` entries, or `scheduled` entries whose `published_at` is in the past. `draft`, `protected`, `archived`, and soft-deleted entries are hidden unless an authenticated token is used.
 
-Content types are public by default and can be marked private in their settings. Private types require an access token with `content.read` permission for that collection.
+New content types have API exposure disabled. Enable **Expose custom fields through the API** to allow external reads. Enabling API exposure uses public visibility. Existing legacy private schemas require a token with `content.read` permission until reconfigured.
 
 ### Media
 
@@ -99,9 +103,9 @@ The embedded MCP uses the same access tokens and permission grants as the REST A
 
 ## Website
 
-Each workspace can also publish its content as a website, rendered by PHP on the same server. Enable **Page Builder** in a content type's settings and choose its page URLs (e.g. `/blog/{slug}`). Open **Page Builder** under **System** to choose a homepage and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. The website is online while it has a homepage or at least one content type with the Page Builder enabled. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; authorized editors can preview drafts.
+Each workspace can also publish its content as a website, rendered by PHP on the same server. Enable **Page Builder** in a content type's settings and choose its page URLs (e.g. `/blog/{slug}`). Choose a homepage under **Website → Website settings → General** and design one layout per content type in the visual builder: sections, columns, field bindings, entry lists, menus and more, styled by a shared theme. The website is online while it has a homepage or at least one content type with the Page Builder enabled. Header, footer and menus are edited the same way. Private content types and unpublished entries are never shown; authorized editors can preview drafts.
 
-Pages are cached, set no cookies, ship no JavaScript and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
+Pages are cached, set no cookies, and include canonical URLs, `hreflang`, `/sitemap.xml` and `/robots.txt`. Small bundled scripts are included only for interactive elements, including gallery viewers and internal links that open in a modal. Markdown is rendered with the bundled [Parsedown](https://parsedown.org) (MIT). See the [website guide](docs/guide/website.md).
 
 ### Filtering, Sorting, and Pagination
 
@@ -125,7 +129,7 @@ All list endpoints support:
 
 Use `filter[...]` for all field queries. Boolean fields accept `true`/`false` (also `1`/`0`). Select fields can be matched by their stored option value; when a field stores an array, filters match if any item in the array matches. Public API media fields are always arrays of absolute media URLs, including single-file media fields. Sorting is type-aware for numeric values and ISO-style dates.
 
-Localized content types expose `locales` and `default_locale` in their schema. Add `?locale={code}` to list or single-entry reads to resolve translated `title` and field values before search, filters, sorting, and relation expansion are applied. Without `locale`, responses use the content type's default-locale fallback copy.
+All content types expose the workspace `locales` and `default_locale` as read-only schema values. Configure languages once in workspace settings. Add `?locale={code}` to list or single-entry reads to resolve translated `title` and field values before search, filters, sorting, and relation expansion are applied. Without `locale`, responses resolve content in the workspace default language.
 
 ```http
 GET /api/v1/workspaces/{workspace}/content/blogpost?filter[is_promo_material]=true
@@ -182,8 +186,10 @@ Installation replaces release-owned application files and folders while preservi
 | `/admin/users`                | Users                  |
 | `/admin/connect/access-tokens` | Access tokens          |
 | `/admin/backups`              | Backup and restore     |
-| `/admin/webhooks`             | Outbound webhooks      |
-| `/admin/page-builder`         | Page Builder settings & editor |
+| `/admin/connect/webhooks`             | Outbound webhooks      |
+| `/admin/page-builder`         | Website design, templates, menus and fonts |
+| `/admin/website/general`      | Homepage, languages and website settings |
+| `/admin/website/workspaces`   | Workspace management |
 | `/admin/update`               | GitHub release updates |
 
 ### Roles
@@ -194,7 +200,7 @@ Installation replaces release-owned application files and folders while preservi
 | `editor` | Built-in content and media editing role      |
 | `viewer` | Built-in read-oriented role                  |
 
-Roles can be customized or created in **Users → Edit user roles**.
+Roles can be customized or created in **Administration → Users & roles → Roles**.
 
 ### Screenshots
 
@@ -220,7 +226,8 @@ storage/
   workspaces/{workspace}/revisions/site/ - layout, header/footer and design history
   workspaces/{workspace}/trash/
   workspaces/{workspace}/site/       - website settings, theme, menus, header/footer, layouts
-  users/{username}.json              - user accounts
+  users/{id}.json              - user accounts
+  api-tokens/{id}.json               - access token records and hashes
   roles/{name}.json                  - customized role definitions
   backups/                           - saved backup ZIP files
   workspaces/{workspace}/cache/api/  - public API response cache

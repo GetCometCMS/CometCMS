@@ -4,11 +4,13 @@ Access tokens let external applications and MCP clients access CometCMS without 
 
 ## Creating a token
 
-1. Go to **Access Tokens**.
+1. Go to **Administration → API & integrations → Access tokens**.
 2. Click **New token**.
 3. Give the token a name (e.g. `Deploy script`), optional description, and permission grants.
-4. Click **Create token**.
+4. Click **Create**.
 5. **Copy the token immediately** — it is only shown once.
+
+![Access tokens with fictional integration names and permission summaries](../screenshots/view-api-tokens.png)
 
 ## Permissions
 
@@ -32,7 +34,7 @@ Each grant has:
 | `effect`     | `allow` or `deny`. A matching `deny` overrides matching allows.                 |
 | `actions`    | One or more action names. Use `*` only for full administrative access.          |
 | `resources`  | One or more resource patterns. `*` wildcards are supported.                     |
-| `fields`     | Optional content field allow-list for create/update operations.                 |
+| `fields`     | Optional custom field allow-list for create/update operations.                 |
 | `conditions` | Optional restrictions. Supported conditions are `own`, `status`, and `locales`. |
 
 Common content actions are `content.read`, `content.create`, `content.update`, `content.publish`, `content.delete`, `content.restore`, `content.revisions.read`, and `content.revisions.restore`.

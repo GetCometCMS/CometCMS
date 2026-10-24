@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace CometCMS\Controllers;
 
 use CometCMS\Core\Http;
+use CometCMS\Core\RateLimiter;
 use CometCMS\Site\Flags;
+use CometCMS\Site\FormCaptcha;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\FormSubmission;
 use CometCMS\Site\FormUploads;
@@ -13,6 +15,8 @@ use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\PlaceholderPage;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
+use CometCMS\Site\SiteSearch;
+use CometCMS\Site\SiteScripts;
 use CometCMS\Site\SiteService;
 use CometCMS\Site\Theme;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -26,10 +30,10 @@ use CometCMS\Workspaces\WorkspaceRepository;
 final class SiteController
 {
     /**
-     * Rendered pages never run scripts: the site ships none, and this keeps
-     * it that way even if content or custom CSS were to contain markup.
+     * Pages block scripts except for bundled interactions that are present;
+     * their exact hashes and any CAPTCHA providers used on the page are allowed.
      */
-    private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+    private const CONTENT_SECURITY_POLICY = "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
     public function __construct(private readonly Http $http) {}
 
@@ -61,6 +65,32 @@ final class SiteController
         $this->send($response, $response['cache_status']);
     }
 
+    public function font(string $workspace, string $hash): never
+    {
+        if (!(new WorkspaceRepository())->exists($workspace)) {
+            $this->http->notFound();
+        }
+        $fonts = new \CometCMS\Site\FontRegistry(new WorkspaceContext($workspace));
+        $path = $fonts->asset($hash);
+        if ($path === null) {
+            $this->http->notFound();
+        }
+        $etag = '"' . $hash . '"';
+        header('ETag: ' . $etag);
+        header('Cache-Control: public, max-age=31536000, immutable');
+        if (trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
+            http_response_code(304);
+            exit;
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'HEAD') {
+            header('Content-Type: font/woff2');
+            header('Content-Length: ' . filesize($path));
+            header('X-Content-Type-Options: nosniff');
+            exit;
+        }
+        $this->http->streamFile($path, 'font/woff2');
+    }
+
     public function stylesheet(string $workspace, bool $custom = false): never
     {
         if (!(new WorkspaceRepository())->exists($workspace)) {
@@ -70,7 +100,7 @@ final class SiteController
         $site = new SiteRepository(new WorkspaceContext($workspace));
         $version = $custom ? $site->customStylesheetVersion() : $site->stylesheetVersion();
         $theme = $site->theme();
-        $css = $custom ? $theme['custom_css'] : Theme::stylesheet([...$theme, 'custom_css' => '']);
+        $css = $custom ? $theme['custom_css'] : Theme::stylesheet([...$theme, 'custom_css' => ''], new \CometCMS\Site\FontRegistry($site->workspace()), rtrim($this->http->url('/'), '/'));
         $etag = '"' . $version . '"';
 
         header('Content-Type: text/css; charset=utf-8');
@@ -105,6 +135,7 @@ final class SiteController
         if ($form === null) {
             $this->http->notFound();
         }
+        $this->rejectDuringMaintenance($site);
 
         $maxBytes = max(1024, (int) comet_config('site.forms.max_body_bytes', 262144));
         foreach ((new FormRepository($site))->inputs($form) as $field) {
@@ -124,6 +155,45 @@ final class SiteController
 
         $anchor = LayoutSchema::key($_POST['_anchor'] ?? '');
         $this->http->redirect($this->returnPath($_POST['_return'] ?? null) . ($anchor !== '' ? '#' . $anchor . '-' . $result['status'] : ''), 303);
+    }
+
+    /**
+     * Hits for a search element as JSON: ?q= the text, types= and fields=
+     * comma-separated keys (empty for all), limit= and locale=. Only pages a
+     * visitor could open are searched (see SiteSearch), so the request may
+     * name any type or field without revealing more than the website does.
+     */
+    public function search(string $workspace): never
+    {
+        if (!(new WorkspaceRepository())->exists($workspace)) {
+            $this->http->notFound();
+        }
+
+        $site = new SiteRepository(new WorkspaceContext($workspace));
+        if (!$site->settings()['enabled']) {
+            $this->http->notFound();
+        }
+        $this->rejectDuringMaintenance($site);
+
+        $limits = new RateLimiter($site->workspace()->path('cache') . '/search-limits');
+        if ($limits->hit('site-search', (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), max(1, (int) comet_config('site.search.rate_limit_per_minute', 120)), 60)) {
+            header('Retry-After: 60');
+            $this->http->json(['error' => ['code' => 'rate_limited', 'message' => 'Too many searches. Please wait a moment.']], 429);
+        }
+
+        $context = SiteContext::make($site, rtrim($this->http->url('/'), '/'), $this->origin());
+        $locale = LayoutSchema::key($_GET['locale'] ?? '');
+        if ($locale !== '' && in_array($locale, $context->locales(), true)) {
+            $context->locale = $locale;
+        }
+        $keys = static fn(mixed $value): array => array_values(array_filter(array_map(LayoutSchema::key(...), explode(',', is_string($value) ? $value : '', 50)), static fn(string $key): bool => $key !== ''));
+        $query = is_string($_GET['q'] ?? null) ? $_GET['q'] : '';
+        $limit = (int) ($_GET['limit'] ?? SiteSearch::MAX_RESULTS);
+        $hits = (new SiteSearch($context))->search($query, $keys($_GET['types'] ?? ''), $keys($_GET['fields'] ?? ''), $limit);
+
+        header('Cache-Control: public, max-age=60');
+        header('X-Content-Type-Options: nosniff');
+        $this->http->json(['data' => $hits]);
     }
 
     /** Only a path on this site is followed, never another host. */
@@ -163,6 +233,15 @@ final class SiteController
         ], 'BYPASS');
     }
 
+    /** Forms and search stay closed with the pages they belong to. */
+    private function rejectDuringMaintenance(SiteRepository $site): void
+    {
+        if (!empty($site->settings()['maintenance'])) {
+            header('Retry-After: 3600');
+            $this->http->json(['error' => ['code' => 'maintenance', 'message' => 'The website is undergoing maintenance.']], 503);
+        }
+    }
+
     private function send(array $response, string $cacheStatus): never
     {
         $etag = '"' . substr(sha1($response['body']), 0, 20) . '"';
@@ -174,9 +253,14 @@ final class SiteController
         header('X-CometCMS-Cache: ' . $cacheStatus);
         header('Cache-Control: public, max-age=0, must-revalidate');
         header('ETag: ' . $etag);
+        if ($response['status'] === 503) {
+            header('Retry-After: 3600');
+        }
 
         if (str_starts_with($response['content_type'], 'text/html')) {
-            header('Content-Security-Policy: ' . self::CONTENT_SECURITY_POLICY);
+            $policy = str_replace("script-src 'none'", SiteScripts::cspDirective($response['body']), self::CONTENT_SECURITY_POLICY);
+            $policy = FormCaptcha::extendPolicy($policy, $response['body']);
+            header('Content-Security-Policy: ' . $policy);
         }
 
         if ($response['status'] === 200 && trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {

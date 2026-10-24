@@ -20,7 +20,7 @@ function smart_test_state(): array
     return [$context, ['type' => $context->type('blog'), 'entry' => $context->findEntry('blog', 'hello')]];
 }
 
-test('smart values resolve current items singles stable entries and site information', function (): void {
+test('smart values resolve current items stable entries and site information', function (): void {
     comet_site_test_setup();
     [$context, $state] = smart_test_state();
     $smart = new SmartValue($context);
@@ -28,8 +28,7 @@ test('smart values resolve current items singles stable entries and site informa
     $related = SmartValue::reference('author');
     $related['path'][] = 'bio';
     assert_same('Writes code.', $smart->resolve($related, $state)['value']);
-    $single = SmartValue::reference('intro', 'single') + ['collection' => 'about'];
-    assert_same('We build things.', $smart->resolve($single, [])['value']);
+    assert_throws(ValidationException::class, fn() => SmartValue::normalize(SmartValue::reference('intro', 'single') + ['collection' => 'about']), 'Single page references were migrated to entry references.');
     $author = $context->findEntry('authors', 'ada');
     $explicit = SmartValue::reference('bio', 'entry') + ['collection' => 'authors', 'entry' => $author['uid']];
     assert_same('Writes code.', $smart->resolve($explicit, [])['value']);
@@ -43,7 +42,7 @@ test('smart references retain stable identity when selected entries are renamed'
     $content = ContentRepository::make();
     $entry = $content->findByIdentifier('authors', 'ada');
     $ref = SmartValue::reference('bio', 'entry') + ['collection' => 'authors', 'entry' => $entry['uid']];
-    $content->save('authors', [...$entry, 'slug' => 'ada-lovelace', 'bio' => 'Renamed author.'], comet_site_test_user(), 'ada');
+    $content->save('authors', ['slug' => 'ada-lovelace', 'bio' => 'Renamed author.'], comet_site_test_user(), 'ada');
     assert_same('Renamed author.', (new SmartValue(comet_site_test_context()))->resolve($ref, [])['value']);
 });
 
@@ -197,20 +196,20 @@ test('incompatible designs use defaults without deleting data and old revisions 
     $site = comet_site_test_setup();
     $store = new JsonStore($site->workspace()->path('site') . '/theme');
     $old = ['nodes' => [LayoutSchema::node('section')]];
-    $store->write($old, 'layouts', 'blog', 'detail');
+    $store->write($old, 'content', 'blog', 'detail', 'default');
     $store->write($old, 'regions', 'footer');
     assert_true($site->needsLayoutUpgrade('blog', 'detail'));
     assert_true($site->needsRegionUpgrade('footer'));
-    assert_same($old, $store->read('layouts', 'blog', 'detail'));
+    assert_same($old, $store->read('content', 'blog', 'detail', 'default'));
     assert_true(str_contains(json_encode($site->layout('blog', 'detail')), 'reference'));
     $revisions = new JsonStore($site->workspace()->path('revisions') . '/site');
-    $revisions->write(['id' => 'old', 'snapshot' => $old], 'layouts', 'blog', 'detail', 'old');
+    $revisions->write(['id' => 'old', 'snapshot' => $old], 'content', 'blog', 'detail', 'default', 'old');
     assert_null($site->restoreLayoutRevision('blog', 'detail', 'old'));
     assert_same([], $site->layoutRevisions('blog', 'detail'));
     $site->saveLayout('blog', 'detail', $site->layout('blog', 'detail'));
     assert_false($site->needsLayoutUpgrade('blog', 'detail'));
     assert_true(ContentRepository::make()->findByIdentifier('blog', 'hello') !== null);
-    assert_same(LayoutSchema::FORMAT_VERSION, $store->read('layouts', 'blog', 'detail')['format_version']);
+    assert_same(LayoutSchema::FORMAT_VERSION, $store->read('content', 'blog', 'detail', 'default')['format_version']);
 });
 
 test('columns and column components resolve bound backgrounds while preserving responsive order', function (): void {
@@ -267,13 +266,13 @@ test('smart media and links preserve types and reject unsafe or ambiguous values
 
 test('smart references localize secondary entries and remain workspace scoped', function (): void {
     $types = new ContentTypeRepository();
-    $types->save(['name' => 'company', 'singleton' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => ['intro' => ['type' => 'textarea']]]);
+    $types->save(['name' => 'company', 'locales' => ['en', 'de'], 'default_locale' => 'en', 'fields' => ['intro' => ['type' => 'textarea']]]);
     $content = ContentRepository::make();
-    $content->save('company', ['title' => 'Company', 'intro' => 'English', 'status' => 'published', 'locale' => 'en'], comet_site_test_user());
+    $company = $content->save('company', ['title' => 'Company', 'slug' => 'company', 'intro' => 'English', 'status' => 'published', 'locale' => 'en'], comet_site_test_user());
     $content->save('company', ['title' => 'Firma', 'intro' => 'Deutsch', 'status' => 'published', 'locale' => 'de'], comet_site_test_user(), 'company');
     $site = new SiteRepository();
     $site->saveSettings(['enabled' => true, 'locales' => ['en', 'de'], 'default_locale' => 'en']);
-    $ref = SmartValue::reference('intro', 'single') + ['collection' => 'company'];
+    $ref = SmartValue::reference('intro', 'entry') + ['collection' => 'company', 'entry' => $company['uid']];
     $context = comet_site_test_context();
     $context->locale = 'de';
     assert_same('Deutsch', (new SmartValue($context))->resolve($ref, [])['value']);

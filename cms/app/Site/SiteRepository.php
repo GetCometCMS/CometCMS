@@ -8,6 +8,8 @@ use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 use CometCMS\Storage\JsonStore;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -23,15 +25,15 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *     theme.json                theme settings
  *     style.css                 custom CSS, loaded after the generated theme
  *     regions/{header,footer}.json
- *     layouts/{type}/{variant}.json
- *     components/{id}.json      reusable blocks placed in layouts and regions
+ *     templates/{type}/{variant}.json        the page kind's templates: header, footer and when each applies
+ *     content/{type}/{variant}/{template}.json   each template's own content area
+ *     components/{id}.json      reusable blocks placed in content areas and regions
  *
  * Theme files hold no save timestamps, so saving unchanged content leaves
  * them unchanged; "updated_at" comes from the file modification time.
- * Revisions live outside, in revisions/site/. ThemeMigration moves files
- * from older layouts into this structure.
+ * Revisions live outside, in revisions/site/.
  *
- * Layouts and regions that were never customized are generated from the
+ * Content areas and regions that were never designed are generated from the
  * content type on the fly, so publishing a first page works without setup.
  *
  * There is no on/off switch: the website is live while it has something to
@@ -45,6 +47,12 @@ final class SiteRepository
     public const RESERVED_PREFIXES = ['/admin', '/api', '/mcp', '/media', '/media-thumbs', '/_site', '/site-preview'];
 
     public const RESERVED_FILES = ['/sitemap.xml', '/robots.txt', '/favicon.ico'];
+
+    /** The template every page kind has; it always applies last. */
+    public const DEFAULT_TEMPLATE = 'default';
+
+    public const MAX_TEMPLATES = 50;
+    public const MAX_CONDITIONS = 10;
 
     private JsonStore $store;
     private JsonStore $themeStore;
@@ -61,10 +69,11 @@ final class SiteRepository
         $this->store = new JsonStore($this->workspace->path('site'));
         $this->themeStore = new JsonStore($this->workspace->path('site') . '/theme');
         $this->revisions = new JsonStore($this->workspace->path('revisions') . '/site');
-
-        $migration = new ThemeMigration($this->workspace);
-        if ($migration->needed() && $migration->run()) {
-            $this->clearCache();
+        if (is_dir($this->themeStore->path('layouts')) || is_file($this->themeStore->path('frames') . '.json')) {
+            $this->migrateLayouts();
+        }
+        if ($this->sharesContentAreas()) {
+            $this->migrateContentAreas();
         }
     }
 
@@ -95,11 +104,22 @@ final class SiteRepository
 
     public function saveSettings(array $input): array
     {
+        return (new JsonStore($this->workspace->root()))->synchronized(function () use ($input): array {
+            $this->settingsCache = null;
+            if (isset($input['revision']) && $input['revision'] !== ($this->settings()['revision'] ?? '')) throw new \CometCMS\Core\ConflictException();
+            return $this->saveSettingsUnlocked($input);
+        }, 'routing');
+    }
+
+    private function saveSettingsUnlocked(array $input): array
+    {
         $settings = $this->normalizeSettings($input);
-        $this->validateSettings($settings);
+        foreach ($settings['locales'] as $locale) $this->validateSettings(LocalizedValue::tree($settings, $locale, $settings['default_locale']));
+        $this->validateEntryUrls($settings);
         $settings['updated_at'] = Security::now();
-        // "enabled" is derived on every read and never stored.
-        $this->store->write(array_diff_key($settings, ['enabled' => true]), 'settings');
+        $settings['revision'] = bin2hex(random_bytes(12));
+        // Workspace languages and website availability are derived on every read.
+        $this->store->write(array_diff_key($settings, array_flip(['enabled', 'locales', 'default_locale'])), 'settings');
         $this->settingsCache = $settings;
         $this->clearCache();
 
@@ -125,12 +145,13 @@ final class SiteRepository
     public function defaultRoute(array $type): array
     {
         $name = (string) $type['name'];
-        $singleton = !empty($type['singleton']);
 
         return [
             'enabled' => false,
-            'pattern' => $singleton ? '/' . $name : '/' . $name . '/{slug}',
-            'index_path' => $singleton ? '' : '/' . $name,
+            'pattern' => '/' . $name . '/{slug}',
+            // List pages are opt-in; without one the type only has entry pages.
+            'index_enabled' => false,
+            'index_path' => '/' . $name,
             'index_title' => '',
             'seo_description_field' => '',
             'seo_image_field' => '',
@@ -138,39 +159,26 @@ final class SiteRepository
         ];
     }
 
-    /** Locales any content type defines; the website can offer a subset. */
+    /** Workspace languages used throughout the website. */
     public function availableLocales(): array
     {
-        $locales = [];
-
-        foreach ($this->types() as $type) {
-            foreach ((array) ($type['locales'] ?? []) as $locale) {
-                $locales[(string) $locale] = true;
-            }
-        }
-
-        return array_keys($locales);
+        return (new LanguageSettings($this->workspace))->all()['locales'];
     }
 
     // ─── Theme ───────────────────────────────────────────────────────────────
 
     public function theme(): array
     {
-        // Older workspaces keep both tokens and CSS in site/theme.json.
-        // Read them until the next save migrates the theme into its directory.
-        $legacy = $this->store->read('theme');
-        $stored = $legacy ?? $this->themeStore->read('theme') ?? [];
+        $stored = $this->themeStore->read('theme') ?? [];
         $path = $this->themeStore->path('style') . '.css';
-        // A restored legacy backup takes precedence over the newer files.
-        if ($legacy === null && is_file($path)) {
+        if (is_file($path)) {
             $css = file_get_contents($path);
             if ($css === false) {
                 throw new \RuntimeException('Could not read the theme stylesheet.');
             }
             $stored['custom_css'] = $css;
         }
-        // Older theme files still carry their save time.
-        $updated = (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('theme') . '.json', $path);
+        $updated = self::modifiedAt($this->themeStore->path('theme') . '.json', $path);
 
         return Theme::normalize($stored) + ['updated_at' => $updated];
     }
@@ -181,7 +189,6 @@ final class SiteRepository
         $this->writeRevision(['theme'], ['theme' => $this->theme()], $user, $event);
         $this->writeThemeStylesheet($theme['custom_css']);
         $this->themeStore->write(array_diff_key($theme, ['custom_css' => true]), 'theme');
-        $this->store->delete('theme');
         $this->clearCache();
 
         return $theme + ['updated_at' => self::modifiedAt($this->themeStore->path('theme') . '.json', $this->themeStore->path('style') . '.css')];
@@ -221,7 +228,7 @@ final class SiteRepository
         $theme = $this->theme();
         $base = __DIR__ . '/assets/site.css';
 
-        return substr(sha1(json_encode($theme) . '|' . (is_file($base) ? (string) filemtime($base) : '') . '|' . (function_exists('comet_version') ? comet_version() : '')), 0, 12);
+        return substr(sha1(json_encode($theme) . '|' . (new FontRegistry($this->workspace))->fingerprint() . '|' . (is_file($base) ? (string) filemtime($base) : '') . '|' . (function_exists('comet_version') ? comet_version() : '')), 0, 12);
     }
 
     public function customStylesheetVersion(): string
@@ -238,7 +245,7 @@ final class SiteRepository
         if ($stored === null) {
             return [
                 ['name' => 'main', 'label' => 'Main', 'items' => [
-                    ['id' => 'home', 'label' => 'Home', 'labels' => [], 'link' => ['type' => 'home', 'new_tab' => false], 'children' => []],
+                    ['id' => 'home', 'label' => 'Home', 'link' => ['type' => 'home', 'new_tab' => false], 'children' => []],
                 ]],
                 ['name' => 'footer', 'label' => 'Footer', 'items' => []],
             ];
@@ -258,7 +265,15 @@ final class SiteRepository
         return null;
     }
 
-    public function saveMenus(array $menus): array
+    public function saveMenus(array $menus, ?string $revision = null): array
+    {
+        return $this->store->synchronized(function () use ($menus, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->menus())) throw new \CometCMS\Core\ConflictException();
+            return $this->saveMenusUnlocked($menus);
+        }, 'menus');
+    }
+
+    private function saveMenusUnlocked(array $menus): array
     {
         $this->validateMenus($menus);
         $menus = $this->normalizeMenus($menus);
@@ -275,7 +290,10 @@ final class SiteRepository
         $this->assertRegion($region);
         $stored = $this->themeStore->read('regions', $region);
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+        $nodes = ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalizeRegion($region, $stored['nodes'] ?? []) : LayoutSchema::defaultRegion($region);
+
+        // The modal template cannot do without its panel; one saved without it starts over.
+        return $region === LayoutSchema::MODAL && $nodes === [] ? LayoutSchema::defaultRegion($region) : $nodes;
     }
 
     public function regionCustomized(string $region): bool
@@ -285,10 +303,18 @@ final class SiteRepository
         return ($this->themeStore->read('regions', $region)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
-    public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveRegion(string $region, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($region, $nodes, $user, $event, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->region($region))) throw new \CometCMS\Core\ConflictException();
+            return $this->saveRegionUnlocked($region, $nodes, $user, $event);
+        }, ...['regions', $region]);
+    }
+
+    private function saveRegionUnlocked(string $region, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $this->assertRegion($region);
-        $nodes = LayoutSchema::normalize($nodes);
+        $nodes = LayoutSchema::normalizeRegion($region, $nodes, true);
         $this->writeRevision(['regions', $region], $this->regionSnapshot($region), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'regions', $region);
         $this->clearCache();
@@ -306,61 +332,536 @@ final class SiteRepository
         return $this->region($region);
     }
 
-    // ─── Layouts ─────────────────────────────────────────────────────────────
+    // ─── Templates (which parts make up a page) ──────────────────────────────
 
-    public function layout(string $type, string $variant): array
+    /**
+     * A page kind's templates, in order. A template puts a page together from
+     * a header, its own content area (stored under its id, see layout()) and
+     * a footer, and says when it applies. The first one whose conditions
+     * match an entry is used. The last one is the default: it has no
+     * conditions and always applies.
+     *
+     * @return list<array{id: string, name: string, conditions: list<array{field: string, op: string, value: mixed}>, header: string, footer: string}>
+     */
+    public function templates(string $type, string $variant): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
-        $stored = $this->themeStore->read('layouts', $type, $variant);
+        $stored = $this->themeStore->read('templates', $type, $variant);
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION ? LayoutSchema::normalize($stored['nodes'] ?? []) : LayoutSchema::defaultLayout($schema, $variant);
+        return $this->normalizeTemplates($schema, $variant, $stored['templates'] ?? [], false);
     }
 
-    public function layoutCustomized(string $type, string $variant): bool
+    /** Every page kind's templates: {type: {variant: templates}}. */
+    public function allTemplates(): array
+    {
+        $all = [];
+        foreach ($this->types() as $name => $type) {
+            foreach ($this->enabledVariantsFor($type) as $variant) {
+                $all[(string) $name][$variant] = $this->templates((string) $name, $variant);
+            }
+        }
+
+        return $all;
+    }
+
+    /**
+     * Replace the templates of the page kinds in $templates ({type: {variant:
+     * templates}}); page kinds left out stay as they are. A template left out
+     * of its list is deleted with its content area. New ones come from
+     * createTemplate(), which gives them their content.
+     */
+    public function saveTemplates(mixed $templates, ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($templates, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->allTemplates())) throw new \CometCMS\Core\ConflictException();
+            foreach ($this->validateTemplates($templates) as $type => $variants) {
+                foreach ($variants as $variant => $list) {
+                    $kept = array_column($list, 'id');
+                    foreach ($this->templates($type, $variant) as $template) {
+                        if (!in_array($template['id'], $kept, true)) $this->deleteContentArea($type, $variant, $template['id']);
+                    }
+                    $this->writeTemplates($type, $variant, $list);
+                }
+            }
+            $this->clearCache();
+
+            return $this->allTemplates();
+        }, 'templates');
+    }
+
+    /**
+     * Normalize templates for saving or previewing ({type: {variant:
+     * templates}}); anything invalid is rejected.
+     */
+    public function validateTemplates(mixed $templates): array
+    {
+        if (!is_array($templates)) {
+            throw new ValidationException(['templates' => 'Invalid templates.']);
+        }
+        $normalized = [];
+        foreach ($templates as $type => $variants) {
+            $schema = $this->types()[(string) $type] ?? null;
+            if ($schema === null || !is_array($variants)) {
+                throw new ValidationException(['templates' => 'Unknown content type: ' . $type]);
+            }
+            foreach ($variants as $variant => $list) {
+                if (!in_array($variant, $this->variantsFor($schema), true)) {
+                    throw new ValidationException(['templates' => 'Unknown page kind: ' . $variant]);
+                }
+                $normalized[(string) $type][(string) $variant] = $this->normalizeTemplates($schema, (string) $variant, $list, true);
+            }
+        }
+
+        return $normalized;
+    }
+
+    /** The template every page kind starts with: the site's header and footer around its generated content. */
+    public static function defaultTemplate(array $parts = []): array
+    {
+        return array_replace([
+            'id' => self::DEFAULT_TEMPLATE,
+            'name' => 'Default',
+            'conditions' => [],
+            'header' => LayoutSchema::FRAME_DEFAULT,
+            'footer' => LayoutSchema::FRAME_DEFAULT,
+        ], array_intersect_key($parts, array_flip(LayoutSchema::REGIONS)));
+    }
+
+    /**
+     * A new template named $name, placed before the default. It starts as a
+     * copy of $from (default: the default template): its header, footer and
+     * content, plus its conditions when duplicating. $parts (header, footer,
+     * conditions) replaces what is copied, e.g. unsaved changes of $from.
+     */
+    public function createTemplate(string $type, string $variant, mixed $name, string $from = '', array $parts = []): array
+    {
+        $schema = $this->requireType($type);
+        $this->assertVariant($schema, $variant);
+        $name = mb_substr(trim(is_string($name) ? $name : ''), 0, 120);
+        if ($name === '') throw new ValidationException(['name' => 'Name the template.']);
+
+        return $this->themeStore->synchronized(function () use ($schema, $type, $variant, $name, $from, $parts): array {
+            $list = $this->templates($type, $variant);
+            if (count($list) >= self::MAX_TEMPLATES) throw new ValidationException(['name' => 'A page kind can have at most ' . self::MAX_TEMPLATES . ' templates.']);
+            $source = $from !== '' ? array_values(array_filter($list, static fn(array $template): bool => $template['id'] === $from))[0] ?? null : $list[array_key_last($list)];
+            if ($source === null) throw new ValidationException(['from' => 'Unknown template.']);
+            $taken = array_column($list, 'id');
+            $id = self::componentId($name, fn(string $id): bool => $id === self::DEFAULT_TEMPLATE || in_array($id, $taken, true) || $this->themeStore->read('content', $type, $variant, $id) !== null);
+            $template = array_intersect_key($parts, array_flip([...LayoutSchema::REGIONS, 'conditions'])) + [
+                'conditions' => $from !== '' ? $source['conditions'] : [],
+                'header' => $source['header'],
+                'footer' => $source['footer'],
+            ];
+            $list = $this->normalizeTemplates($schema, $variant, [...array_slice($list, 0, -1), ['id' => $id, 'name' => $name] + $template, $list[array_key_last($list)]], true);
+
+            $content = $this->themeStore->read('content', $type, $variant, $source['id']);
+            if (($content['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION) {
+                $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $content['nodes'] ?? []], 'content', $type, $variant, $id);
+            }
+            $this->writeTemplates($type, $variant, $list);
+            $this->clearCache();
+
+            return array_values(array_filter($list, static fn(array $template): bool => $template['id'] === $id))[0];
+        }, 'templates');
+    }
+
+    /**
+     * The template a page uses: the one picked on the entry, else the first
+     * that applies (without conditions, or with all of them matching the
+     * entry), else the default. `reason` says which of these it was.
+     *
+     * @return array{template: array, reason: string}
+     */
+    public static function resolveTemplate(array $templates, ?array $entry, string $picked = ''): array
+    {
+        if ($entry !== null && $picked !== '') {
+            foreach ($templates as $template) {
+                if ($template['id'] === $picked) return ['template' => $template, 'reason' => 'picked'];
+            }
+        }
+        foreach ($templates as $template) {
+            if ($template['id'] === self::DEFAULT_TEMPLATE) return ['template' => $template, 'reason' => 'default'];
+            if ($template['conditions'] === []) return ['template' => $template, 'reason' => 'first'];
+            if ($entry !== null && self::matchesConditions($template['conditions'], $entry)) return ['template' => $template, 'reason' => 'conditions'];
+        }
+
+        return ['template' => $templates[array_key_last($templates)] ?? self::defaultTemplate(), 'reason' => 'default'];
+    }
+
+    /** All conditions hold for the entry (field values as the website shows them). */
+    public static function matchesConditions(array $conditions, array $entry): bool
+    {
+        foreach ($conditions as $condition) {
+            $value = $entry[$condition['field']] ?? null;
+            $empty = $value === null || $value === '' || $value === [];
+            $expected = $condition['value'];
+            $same = static function (mixed $actual) use ($expected): bool {
+                if (is_bool($actual) || is_bool($expected)) return (bool) $actual === filter_var($expected, FILTER_VALIDATE_BOOLEAN);
+                if (is_numeric($actual) && is_numeric($expected)) return (float) $actual === (float) $expected;
+                return is_scalar($actual) && (string) $actual === (string) $expected;
+            };
+            $holds = match ($condition['op']) {
+                'empty' => $empty,
+                'not_empty' => !$empty,
+                'equals' => is_array($value) ? array_filter($value, $same) !== [] : $same($value),
+                'not_equals' => is_array($value) ? array_filter($value, $same) === [] : !$same($value),
+                'contains' => is_array($value)
+                    ? array_filter($value, $same) !== []
+                    : is_scalar($value) && (string) $expected !== '' && mb_stripos(strip_tags((string) $value), (string) $expected) !== false,
+                default => false,
+            };
+            if (!$holds) return false;
+        }
+
+        return true;
+    }
+
+    private function writeTemplates(string $type, string $variant, array $list): void
+    {
+        if ($list === [self::defaultTemplate()]) {
+            $this->themeStore->delete('templates', $type, $variant);
+        } else {
+            $this->themeStore->write(['templates' => $list], 'templates', $type, $variant);
+        }
+    }
+
+    /**
+     * Known parts, unique ids, the default template last. Saving rejects
+     * what reading drops or repairs.
+     */
+    private function normalizeTemplates(array $schema, string $variant, mixed $list, bool $strict): array
+    {
+        $fail = static function (string $message) use ($strict): bool {
+            if ($strict) throw new ValidationException(['templates' => $message]);
+            return false;
+        };
+        if (!is_array($list) || !array_is_list($list) || count($list) > self::MAX_TEMPLATES) {
+            $fail('Invalid template list.');
+            $list = [];
+        }
+        $type = (string) $schema['name'];
+        $components = $strict ? array_column($this->components(), null, 'id') : null;
+        $seen = [];
+        $default = null;
+        $others = [];
+
+        foreach ($list as $template) {
+            if (!is_array($template)) {
+                $fail('Invalid template.');
+                continue;
+            }
+            $id = LayoutSchema::key($template['id'] ?? '');
+            if ($id === '' || isset($seen[$id])) {
+                $fail('Each template needs its own id.');
+                continue;
+            }
+            $seen[$id] = true;
+            $name = mb_substr(trim(is_string($template['name'] ?? null) ? $template['name'] : ''), 0, 120);
+            if ($name === '' && $id !== self::DEFAULT_TEMPLATE) {
+                $fail('Name the template.');
+                $name = $id;
+            }
+            $parts = [];
+            foreach (LayoutSchema::REGIONS as $region) {
+                $value = is_string($template[$region] ?? null) && $template[$region] !== '' ? $template[$region] : LayoutSchema::FRAME_DEFAULT;
+                if (!in_array($value, [LayoutSchema::FRAME_DEFAULT, LayoutSchema::FRAME_NONE], true)
+                    && (LayoutSchema::key($value) !== $value || ($strict && !self::fitsFrame($components[$value] ?? null, $type)))) {
+                    $fail('Choose a section component for the ' . $region . ' of “' . $name . '”.');
+                    $value = LayoutSchema::FRAME_DEFAULT;
+                }
+                $parts[$region] = $value;
+            }
+            $normalized = [
+                'id' => $id,
+                'name' => $name,
+                'conditions' => $this->normalizeConditions($schema, $variant, $template['conditions'] ?? [], $strict, $id === self::DEFAULT_TEMPLATE),
+                'header' => $parts['header'],
+                'footer' => $parts['footer'],
+            ];
+            if ($id === self::DEFAULT_TEMPLATE) {
+                $default = self::defaultTemplate($normalized);
+            } else {
+                $others[] = $normalized;
+            }
+        }
+
+        return [...$others, $default ?? self::defaultTemplate()];
+    }
+
+    private function normalizeConditions(array $schema, string $variant, mixed $conditions, bool $strict, bool $default): array
+    {
+        if ($conditions === [] || $conditions === null) return [];
+        $fail = static function (string $message) use ($strict): array {
+            if ($strict) throw new ValidationException(['templates' => $message]);
+            return [];
+        };
+        if ($default) return $fail('The default template applies to everything; it has no conditions.');
+        if ($variant !== 'detail') return $fail('List pages have no entry, so their templates have no conditions.');
+        if (!is_array($conditions) || !array_is_list($conditions) || count($conditions) > self::MAX_CONDITIONS) return $fail('Invalid conditions.');
+
+        $result = [];
+        foreach ($conditions as $condition) {
+            $field = is_array($condition) && is_string($condition['field'] ?? null) ? $condition['field'] : '';
+            $op = is_array($condition) && is_string($condition['op'] ?? null) ? $condition['op'] : '';
+            $fieldType = $field === 'slug' ? 'slug' : (string) ($schema['fields'][$field]['type'] ?? '');
+            if (!in_array($op, self::conditionOps($fieldType), true)) {
+                if ($strict) throw new ValidationException(['templates' => $fieldType === '' ? 'Unknown field in a condition: ' . $field : 'This condition does not fit the field ' . $field . '.']);
+                continue;
+            }
+            $value = in_array($op, ['empty', 'not_empty'], true) ? null : ($condition['value'] ?? null);
+            if ($value !== null && !is_scalar($value)) {
+                if ($strict) throw new ValidationException(['templates' => 'Compare ' . $field . ' with a single value.']);
+                continue;
+            }
+            $result[] = ['field' => $field, 'op' => $op, 'value' => is_string($value) ? mb_substr($value, 0, 500) : $value];
+        }
+
+        return $result;
+    }
+
+    /** The comparisons a condition on a field of this type can make. */
+    public static function conditionOps(string $fieldType): array
+    {
+        $ops = ['empty', 'not_empty'];
+        if (in_array($fieldType, ['text', 'slug', 'textarea', 'number', 'range', 'boolean', 'select', 'color', 'date', 'datetime'], true)) {
+            $ops = [...$ops, 'equals', 'not_equals'];
+        }
+        if (in_array($fieldType, ['text', 'textarea', 'markdown', 'html', 'select'], true)) {
+            $ops[] = 'contains';
+        }
+
+        return in_array($fieldType, ['', 'page', 'json', 'repeater'], true) ? [] : $ops;
+    }
+
+    /** A component can stand in for a header or footer: a section, shared or of this type. */
+    public static function fitsFrame(?array $component, string $type): bool
+    {
+        return $component !== null && $component['root'] === 'section' && in_array($component['type'], ['', $type], true);
+    }
+
+    /**
+     * Rewrite every stored template with $change (template, type, variant) =>
+     * template, e.g. when a part it uses is deleted.
+     */
+    private function rewriteTemplates(callable $change, ?string $onlyType = null): void
+    {
+        foreach ($this->types() as $name => $type) {
+            if ($onlyType !== null && (string) $name !== $onlyType) continue;
+            foreach ($this->variantsFor($type) as $variant) {
+                $stored = $this->themeStore->read('templates', (string) $name, $variant);
+                if (!is_array($stored['templates'] ?? null)) continue;
+                $list = $this->normalizeTemplates($type, $variant, $stored['templates'], false);
+                $changed = array_map(static fn(array $template): array => $change($template, (string) $name, $variant), $list);
+                if ($changed !== $list) $this->writeTemplates((string) $name, $variant, $changed);
+            }
+        }
+    }
+
+    // ─── Content areas (each template's main content) ────────────────────────
+
+    /** Whether $template is one of the page kind's templates, i.e. has a content area. */
+    public function hasTemplate(string $type, string $variant, string $template): bool
+    {
+        return in_array($template, array_column($this->templates($type, $variant), 'id'), true);
+    }
+
+    /** A deleted template's content area and its history. */
+    private function deleteContentArea(string $type, string $variant, string $area): void
+    {
+        if ($area === self::DEFAULT_TEMPLATE || LayoutSchema::key($area) !== $area) return;
+        $this->themeStore->delete('content', $type, $variant, $area);
+        foreach ($this->listRevisions(['content', $type, $variant, $area]) as $revision) {
+            $this->revisions->delete('content', $type, $variant, $area, $revision['id']);
+        }
+    }
+
+    /**
+     * Nodes of a template's content area. Until it is designed, it is
+     * generated from the content type; an unknown template shows the default's.
+     */
+    public function layout(string $type, string $variant, string $area = self::DEFAULT_TEMPLATE): array
+    {
+        $schema = $this->requireType($type);
+        $this->assertVariant($schema, $variant);
+        $stored = LayoutSchema::key($area) === $area ? $this->themeStore->read('content', $type, $variant, $area) : null;
+        if ($stored === null && $area !== self::DEFAULT_TEMPLATE && !$this->hasTemplate($type, $variant, $area)) {
+            $stored = $this->themeStore->read('content', $type, $variant, self::DEFAULT_TEMPLATE);
+        }
+
+        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
+            ? LayoutSchema::normalize($stored['nodes'] ?? [], $variant === 'detail')
+            : LayoutSchema::defaultLayout($schema, $variant);
+    }
+
+    public function layoutCustomized(string $type, string $variant, string $area = self::DEFAULT_TEMPLATE): bool
     {
         Security::assertSafeName($type);
         Security::assertSafeName($variant);
+        Security::assertSafeName($area);
 
-        return ($this->themeStore->read('layouts', $type, $variant)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
+        return ($this->themeStore->read('content', $type, $variant, $area)['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION;
     }
 
-    public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveLayout(string $type, string $variant, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null, string $area = self::DEFAULT_TEMPLATE): array
+    {
+        return $this->themeStore->synchronized(function () use ($type, $variant, $nodes, $user, $event, $revision, $area): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->layout($type, $variant, $area))) throw new \CometCMS\Core\ConflictException();
+            return $this->saveLayoutUnlocked($type, $variant, $nodes, $user, $event, $area);
+        }, ...['content', $type, $variant, $area]);
+    }
+
+    private function saveLayoutUnlocked(string $type, string $variant, mixed $nodes, array $user, string $event, string $area): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
-        $nodes = LayoutSchema::normalize($nodes);
-        $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
-        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'layouts', $type, $variant);
+        $this->assertArea($type, $variant, $area);
+        $nodes = LayoutSchema::normalize($nodes, $variant === 'detail');
+        $this->writeRevision(['content', $type, $variant, $area], $this->layoutSnapshot($type, $variant, $area), $user, $event);
+        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'content', $type, $variant, $area);
         $this->clearCache();
 
         return $nodes;
     }
 
-    public function resetLayout(string $type, string $variant, array $user = [], string $event = 'reset'): array
+    /** Back to the content generated from the content type. */
+    public function resetLayout(string $type, string $variant, array $user = [], string $event = 'reset', string $area = self::DEFAULT_TEMPLATE): array
     {
         $schema = $this->requireType($type);
         $this->assertVariant($schema, $variant);
-        $this->writeRevision(['layouts', $type, $variant], $this->layoutSnapshot($type, $variant), $user, $event);
-        $this->themeStore->delete('layouts', $type, $variant);
+        $this->assertArea($type, $variant, $area);
+        $this->writeRevision(['content', $type, $variant, $area], $this->layoutSnapshot($type, $variant, $area), $user, $event);
+        $this->themeStore->delete('content', $type, $variant, $area);
         $this->clearCache();
 
         return LayoutSchema::defaultLayout($schema, $variant);
     }
 
-    /**
-     * The standard card a collection shows for entries of $type when it has
-     * no card of its own: the type's card layout from before cards lived in
-     * collections, or one generated from the type's fields.
-     */
+    /** The default card for collections without a custom card. */
     public function cardTemplate(string $type): array
     {
-        $schema = $this->requireType($type);
-        $stored = $this->themeStore->read('layouts', $type, 'card');
+        return LayoutSchema::defaultCardTemplate($this->requireType($type));
+    }
 
-        return ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
-            ? LayoutSchema::cardTemplate(LayoutSchema::normalize($stored['nodes'] ?? []))
-            : LayoutSchema::defaultCardTemplate($schema);
+    private function assertArea(string $type, string $variant, string $area): void
+    {
+        if ($area !== self::DEFAULT_TEMPLATE && !$this->hasTemplate($type, $variant, $area)) {
+            throw new \InvalidArgumentException('Unknown template.');
+        }
+    }
+
+    /**
+     * Workspaces from before templates kept one layout per page kind and its
+     * header and footer apart (layouts/{type}/{variant}.json, frames.json).
+     * Each layout becomes that page kind's default content area, keeping its
+     * history, and its header and footer go to the default template.
+     */
+    private function migrateLayouts(): void
+    {
+        $this->themeStore->synchronized(function (): void {
+            $layouts = $this->themeStore->path('layouts');
+            $revisions = $this->revisions->path('layouts');
+            foreach (is_dir($layouts) ? (glob($layouts . '/*', GLOB_ONLYDIR) ?: []) : [] as $typeDirectory) {
+                $type = basename($typeDirectory);
+                foreach (LayoutSchema::VARIANTS as $variant) {
+                    $stored = $this->themeStore->read('layouts', $type, $variant);
+                    if ($stored !== null && $this->themeStore->read('content', $type, $variant, self::DEFAULT_TEMPLATE) === null) {
+                        $this->themeStore->write($stored, 'content', $type, $variant, self::DEFAULT_TEMPLATE);
+                    }
+                }
+            }
+            foreach (is_dir($revisions) ? (glob($revisions . '/*/*', GLOB_ONLYDIR) ?: []) : [] as $variantDirectory) {
+                $type = basename(dirname($variantDirectory));
+                $target = $this->revisions->path('content', $type, basename($variantDirectory), self::DEFAULT_TEMPLATE);
+                if (!is_dir($target)) {
+                    @mkdir(dirname($target), 0775, true);
+                    rename($variantDirectory, $target);
+                }
+            }
+            // What is left, such as retired per-type cards, is no longer used.
+            self::removeDirectory($revisions);
+            self::removeDirectory($layouts);
+
+            $frames = $this->themeStore->read('frames')['frames'] ?? null;
+            foreach (is_array($frames) ? $frames : [] as $type => $variants) {
+                foreach (is_array($variants) ? $variants : [] as $variant => $regions) {
+                    $type = (string) $type;
+                    $variant = (string) $variant;
+                    if (!is_array($regions) || LayoutSchema::key($type) !== $type || !in_array($variant, LayoutSchema::VARIANTS, true)
+                        || $this->themeStore->read('templates', $type, $variant) !== null) continue;
+                    $parts = array_filter(array_intersect_key($regions, array_flip(LayoutSchema::REGIONS)), static fn(mixed $value): bool => is_string($value) && LayoutSchema::key($value) === $value);
+                    if ($parts !== []) $this->themeStore->write(['templates' => [self::defaultTemplate($parts)]], 'templates', $type, $variant);
+                }
+            }
+            $this->themeStore->delete('frames');
+        }, 'templates');
+    }
+
+    /** Stored templates from before each template owned its content area still name the one they show. */
+    private function sharesContentAreas(): bool
+    {
+        foreach (glob($this->themeStore->path('templates') . '/*/*.json') ?: [] as $file) {
+            $list = json_decode((string) file_get_contents($file), true)['templates'] ?? null;
+            foreach (is_array($list) ? $list : [] as $template) {
+                if (is_array($template) && array_key_exists('content', $template)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Templates used to pick their content from shared, named content areas.
+     * Now each template owns one, stored under its id: an area moves (with its
+     * history) to the first template that showed it, the others get a copy,
+     * and areas no template showed are removed.
+     */
+    private function migrateContentAreas(): void
+    {
+        $this->themeStore->synchronized(function (): void {
+            foreach (glob($this->themeStore->path('templates') . '/*/*.json') ?: [] as $file) {
+                $type = basename(dirname($file));
+                $variant = basename($file, '.json');
+                $list = $this->themeStore->read('templates', $type, $variant)['templates'] ?? null;
+                if (LayoutSchema::key($type) !== $type || !in_array($variant, LayoutSchema::VARIANTS, true) || !is_array($list)) continue;
+
+                $shows = [];
+                foreach ($list as $template) {
+                    $id = is_array($template) ? LayoutSchema::key($template['id'] ?? '') : '';
+                    if ($id === '' || isset($shows[$id])) continue;
+                    $area = is_string($template['content'] ?? null) && LayoutSchema::key($template['content']) === $template['content'] ? $template['content'] : self::DEFAULT_TEMPLATE;
+                    $shows[$id] = $area;
+                }
+                $stored = [];
+                foreach (glob($this->themeStore->path('content', $type, $variant) . '/*.json') ?: [] as $areaFile) {
+                    $stored[basename($areaFile, '.json')] = $this->themeStore->read('content', $type, $variant, basename($areaFile, '.json'));
+                }
+                $moved = [];
+                foreach ($shows as $id => $area) {
+                    if ($area === $id) continue;
+                    $content = $stored[$area] ?? null;
+                    if (($content['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION) {
+                        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $content['nodes'] ?? []], 'content', $type, $variant, $id);
+                    } else {
+                        $this->themeStore->delete('content', $type, $variant, $id);
+                    }
+                    // The first template showing an area takes its history along.
+                    $from = $this->revisions->path('content', $type, $variant, $area);
+                    $to = $this->revisions->path('content', $type, $variant, $id);
+                    if (!isset($moved[$area]) && !isset($shows[$area]) && is_dir($from) && !is_dir($to)) {
+                        @mkdir(dirname($to), 0775, true);
+                        rename($from, $to);
+                        $moved[$area] = true;
+                    }
+                }
+                foreach (array_keys($stored) as $area) {
+                    if (isset($shows[$area]) || $area === self::DEFAULT_TEMPLATE) continue;
+                    $this->themeStore->delete('content', $type, $variant, (string) $area);
+                    self::removeDirectory($this->revisions->path('content', $type, $variant, (string) $area));
+                }
+                $this->writeTemplates($type, $variant, array_map(static fn(mixed $template): mixed => is_array($template) ? array_diff_key($template, ['content' => true]) : $template, $list));
+            }
+        }, 'templates');
     }
 
     // ─── Components ──────────────────────────────────────────────────────────
@@ -397,13 +898,6 @@ final class SiteRepository
         }
 
         $stored = $this->themeStore->read('components', $id);
-        // Placements and open editors may still use an id from before
-        // components were named after their name.
-        if ($stored === null && preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id)) {
-            $alias = (string) ($this->store->read(ThemeMigration::ALIASES)[$id] ?? '');
-            $stored = $alias !== '' && LayoutSchema::key($alias) === $alias ? $this->themeStore->read('components', $alias) : null;
-        }
-
         return $this->readComponent($stored);
     }
 
@@ -423,8 +917,7 @@ final class SiteRepository
         $slug = rtrim(substr($slug, 0, 60), '-') ?: 'component';
 
         $id = $slug;
-        // Never look like a generated id, which ThemeMigration would rename.
-        for ($number = 2; $taken($id) || preg_match(ThemeMigration::LEGACY_COMPONENT_ID, $id); $number++) {
+        for ($number = 2; $taken($id); $number++) {
             $id = $slug . '-' . $number;
         }
 
@@ -452,7 +945,15 @@ final class SiteRepository
         return $this->writeComponent($component);
     }
 
-    public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
+    public function saveComponent(string $id, mixed $nodes, array $user = [], string $event = 'saved', ?string $revision = null): array
+    {
+        return $this->themeStore->synchronized(function () use ($id, $nodes, $user, $event, $revision): array {
+            if ($revision !== null && $revision !== LocalizedValue::hash($this->component($id)['nodes'])) throw new \CometCMS\Core\ConflictException();
+            return $this->saveComponentUnlocked($id, $nodes, $user, $event);
+        }, ...['components', $id]);
+    }
+
+    private function saveComponentUnlocked(string $id, mixed $nodes, array $user = [], string $event = 'saved'): array
     {
         $current = $this->requireComponent($id);
         $component = $this->validateComponent($current, $nodes, $current['type']);
@@ -470,8 +971,9 @@ final class SiteRepository
     }
 
     /**
-     * Where a component is placed directly: stored layouts, regions and other
-     * components. Generated default layouts never contain components.
+     * Where a component is placed directly: stored layouts, regions, other
+     * components and entries' page content. Generated default layouts never
+     * contain components.
      *
      * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
      */
@@ -481,15 +983,12 @@ final class SiteRepository
         $uses = static fn(?array $stored): bool => ($stored['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION
             && in_array($id, LayoutSchema::componentRefs(is_array($stored['nodes'] ?? null) ? $stored['nodes'] : []), true);
 
-        foreach ($this->types() as $name => $type) {
-            // Old card layouts still render as their type's standard card.
-            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
-                if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
-                    $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
-                }
+        foreach ($this->storedAreas(true) as [$type, $variant, $area]) {
+            if ($uses($this->themeStore->read('content', $type, $variant, $area))) {
+                $usages[] = ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'template' => $area];
             }
         }
-        foreach (LayoutSchema::REGIONS as $region) {
+        foreach (LayoutSchema::REGION_DOCUMENTS as $region) {
             if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
@@ -499,12 +998,52 @@ final class SiteRepository
                 $usages[] = ['target' => 'component', 'id' => (string) $stored['id'], 'name' => (string) ($stored['name'] ?? $stored['id'])];
             }
         }
+        foreach ($this->allTemplates() as $type => $variants) {
+            foreach ($variants as $variant => $templates) {
+                foreach ($templates as $template) {
+                    foreach (LayoutSchema::REGIONS as $region) {
+                        if ($template[$region] === $id) {
+                            $usages[] = ['target' => 'template', 'type' => (string) $type, 'variant' => (string) $variant, 'id' => $template['id'], 'name' => $template['name'], 'region' => $region];
+                        }
+                    }
+                }
+            }
+        }
+
+        return [...$usages, ...$this->pageUsages($uses)];
+    }
+
+    /**
+     * Entries whose own page content passes $uses (a stored {format_version,
+     * nodes} value => bool), one usage per entry.
+     *
+     * @return list<array{target: string, type: string, id: string, name: string}>
+     */
+    private function pageUsages(callable $uses): array
+    {
+        $usages = [];
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach ($this->types() as $name => $type) {
+            $fields = array_keys(array_filter($type['fields'] ?? [], static fn(mixed $config): bool => ($config['type'] ?? '') === 'page'));
+            if ($fields === []) {
+                continue;
+            }
+            foreach ($content->all((string) $name) as $entry) {
+                foreach ($fields as $field) {
+                    if (LayoutSchema::hasPageContent($entry[$field] ?? null) && $uses($entry[$field])) {
+                        $usages[] = ['target' => 'entry', 'type' => (string) $name, 'id' => (string) $entry['id'], 'name' => (string) ($entry['title'] ?? $entry['id'])];
+                        break;
+                    }
+                }
+            }
+        }
 
         return $usages;
     }
 
     /**
-     * Where a website form is placed: stored layouts, regions and components.
+     * Where a website form is placed: stored layouts, regions, components and
+     * entries' page content.
      *
      * @return list<array{target: string, type?: string, variant?: string, region?: string, id?: string, name?: string}>
      */
@@ -529,14 +1068,12 @@ final class SiteRepository
             return $found;
         };
 
-        foreach ($this->types() as $name => $type) {
-            foreach ($this->variantsFor($type) as $variant) {
-                if ($uses($this->themeStore->read('layouts', (string) $name, $variant))) {
-                    $usages[] = ['target' => 'layout', 'type' => (string) $name, 'variant' => $variant];
-                }
+        foreach ($this->storedAreas(true) as [$type, $variant, $area]) {
+            if ($uses($this->themeStore->read('content', $type, $variant, $area))) {
+                $usages[] = ['target' => 'layout', 'type' => $type, 'variant' => $variant, 'template' => $area];
             }
         }
-        foreach (LayoutSchema::REGIONS as $region) {
+        foreach (LayoutSchema::REGION_DOCUMENTS as $region) {
             if ($uses($this->themeStore->read('regions', $region))) {
                 $usages[] = ['target' => 'region', 'region' => $region];
             }
@@ -547,7 +1084,7 @@ final class SiteRepository
             }
         }
 
-        return $usages;
+        return [...$usages, ...$this->pageUsages($uses)];
     }
 
     /** Delete a component and its history, keeping all placements as detached copies. */
@@ -555,11 +1092,9 @@ final class SiteRepository
     {
         $component = $this->requireComponent($id);
         $id = $component['id'];
-        $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGIONS);
-        foreach ($this->types() as $name => $type) {
-            foreach ([...$this->variantsFor($type), 'card'] as $variant) {
-                $paths[] = ['layouts', (string) $name, $variant];
-            }
+        $paths = array_map(static fn(string $region): array => ['regions', $region], LayoutSchema::REGION_DOCUMENTS);
+        foreach ($this->storedAreas(false) as [$type, $variant, $area]) {
+            $paths[] = ['content', $type, $variant, $area];
         }
         foreach ($this->components() as $other) {
             if ($other['id'] !== $id) {
@@ -571,7 +1106,6 @@ final class SiteRepository
             $stored = $this->themeStore->read(...$path);
             if ($this->hasComponentInstance($stored, $id)) {
                 $stored['nodes'] = $this->detachComponentInstances($stored['nodes'], $component);
-                unset($stored['updated_at']);
                 $this->themeStore->write($stored, ...$path);
             }
             // Restoring an older layout must not bring back a missing component.
@@ -582,6 +1116,22 @@ final class SiteRepository
                 }
             }
         }
+
+        // Entries keep their page content, too, and so do their older versions.
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach (array_keys($this->types()) as $name) {
+            $content->rewritePages((string) $name, fn(array $value): array => $this->hasComponentInstance($value, $id)
+                ? ['nodes' => $this->detachComponentInstances($value['nodes'], $component)] + $value
+                : $value);
+        }
+
+        // Templates that showed it as their header or footer show the site's own again.
+        $this->rewriteTemplates(static function (array $template) use ($id): array {
+            foreach (LayoutSchema::REGIONS as $region) {
+                if ($template[$region] === $id) $template[$region] = LayoutSchema::FRAME_DEFAULT;
+            }
+            return $template;
+        });
 
         $this->themeStore->delete('components', $id);
         foreach ($this->listRevisions(['components', $id]) as $revision) {
@@ -671,8 +1221,7 @@ final class SiteRepository
             'type' => LayoutSchema::key($stored['type'] ?? ''),
             'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
             'created_at' => (string) ($stored['created_at'] ?? ''),
-            // Older component files still carry their save time.
-            'updated_at' => (string) ($stored['updated_at'] ?? '') ?: self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
+            'updated_at' => self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
         ];
     }
 
@@ -761,12 +1310,34 @@ final class SiteRepository
         return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $component['nodes'], 'customized' => true];
     }
 
-    public function needsLayoutUpgrade(string $type, string $variant): bool
+    public function needsLayoutUpgrade(string $type, string $variant, string $area = self::DEFAULT_TEMPLATE): bool
     {
         Security::assertSafeName($type);
         Security::assertSafeName($variant);
-        $stored = $this->themeStore->read('layouts', $type, $variant);
+        Security::assertSafeName($area);
+        $stored = $this->themeStore->read('content', $type, $variant, $area);
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
+    }
+
+    /**
+     * Stored content areas as [type, variant, area], of existing page kinds
+     * ($enabled: only those editors can open).
+     *
+     * @return list<array{0: string, 1: string, 2: string}>
+     */
+    private function storedAreas(bool $enabled): array
+    {
+        $areas = [];
+        foreach ($this->types() as $name => $type) {
+            foreach ($enabled ? $this->enabledVariantsFor($type) : $this->variantsFor($type) as $variant) {
+                foreach (glob($this->themeStore->path('content', (string) $name, $variant) . '/*.json') ?: [] as $file) {
+                    $area = basename($file, '.json');
+                    if (LayoutSchema::key($area) === $area) $areas[] = [(string) $name, $variant, $area];
+                }
+            }
+        }
+
+        return $areas;
     }
 
     public function needsRegionUpgrade(string $region): bool
@@ -776,10 +1347,18 @@ final class SiteRepository
         return $stored !== null && ($stored['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION;
     }
 
-    /** Variants a content type can have: single pages have no index. */
+    /** Variants a content type can have. */
     public function variantsFor(array $type): array
     {
-        return !empty($type['singleton']) ? ['detail'] : LayoutSchema::VARIANTS;
+        return LayoutSchema::VARIANTS;
+    }
+
+    /** Variants that exist for editors: the list page only when it is turned on. */
+    public function enabledVariantsFor(array $type): array
+    {
+        $listed = !empty($this->settings()['routes'][(string) ($type['name'] ?? '')]['index_enabled']);
+
+        return array_values(array_filter($this->variantsFor($type), static fn(string $variant): bool => $variant !== 'index' || $listed));
     }
 
     public function themeRevisions(): array
@@ -794,11 +1373,11 @@ final class SiteRepository
         return $this->listRevisions(['regions', $region]);
     }
 
-    public function layoutRevisions(string $type, string $variant): array
+    public function layoutRevisions(string $type, string $variant, string $area = self::DEFAULT_TEMPLATE): array
     {
         $this->assertVariant($this->requireType($type), $variant);
 
-        return $this->listRevisions(['layouts', $type, $variant]);
+        return $this->listRevisions(['content', $type, $variant, $area]);
     }
 
     /** Read a revision without changing the saved website or its history. */
@@ -814,10 +1393,10 @@ final class SiteRepository
         return $theme;
     }
 
-    public function layoutRevision(string $type, string $variant, string $id): ?array
+    public function layoutRevision(string $type, string $variant, string $id, string $area = self::DEFAULT_TEMPLATE): ?array
     {
         $this->assertVariant($this->requireType($type), $variant);
-        return $this->readLayoutRevision(['layouts', $type, $variant, $id]);
+        return $this->readLayoutRevision(['content', $type, $variant, $area, $id]);
     }
 
     public function regionRevision(string $region, string $id): ?array
@@ -870,17 +1449,18 @@ final class SiteRepository
         return ['nodes' => $nodes, 'customized' => $customized];
     }
 
-    public function restoreLayoutRevision(string $type, string $variant, string $id, array $user = []): ?array
+    public function restoreLayoutRevision(string $type, string $variant, string $id, array $user = [], string $area = self::DEFAULT_TEMPLATE): ?array
     {
         $this->assertVariant($this->requireType($type), $variant);
-        $revision = $this->revisions->read('layouts', $type, $variant, $id);
+        $this->assertArea($type, $variant, $area);
+        $revision = $this->revisions->read('content', $type, $variant, $area, $id);
         if (($revision['snapshot']['format_version'] ?? null) !== LayoutSchema::FORMAT_VERSION || !is_array($revision['snapshot']['nodes'] ?? null)) {
             return null;
         }
         $customized = ($revision['snapshot']['customized'] ?? true) === true;
         $nodes = $customized
-            ? $this->saveLayout($type, $variant, $revision['snapshot']['nodes'], $user, 'restored')
-            : $this->resetLayout($type, $variant, $user, 'restored');
+            ? $this->saveLayout($type, $variant, $revision['snapshot']['nodes'], $user, 'restored', null, $area)
+            : $this->resetLayout($type, $variant, $user, 'restored', $area);
 
         return ['nodes' => $nodes, 'customized' => $customized];
     }
@@ -890,9 +1470,9 @@ final class SiteRepository
         return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $this->region($region), 'customized' => $this->regionCustomized($region)];
     }
 
-    private function layoutSnapshot(string $type, string $variant): array
+    private function layoutSnapshot(string $type, string $variant, string $area = self::DEFAULT_TEMPLATE): array
     {
-        return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $this->layout($type, $variant), 'customized' => $this->layoutCustomized($type, $variant)];
+        return ['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $this->layout($type, $variant, $area), 'customized' => $this->layoutCustomized($type, $variant, $area)];
     }
 
     private function listRevisions(array $path): array
@@ -936,17 +1516,9 @@ final class SiteRepository
     public function forgetType(string $type): void
     {
         Security::assertSafeName($type);
-        // Including card layouts from before cards lived in collections.
-        foreach ([...LayoutSchema::VARIANTS, 'card'] as $variant) {
-            $this->themeStore->delete('layouts', $type, $variant);
-            foreach ($this->listRevisions(['layouts', $type, $variant]) as $revision) {
-                $this->revisions->delete('layouts', $type, $variant, $revision['id']);
-            }
-        }
-
-        $directory = $this->themeStore->path('layouts', $type);
-        if (is_dir($directory) && (glob($directory . '/*') ?: []) === []) {
-            @rmdir($directory);
+        // Its content areas, their history and its templates.
+        foreach ([$this->themeStore->path('content', $type), $this->revisions->path('content', $type), $this->themeStore->path('templates', $type)] as $directory) {
+            self::removeDirectory($directory);
         }
 
         $stored = $this->store->read('settings');
@@ -962,6 +1534,17 @@ final class SiteRepository
         $this->clearCache();
     }
 
+    private static function removeDirectory(string $directory): void
+    {
+        if (!is_dir($directory)) return;
+        foreach (scandir($directory) ?: [] as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $directory . '/' . $item;
+            is_dir($path) && !is_link($path) ? self::removeDirectory($path) : @unlink($path);
+        }
+        @rmdir($directory);
+    }
+
     public function clearCache(): void
     {
         ApiCache::fromConfig($this->workspace)->clear();
@@ -969,19 +1552,31 @@ final class SiteRepository
 
     // ─── Normalization & validation ──────────────────────────────────────────
 
+    private function localized(mixed $value, callable $normalize): mixed
+    {
+        return LocalizedValue::normalize($value, $normalize, (new LanguageSettings($this->workspace))->all()['locales']);
+    }
+
     private function normalizeSettings(array $input): array
     {
         $types = $this->types();
         $routes = [];
+        $storedHome = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
 
         foreach ($types as $name => $type) {
             $route = is_array($input['routes'][$name] ?? null) ? $input['routes'][$name] : [];
             $default = $this->defaultRoute($type);
             $routes[$name] = [
                 'enabled' => (bool) ($route['enabled'] ?? $default['enabled']),
-                'pattern' => self::normalizePath((string) ($route['pattern'] ?? $default['pattern'])),
-                'index_path' => empty($type['singleton']) ? self::normalizePath((string) ($route['index_path'] ?? $default['index_path'])) : '',
-                'index_title' => self::line($route['index_title'] ?? '', 200),
+                'pattern' => $this->localized($route['pattern'] ?? $default['pattern'], self::normalizePath(...)),
+                // Settings saved before list pages became optional keep the list
+                // pages they had: a list URL, or the list as the homepage.
+                'index_enabled' => (bool) ($route['index_enabled'] ?? (
+                    ($route !== [] && array_filter((array) ($route['index_path'] ?? $default['index_path']), static fn(mixed $path): bool => is_string($path) && trim($path, '/ ') !== '') !== [])
+                    || (($storedHome['type'] ?? '') === $name && empty($storedHome['entry']))
+                )),
+                'index_path' => $this->localized($route['index_path'] ?? $default['index_path'], self::normalizePath(...)),
+                'index_title' => $this->localized($route['index_title'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
                 'seo_description_field' => LayoutSchema::key($route['seo_description_field'] ?? ''),
                 'seo_image_field' => LayoutSchema::key($route['seo_image_field'] ?? ''),
                 'sitemap' => (bool) ($route['sitemap'] ?? true),
@@ -994,24 +1589,17 @@ final class SiteRepository
             }
         }
 
-        $available = $this->availableLocales();
-        $locales = array_values(array_intersect(
-            $available,
-            array_map('strval', is_array($input['locales'] ?? null) ? $input['locales'] : [])
-        ));
-        $defaultLocale = (string) ($input['default_locale'] ?? '');
-        if ($locales === []) {
-            $defaultLocale = '';
-        } elseif (!in_array($defaultLocale, $locales, true)) {
-            $defaultLocale = $locales[0];
-        }
+        $languages = (new LanguageSettings($this->workspace))->all();
+        $defaultLocale = $languages['default_locale'];
+        $locales = $languages['locales'];
 
         $homepage = is_array($input['homepage'] ?? null) ? $input['homepage'] : [];
         $homeType = LayoutSchema::key($homepage['type'] ?? '');
         $homeType = isset($types[$homeType]) ? $homeType : '';
+        $homeEntry = $homeType !== '' && !empty($homepage['entry']) ? \CometCMS\Content\ContentRepository::make($this->workspace)->findByIdentifier($homeType, (string) $homepage['entry']) : null;
         $homepage = [
             'type' => $homeType,
-            'entry' => $homeType !== '' ? LayoutSchema::key($homepage['entry'] ?? '') : '',
+            'entry' => $homeEntry !== null ? $homeEntry['uid'] : ($homeType !== '' ? LayoutSchema::key($homepage['entry'] ?? '') : ''),
         ];
 
         return [
@@ -1022,22 +1610,23 @@ final class SiteRepository
                 'homepage' => ($types[$homeType]['visibility'] ?? 'public') === 'private' ? [] : $homepage,
                 'routes' => $routes,
             ]),
-            'title' => self::line($input['title'] ?? '', 120),
-            'tagline' => self::line($input['tagline'] ?? '', 200),
-            'logo' => self::media($input['logo'] ?? ''),
+            'title' => $this->localized($input['title'] ?? '', static fn(mixed $v): string => self::line($v, 120)),
+            'tagline' => $this->localized($input['tagline'] ?? '', static fn(mixed $v): string => self::line($v, 200)),
+            'logo' => $this->localized($input['logo'] ?? '', self::media(...)),
             'favicon' => self::media($input['favicon'] ?? ''),
             'homepage' => $homepage,
             'locales' => $locales,
             'default_locale' => $defaultLocale,
             'domains' => self::domains($input['domains'] ?? []),
-            'title_template' => self::line($input['title_template'] ?? '{title} · {site}', 200) ?: '{title} · {site}',
-            'description' => self::line($input['description'] ?? '', 300),
-            'og_image' => self::media($input['og_image'] ?? ''),
+            'title_template' => $this->localized($input['title_template'] ?? '{title} · {site}', static fn(mixed $v): string => self::line($v, 200)) ?: '{title} · {site}',
+            'description' => $this->localized($input['description'] ?? '', static fn(mixed $v): string => self::line($v, 300)),
+            'og_image' => $this->localized($input['og_image'] ?? '', self::media(...)),
             'noindex' => (bool) ($input['noindex'] ?? false),
-            'not_found_title' => self::line($input['not_found_title'] ?? '', 200) ?: 'Page not found',
-            'not_found_message' => self::line($input['not_found_message'] ?? '', 500) ?: 'The page you are looking for does not exist or has moved.',
+            // Every public URL answers 503 with the maintenance page; previews keep working.
+            'maintenance' => (bool) ($input['maintenance'] ?? false),
             'routes' => $routes,
             'updated_at' => (string) ($input['updated_at'] ?? ''),
+            'revision' => (string) ($input['revision'] ?? ''),
         ];
     }
 
@@ -1054,7 +1643,6 @@ final class SiteRepository
             }
 
             $type = $types[$name];
-            $singleton = !empty($type['singleton']);
             $key = 'routes.' . $name;
 
             $pattern = $route['pattern'];
@@ -1062,15 +1650,8 @@ final class SiteRepository
 
             if ($error = $this->pathError($pattern)) {
                 $errors[$key . '.pattern'] = $error;
-            } elseif ($singleton && $placeholders > 0) {
-                $errors[$key . '.pattern'] = 'Single pages use a fixed URL without placeholders.';
-            } elseif (!$singleton && ($placeholders !== 1 || $found[0][0] !== '{slug}')) {
+            } elseif ($placeholders !== 1 || $found[0][0] !== '{slug}') {
                 $errors[$key . '.pattern'] = 'Collection URLs need exactly one {slug} placeholder.';
-            } elseif ($singleton) {
-                if (isset($literal[$pattern])) {
-                    $errors[$key . '.pattern'] = 'This URL is already used by ' . $literal[$pattern] . '.';
-                }
-                $literal[$pattern] = $type['label'];
             } else {
                 if (isset($patterns[$pattern])) {
                     $errors[$key . '.pattern'] = 'This URL pattern is already used by ' . $patterns[$pattern] . '.';
@@ -1078,8 +1659,11 @@ final class SiteRepository
                 $patterns[$pattern] = $type['label'];
             }
 
-            $index = $route['index_path'];
-            if ($index !== '') {
+            $index = $route['index_enabled'] ? $route['index_path'] : '';
+            $homeList = ($settings['homepage']['type'] ?? '') === $name && ($settings['homepage']['entry'] ?? '') === '';
+            if ($route['index_enabled'] && $index === '' && !$homeList) {
+                $errors[$key . '.index_path'] = 'Enter a URL for the list page.';
+            } elseif ($index !== '') {
                 if ($error = $this->pathError($index)) {
                     $errors[$key . '.index_path'] = $error;
                 } elseif (str_contains($index, '{')) {
@@ -1095,6 +1679,8 @@ final class SiteRepository
         $home = $settings['homepage']['type'];
         if ($home !== '' && (($types[$home]['visibility'] ?? 'public') === 'private')) {
             $errors['homepage.type'] = 'Private content types cannot be used as the homepage.';
+        } elseif ($home !== '' && $settings['homepage']['entry'] === '' && empty($settings['routes'][$home]['index_enabled'])) {
+            $errors['homepage.entry'] = 'Choose an entry: ' . $types[$home]['label'] . ' has no list page.';
         }
 
         if ($errors !== []) {
@@ -1112,6 +1698,9 @@ final class SiteRepository
             return 'Use lowercase letters, numbers, dashes and slashes only.';
         }
 
+        $first = explode('/', ltrim($path, '/'))[0];
+        if (in_array($first, $this->availableLocales(), true)) return 'Language prefixes are reserved by CometCMS.';
+
         foreach (self::RESERVED_PREFIXES as $prefix) {
             if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
                 return $prefix . ' is reserved by CometCMS.';
@@ -1123,6 +1712,38 @@ final class SiteRepository
         }
 
         return null;
+    }
+
+    /** Check final paths as well as route templates, before either settings or entries change. */
+    public function validateEntryUrls(array $settings, ?array $candidate = null): void
+    {
+        $content = \CometCMS\Content\ContentRepository::make($this->workspace);
+        foreach ($settings['locales'] as $locale) {
+            $resolved = LocalizedValue::tree($settings, $locale, $settings['default_locale']);
+            $paths = [];
+            $claim = static function (string $path, string $owner) use (&$paths, $locale): void {
+                if ($path === '') return;
+                if (isset($paths[$path]) && $paths[$path] !== $owner) throw new ValidationException(['slug' => 'URL collision in ' . $locale . ': ' . $path]);
+                $paths[$path] = $owner;
+            };
+            foreach ($this->types() as $name => $type) {
+                $route = $resolved['routes'][$name] ?? null;
+                if (empty($route['enabled'])) continue;
+                if ($route['index_enabled']) $claim($route['index_path'], 'index:' . $name);
+                $entries = $content->all($name);
+                if (($candidate['collection'] ?? '') === $name) {
+                    $entries = array_values(array_filter($entries, static fn(array $entry): bool => $entry['id'] !== $candidate['id']));
+                    $entries[] = $candidate;
+                }
+                $tree = !empty($type['hierarchical']) ? \CometCMS\Content\PageTree::byUid($entries) : null;
+                $slugOf = static fn(array $entry): string => (string) $content->resolveLocaleFields($entry, $locale)['slug'];
+                foreach ($entries as $entry) {
+                    if (!isset($entry['publication'][$locale])) continue;
+                    $slug = $tree !== null ? \CometCMS\Content\PageTree::encode(\CometCMS\Content\PageTree::path($tree, $entry, $slugOf)) : rawurlencode($slugOf($entry));
+                    $claim(str_replace('{slug}', $slug, $route['pattern']), 'entry:' . $name . ':' . $entry['id']);
+                }
+            }
+        }
     }
 
     public function normalizeMenus(mixed $menus): array
@@ -1161,19 +1782,10 @@ final class SiteRepository
                 continue;
             }
 
-            $labels = [];
-            foreach (is_array($item['labels'] ?? null) ? $item['labels'] : [] as $locale => $value) {
-                $text = self::line($value, 120);
-                if ($text !== '' && preg_match('/^[a-z0-9-]{1,20}$/', (string) $locale)) {
-                    $labels[(string) $locale] = $text;
-                }
-            }
-
             $normalized[] = [
                 'id' => LayoutSchema::key($item['id'] ?? '') ?: LayoutSchema::newId(),
-                'label' => self::line($item['label'] ?? '', 120),
-                'labels' => $labels,
-                'link' => LayoutSchema::normalizeLink($item['link'] ?? []),
+                'label' => $this->localized($item['label'] ?? '', static fn(mixed $v): string => self::line($v, 120)),
+                'link' => $this->localized($item['link'] ?? [], LayoutSchema::normalizeLink(...)),
                 'children' => $depth + 1 < self::MENU_LIMITS['max_depth'] ? $this->normalizeMenuItems($item['children'] ?? [], $depth + 1) : [],
             ];
         }
@@ -1184,6 +1796,11 @@ final class SiteRepository
     /** Validate submissions before normalization, which defensively bounds stored data. */
     public function validateMenus(array $menus, bool $validateDestinations = true): void
     {
+        if ($menus !== LocalizedValue::tree($menus, '', '')) {
+            $languages = (new LanguageSettings($this->workspace))->all();
+            foreach ($languages['locales'] as $locale) $this->validateMenus(LocalizedValue::tree($menus, $locale, $languages['default_locale']), $validateDestinations);
+            return;
+        }
         $errors = [];
         if (count($menus) > self::MENU_LIMITS['max_menus']) {
             $errors['menus'] = 'A website can have at most ' . self::MENU_LIMITS['max_menus'] . ' menus.';
@@ -1263,7 +1880,7 @@ final class SiteRepository
 
     private function assertRegion(string $region): void
     {
-        if (!in_array($region, LayoutSchema::REGIONS, true)) {
+        if (!in_array($region, LayoutSchema::REGION_DOCUMENTS, true)) {
             throw new \InvalidArgumentException('Unknown region.');
         }
     }

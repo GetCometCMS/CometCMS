@@ -7,6 +7,8 @@ namespace CometCMS\Content;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LanguageSettings;
+use CometCMS\Localization\LocalizedValue;
 use CometCMS\Site\FormRepository;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Storage\JsonStore;
@@ -101,10 +103,17 @@ final class ContentTypeRepository
     public function save(array $schema): void
     {
         $name = Security::slug((string) ($schema['name'] ?? ''));
+        $this->store->synchronized(fn() => $this->saveUnlocked($schema), $name);
+    }
+
+    private function saveUnlocked(array $schema): void
+    {
+        $name = Security::slug((string) ($schema['name'] ?? ''));
         if (!empty($schema['api_enabled'])) {
             $schema['visibility'] = 'public';
         }
         $previous = $this->exists($name) ? $this->find($name) : null;
+        if ($previous !== null && isset($schema['revision']) && $schema['revision'] !== $previous['revision']) throw new \CometCMS\Core\ConflictException();
         $schema['api_enabled'] ??= $previous['api_enabled'] ?? false;
         $schema['allow_submissions'] ??= $previous['allow_submissions'] ?? false;
         if (!array_key_exists('submission_settings', $schema)) {
@@ -115,10 +124,12 @@ final class ContentTypeRepository
             $fillable = array_filter($schema['fields'], static fn(array $config, string $key): bool => FormRepository::accepts($key, $config, $schema), ARRAY_FILTER_USE_BOTH);
             $unsupported = array_filter(FormRepository::unsupported($schema), static fn(array $config): bool => !empty($config['required']));
             if ($fillable === [] || $unsupported !== []) {
-                throw new ValidationException(['allow_submissions' => 'Submissions need at least one content field visitors can fill in, and all required content fields must support forms.']);
+                throw new ValidationException(['allow_submissions' => 'Submissions need at least one custom field visitors can fill in, and all required custom fields must support forms.']);
             }
         }
-        $this->store->write($schema, $name);
+        // Language settings are workspace-owned; discard old per-type overrides on save.
+        $stored = array_diff_key($schema, array_flip(['revision', 'locales', 'default_locale']));
+        $this->store->write($stored, $name);
         $this->ensureInOrder($name);
         ApiCache::fromConfig($this->workspace)->clear();
     }
@@ -190,50 +201,55 @@ final class ContentTypeRepository
     {
         $name = Security::slug((string) ($schema['name'] ?? $name));
         $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-        $locales = is_array($schema['locales'] ?? null)
-            ? array_values(array_unique(array_filter(array_map(
-                static fn(mixed $locale): string => self::normalizeLocale((string) $locale),
-                $schema['locales']
-            ), static fn(string $locale): bool => $locale !== '')))
-            : [];
-        $defaultLocale = self::normalizeLocale((string) ($schema['default_locale'] ?? ''));
-
-        if ($locales === []) {
-            $defaultLocale = '';
-        } elseif ($defaultLocale === '' || !in_array($defaultLocale, $locales, true)) {
-            $defaultLocale = $locales[0];
-        }
-
-        // Existing forms keep working until their type explicitly disables submissions.
-        $legacyForms = [];
-        $formsPath = $this->workspace->path('site') . '/forms';
-        if (!array_key_exists('allow_submissions', $schema) && is_dir($formsPath)) {
-            $legacyForms = array_filter((new JsonStore($formsPath))->all(), static fn(array $form): bool => ($form['type'] ?? '') === $name);
-        }
-        // Stored schemas from before API opt-in already chose their visibility.
-        // New schemas omit it and start with the API disabled.
-        $apiEnabled = (bool) ($schema['api_enabled'] ?? array_key_exists('visibility', $schema));
+        $languages = (new LanguageSettings($this->workspace))->all();
 
         $fields['title'] ??= ['type' => 'text', 'required' => true];
         $fields['slug'] ??= ['type' => 'slug', 'required' => true, 'unique' => true];
+        foreach ($fields as $key => &$config) {
+            if (in_array($key, ['values', 'publication', 'revision', 'reset_fields', 'locale', 'translations', 'page_template'], true)) throw new ValidationException(['fields' => 'This field key is reserved: ' . $key]);
+            // Hierarchical entries keep their place in the tree under these keys.
+            if (!empty($schema['hierarchical']) && in_array($key, ['parent', 'position'], true)) throw new ValidationException(['fields' => 'This field key is reserved for page hierarchies: ' . $key]);
+            $config = $this->fieldMetadata($config, $languages['locales']);
+        }
+        unset($config);
 
-        return [
+        $normalized = [
             'name' => $name,
             'label' => (string) ($schema['label'] ?? ucfirst(str_replace(['-', '_'], ' ', $name))),
             'icon' => $this->normalizeIcon($schema['icon'] ?? 'mdi:file-document-outline'),
-            'singleton' => (bool) ($schema['singleton'] ?? false),
-            // API exposure and website pages are independent. Keep legacy private
-            // protection until the owner explicitly enables the public API.
-            'api_enabled' => $apiEnabled,
+            'api_enabled' => (bool) ($schema['api_enabled'] ?? false),
             'visibility' => ($schema['visibility'] ?? 'public') === 'private' ? 'private' : 'public',
-            'allow_submissions' => empty($schema['singleton']) && (bool) ($schema['allow_submissions'] ?? ($legacyForms !== [])),
+            'hierarchical' => (bool) ($schema['hierarchical'] ?? false),
+            'allow_submissions' => (bool) ($schema['allow_submissions'] ?? false),
             'submission_settings' => is_array($schema['submission_settings'] ?? null) ? FormRepository::settings($schema['submission_settings']) : null,
             'slug_field' => (string) ($schema['slug_field'] ?? 'slug'),
             'slug_source' => (string) ($schema['slug_source'] ?? 'title'),
-            'locales' => $locales,
-            'default_locale' => $defaultLocale,
+            'locales' => $languages['locales'],
+            'default_locale' => $languages['default_locale'],
             'fields' => $fields,
         ];
+        return $normalized + ['revision' => LocalizedValue::hash($normalized)];
+    }
+
+    private function fieldMetadata(array $config, array $locales): array
+    {
+        $text = static fn(mixed $value): string => is_scalar($value) ? \CometCMS\Site\Text::limit(trim((string) $value), 2000) : '';
+        foreach (['label', 'description', 'placeholder'] as $key) {
+            if (array_key_exists($key, $config)) $config[$key] = LocalizedValue::normalize($config[$key], $text, $locales);
+        }
+        if (($config['type'] ?? '') === 'select' && is_array($config['options'] ?? null) && !array_is_list($config['options'])) {
+            foreach ($config['options'] as &$label) $label = LocalizedValue::normalize($label, $text, $locales);
+            unset($label);
+        }
+        foreach ($config['subfields'] ?? [] as $index => $subfield) $config['subfields'][$index] = $this->fieldMetadata($subfield, $locales);
+        // Page content is one design for all languages; its texts are translated inside it.
+        if (($config['type'] ?? '') === 'page') {
+            // Fields added by an early builder stored this untranslated key as their label.
+            if (($config['label'] ?? null) === 'site.page.fieldLabel') $config['label'] = 'Page content';
+            $config['localized'] = false;
+            unset($config['required'], $config['default'], $config['unique']);
+        }
+        return $config;
     }
 
     private function contentTypeOrder(): array
@@ -279,15 +295,6 @@ final class ContentTypeRepository
         $icon = preg_replace('/[^a-z0-9:._-]/', '', $icon) ?? '';
 
         return $icon !== '' ? $icon : 'mdi:file-document-outline';
-    }
-
-    private static function normalizeLocale(string $locale): string
-    {
-        $locale = strtolower(trim($locale));
-        $locale = str_replace('_', '-', $locale);
-        $locale = preg_replace('/[^a-z0-9-]+/', '-', $locale) ?? '';
-
-        return trim($locale, '-');
     }
 
     private function fallback(string $name): array

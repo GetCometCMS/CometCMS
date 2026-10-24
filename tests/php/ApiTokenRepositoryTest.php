@@ -26,7 +26,7 @@ test('api tokens are stored independently from users with descriptions', functio
     assert_same('Deploy', $principal['username'] ?? null);
 });
 
-test('legacy user tokens migrate to the application token store', function (): void {
+test('embedded user tokens do not authenticate or migrate', function (): void {
     $users = new UserRepository();
     $user = $users->create('admin', 'secret-password', 'admin');
     $plain = 'ctcms_1234567890_' . str_repeat('a', 48);
@@ -46,9 +46,9 @@ test('legacy user tokens migrate to the application token store', function (): v
     $tokens = new ApiTokenRepository();
     $principal = $tokens->findByToken($plain);
 
-    assert_same('tok_1234567890', $principal['id'] ?? null);
-    assert_same('', $users->find((string) $user['id'])['api_tokens'] ?? '');
-    assert_same('Legacy', $tokens->find('tok_1234567890')['name'] ?? null);
+    assert_null($principal);
+    assert_null($tokens->find('tok_1234567890'));
+    assert_same($user['api_tokens'], $users->find((string) $user['id'])['api_tokens']);
 });
 
 test('revoked api tokens can be deleted permanently', function (): void {

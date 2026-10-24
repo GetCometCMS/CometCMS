@@ -23,7 +23,7 @@
       :aria-label="label"
       class="absolute bottom-full left-0 z-50 mb-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
     >
-      <button type="button" class="mb-3 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs text-slate-600 hover:bg-slate-50" :aria-pressed="!modelValue" @click="select('')">
+      <button v-if="allowEmpty" type="button" class="mb-3 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs text-slate-600 hover:bg-slate-50" :aria-pressed="!modelValue" @click="select('')">
         <Icon icon="mdi:circle-off-outline" class="h-4 w-4" />
         {{ t('site.option.default') }}
       </button>
@@ -60,6 +60,7 @@ const props = defineProps({
   label: { type: String, required: true },
   modelValue: { type: String, default: "" },
   options: { type: Array, default: () => [] },
+  allowEmpty: { type: Boolean, default: true },
 });
 const emit = defineEmits(["update:modelValue"]);
 const { t } = useI18n();

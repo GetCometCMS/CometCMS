@@ -27,7 +27,7 @@
             v-model="name"
             data-dialog-initial-focus
             type="text"
-            maxlength="120"
+            :maxlength="maxlength"
             required
             class="form-input w-full rounded-lg border-slate-300 text-sm"
             :placeholder="placeholder || t('site.component.namePlaceholder')"
@@ -59,6 +59,7 @@ const props = defineProps({
   /** Name to start with, e.g. the current one when renaming. */
   initial: { type: String, default: "" },
   loading: { type: Boolean, default: false },
+  maxlength: { type: Number, default: 120 },
   icon: { type: String, default: "mdi:puzzle-outline" },
   label: { type: String, default: "" },
   placeholder: { type: String, default: "" },

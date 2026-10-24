@@ -37,6 +37,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api } from "../../api/index.js";
 import { useI18n } from "../../i18n/index.js";
 import { patchDocument, withPreviewStyles } from "../../composables/previewDocument.js";
+import { initGalleryLightbox } from "../../../../cms/app/Site/assets/gallery.js";
+import { initTabs } from "../../../../cms/app/Site/assets/tabs.js";
+import { initMenus } from "../../../../cms/app/Site/assets/menus.js";
 
 const DEVICE_WIDTHS = { desktop: 1280, tablet: 820, mobile: 390 };
 
@@ -52,7 +55,7 @@ const props = defineProps({
   headCss: { type: String, default: "" },
 });
 
-/** ready: a new document loaded; updated: the loaded one was patched in place. */
+/** ready: a new document loaded; updated: the loaded one was patched in place; rendered: the response data (html and what else the preview reports). */
 const emit = defineEmits(["ready", "updated", "rendered"]);
 const { t } = useI18n();
 const containerRef = ref(null);
@@ -107,6 +110,7 @@ async function render() {
     if (doc?.body && html) {
       // Reloading the iframe would blank it for a frame on every edit.
       patchDocument(doc, html);
+      initTabs(doc);
       applyScale();
       emit("updated", doc);
     } else {
@@ -115,7 +119,7 @@ async function render() {
       srcdoc.value = html;
     }
     error.value = "";
-    emit("rendered");
+    emit("rendered", res.data);
   } catch (err) {
     if (current === sequence) error.value = err.message;
   } finally {
@@ -133,6 +137,9 @@ function onLoad() {
   if (!doc || !srcdoc.value) return;
   documentLoaded = true;
   applyScale();
+  initGalleryLightbox(doc);
+  initTabs(doc);
+  initMenus(doc);
 
   if (pendingScroll > 0) {
     iframeRef.value.contentWindow.scrollTo(0, pendingScroll);
@@ -141,6 +148,7 @@ function onLoad() {
   if (!props.interactive) {
     // Previews are for looking: following links would leave the preview.
     doc.addEventListener("click", (event) => {
+      if (event.target.closest?.('[data-gallery-image]') && doc.defaultView?.HTMLDialogElement?.prototype.showModal) return;
       if (event.target.closest?.("a, label, input")) event.preventDefault();
     }, true);
   }

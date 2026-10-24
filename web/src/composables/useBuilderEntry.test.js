@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
+import { setLocalized, removeLocalized } from './localizedValues.js'
 import { useBuilderEntry } from './useBuilderEntry.js'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
@@ -18,11 +19,15 @@ async function fixture({ entries, schema = {}, canUpdate = () => true, get } = {
     get: get ?? vi.fn(async (_type, id) => ({ data: clone(stored[id]) })),
     update: vi.fn(async (_type, id, payload) => {
       const entry = Object.values(stored).find((item) => item.id === id || item.uid === id)
-      if (payload.locale) {
-        entry.translations ??= {}
-        entry.translations[payload.locale] = { ...entry.translations[payload.locale], ...payload }
-        if (payload.locale === type.value.default_locale) Object.assign(entry, payload)
-      } else Object.assign(entry, payload)
+      const language = payload.locale || type.value.default_locale || 'en'
+      for (const [name, value] of Object.entries(payload)) {
+        if (['locale', 'revision', 'reset_fields'].includes(name)) continue
+        if (entry.values) entry.values[name] = type.value.fields[name]?.localized === false ? value : setLocalized(entry.values[name], language, value, type.value.default_locale || 'en')
+        else entry[name] = value
+      }
+      for (const name of payload.reset_fields ?? []) entry.values[name] = removeLocalized(entry.values[name], language)
+      entry.revision = 'next-' + entry.revision
+
       return { data: clone(entry) }
     }),
   }
@@ -42,10 +47,20 @@ describe('builder entry content', () => {
     expect(stored.first.intro).toBe('First intro')
     expect(state.isDirty.value).toBe(true)
     await state.save()
-    expect(contentApi.update).toHaveBeenCalledWith('posts', 'stable-first', { title: 'First entry', intro: 'Edited in the builder' })
+    expect(contentApi.update).toHaveBeenCalledWith('posts', 'stable-first', { intro: 'Edited in the builder', revision: undefined, reset_fields: [] })
     expect(stored.first.status).toBe('published')
     expect(stored.first.author_id).toBe('writer')
     expect(state.isDirty.value).toBe(false)
+  })
+
+  it('discards unsaved drafts and reloads the shown entry', async () => {
+    const { state, contentApi, stored } = await fixture()
+    state.update('intro', 'Left behind')
+    stored.first.intro = 'Changed elsewhere'
+    state.discard()
+    await vi.waitFor(() => expect(state.valueFor('intro')).toBe('Changed elsewhere'))
+    expect(state.isDirty.value).toBe(false)
+    expect(contentApi.get).toHaveBeenCalledTimes(2)
   })
 
   it('retains separate drafts when switching preview entries and saves both', async () => {
@@ -63,15 +78,31 @@ describe('builder entry content', () => {
     expect(state.isDirty.value).toBe(false)
   })
 
+  it('exports unsaved values across samples without saving or losing the editor drafts', async () => {
+    const { state, entryId, contentApi } = await fixture()
+    state.update('title', 'Unsaved first')
+    entryId.value = 'second'
+    await vi.waitFor(() => expect(state.valueFor('intro')).toBe('Second intro'))
+    state.update('intro', 'Unsaved second')
+    const snapshots = state.previewEntries()
+    expect(snapshots).toHaveLength(2)
+    expect(snapshots[0]).toMatchObject({ type: 'posts', id: 'stable-first', values: { title: 'Unsaved first' } })
+    expect(snapshots[1]).toMatchObject({ type: 'posts', id: 'stable-second', values: { intro: 'Unsaved second' } })
+    expect(snapshots[0].values).not.toHaveProperty('status')
+    expect(snapshots[0].values).not.toHaveProperty('slug')
+    expect(contentApi.update).not.toHaveBeenCalled()
+    expect(state.isDirty.value).toBe(true)
+  })
+
   it('keeps translated drafts separate, including shared fields edited in the default language', async () => {
     const { state, locale, contentApi } = await fixture({
-      schema: { singleton: true, locales: ['en', 'de'], default_locale: 'en', fields: {
+      schema: { locales: ['en', 'de'], default_locale: 'en', fields: {
         title: { type: 'text' }, intro: { type: 'html' }, shared: { type: 'text', localized: false },
       } },
-      entries: { home: { id: 'home', title: 'Old root copy', translations: {
-        en: { title: 'Home', intro: '<p>English</p>', shared: 'Shared' },
-        de: { title: 'Startseite', intro: '<p>Deutsch</p>', shared: 'Shared' },
-      } } },
+      entries: { home: { id: 'home', revision: 'r1', values: {
+        title: { type: 'localized', values: { en: 'Home', de: 'Startseite' } },
+        intro: { type: 'localized', values: { en: '<p>English</p>', de: '<p>Deutsch</p>' } }, shared: 'Shared',
+      }, publication: { en: { status: 'draft' }, de: { status: 'draft' } } } },
     })
     expect(state.valueFor('title')).toBe('Home')
     state.update('shared', 'Updated shared value')
@@ -82,15 +113,20 @@ describe('builder entry content', () => {
     expect(state.fieldReadonly('shared')).toBe(true)
     state.update('shared', 'Disallowed')
     state.update('intro', '<p>Geändert</p>')
+    const previews = state.previewEntries()
+    expect(previews.map((preview) => preview.values.locale)).toEqual(['en', 'de'])
+    expect(previews[0].values.shared).toBe('Updated shared value')
+    expect(previews[1].values).not.toHaveProperty('shared')
+    expect(previews[1].values.intro).toBe('<p>Geändert</p>')
     locale.value = 'en'
     await nextTick()
     expect(state.valueFor('intro')).toBe('<p>English</p>')
     await state.save()
     expect(contentApi.update).toHaveBeenNthCalledWith(1, 'posts', 'home', {
-      title: 'Home', intro: '<p>English</p>', shared: 'Updated shared value', locale: 'en',
+      shared: 'Updated shared value', locale: 'en', revision: 'r1', reset_fields: [],
     })
     expect(contentApi.update).toHaveBeenNthCalledWith(2, 'posts', 'home', {
-      title: 'Startseite', intro: '<p>Geändert</p>', locale: 'de',
+      intro: '<p>Geändert</p>', locale: 'de', revision: 'next-r1', reset_fields: [],
     })
     expect(state.isDirty.value).toBe(false)
   })
@@ -129,7 +165,7 @@ describe('builder entry content', () => {
     const scope = effectScope()
     scopes.push(scope)
     const state = scope.run(() => useBuilderEntry({
-      type: ref({ name: 'home', singleton: true, fields: { title: { type: 'text' } } }),
+      type: ref({ name: 'home', fields: { title: { type: 'text' } } }),
       entryId: ref('home'), locale: ref(''), contentApi, canUpdate: () => true,
     }))
     await vi.waitFor(() => expect(state.record.value.error).toBe('Network unavailable'))
@@ -159,7 +195,7 @@ describe('builder entry content', () => {
     state.update('rows', [{ text: 'Changed' }])
     await state.save()
     expect(contentApi.update).toHaveBeenCalledWith('posts', 'page', {
-      title: 'Page', date: stamp, images: ['photo.jpg'], rows: [{ text: 'Changed' }],
+      rows: [{ text: 'Changed' }], revision: undefined, reset_fields: [],
     })
   })
 
@@ -190,4 +226,38 @@ describe('builder entry content', () => {
     await nextTick()
     expect(state.valueFor('title')).toBe('Second')
   })
+})
+
+it('updates inherited previews from the default draft without materializing translations or replacing explicit null', async () => {
+  const { state, locale, contentApi } = await fixture({
+    schema: { locales: ['en', 'de'], default_locale: 'en', fields: { title: { type: 'text' }, intro: { type: 'text', default: 'Configured default' } } },
+    entries: { home: { id: 'home', revision: 'r1', values: { title: { type: 'localized', values: { en: 'Home', de: 'Start' } }, intro: { type: 'localized', values: { en: null } } } } },
+  })
+  expect(state.valueFor('intro')).toBeNull()
+  state.update('intro', 'Unsaved English')
+  locale.value = 'de'
+  await nextTick()
+  expect(state.valueFor('intro')).toBe('Unsaved English')
+  await state.save()
+  expect(contentApi.update).toHaveBeenCalledTimes(1)
+  expect(contentApi.update.mock.calls[0][2]).toMatchObject({ locale: 'en', intro: 'Unsaved English' })
+  expect(state.valueFor('intro')).toBe('Unsaved English')
+})
+
+it('exports translation resets without materializing inherited fields in preview snapshots', async () => {
+  const { state, locale, contentApi } = await fixture({
+    schema: { locales: ['en', 'de'], default_locale: 'en', fields: { title: { type: 'text' }, intro: { type: 'text' } } },
+    entries: { home: { id: 'home', revision: 'r1', values: {
+      title: { type: 'localized', values: { en: 'Home' } },
+      intro: { type: 'localized', values: { en: 'English intro', de: 'Deutscher Text' } },
+    } } },
+  })
+  locale.value = 'de'
+  await nextTick()
+  state.reset('intro')
+  expect(state.previewEntries()).toEqual([
+    { type: 'posts', id: 'home', values: { locale: 'de', reset_fields: ['intro'] } },
+  ])
+  expect(contentApi.update).not.toHaveBeenCalled()
+  expect(state.isDirty.value).toBe(true)
 })

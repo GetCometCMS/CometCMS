@@ -1,6 +1,6 @@
 # MCP API
 
-The Model Context Protocol (MCP) endpoint lets AI coding assistants (GitHub Copilot, Claude Code, Cursor, etc.) interact with CometCMS directly from the editor. It exposes content types, entries, and media as **tools** that the AI can discover and call on demand.
+The Model Context Protocol (MCP) endpoint lets AI coding assistants (GitHub Copilot, Claude Code, Cursor, etc.) interact with CometCMS directly from the editor. It exposes content types, entries, media, and permission-scoped page layouts as **tools** that the AI can discover and call on demand.
 
 > MCP is a server-to-server protocol designed for AI tool calling. For traditional REST consumption from frontends or scripts, use the [Public API](./public-api) or [Admin API](./admin-api) instead.
 
@@ -33,7 +33,7 @@ CometCMS implements the [MCP specification](https://spec.modelcontextprotocol.io
 1. **Initialize** — the client calls `initialize` to negotiate the protocol version and discover server capabilities.
 2. **Tool discovery** — the client calls `tools/list` to fetch available tool schemas.
 3. **Tool calls** — the client invokes individual tools via `tools/call`.
-4. **Notifications** — `notifications/initialized` and `ping` are accepted but produce no response.
+4. **Notifications** — `notifications/initialized` without an `id` returns HTTP 202 with no JSON-RPC response. A `ping` request with an `id` returns an empty result.
 
 Notifications and requests without an `id` field are treated as fire-and-forget and return `202 Accepted`.
 
@@ -41,12 +41,12 @@ Notifications and requests without an `id` field are treated as fire-and-forget 
 
 ## Authentication
 
-Without a Bearer token, MCP operates in read-only mode. Initialization and tool discovery are available, and `tools/list` advertises only `comet_health`, `list_content_types`, `get_content_type`, `list_entries`, `get_entry`, `list_media`, and `get_media_item`. Public schemas, published entries whose publication date has arrived, and public media can be read. Private schemas and media are omitted from listings, and relations to private collections or unpublished entries are omitted. Pagination totals and media category counts reflect public results.
+Without a Bearer token, MCP operates in read-only mode. Initialization and tool discovery are available, and `tools/list` advertises only `comet_health`, `list_content_types`, `get_content_type`, `list_entries`, `get_entry`, `list_media`, and `get_media_item`. Only public schemas and published entries from collections with API exposure enabled (`api_enabled: true`), plus public media, can be read. Entry publication dates must have arrived. Private schemas and media are omitted from listings, and relations to private collections or unpublished entries are omitted. Pagination totals and media category counts reflect public results.
 
-Write tools and direct reads of private resources require a valid Bearer token with appropriate permission grants. Calling a write tool without authentication returns a tool error with status `401`, even though it is omitted from discovery. Invalid supplied tokens are rejected with `401`; they do not fall back to anonymous access. Authenticated tools retain their existing permission checks. Tokens are created in **Access Tokens** in the admin:
+Write tools and direct reads of private resources require a valid Bearer token with appropriate permission grants. Calling a write tool without authentication returns a tool error with status `401`, even though it is omitted from discovery. Invalid supplied tokens are rejected with `401`; they do not fall back to anonymous access. Authenticated MCP is a management interface: a token with the required grants can access collections with API exposure disabled. Every expanded related entry requires its own `content.read` grant for the target collection, entry, workspace, and locale; a source entry grant does not authorize its targets. REST continues to require API exposure for authenticated and anonymous reads. Tokens are created in **Access Tokens** in the admin:
 
 ```http
-Authorization: Bearer cms_ct_abc123...
+Authorization: Bearer ctcms_…
 ```
 
 | HTTP status | Meaning                                                     |
@@ -94,40 +94,76 @@ The `initialize` response advertises the server identity:
     "name": "cometcms",
     "title": "CometCMS",
     "version": "1.1.0",
-    "description": "Headless CMS content, schema, and media tools."
+    "description": "CMS content, schema, media, and permission-scoped page-builder tools."
   }
 }
 ```
 
 ---
 
-## Website design readiness
+## Page builder
 
-**Assessment:** the page builder is a good foundation for MCP design tools, but AI clients cannot currently inspect or edit website designs through MCP. `McpServer` exposes content types, entries and media only. Website layouts, header/footer regions, theme, menus, settings, previews and design history are available through the session-authenticated admin API; they are absent from MCP tool discovery and dispatch. A bearer token with `site.manage` alone does not add these capabilities.
+Builder tools use the **same workspace endpoint**. They are advertised only to
+bearer tokens with `site.manage` on `workspace:{workspace}:site:*`; direct calls
+also enforce this permission. Headless tokens do not receive builder schemas.
+There is no second MCP connection to configure.
 
-### What can be reused
+These tools edit **content areas** and **templates** of a collection, by
+`collection` and `variant` (`detail` or `index`). A template puts pages together
+from a header, a content area and a footer; the first template whose conditions
+match an entry is used and the last one (`default`) applies to everything else.
+Layout tools take an optional `content` area id and default to the area the
+default template shows. Changes affect every entry whose template shows that
+area and take effect on published pages immediately. They do not create a separate design
+draft. Entry-specific page fields use the existing entry tools. Editing the
+header/footer themselves, reusable component definitions, theme and menus are
+outside this tool group; choosing which header and footer a layout shows is not.
 
-| Existing component | Value for AI design tools |
-| --- | --- |
-| `LayoutSchema::spec()` | Shared vocabulary for node kinds, allowed children, property types, defaults, limits, styles, links and field displays. The builder inspector consumes the same schema. |
-| Layout JSON | Nodes have `{id, kind, props, style, children}`. Saved node IDs make targeted edits possible without manipulating HTML. Layouts are shared per content type and variant; editing one affects every entry using it. |
-| `SiteRepository` | Workspace-scoped reads and writes for settings, theme, menus, regions and layouts; saves invalidate the public cache. Layout, region and theme saves record restorable history. |
-| `SiteContext` and `PageRenderer` | Unsaved layout, region, theme and menu overrides can be rendered using the same code as published pages. Builder annotations associate rendered elements with node IDs. |
-| Existing MCP server | Bearer authentication, permission checks, tool schemas, annotations and recoverable tool errors already exist. |
+| Tool | Required inputs | Result |
+| --- | --- | --- |
+| `get_builder_schema` | none; optional `kind` | Kinds/children and limits, or props/styles/defaults/bindings for one kind. |
+| `get_layout` | `collection`, `variant`; optional `content` | Ordered section summaries, node counts, revision, the content area and the templates that show it (`used_by_templates`). |
+| `get_section` | target + `section_id` | One subtree with default props omitted, and revision. |
+| `get_element` | target + `element_id` | One node's props/style, immediate child summaries, section ID and revision. |
+| `set_layout` | target + `revision`, `sections` | Replace entire layout; returns compact overview and new revision. |
+| `update_section` | target + `revision`, `section_id`, `patch` | Patch `name`, `props`, `style`, or replace `children`; returns overview and revision. |
+| `update_element_props` | target + `revision`, `element_id`, `props`; optional `style` | Merge property/style keys; returns node and revision. |
+| `list_templates` | `collection`, `variant` | Templates in order, content areas and the components that can be a header or footer. |
+| `set_template_parts` | `collection`, `variant`; optional `template` (default `default`), `header`, `content`, `footer` | Header/footer: `default`, `none` or a section component id; content: a content area id. Returns the templates. |
 
-The new controls also belong to the shared schema: rows have independent boolean `reverse_mobile` and `reverse_tablet` properties; sections, columns and elements have a `background_image` style (bindable like image sources) with size, position, repeat, overlay and integer `background_blur` (0–40 pixels) options. A future design tool can discover and edit these properties through the same contract as the inspector.
+Here `target` means `collection`, `variant` and optionally `content`. A section is any top-level node,
+including a `page_content` placeholder or a section component reference.
+Patches preserve omitted keys, descendants and other sections. Supplying
+`children: []` removes children. Object-valued props (including localized maps)
+replace the whole property: read them first to preserve other values/locales.
+Reset a prop/style by supplying its schema default. Nodes use
+`{id?, kind, name?, props?, style?, children?}`; IDs are generated when omitted.
+Use `get_builder_schema(kind)` for valid properties and child placement.
 
-### Gaps to address before enabling AI writes
+All writes **require** a revision from a read. Stale edits return `409` with
+instructions to reread, reconcile, and retry; the revision check and save share
+the repository file lock. Invalid edits return `422` with the failing path and
+schema discovery guidance, without saving a repaired/truncated layout. Builder
+success responses provide `structuredContent` plus compact JSON text.
 
-1. **Expose design tools.** Add authenticated discovery/context, layout and region reads, validation/preview, targeted edits, and revision inspection/restore. Extend to theme tokens, menus and settings using the same repository methods. Require workspace-scoped `site.manage` on `site:*` in discovery and execution; keep design configuration out of anonymous reads. Preserve the administrator-only custom CSS restriction and define access rules for draft/private preview content.
-2. **Report invalid edits.** `LayoutSchema::normalize()` intentionally drops unknown or misplaced nodes/properties, clamps numbers, repairs IDs and sanitizes HTML. This is useful for rendering older layouts, but AI write tools should return field/path diagnostics for rejected changes before saving. Validate field bindings against the selected content type and repeater template, and verify referenced media/menu/link targets. Do not silently convert a malformed request into a successful destructive edit.
-3. **Detect concurrent changes.** Layout and region saves replace the full tree and have no expected-version check. Atomic JSON file replacement prevents partial files, but does not prevent a stale AI edit from overwriting a newer human edit. Add a revision/content-hash precondition checked under the same lock as the write, and return a conflict requiring a fresh read. Apply it to both admin and MCP writes. Generated default layouts currently receive fresh node IDs on each read; use deterministic IDs or materialize a versioned snapshot before editing them by ID.
-4. **Separate preview from save.** Preview/validation should be read-only and return the normalized proposal plus diagnostics and rendered HTML. Saving should explicitly describe its live effect: current saves take effect on published pages immediately; the builder has no separate persisted design draft/publish stage. Use existing revision history for rollback and identify the access token in the revision/audit record.
-5. **Make tool contracts precise.** Convert the shared layout vocabulary into JSON Schema for MCP arguments instead of accepting an unrestricted object. Prefer operations such as updating a node's props/style or moving it by ID. Return the resulting tree, version and diagnostics as `structuredContent` with a text fallback; label read/preview and write tools appropriately. See the [MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) for input/output schemas, structured results and annotations.
+Example workflow (substitute the revisions returned by each call):
 
-An initial workflow would be: **discover schema and design context → read the current layout and version → propose node edits → validate/render without saving → save against the expected version → inspect or restore history**. Browser screenshots can support visual review, but are an additional client/browser capability; the PHP preview currently returns HTML.
+```json
+{"name":"get_layout","arguments":{"collection":"pages","variant":"detail"}}
+```
 
-This assessment documents remaining work; it does not introduce new MCP tools or change MCP access permissions.
+```json
+{"name":"set_layout","arguments":{"collection":"pages","variant":"detail","revision":"<read revision>","sections":[{"id":"hero","kind":"section","children":[{"kind":"row","children":[{"kind":"column","children":[{"id":"title","kind":"heading","props":{"text":"Welcome","level":"h1"}}]}]}]}]}}
+```
+
+```json
+{"name":"update_element_props","arguments":{"collection":"pages","variant":"detail","revision":"<set_layout revision>","element_id":"title","props":{"text":"Hello world"}}}
+```
+
+See the [design decision and full contract](../design/mcp-page-builder.md) for
+endpoint rationale, update semantics and concurrency guarantees. Saves use
+existing cache invalidation and restorable layout history, attributed to the
+token principal. Preview and MCP history tools remain future work.
 
 ---
 
@@ -181,9 +217,6 @@ Create a new content type.
 | `label`          | string           |          |
 | `icon`           | string           |          |
 | `fields`         | object           |          |
-| `locales`        | array of strings |          |
-| `default_locale` | string           |          |
-| `singleton`      | boolean          |          |
 
 **Required permission:** `schema.create` on `schema:{name}`
 
@@ -203,9 +236,6 @@ Surgically update an existing content type. Omitted properties are **preserved**
 | `fields`         | object           |          |
 | `remove_fields`  | array of strings |          |
 | `replace_fields` | boolean          |          |
-| `locales`        | array of strings |          |
-| `default_locale` | string           |          |
-| `singleton`      | boolean          |          |
 
 **Required permission:** `schema.update` on `schema:{collection}`
 
@@ -265,7 +295,7 @@ Fetch one entry by its stable ID or slug.
 
 **Required permission:** `content.read` on `content:{collection}:{identifier}`
 
-When `locale` matches one of the content type's configured locales, the entry's localized field values are returned for that locale.
+When `locale` matches one of the workspace languages, the entry's localized field values are returned for that locale.
 
 ---
 
@@ -389,7 +419,7 @@ Delete a media file.
 ```json
 --> {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}
 
-<-- {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"cometcms","title":"CometCMS","version":"1.1.0","description":"Headless CMS content, schema, and media tools."}}}
+<-- {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"cometcms","title":"CometCMS","version":"1.1.0","description":"CMS content, schema, media, and permission-scoped page-builder tools."}}}
 ```
 
 ### List tools
@@ -449,3 +479,12 @@ Every MCP tool maps to one or more permission grants. Below is a quick reference
 | `delete_media`          | `media.delete`                                    |
 
 See [Access Tokens](../guide/api-tokens) for details on creating tokens and assigning permission grants.
+
+
+## Localization
+
+Languages and their default are configured on the workspace. All content types and the website use those workspace settings directly. Content type tools do not configure languages; returned `locales` and `default_locale` are read-only workspace values. Entry reads accept `locale` and return resolved content, `locale`, and a `revision`. `get_media_item` also accepts `locale` to resolve alternative text and captions. Anonymous reads only expose published variants in that language. Slugs, publication status, and publication dates are localized; stable IDs, authors, and shared fields stay shared.
+
+Entry writes target the `locale` in the `entry` payload and preserve other languages and omitted fields. Include `revision` to detect stale writes (conflicts report status 409), and `reset_fields` to remove localized overrides. Pass ordinary values, not complete translation maps. A missing value inherits public default-language content; explicit empty values do not inherit. Locale and field permissions apply to updates, publication, and resets.
+
+Field labels, descriptions, and select-option labels accept `{"type":"localized","values":{"en":"Name","de":"Name"}}`. Structural schema keys and option values remain shared. The website builder, components, menus, metadata, and forms use the same value model; the MCP design-tool surface is unchanged.

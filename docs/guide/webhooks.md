@@ -6,7 +6,7 @@ Webhooks let CometCMS notify an external URL whenever content changes. The prima
 
 ## Configuration
 
-Webhooks are configured in the **Webhooks** page of the admin (under **System → Webhooks**). Each webhook has:
+Webhooks are configured in the **Administration → API & integrations → Webhooks** page. Each webhook has:
 
 | Field          | Description                                                  |
 | -------------- | ------------------------------------------------------------ |
@@ -72,7 +72,10 @@ function verifySignature(rawBody, secret, signature) {
   const expected =
     "sha256=" +
     crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  if (typeof signature !== "string") return false;
+  const actual = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  return actual.length === wanted.length && crypto.timingSafeEqual(wanted, actual);
 }
 ```
 

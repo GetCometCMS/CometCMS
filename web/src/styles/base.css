@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    color: rgb(var(--color-slate-700));
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--color-theme-500));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: rgb(var(--color-theme-500) / 0.2);
+  }
+}
+
+@layer base {
+  :root,
+  :root[data-theme="blue"] {
+    --color-theme-50: 239 246 255;
+    --color-theme-100: 219 234 254;
+    --color-theme-200: 191 219 254;
+    --color-theme-300: 147 197 253;
+    --color-theme-400: 96 165 250;
+    --color-theme-500: 59 130 246;
+    --color-theme-600: 37 99 235;
+    --color-theme-700: 29 78 216;
+    --color-theme-800: 30 64 175;
+    --color-theme-900: 30 58 138;
+    --color-app-bg: 246 247 249;
+  }
+}
+
+@layer base {
+  :root,
+  :root[data-theme="blue"] {
+    /* Sidebar: a deep, theme-tinted ink with translucent states so every
+       colored theme shares one set of layering rules. */
+    --color-sidebar: 13 20 36;
+    --color-sidebar-hover: 27 35 52;
+    --color-sidebar-border: 255 255 255;
+    --color-sidebar-border-alpha: 0.08;
+    --color-sidebar-text: 203 210 222;
+    --color-sidebar-muted: 140 150 168;
+    --color-sidebar-heading: 115 126 146;
+    --color-sidebar-footer: 115 126 146;
+    --color-sidebar-hover-text: 255 255 255;
+    --color-sidebar-active-text: 255 255 255;
+    --sidebar-active-bg: rgb(255 255 255 / 0.09);
+    --sidebar-hover-bg: rgb(255 255 255 / 0.05);
+    --sidebar-indicator: rgb(var(--color-theme-400));
+    --sidebar-surface: rgb(255 255 255 / 0.04);
+    --sidebar-surface-border: rgb(255 255 255 / 0.08);
+    --sidebar-kbd: rgb(255 255 255 / 0.08);
+
+    /* Neutral scale behind Tailwind's slate-* utilities (see tailwind.config.js).
+       A clean, lightly cool gray instead of the bluer slate. */
+    --color-slate-50: 249 250 251;
+    --color-slate-100: 243 244 246;
+    --color-slate-200: 229 231 235;
+    --color-slate-300: 209 213 219;
+    --color-slate-400: 156 163 175;
+    --color-slate-500: 107 114 128;
+    --color-slate-600: 75 85 99;
+    --color-slate-700: 55 65 81;
+    --color-slate-800: 31 41 55;
+    --color-slate-900: 17 24 39;
+    --color-slate-950: 3 7 18;
+    --color-surface: 255 255 255;
+    --color-theme-text: var(--color-theme-700);
+  }
+}

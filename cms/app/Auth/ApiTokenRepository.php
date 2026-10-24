@@ -10,26 +10,20 @@ use CometCMS\Storage\JsonStore;
 final class ApiTokenRepository
 {
     private JsonStore $store;
-    private UserRepository $users;
 
     public function __construct()
     {
         $this->store = new JsonStore(COMET_STORAGE . '/api-tokens');
-        $this->users = new UserRepository();
     }
 
     public function all(): array
     {
-        $this->migrateLegacyUserTokens();
-
         return $this->store->all();
     }
 
     public function find(string $id): ?array
     {
         Security::assertSafeName($id);
-        $this->migrateLegacyUserTokens();
-
         return $this->store->read($id);
     }
 
@@ -75,8 +69,6 @@ final class ApiTokenRepository
 
     public function findByToken(string $plainToken): ?array
     {
-        $this->migrateLegacyUserTokens();
-
         foreach ($this->store->all() as $token) {
             if (!is_array($token) || !empty($token['revoked_at']) || empty($token['hash']) || !password_verify($plainToken, (string) $token['hash'])) {
                 continue;
@@ -120,72 +112,8 @@ final class ApiTokenRepository
         $this->store->write($token, (string) $token['id']);
     }
 
-    private function migrateLegacyUserTokens(): void
-    {
-        foreach ($this->users->all() as $user) {
-            $tokens = is_array($user['api_tokens'] ?? null) ? $user['api_tokens'] : [];
-
-            if ($tokens === []) {
-                continue;
-            }
-
-            foreach ($tokens as $token) {
-                if (!is_array($token) || empty($token['id']) || $this->store->read((string) $token['id']) !== null) {
-                    continue;
-                }
-
-                $token['description'] = (string) ($token['description'] ?? '');
-                $token['legacy_user_id'] = (string) ($user['id'] ?? '');
-                $token['permissions'] = $this->normalizePermissions($token['permissions'] ?? []);
-                $this->save($token);
-            }
-
-            unset($user['api_tokens']);
-            $user['updated_at'] = Security::now();
-            $this->users->save($user);
-        }
-    }
-
     private function normalizePermissions(mixed $permissions): array
     {
-        if (is_string($permissions)) {
-            $decoded = json_decode($permissions, true);
-            $permissions = is_array($decoded) ? $decoded : [];
-        }
-
-        if (!is_array($permissions)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($permissions as $grant) {
-            if (!is_array($grant)) {
-                continue;
-            }
-
-            $actions = $grant['actions'] ?? $grant['action'] ?? [];
-            $resources = $grant['resources'] ?? $grant['resource'] ?? [];
-
-            $item = [
-                'effect' => ($grant['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',
-                'actions' => array_values(array_filter(array_map('strval', (array) $actions))),
-                'resources' => array_values(array_filter(array_map('strval', (array) $resources))),
-            ];
-
-            if (array_key_exists('fields', $grant)) {
-                $item['fields'] = array_values(array_filter(array_map('strval', (array) $grant['fields'])));
-            }
-
-            if (is_array($grant['conditions'] ?? null)) {
-                $item['conditions'] = $grant['conditions'];
-            }
-
-            if ($item['actions'] !== [] && $item['resources'] !== []) {
-                $normalized[] = $item;
-            }
-        }
-
-        return $normalized;
+        return PermissionService::normalizeGrants($permissions);
     }
 }

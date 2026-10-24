@@ -25,9 +25,11 @@ async function renderWidget(value) {
 describe('dashboard website widget', () => {
   it('shows homepage setup guidance when pages are enabled without a homepage', async () => {
     const html = await renderWidget(status)
+    expect(html).toContain('page-builder-cta')
+    expect(html).toContain('Page Builder')
     expect(html).toContain('No homepage is set up yet.')
-    expect(html).toContain('href="/page-builder/overview#homepage"')
-    expect(html).not.toContain('Edit website')
+    expect(html).toContain('href="/website/general#homepage"')
+    expect(html).toContain('Choose homepage')
   })
 
   it.each([
@@ -37,20 +39,21 @@ describe('dashboard website widget', () => {
   ])('opens the homepage editor %s directly', async (path) => {
     const html = await renderWidget({ ...status, homepage_editor: path })
     expect(html).toContain(`href="${path}"`)
-    expect(html).toContain('Edit website')
+    expect(html).toContain('page-builder-cta')
+    expect(html).toContain('Open Page Builder')
     expect(html).not.toContain('Choose homepage')
   })
 
   it('also supports a homepage without a separate enabled type URL', async () => {
     const html = await renderWidget({ ...status, types: { home: { pages_enabled: false } }, homepage_editor: '/page-builder/builder/layout/home/detail' })
-    expect(html).toContain('Edit website')
+    expect(html).toContain('Open Page Builder')
   })
 
   it('stays hidden for headless workspaces, unavailable status, and users without site management permission', async () => {
     for (const value of [null, { ...status, enabled: false, types: {} }, { ...status, can_manage: false }]) {
       const html = await renderWidget(value)
-      expect(html).not.toContain('Your website')
-      expect(html).not.toContain('Edit website')
+      expect(html).not.toContain('page-builder-cta')
+      expect(html).not.toContain('Open Page Builder')
       expect(html).not.toContain('Choose homepage')
     }
   })

@@ -2,7 +2,7 @@ const defaultColors = require('tailwindcss/colors')
 const defaultTheme = require('tailwindcss/defaultTheme')
 
 // Neutrals are driven by CSS variables so the dark theme can invert the scale
-// in one place (style.css) instead of overriding every slate utility.
+// in styles/dark.css instead of overriding every slate utility.
 const slateShades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
 const slate = Object.fromEntries(
   slateShades.map((shade) => [shade, `rgb(var(--color-slate-${shade}) / <alpha-value>)`]),

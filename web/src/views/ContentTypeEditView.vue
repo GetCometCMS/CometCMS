@@ -14,22 +14,26 @@
         {{
           isNew
             ? t("contentTypeEdit.newTitle")
-            : t("contentTypeEdit.editTitle", { name: form.name })
+            : t("contentTypeEdit.editTitle", { name: form.label || form.name })
         }}
       </h1>
       </div>
-      <button
-        type="submit"
-        :disabled="saving"
-        class="btn-primary ml-auto relative"
-        form="type-form"
-      >
-        {{ saving ? t("common.saving") : t("contentTypeEdit.saveType") }}
-        <span
-          v-if="isDirty && !saving"
-          class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white"
-        ></span>
-      </button>
+      <div class="ml-auto flex items-center gap-3">
+        <!-- Field labels, options and website texts all follow this one switcher -->
+        <LanguageTabs compact />
+        <button
+          type="submit"
+          :disabled="saving"
+          class="btn-primary relative"
+          form="type-form"
+        >
+          {{ saving ? t("common.saving") : t("contentTypeEdit.saveType") }}
+          <span
+            v-if="isDirty && !saving"
+            class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-white"
+          ></span>
+        </button>
+      </div>
     </div>
 
     <div
@@ -94,33 +98,6 @@
             <IconPickerGrid v-model="form.icon" :placeholder="defaultIcon" />
           </div>
 
-          <div class="col-span-1">
-            <label class="form-label">{{
-              t("contentTypeEdit.contentModel")
-            }}</label>
-            <div
-              class="inline-flex rounded-lg border border-slate-200 bg-white p-1"
-            >
-              <button
-                type="button"
-                :class="modelButtonClass(!form.singleton)"
-                @click="form.singleton = false"
-              >
-                {{ t("contentTypes.collection") }}
-              </button>
-              <button
-                type="button"
-                :class="modelButtonClass(form.singleton)"
-                @click="form.singleton = true"
-              >
-                {{ t("contentTypeEdit.singlePage") }}
-              </button>
-            </div>
-            <p class="mt-1 text-xs text-slate-500">
-              {{ t("contentTypeEdit.singleHint") }}
-            </p>
-          </div>
-
           <div v-if="websiteStatus" id="frontend-page-setting" class="col-span-1 scroll-mt-24">
             <label for="content-type-frontend" class="form-label">{{ t("site.typeCard.title") }}</label>
             <label class="flex items-center gap-3 text-sm text-slate-700">
@@ -149,11 +126,20 @@
           <div class="col-span-1">
             <label for="content-type-submissions" class="form-label">{{ t("site.forms.title") }}</label>
             <label class="flex items-center gap-3 text-sm text-slate-700">
-              <ToggleSwitch id="content-type-submissions" v-model="form.allow_submissions" :disabled="form.singleton" aria-describedby="content-type-submissions-help" />
+              <ToggleSwitch id="content-type-submissions" v-model="form.allow_submissions"  aria-describedby="content-type-submissions-help" />
               {{ t("contentTypeEdit.allowSubmissions") }}
             </label>
             <p v-if="submissionError" class="mt-1 text-xs text-red-600" role="alert">{{ submissionError }}</p>
-            <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t(form.singleton ? "contentTypeEdit.submissionsSingleton" : "contentTypeEdit.submissionsHint") }}</p>
+            <p id="content-type-submissions-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.submissionsHint") }}</p>
+          </div>
+
+          <div class="col-span-1">
+            <label for="content-type-hierarchical" class="form-label">{{ t("contentTypeEdit.hierarchy") }}</label>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <ToggleSwitch id="content-type-hierarchical" v-model="form.hierarchical" aria-describedby="content-type-hierarchical-help" />
+              {{ t("contentTypeEdit.hierarchical") }}
+            </label>
+            <p id="content-type-hierarchical-help" class="mt-1 text-xs text-slate-500">{{ t("contentTypeEdit.hierarchicalHint") }}</p>
           </div>
         </div>
       </div>
@@ -165,64 +151,13 @@
         :status="websiteStatus"
         :name="isNew ? toSlug(form.name) : form.name"
         :label="form.label"
-        :singleton="form.singleton"
         :visibility="form.visibility"
         :fields="customFields"
         :errors="websiteErrors"
         @touched="routeTouched = true"
       />
 
-      <!-- Localization -->
-      <div class="card p-6 space-y-4">
-        <div>
-          <h2 class="card-title">
-            {{ t("contentTypeEdit.localization") }}
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">
-            {{ t("contentTypeEdit.localizationHint") }}
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="form-label">{{ t("contentTypeEdit.locales") }}</label>
-            <SearchableSelect
-              v-model="form.locales"
-              :options="LOCALE_OPTIONS"
-              :multiple="true"
-              :searchable="true"
-              :placeholder="t('contentTypeEdit.searchLocales')"
-            />
-          </div>
-
-          <div>
-            <label class="form-label">{{
-              t("contentTypeEdit.defaultLocale")
-            }}</label>
-            <SearchableSelect
-              v-model="form.default_locale"
-              :options="selectedLocaleOptions"
-              :disabled="form.locales.length === 0"
-              :placeholder="t('contentTypeEdit.addLocalesFirst')"
-            />
-            <p
-              v-if="form.locales.length > 0"
-              class="mt-1 text-xs text-slate-500"
-            >
-              {{ t("contentTypeEdit.defaultLocaleHint") }}
-            </p>
-          </div>
-        </div>
-
-        <div
-          v-if="localizationChanged"
-          class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-        >
-          {{ t("contentTypeEdit.localizationWarning") }}
-        </div>
-      </div>
-
-      <!-- Custom content fields supply values to shared page layouts. -->
+      <!-- Custom fields supply values to shared page layouts. -->
       <div class="card p-6">
         <div class="mb-4 flex items-center justify-between gap-3">
           <h2 class="card-title">
@@ -263,13 +198,12 @@
       </div>
 
       <TypeSubmissionSettings
-        v-if="form.allow_submissions && !form.singleton && !submissionSettingsError"
+        v-if="form.allow_submissions"
         v-model="form.submission_settings"
         :name="isNew ? '' : form.name"
         :fields="customFields"
       />
 
-      <p v-if="form.allow_submissions && submissionSettingsError" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{{ submissionSettingsError }}</p>
 
       <div
         v-if="saveError"
@@ -325,10 +259,8 @@ import IconPickerGrid from "../components/IconPickerGrid.vue";
 import ToggleSwitch from "../components/ToggleSwitch.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
-import SearchableSelect from "../components/SearchableSelect.vue";
 import { api } from "../api/index.js";
 import { supportsConfiguredDefault } from "../composables/fieldDefaults.js";
-import { LOCALE_OPTIONS } from "../composables/localeOptions.js";
 import { useToastStore } from "../stores/toast.js";
 import { useContentTypesStore } from "../stores/contentTypes.js";
 import { useAuthStore } from "../stores/auth.js";
@@ -338,6 +270,8 @@ import TypeSubmissionSettings from "../components/site/TypeSubmissionSettings.vu
 import TypeWebsiteCard from "../components/site/TypeWebsiteCard.vue";
 import { contentTypeEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
+import LanguageTabs from "../components/LanguageTabs.vue";
+import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
 
 const route = useRoute();
@@ -347,6 +281,7 @@ const typesStore = useContentTypesStore();
 const auth = useAuthStore();
 const apiEndpointStore = useApiEndpointStore();
 const { t } = useI18n();
+provideLanguageSwitcher();
 const apiEndpointOwner = "content-type-edit";
 
 const isNew = computed(() => !route.params.name);
@@ -360,41 +295,13 @@ const form = ref({
   name: "",
   label: "",
   icon: defaultIcon,
-  singleton: false,
   visibility: "public",
   api_enabled: false,
+  hierarchical: false,
   allow_submissions: false,
   submission_settings: { status: "draft", captcha: "none", submit_label: "", success_message: "", error_message: "" },
-  locales: [],
-  default_locale: "",
   fields: {},
 });
-const originalLocalization = ref({ locales: [], default_locale: "" });
-
-// Derived option list for the default_locale select (only chosen locales)
-const selectedLocaleOptions = computed(() =>
-  LOCALE_OPTIONS.filter((o) => form.value.locales.includes(o.value)),
-);
-const localizationChanged = computed(() => {
-  if (isNew.value) return false;
-  return (
-    JSON.stringify([...form.value.locales].sort()) !==
-      JSON.stringify([...originalLocalization.value.locales].sort()) ||
-    form.value.default_locale !== originalLocalization.value.default_locale
-  );
-});
-
-// Auto-set default_locale when locales change; clear it if it's no longer in the list
-watch(
-  () => form.value.locales,
-  (locales) => {
-    if (locales.length === 0) {
-      form.value.default_locale = "";
-    } else if (!locales.includes(form.value.default_locale)) {
-      form.value.default_locale = locales[0];
-    }
-  },
-);
 // While creating a type, derive the API name from the label until it is edited by hand.
 const nameTouched = ref(false);
 watch(
@@ -419,7 +326,6 @@ const contentTypes = ref([]);
 const loadError = ref("");
 const saveError = ref("");
 const submissionError = ref("");
-const submissionSettingsError = ref("");
 const customFieldErrors = ref({});
 const saving = ref(false);
 const deleting = ref(false);
@@ -476,11 +382,12 @@ const websiteErrors = ref({});
 const routeTouched = ref(false);
 let routeClean = "null";
 
-function defaultRoute(name, singleton) {
+function defaultRoute(name) {
   return {
     enabled: isNew.value,
-    pattern: singleton ? `/${name}` : `/${name}/{slug}`,
-    index_path: singleton ? "" : `/${name}`,
+    pattern: `/${name}/{slug}`,
+    index_enabled: false,
+    index_path: `/${name}`,
     index_title: "",
     seo_description_field: "",
     seo_image_field: "",
@@ -499,7 +406,7 @@ async function loadWebsite() {
       await site.load();
       const stored = isNew.value ? null : site.data?.settings?.routes?.[route.params.name];
       const name = isNew.value ? toSlug(form.value.name) || "new" : route.params.name;
-      websiteRoute.value = JSON.parse(JSON.stringify(stored ?? defaultRoute(name, form.value.singleton)));
+      websiteRoute.value = JSON.parse(JSON.stringify(stored ?? defaultRoute(name)));
       routeClean = JSON.stringify(websiteRoute.value);
     }
   } catch {
@@ -535,23 +442,23 @@ async function saveWebsiteRoute(name) {
         .filter(([key]) => key.startsWith(prefix))
         .map(([key, message]) => [key.slice(prefix.length), message]),
     );
-    toast.error(t("site.typeCard.saveFailed", { message: Object.values(websiteErrors.value)[0] ?? err.message }));
+    // Other settings can object too, e.g. a homepage that shows this type's list page.
+    toast.error(t("site.typeCard.saveFailed", { message: Object.values(websiteErrors.value)[0] ?? Object.values(err.fields ?? {})[0] ?? err.message }));
     return false;
   }
 }
 
 // New types suggest URLs from their name until the URLs are edited by hand.
 watch(
-  () => [form.value.name, form.value.singleton],
+  () => form.value.name,
   () => {
     if (!isNew.value || routeTouched.value || !websiteRoute.value) return;
-    const next = defaultRoute(toSlug(form.value.name) || "new", form.value.singleton);
+    const next = defaultRoute(toSlug(form.value.name) || "new");
     websiteRoute.value = { ...websiteRoute.value, pattern: next.pattern, index_path: next.index_path };
   },
 );
 
 watch(websiteRoute, () => { if (_formLoaded) updateDirtyState(); }, { deep: true });
-watch(() => form.value.singleton, (singleton) => { if (singleton) form.value.allow_submissions = false; });
 watch(() => form.value.api_enabled, (enabled) => { if (enabled) form.value.visibility = "public"; });
 
 onMounted(async () => {
@@ -571,14 +478,10 @@ onMounted(async () => {
       const type = res.data;
       form.value = {
         ...type,
-        // Legacy private types stay protected until website pages or the public API are explicitly enabled.
+        // Private types remain protected when loading API settings.
         visibility: type.visibility ?? "public",
         api_enabled: type.visibility !== "private" && !!type.api_enabled,
         submission_settings: type.submission_settings,
-      };
-      originalLocalization.value = {
-        locales: Array.isArray(type.locales) ? [...type.locales] : [],
-        default_locale: type.default_locale ?? "",
       };
 
       // Strip built-in fields; only show the extras in the builder.
@@ -588,21 +491,6 @@ onMounted(async () => {
         .map(([key, cfg]) => ({ key, ...cfg }));
     } catch (err) {
       loadError.value = err.message;
-    }
-  }
-
-  // Legacy forms keep their own texts until the type’s settings are edited.
-  // A failed optional read must never prevent loading the content fields.
-  if (!isNew.value && form.value.allow_submissions && !form.value.submission_settings && auth.can("site.manage", "site:*")) {
-    try {
-      const forms = (await api.site.forms()).data.forms ?? [];
-      const existing = forms.find((item) => item.type === form.value.name);
-      if (existing) {
-        const { status, captcha, submit_label, success_message, error_message } = existing;
-        form.value.submission_settings = { status, captcha, submit_label, success_message, error_message };
-      }
-    } catch {
-      submissionSettingsError.value = t("contentTypeEdit.submissionSettingsLoadFailed");
     }
   }
 
@@ -652,8 +540,9 @@ async function handleSave() {
       }
     }
 
+    const { locales, default_locale, ...schema } = form.value;
     const payload = {
-      ...form.value,
+      ...schema,
       fields,
       ...(!isNew.value && migrations.length ? { migrations } : {}),
     };
@@ -667,12 +556,9 @@ async function handleSave() {
       // If the website settings were rejected, continue on the new type to fix them.
       router.push(websiteSaved ? "/content-types" : `/content-types/${name}/edit#website`);
     } else {
-      await api.contentTypes.update(route.params.name, payload);
+      const response = await api.contentTypes.update(route.params.name, payload);
+      form.value.revision = response.data.revision;
       toast.success(t("contentTypeEdit.updated"));
-      originalLocalization.value = {
-        locales: [...form.value.locales],
-        default_locale: form.value.default_locale,
-      };
       await saveWebsiteRoute(route.params.name);
     }
 
@@ -773,15 +659,6 @@ function fixSlugOnBlur() {
   if (!isNew.value || !form.value.name) return;
   const v = toSlug(form.value.name);
   if (v) form.value.name = v;
-}
-
-function modelButtonClass(active) {
-  return [
-    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-    active
-      ? "bg-theme-600 text-white shadow-sm"
-      : "text-slate-600 hover:bg-slate-50",
-  ];
 }
 
 function validateFieldDefault(field) {

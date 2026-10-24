@@ -328,7 +328,10 @@ final class UpdateService
         ]);
 
         $body = @file_get_contents($url, false, $context);
-        $status = $this->responseStatus($http_response_header ?? []);
+        $responseHeaders = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : (${'http_response_header'} ?? []);
+        $status = $body === false ? 0 : $this->responseStatus($responseHeaders);
 
         if ($body === false || $status >= 400) {
             if ($status === 404) {

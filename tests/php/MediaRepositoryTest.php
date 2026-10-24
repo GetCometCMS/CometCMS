@@ -74,7 +74,7 @@ test('media repository generates cached variants without upscaling originals', f
     $path = comet_test_workspace_path() . '/media/landscape.jpg';
     $source = imagecreatetruecolor(1200, 600);
     imagejpeg($source, $path, 90);
-    imagedestroy($source);
+    unset($source);
     $repository = new MediaRepository();
 
     $variant = $repository->variant('landscape.jpg', ['w' => 320, 'format' => 'jpeg']);
@@ -112,7 +112,7 @@ test('media variant cache is disposable and removed with its original', function
     $path = comet_test_workspace_path() . '/media/photo.jpg';
     $source = imagecreatetruecolor(800, 400);
     imagejpeg($source, $path, 90);
-    imagedestroy($source);
+    unset($source);
     $repository = new MediaRepository();
     $variant = $repository->variant('photo.jpg', ['w' => 320, 'format' => 'jpeg']);
     $cacheDirectory = dirname($variant['path']);
@@ -131,10 +131,7 @@ test('media thumbnails are stored as variants', function (): void {
     $path = comet_test_workspace_path() . '/media/thumbnail.jpg';
     $source = imagecreatetruecolor(800, 400);
     imagejpeg($source, $path, 90);
-    imagedestroy($source);
-    $legacyDirectory = comet_test_workspace_path() . '/media-thumbs';
-    mkdir($legacyDirectory, 0775, true);
-    file_put_contents($legacyDirectory . '/old.jpg', 'disposable cache');
+    unset($source);
     $repository = new MediaRepository();
 
     $thumbnail = $repository->thumbnailPath('thumbnail.jpg');

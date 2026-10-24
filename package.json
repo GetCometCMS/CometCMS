@@ -17,6 +17,11 @@
     "web:build": "node scripts/build.mjs admin",
     "web:dev": "npm --workspace web run dev",
     "web:lint": "npm --workspace web run lint",
-    "web:test": "npm --workspace web run test"
+    "web:test": "npm --workspace web run test",
+    "docs:screenshots": "node scripts/capture-docs-screenshots.mjs",
+    "record:builder-guide": "node scripts/record-builder-guide.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }

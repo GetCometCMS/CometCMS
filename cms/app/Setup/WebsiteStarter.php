@@ -21,20 +21,15 @@ final class WebsiteStarter
             'title' => ['type' => 'text', 'label' => 'Title', 'required' => true],
             'slug' => ['type' => 'slug', 'label' => 'Slug', 'required' => true, 'unique' => true],
             'intro' => ['type' => 'textarea', 'label' => 'Introduction'],
-            'body' => ['type' => 'markdown', 'label' => 'Page content'],
+            'body' => ['type' => 'markdown', 'label' => 'Text'],
         ];
-        $types->save([
-            'name' => 'landing-page',
-            'label' => 'Landing Page',
-            'icon' => 'mdi:home-outline',
-            'singleton' => true,
-            'fields' => $fields,
-        ]);
+        // Each page can be designed on its own; until then it shows the layout with its text.
         $types->save([
             'name' => 'pages',
             'label' => 'Pages',
             'icon' => 'mdi:file-document-multiple-outline',
-            'fields' => $fields,
+            'hierarchical' => true,
+            'fields' => $fields + ['page_content' => ['type' => 'page', 'label' => 'Page content']],
         ]);
         if ($includeEvents) {
             $types->save([
@@ -56,10 +51,11 @@ final class WebsiteStarter
         }
 
         $content = ContentRepository::make($this->workspace);
-        $home = $content->save('landing-page', [
-            'title' => 'Welcome to your website',
-            'intro' => 'A fresh start for your next idea.',
-            'body' => "## Make yourself at home\n\nTell your story, share what you do, and give visitors a reason to explore. This is your space to make it happen.",
+        $home = $content->save('pages', [
+            'title' => 'Landing Page',
+            'slug' => 'landing-page',
+            'intro' => 'Welcome to your website.',
+            'body' => "## Make it yours\n\nThis is your start page. Open it in the Page Builder to design it, or edit its content like any other page.",
             'status' => 'published',
         ], $user);
         $about = $content->save('pages', [
@@ -106,11 +102,10 @@ final class WebsiteStarter
 
         $site = new SiteRepository($this->workspace, $types);
         $site->saveSettings([
-            'homepage' => ['type' => 'landing-page', 'entry' => $home['id']],
+            'homepage' => ['type' => 'pages', 'entry' => $home['id']],
             'routes' => [
-                'landing-page' => ['enabled' => true, 'seo_description_field' => 'intro'],
-                'pages' => ['enabled' => true, 'seo_description_field' => 'intro'],
-                ...($includeEvents ? ['events' => ['enabled' => true, 'seo_description_field' => 'intro']] : []),
+                'pages' => ['enabled' => true, 'pattern' => '/{slug}', 'index_enabled' => false, 'index_path' => '', 'seo_description_field' => 'intro'],
+                ...($includeEvents ? ['events' => ['enabled' => true, 'index_enabled' => true, 'seo_description_field' => 'intro']] : []),
             ],
         ]);
         $site->saveMenus([

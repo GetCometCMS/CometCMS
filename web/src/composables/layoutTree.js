@@ -50,6 +50,13 @@ export function isStructure(kind) {
 
 export const COMPONENT = 'component'
 
+/** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
+export const PAGE_CONTENT = 'page_content'
+
+/** The modal template's panel, and where the page a modal link opens appears in it (see LayoutSchema::MODAL). */
+export const MODAL = 'modal'
+export const SITE_CONTENT = 'site_content'
+
 /** The kind a node is placed as: a component instance counts as its root kind. */
 export function placementKind(node) {
   if (node?.kind !== COMPONENT) return node?.kind
@@ -64,6 +71,42 @@ export function isColumnLike(node) {
 /** A new instance of a component ({ id, root }). */
 export function instanceNode(spec, component, props = {}) {
   return createNode(spec, COMPONENT, { ...props, component: component.id, root: component.root })
+}
+
+/**
+ * A copy of a component's tree as an instance shows it: the instance's own
+ * values replace those of the props the component marks editable (see
+ * LayoutSchema::applyOverrides).
+ */
+export function withOverrides(node, overrides) {
+  const copy = clone(node)
+  if (!overrides) return copy
+  walk([copy], (item) => {
+    const values = clone(overrides[item.id] ?? {})
+    if (item.kind === 'accordion' && item.editable?.includes('items') && values.items === undefined) {
+      const legacy = Object.fromEntries(Object.entries(values).filter(([key]) => ['title', 'html'].includes(key)))
+      if (Object.keys(legacy).length) {
+        const merge = (entries) => entries.map((entry, index) => index === 0 ? { ...entry, ...legacy } : entry)
+        const entries = item.props.items ?? []
+        values.items = entries.type === 'localized'
+          ? { ...entries, values: Object.fromEntries(Object.entries(entries.values).map(([locale, list]) => [locale, merge(list)])) }
+          : merge(entries)
+      }
+    }
+    for (const key of item.kind === COMPONENT ? [] : item.editable ?? []) {
+      if (values[key] !== undefined) item.props = { ...item.props, [key]: clone(values[key]) }
+    }
+  })
+  return copy
+}
+
+/** Nodes of a component's tree with props each placement may set, in order. */
+export function editableNodes(nodes) {
+  const list = []
+  walk(nodes, (node) => {
+    if (node.kind !== COMPONENT && node.editable?.length) list.push(node)
+  })
+  return list
 }
 
 /** Whether a tree binds values of the entry the page shows ("current" references). */
@@ -101,7 +144,9 @@ export function canContain(spec, parent, kind, { isTemplateField = () => false, 
 export function rowDepth(nodes, parentId) {
   if (parentId === null) return 0
   const parent = findNode(nodes, parentId)
-  return [...ancestors(nodes, parentId), parent].filter((node) => placementKind(node) === 'row').length
+  const chain = [...ancestors(nodes, parentId), parent]
+  // Page content starts its own sections, so rows around it don't count.
+  return chain.slice(chain.findLastIndex((node) => node?.kind === PAGE_CONTENT) + 1).filter((node) => placementKind(node) === 'row').length
 }
 
 /** The collection whose card contains `id`, if any. */
@@ -189,13 +234,15 @@ export function cloneWithNewIds(node) {
  * Returns null when no wrapping helps (a section cannot go into a column).
  */
 export function wrapFor(spec, parentKind, node) {
+  // Individual tabs only belong to a Tabs element, never to an implicit column.
+  if (node.kind === 'tab' && parentKind !== 'tabs') return null
   let current = node
   for (let i = 0; i < 4; i += 1) {
     const kind = placementKind(current)
     if (allowedChildren(spec, parentKind).includes(kind)) return current
     const wrapper = isStructure(kind) ? WRAPPER[kind] : 'column'
     if (!wrapper) return null
-    if (parentKind !== ROOT && !isStructure(parentKind)) return null
+    if (parentKind !== ROOT && parentKind !== PAGE_CONTENT && !isStructure(parentKind)) return null
     // Never wrap upwards past the parent's own level.
     if (structureLevel(wrapper) <= structureLevel(parentKind)) return null
     current = createNode(spec, wrapper, {}, {}, [current])
@@ -204,7 +251,7 @@ export function wrapFor(spec, parentKind, node) {
 }
 
 function structureLevel(kind) {
-  return { root: 0, section: 1, row: 2, column: 3 }[kind] ?? 4
+  return { root: 0, [PAGE_CONTENT]: 0, section: 1, row: 2, column: 3 }[kind] ?? 4
 }
 
 /**

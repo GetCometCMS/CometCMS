@@ -34,6 +34,7 @@ final class FormSubmission
         private readonly FormRepository $forms,
         private readonly ContentRepository $content,
         private readonly ?RateLimiter $limiter = null,
+        private readonly ?FormCaptcha $captcha = null,
     ) {}
 
     public static function make(SiteRepository $site): self
@@ -62,8 +63,12 @@ final class FormSubmission
 
         $type = $this->site->types()[$form['type']] ?? null;
         $inputs = $this->forms->inputs($form);
-        if ($type === null || empty($type['allow_submissions']) || !empty($type['singleton']) || $inputs === []) {
+        if ($type === null || empty($type['allow_submissions']) || $inputs === []) {
             return ['status' => self::ERROR, 'errors' => ['form' => 'This form is not available.']];
+        }
+
+        if (!($this->captcha ?? new FormCaptcha($this->site))->verify($form, $input, $visitor)) {
+            return ['status' => self::ERROR, 'errors' => ['captcha' => 'Spam verification failed. Please reload the form and try again.']];
         }
 
         $values = is_array($input['fields'] ?? null) ? $input['fields'] : [];
@@ -94,10 +99,8 @@ final class FormSubmission
             $payload['title'] = $form['name'] . ' – ' . gmdate('Y-m-d H:i:s');
         }
         $payload['status'] = $form['status'];
-        $locales = is_array($type['locales'] ?? null) ? $type['locales'] : [];
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $payload['locale'] = $locale;
-        }
+        // A submission is a new record; the form's display language is independent of stored values.
+        $payload['locale'] = $type['default_locale'];
 
         $uploads = new FormUploads($this->site->workspace());
         $saved = false;

@@ -137,13 +137,8 @@ test('deleting a component detaches all placements and removes its history', fun
     $component = $site->saveComponent($component['id'], [comet_component_test_section([['kind' => 'text', 'props' => ['html' => '<p>Keep this content</p>']]])]);
     $site->saveRegion('footer', [comet_component_test_instance('i1', $component['id']) + ['name' => 'Footer promo']]);
     $site->saveLayout('blog', 'index', [comet_component_test_instance('i2', $component['id'])]);
-    // A card layout from before cards lived in collections still renders as the standard card.
-    $store = new JsonStore(comet_test_workspace_path() . '/site/theme');
-    $store->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => [comet_component_test_instance('i3', $component['id'])]], 'layouts', 'blog', 'card');
-
     assert_same([
-        ['target' => 'layout', 'type' => 'blog', 'variant' => 'index'],
-        ['target' => 'layout', 'type' => 'blog', 'variant' => 'card'],
+        ['target' => 'layout', 'type' => 'blog', 'variant' => 'index', 'template' => 'default'],
         ['target' => 'region', 'region' => 'footer'],
     ], $site->componentUsages($component['id']));
     $cache = ApiCache::fromConfig();
@@ -155,7 +150,7 @@ test('deleting a component detaches all placements and removes its history', fun
     assert_same([], (new JsonStore(comet_test_workspace_path() . '/revisions/site'))->all('components', $component['id']));
     assert_null($cache->get($key));
 
-    $copies = [$site->region('footer')[0], $site->layout('blog', 'index')[0], $store->read('layouts', 'blog', 'card')['nodes'][0]];
+    $copies = [$site->region('footer')[0], $site->layout('blog', 'index')[0]];
     assert_same('Footer promo', $copies[0]['name']);
     $childIds = [];
     foreach ($copies as $copy) {
@@ -193,12 +188,12 @@ test('deleting a nested column component preserves widths and detaches saved his
     assert_same([$outer['id']], LayoutSchema::componentRefs($site->layout('blog', 'detail')), 'Other component links stay intact.');
 
     $revisions = new JsonStore(comet_test_workspace_path() . '/revisions/site');
-    foreach ([['layouts', 'about', 'detail'], ['regions', 'header'], ['components', $outer['id']]] as $path) {
+    foreach ([['content', 'about', 'detail', 'default'], ['regions', 'header'], ['components', $outer['id']]] as $path) {
         foreach ($revisions->all(...$path) as $revision) {
             assert_same([], LayoutSchema::componentRefs($revision['snapshot']['nodes']));
         }
     }
-    $savedLayout = array_values(array_filter($revisions->all('layouts', 'about', 'detail'), static fn(array $revision): bool => $revision['snapshot']['nodes'] !== [] && $revision['snapshot']['customized']))[0];
+    $savedLayout = array_values(array_filter($revisions->all('content', 'about', 'detail', 'default'), static fn(array $revision): bool => $revision['snapshot']['nodes'] !== [] && $revision['snapshot']['customized']))[0];
     $restored = $site->restoreLayoutRevision('about', 'detail', $savedLayout['id']);
     assert_same('Kept heading', $restored['nodes'][0]['children'][0]['children'][0]['children'][0]['props']['text']);
     assert_false(str_contains(comet_site_test_get('/blog/hello')['body'], 'Missing component'));
@@ -282,4 +277,38 @@ test('component previews and overrides reach nested instances, and saving clears
     $cache->put($key, ['status' => 200, 'body' => 'cached', 'content_type' => 'text/html']);
     (new SiteRepository())->saveComponent($inner['id'], $edited['nodes']);
     assert_null($cache->get($key));
+});
+
+test('instances set only the props their component marks editable', function (): void {
+    $site = comet_site_test_setup();
+    $component = $site->createComponent('Promo', [comet_component_test_section([
+        ['id' => 'title', 'kind' => 'heading', 'props' => ['text' => 'Shared title'], 'editable' => ['text', 'nope']],
+        ['id' => 'note', 'kind' => 'heading', 'props' => ['text' => 'Fixed note']],
+    ])]);
+    assert_same(['text'], $component['nodes'][0]['children'][0]['children'][0]['children'][0]['editable']);
+
+    $site->saveLayout('blog', 'detail', [
+        comet_component_test_instance('own', $component['id']) + ['overrides' => [
+            'title' => ['text' => 'Own title'],
+            'note' => ['text' => 'Not allowed'],
+            '../bad' => ['text' => 'Dropped'],
+        ]],
+        comet_component_test_instance('plain', $component['id']),
+    ]);
+    $saved = $site->layout('blog', 'detail');
+    assert_same(['title', 'note'], array_keys($saved[0]['overrides']));
+    assert_false(isset($saved[1]['overrides']));
+
+    $html = comet_site_test_get('/blog/hello')['body'];
+    assert_true(str_contains($html, 'Own title'));
+    assert_true(str_contains($html, 'Shared title'));
+    assert_same(2, substr_count($html, 'Fixed note'));
+    assert_false(str_contains($html, 'Not allowed'));
+});
+
+test('instance values are checked against the prop they replace', function (): void {
+    $tree = [['id' => 'h', 'kind' => 'heading', 'props' => LayoutSchema::node('heading', ['level' => 'h2'])['props'], 'editable' => ['level'], 'children' => []]];
+
+    assert_same('h4', LayoutSchema::applyOverrides($tree, ['h' => ['level' => 'h4']])[0]['props']['level']);
+    assert_same(LayoutSchema::node('heading')['props']['level'], LayoutSchema::applyOverrides($tree, ['h' => ['level' => '<script>']])[0]['props']['level']);
 });

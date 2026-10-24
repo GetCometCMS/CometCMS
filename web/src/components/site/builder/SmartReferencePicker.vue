@@ -9,12 +9,11 @@
       <select ref="sourceSelect" :aria-label="t('site.binding.source')" v-model="source" class="form-select mt-1 w-full rounded-lg border-slate-300 text-xs" @change="resetSource">
         <option v-if="context.currentAvailable" value="current">{{ context.collection ? t('site.binding.cardEntry') : t('site.binding.current') }}</option>
         <option v-if="owner" value="item">{{ t('site.binding.item') }}</option>
-        <option value="single">{{ t('site.binding.single') }}</option>
         <option value="entry">{{ t('site.binding.entry') }}</option>
         <option value="site">{{ t('site.binding.site') }}</option>
       </select>
     </label>
-    <label v-if="source === 'single' || source === 'entry'" class="block text-xs text-slate-600">
+    <label v-if="source === 'entry'" class="block text-xs text-slate-600">
       {{ t('site.binding.contentType') }}
       <select :aria-label="t('site.binding.contentType')" v-model="collection" class="form-select mt-1 w-full rounded-lg border-slate-300 text-xs" @change="entry = ''; path = []">
         <option value="">{{ t('site.builder.chooseType') }}</option>
@@ -57,6 +56,7 @@ import { computed, onMounted, ref, useId, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import ContentLinkPicker from '../ContentLinkPicker.vue'
 import { useSiteBuilder } from '../../../composables/useSiteBuilder.js'
+import { resolveLocalized } from '../../../composables/localizedValues.js'
 import { useI18n } from '../../../i18n/index.js'
 import { compatibleField, DATE_FORMATS, smartSummary } from '../../../composables/smartValues.js'
 const props = defineProps({ node: { type: Object, required: true }, target: { type: String, default: 'text' }, initial: { type: Object, default: null } })
@@ -65,7 +65,7 @@ const builder = useSiteBuilder()
 const { t } = useI18n()
 const owner = computed(() => builder.isTemplateField(props.node) ? null : builder.templateOwner(props.node.id))
 const context = computed(() => builder.entryContext(props.node.id))
-const source = ref(props.initial?.source ?? (owner.value ? 'item' : context.value.currentAvailable ? 'current' : 'single'))
+const source = ref(props.initial?.source ?? (owner.value ? 'item' : context.value.currentAvailable ? 'current' : 'entry'))
 const collection = ref(props.initial?.collection ?? '')
 const entry = ref(props.initial?.entry ?? '')
 const missingUid = ref(false)
@@ -79,7 +79,7 @@ const search = ref('')
 const sourceSelect = ref(null)
 onMounted(() => sourceSelect.value?.focus())
 const searchId = `reference-search-${useId()}`
-const availableTypes = computed(() => builder.types.value.filter((type) => type.visibility !== 'private' && (source.value !== 'single' || type.singleton)))
+const availableTypes = computed(() => builder.types.value.filter((type) => type.visibility !== 'private'))
 watch([source, collection, entry], () => { chosen.value = null; });
 const typeByName = (name) => builder.types.value.find((type) => type.name === name && type.visibility !== 'private')
 const canFollow = (config) => config.type === 'relation' && !config.multiple && path.value.length < 5 && !!typeByName(config.target)
@@ -92,14 +92,14 @@ const shownFields = computed(() => {
     schema = typeByName(config?.target)
     fields = null
   }
-  if (!fields) fields = schema ? Object.entries({ ...schema.fields, title: { type: 'text', label: t('site.systemField.title') }, url: { type: 'url', label: t('site.binding.url') }, published_at: { type: 'datetime' }, created_at: { type: 'datetime' }, updated_at: { type: 'datetime' } }).map(([key, config]) => ({ key, label: config.label || key, config })) : []
+  if (!fields) fields = schema ? Object.entries({ ...schema.fields, title: { type: 'text', label: t('site.systemField.title') }, url: { type: 'url', label: t('site.binding.url') }, published_at: { type: 'datetime' }, created_at: { type: 'datetime' }, updated_at: { type: 'datetime' } }).map(([key, config]) => ({ key, label: resolveLocalized(config.label, builder.locale.value, builder.settings.value?.default_locale || 'en') || key, config })) : []
   const needle = search.value.toLowerCase()
   return fields.filter((field) => (compatibleField(field.config, props.target) || canFollow(field.config)) && `${field.label} ${field.key}`.toLowerCase().includes(needle))
 })
 function chooseEntry(value) { missingUid.value = !value.uid; entry.value = value.uid || '' }
 function resetSource() { missingUid.value = false; path.value = []; collection.value = ''; entry.value = ''; chosen.value = null; search.value = '' }
 function choose(field) {
-  chosen.value = { type: 'reference', source: source.value, path: [...path.value, field.key], filters: [], ...(['single', 'entry'].includes(source.value) ? { collection: collection.value } : {}), ...(source.value === 'entry' ? { entry: entry.value } : {}) }
+  chosen.value = { type: 'reference', source: source.value, path: [...path.value, field.key], filters: [], ...(source.value === 'entry' ? { collection: collection.value, entry: entry.value } : {}) }
 }
 function apply() {
   const filters = []

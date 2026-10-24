@@ -116,16 +116,7 @@ describe("api endpoint helpers", () => {
     );
   });
 
-  it("builds singleton and media detail endpoints", () => {
-    expect(
-      contentEntryEndpoint(
-        { collection: "homepage", entryId: "homepage", locale: "en", singleton: true },
-        origin,
-      ),
-    ).toBe(
-      "https://example.test/api/v1/workspaces/default/content/homepage?locale=en",
-    );
-
+  it("builds media detail endpoints", () => {
     expect(mediaDetailEndpoint("hero image.png", origin)).toBe(
       "https://example.test/api/v1/workspaces/default/media?q=hero%20image.png",
     );

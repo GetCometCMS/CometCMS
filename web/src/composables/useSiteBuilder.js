@@ -1,12 +1,18 @@
+import { resolveLocalized, setLocalized, removeLocalized, localizedState, resolveLocalizedTree } from './localizedValues.js'
 import { hasInvalidValues, isSmartValue, reference, referenceConfig, smartSummary } from './smartValues.js'
 import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
+import { useBuilderClipboard } from './builderClipboard.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
   COMPONENT,
+  MODAL,
+  PAGE_CONTENT,
+  SITE_CONTENT,
   ancestors,
   applyColumnPreset,
   clone,
   cloneWithNewIds,
+  editableNodes,
   columnLayoutOf,
   contains,
   createNode,
@@ -25,10 +31,32 @@ import {
   stackColumns,
   templateCollection,
   usesCurrentEntry,
+  walk,
+  withOverrides,
 } from './layoutTree.js'
 
 const KEY = Symbol('site-builder')
 const HISTORY_LIMIT = 100
+
+const HOVER_ANIMATION_KEYS = ['animation', 'animation_duration', 'animation_delay']
+
+/** Upgrade legacy hover triggers on entry to the editor, including restored revisions. */
+function migrateHoverAnimations(tree) {
+  const result = clone(tree ?? [])
+  walk(result, (node) => {
+    if (node.style?.animation_trigger !== 'hover') return
+    if (node.states?.hover?.style?.animation === undefined) {
+      node.states ??= {}
+      node.states.hover ??= {}
+      node.states.hover.style ??= {}
+      for (const key of HOVER_ANIMATION_KEYS) {
+        if (node.style[key] !== undefined) node.states.hover.style[key] ??= node.style[key]
+      }
+    }
+    for (const key of [...HOVER_ANIMATION_KEYS, 'animation_trigger']) delete node.style[key]
+  })
+  return result
+}
 
 /** The content of each element that can become a field of its own: the prop and the type of field it becomes. */
 const CONTENT_PROPS = {
@@ -58,41 +86,53 @@ const MAX_FALLBACK = 2000
  *
  * `fieldApi` connects content types: can(type) tells whether the user may
  * change a content type, create({ type, key, config }) adds a field to it
- * and returns the type's saved schema.
+ * and update({ type, key, config }) changes one; both return the type's saved schema.
  *
  * `linked` ({ get(), set(value) }) is state outside the tree that shares its
  * undo history, such as the site design; report its edits with linkedChanged().
  */
-export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null }) {
+export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null, clipboardStorage }) {
   const nodes = ref([])
   const spec = ref(null)
   const type = ref(null)
   const types = ref([])
   const menus = ref([])
-  /** Website forms ({ id, name, type, fields }) a form element can show. */
+  /** Submission-enabled content types ({ id, name, type, fields }) available to form elements. */
   const forms = ref([])
   const settings = ref(null)
   /** Types with editable website pages; all types remain available for data bindings. */
   const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
     && (settings.value?.routes?.[item.name]?.enabled || settings.value?.homepage?.type === item.name)))
   const currentAvailable = ref(true)
-  /** Reusable components ({ id, name, root, type }) listed in the components panel. */
+  /** Reusable components ({ id, name, root, type }) available in the Add panel. */
   const components = ref([])
-  /** Editing a component: its id and root kind; its tree holds just that one root node. */
+  /** Editing a component (its id and root kind) or the modal template: the tree holds just that one root node. */
   const componentId = ref(null)
   const rootKind = ref(null)
   /** Node waiting for a name before it becomes a component: { id }. */
   const componentDialog = ref(null)
   /** Element waiting for a name before its content becomes a field: { id }. */
   const fieldDialog = ref(null)
+  /** Why a new page content element could not get a field of its own. */
+  const pageFieldError = ref('')
   const locale = ref('')
+  const defaultLocale = computed(() => settings.value?.default_locale || 'en')
+  // The default language edits the shared design; every other language only translates its texts.
+  const translating = computed(() => !!locale.value && locale.value !== defaultLocale.value)
   const hasSyntaxErrors = computed(() => hasInvalidValues(nodes.value))
   const selectedId = ref(null)
   const hoverId = ref(null)
+  /** One-shot CSS canvas picker: { rootId, className, onPick }. */
+  const cssPicker = shallowRef(null)
+  /** Previewed device; on tablet and mobile, edits of options that allow it only apply there (node.responsive). */
+  const device = ref('desktop')
+  /** Edited state: normal, or hover/focus values of the options that allow them (node.states). */
+  const styleState = ref('normal')
   const drag = shallowRef(null)
-  /** Copied node and copied style, for paste. */
-  const clipboard = shallowRef(null)
-  const styleClipboard = shallowRef(null)
+  /** Copied node and copied style, for paste; shared by the workspace's builders (see useBuilderClipboard()). */
+  const sharedClipboard = useBuilderClipboard({ storage: clipboardStorage })
+  const clipboard = sharedClipboard.node
+  const styleClipboard = sharedClipboard.style
   /** Open context menu: { id, x, y } in viewport coordinates. */
   const contextMenu = ref(null)
   const savedSnapshot = ref('[]')
@@ -109,7 +149,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const canRedo = computed(() => future.value.length > 0)
 
   function load(tree) {
-    nodes.value = clone(tree ?? [])
+    nodes.value = migrateHoverAnimations(tree)
     savedSnapshot.value = JSON.stringify(nodes.value)
     past.value = []
     future.value = []
@@ -118,12 +158,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function loadRevision(tree) {
-    mutate(() => { nodes.value = clone(tree ?? []) })
+    mutate(() => { nodes.value = migrateHoverAnimations(tree) })
     keepSelection()
   }
 
   function markSaved(tree) {
-    nodes.value = clone(tree)
+    nodes.value = migrateHoverAnimations(tree)
     savedSnapshot.value = JSON.stringify(nodes.value)
     if (selectedId.value && !findNode(nodes.value, selectedId.value)) selectedId.value = null
   }
@@ -240,20 +280,24 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const slugField = schema?.slug_field ?? 'slug'
     const list = [
       { key: 'title', label: t('site.systemField.title'), type: 'text', config: { type: 'text' }, system: true },
+      { key: 'published_at', label: t('site.systemField.published_at'), type: 'datetime', config: { type: 'datetime' }, system: true },
+      { key: 'updated_at', label: t('site.systemField.updated_at'), type: 'datetime', config: { type: 'datetime' }, system: true },
     ]
 
-    if (!schema?.singleton) {
-      list.push({ key: 'published_at', label: t('site.systemField.published_at'), type: 'datetime', config: { type: 'datetime' }, system: true })
-    }
-
-    list.push({ key: 'updated_at', label: t('site.systemField.updated_at'), type: 'datetime', config: { type: 'datetime' }, system: true })
-
     for (const [key, config] of Object.entries(fields)) {
-      if (key === 'title' || key === 'slug' || key === slugField || !config) continue
-      list.push({ key, label: config.label || key, type: config.type ?? 'text', config })
+      // Page content is placed with its own element, not bound like a field.
+      if (key === 'title' || key === 'slug' || key === slugField || !config || config.type === 'page') continue
+      list.push({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key, type: config.type ?? 'text', config })
     }
 
     return list
+  }
+
+  /** Page fields of the edited type: where each entry's own page content is stored. */
+  function pageFields() {
+    return Object.entries(type.value?.fields ?? {})
+      .filter(([, config]) => config?.type === 'page')
+      .map(([key, config]) => ({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key }))
   }
 
   /** The repeater field node whose item template contains `id`, if any. */
@@ -269,7 +313,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function subfieldsOf(repeaterNode) {
     return (fieldConfig(repeaterNode)?.subfields ?? [])
       .filter((subfield) => subfield?.key)
-      .map((subfield) => ({ key: subfield.key, label: subfield.label || subfield.key, type: subfield.type ?? 'text', config: subfield }))
+      .map((subfield) => ({ key: subfield.key, label: resolveLocalized(subfield.label, locale.value || defaultLocale.value, defaultLocale.value) || subfield.key, type: subfield.type ?? 'text', config: subfield }))
   }
 
   /** Config of the field a field node is bound to (resolving item templates). */
@@ -289,19 +333,126 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   const dropOptions = { isTemplateField }
 
-  /** Whether drops can go inside a node: structure, item templates and lists without a card yet. */
+  /** Drop containers: structure, tabs, item templates, page content, the modal panel and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length))
   }
 
-  /** The single root of a component's tree stays where it is. */
+  /** The single root of a component's or the modal template's tree stays where it is. */
   function isLockedRoot(id) {
     return !!rootKind.value && nodes.value[0]?.id === id
   }
 
-  /** Whether a resolved drop may happen: nothing joins a component's root. */
+  /**
+   * Whether a resolved drop may happen: nothing joins a locked root. Page
+   * content and the modal's site content go neither into page content,
+   * cards or item templates nor twice into one tree (page content: per field).
+   */
   function placeable(result) {
-    return !!result && !(rootKind.value && result.parentId === null)
+    if (!result || (rootKind.value && result.parentId === null)) return false
+    const places = []
+    const slots = []
+    walk([result.node], (node) => {
+      if (node.kind === PAGE_CONTENT) places.push(node)
+      if (node.kind === SITE_CONTENT) slots.push(node)
+    })
+    if (!places.length && !slots.length) return true
+    const parent = result.parentId ? findNode(nodes.value, result.parentId) : null
+    const around = parent ? [...ancestors(nodes.value, parent.id), parent] : []
+    if (around.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
+    if (slots.length > 1 || (slots.length && findKind(SITE_CONTENT, slots[0].id))) return false
+    return places.every((place) => !place.props?.field || !findPlace(place.props.field, place.id))
+  }
+
+  /** A node of `kind` other than the one with id `except`. */
+  function findKind(kind, except) {
+    let found = null
+    walk(nodes.value, (node) => {
+      if (node.kind === kind && node.id !== except) found = node
+      return !found
+    })
+    return found
+  }
+
+  /** The page content element showing `field`, other than the one with id `except`. */
+  function findPlace(field, except = null) {
+    let found = null
+    walk(nodes.value, (node) => {
+      if (node.kind === PAGE_CONTENT && node.props?.field === field && node.id !== except) found = node
+      return !found
+    })
+    return found
+  }
+
+  /**
+   * A new page content element shows the first page field without a place.
+   * When every page field has one, the type gets another, if the user may change it.
+   */
+  async function assignPageField(id) {
+    const node = findNode(nodes.value, id)
+    if (node?.kind !== PAGE_CONTENT || node.props.field) return
+    const free = freePageFields(id)[0]
+    if (free) {
+      node.props.field = free.key
+      return
+    }
+    const key = await createPageField()
+    const placed = key && findNode(nodes.value, id)
+    if (placed) placed.props.field = key
+  }
+
+  /** Page fields that a page content element shows, in canvas order: the areas an entry can design. */
+  function placedPageFields() {
+    const fields = pageFields()
+    const placed = []
+    walk(nodes.value, (node) => {
+      const field = node.kind === PAGE_CONTENT && fields.find((item) => item.key === node.props?.field)
+      if (field && !placed.includes(field)) placed.push(field)
+      return true
+    })
+    return placed
+  }
+
+  /** Page fields page content element `id` may show: those no other element shows. */
+  function freePageFields(id) {
+    return pageFields().filter((field) => !findPlace(field.key, id))
+  }
+
+  function canAddPageField() {
+    return !!type.value && !!fieldApi.create && (fieldApi.can?.(type.value.name) ?? true)
+  }
+
+  /** Give page content element `id` a field of its own: an unplaced one, or a new one. */
+  async function setUpPageArea(id) {
+    const key = freePageFields(id)[0]?.key ?? await createPageField()
+    if (key && findNode(nodes.value, id)) updateValue(id, 'props', 'field', key)
+  }
+
+  /** Rename page field `key` in the edited language (an area's name for entries). */
+  async function renamePageField(key, label) {
+    const config = type.value?.fields?.[key]
+    const name = label.trim()
+    if (config?.type !== 'page' || !name || !fieldApi.update || !canAddPageField()) return
+    const current = config.label
+    const localized = (typeof current === 'object' && current !== null) || (!!locale.value && locale.value !== defaultLocale.value)
+    const next = { ...config, label: localized ? setLocalized(current, locale.value, name, defaultLocale.value) : name }
+    const schema = await fieldApi.update({ type: type.value.name, key, config: next })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...type.value.fields, [key]: next } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+  }
+
+  /** A new page field of the edited type; its key, or '' when the user may not add one. */
+  async function createPageField() {
+    if (!canAddPageField()) return ''
+    const existing = pageFields()
+    const fields = type.value.fields ?? {}
+    const key = uniqueKey('page_content', new Set(Object.keys(fields)), RESERVED_FIELDS)
+    // Further areas are numbered, so entries can tell them apart.
+    const label = existing.length ? `${t('site.page.fieldLabel')} ${existing.length + 1}` : t('site.page.fieldLabel')
+    const schema = await fieldApi.create({ type: type.value.name, key, config: { type: 'page', label } })
+    type.value = { ...type.value, fields: schema?.fields ?? { ...fields, [key]: { type: 'page', label } } }
+    types.value = types.value.map((item) => (item.name === type.value.name ? { ...item, fields: type.value.fields } : item))
+    return key
   }
 
   // ─── Editing ───────────────────────────────────────────────────────────
@@ -315,7 +466,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     mutate((tree) => {
       const node = findNode(tree, id)
       if (!node) return
-      node[group] = { ...(node[group] ?? {}), [key]: value }
+      const def = group === 'style' ? spec.value?.style?.[key] : spec.value?.kinds?.[node.kind]?.props?.[key]
+      if (translating.value && !def?.localized) return
+      const next = def?.localized ? setLocalized(node[group]?.[key], locale.value || defaultLocale.value, value, defaultLocale.value) : value
+      node[group] = { ...(node[group] ?? {}), [key]: next }
+      if (group === 'style') splitPairedPadding(node, key)
       // Like the server, style keeps only values that differ from their default.
       if (group === 'style' && isDefaultStyle(key, value)) {
         delete node.style[key]
@@ -323,8 +478,132 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     }, { coalesce: `${id}:${group}:${key}` })
   }
 
+  /** Split legacy paired padding on the first edge edit, keeping its opposite. */
+  function splitPairedPadding(node, key) {
+    if (!/^padding_(top|right|bottom|left)$/.test(key)) return
+    const vertical = ['padding_top', 'padding_bottom'].includes(key)
+    const pair = vertical ? 'padding_y' : 'padding_x'
+    if (!node.style[pair]) return
+    for (const side of vertical ? ['top', 'bottom'] : ['left', 'right']) {
+      const edge = `padding_${side}`
+      if (edge !== key && !node.style[edge]) node.style[edge] = node.style[pair]
+    }
+    delete node.style[pair]
+  }
+
+  // ─── Device and state overrides ──────────────────────────────────────
+
+  /** Where an edit of the key goes in the current view: { group: 'responsive'|'states', variant } or null for the normal value. */
+  function overrideTarget(node, group, key) {
+    const kind = spec.value?.kinds?.[node?.kind]
+    if (!kind) return null
+    if (styleState.value !== 'normal') {
+      return (kind.states?.[group]?.includes(key) || kind.states?.variants?.[styleState.value]?.[group]?.includes(key))
+        ? { group: 'states', variant: styleState.value } : null
+    }
+    if (device.value !== 'desktop' && kind.responsive?.[group]?.includes(key)) return { group: 'responsive', variant: device.value }
+    return null
+  }
+
+  /** Whether the key has a value of its own in the current state (hover/focus edits only show those keys). */
+  function editableInState(node, group, key) {
+    return styleState.value === 'normal' || !!overrideTarget(node, group, key)
+  }
+
+  /** The value the current device or state shows: mobile follows tablet, which follows the normal value. */
+  function viewValue(node, group, key) {
+    const target = overrideTarget(node, group, key)
+    if (target?.group === 'states') return node.states?.[target.variant]?.[group]?.[key] ?? ''
+    if (target?.group === 'responsive') {
+      const devices = target.variant === 'mobile' ? ['mobile', 'tablet'] : ['tablet']
+      for (const name of devices) {
+        const value = node.responsive?.[name]?.[group]?.[key]
+        if (value !== undefined) return value
+      }
+    }
+    return node[group]?.[key]
+  }
+
+  /** Devices and states where the key differs from its normal value, e.g. { devices: ['mobile'], states: [] }. */
+  function overridesOf(node, group, key) {
+    const has = (map, variant) => map?.[variant]?.[group]?.[key] !== undefined
+    return {
+      devices: ['tablet', 'mobile'].filter((name) => has(node?.responsive, name)),
+      states: ['hover', 'focus'].filter((name) => has(node?.states, name)),
+    }
+  }
+
+  /** Edit as the inspector does: on tablet/mobile or in a state, overridable keys change only there. */
+  function editValue(id, group, key, value) {
+    const node = findNode(nodes.value, id)
+    const target = node ? overrideTarget(node, group, key) : null
+    if (node && !editableInState(node, group, key)) return
+    if (!target) return updateValue(id, group, key, value)
+    if (translating.value) return
+    mutate((tree) => {
+      const current = findNode(tree, id)
+      if (current) setOverride(current, target.group, target.variant, group, key, value)
+    }, { coalesce: `${id}:${target.group}:${target.variant}:${group}:${key}` })
+  }
+
+  /** Several edits as one step, e.g. both offsets of a moved element; each goes where editValue() would put it. */
+  function editValues(id, group, values) {
+    if (translating.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node) return
+      for (const [key, value] of Object.entries(values)) {
+        if (!editableInState(node, group, key)) continue
+        const target = overrideTarget(node, group, key)
+        if (target) {
+          setOverride(node, target.group, target.variant, group, key, value)
+          continue
+        }
+        node[group] = { ...(node[group] ?? {}), [key]: value }
+        if (group === 'style') splitPairedPadding(node, key)
+        if (group === 'style' && isDefaultStyle(key, value)) delete node.style[key]
+      }
+    })
+  }
+
+  function resetOverride(id, overrideGroup, variant, group, key) {
+    if (translating.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (node) setOverride(node, overrideGroup, variant, group, key, '')
+    })
+  }
+
+  /** An empty value removes the override, like the server keeps only set values. */
+  function setOverride(node, overrideGroup, variant, group, key, value) {
+    const overrides = clone(node[overrideGroup] ?? {})
+    const values = { ...(overrides[variant]?.[group] ?? {}) }
+    if (value === '' || value === null || value === undefined) delete values[key]
+    else values[key] = value
+    if (overrideGroup === 'states' && variant === 'hover' && group === 'style' && key === 'animation' && (!value || value === 'none')) {
+      for (const animationKey of HOVER_ANIMATION_KEYS) delete values[animationKey]
+    }
+    overrides[variant] = { ...(overrides[variant] ?? {}), [group]: values }
+    if (!Object.keys(values).length) delete overrides[variant][group]
+    if (!Object.keys(overrides[variant]).length) delete overrides[variant]
+    if (Object.keys(overrides).length) node[overrideGroup] = overrides
+    else delete node[overrideGroup]
+  }
+
   /** Editor-only name; clearing it restores the automatic label. */
+  function resetTranslation(id, group, key) {
+    if (locale.value === defaultLocale.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (node) node[group][key] = removeLocalized(node[group][key], locale.value)
+    })
+  }
+
+  function valueFor(node, group, key) { return resolveLocalized(node[group]?.[key], locale.value || defaultLocale.value, defaultLocale.value) }
+  function translationState(node, group, key) { return localizedState(node[group]?.[key], locale.value || defaultLocale.value, defaultLocale.value) }
+
   function renameNode(id, value) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (!node || typeof value !== 'string') return
     const name = Array.from(value.replace(/[\r\n]/g, ' ')).slice(0, spec.value?.max_node_name_length ?? 120).join('').trim()
@@ -337,17 +616,31 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Insert a new node near `targetId` (default: the selection), or at the end. */
   function insert(node, targetId = selectedId.value) {
-    const current = targetId ? findNode(nodes.value, targetId) : null
+    if (translating.value) return false
+    // Without a selection, a locked root takes the node in.
+    let current = targetId ? findNode(nodes.value, targetId) : rootKind.value ? nodes.value[0] ?? null : null
+    if (current?.kind === 'tabs' && node.kind !== 'tab' && current.children.length) {
+      current = current.children[Math.min(current.children.length, Math.max(1, current.props.initial_tab || 1)) - 1]
+    }
     const inside = isDropContainer(current)
     const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
     if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
     selectedId.value = node.id
+    placed(node)
     return true
+  }
+
+  /** Give newly placed page content elements their fields (see assignPageField()). */
+  function placed(node) {
+    walk([node], (item) => {
+      if (item.kind === PAGE_CONTENT) assignPageField(item.id).catch((error) => pageFieldError.value = error.message)
+    })
   }
 
   /** Complete a drag: insert a palette node or move an existing one. */
   function dropAt(targetId, position) {
+    if (translating.value) return false
     const current = drag.value
     drag.value = null
     if (!current) return false
@@ -358,6 +651,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       if (!placeable(result)) return false
       mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
       selectedId.value = node.id
+      placed(node)
       return true
     }
 
@@ -385,6 +679,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function remove(id = selectedId.value) {
+    if (translating.value) return false
     if (!id || isLockedRoot(id)) return
     const where = locate(nodes.value, id)
     mutate((tree) => removeNode(tree, id))
@@ -395,7 +690,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function duplicate(id = selectedId.value) {
-    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id))) return
+    if (translating.value) return false
+    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id)) || holdsPageContent(findNode(nodes.value, id))) return
     let copy = null
     mutate((tree) => {
       copy = duplicateNode(tree, id)
@@ -404,6 +700,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function shift(id, delta) {
+    if (translating.value) return false
     mutate((tree) => shiftNode(tree, id, delta))
   }
 
@@ -426,6 +723,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Rearrange the columns around `id` into `spans`, or stack them with 'stacked'. */
   function setColumns(id, layout) {
+    if (translating.value) return false
     mutate((tree) => {
       const node = findNode(tree, id)
       if (!node) return
@@ -450,6 +748,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Insert an empty one-column section after the section that contains `id`. */
   function addSectionAfter(id) {
+    if (translating.value) return false
     if (rootKind.value) return
     const section = id ? [...ancestors(nodes.value, id), findNode(nodes.value, id)].find((node) => node?.kind === 'section') : null
     const node = sectionPreset(spec.value, [12])
@@ -460,22 +759,26 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   function copy(id = selectedId.value) {
     const node = id ? findNode(nodes.value, id) : null
-    if (node) clipboard.value = clone(node)
+    if (node) sharedClipboard.copy(clone(node))
   }
 
   /** Paste the copied node after `id` (or inside it when it is a container). */
   function paste(id = selectedId.value) {
+    sharedClipboard.refresh()
     if (!clipboard.value) return false
-    return insert(cloneWithNewIds(clipboard.value), id)
-  }
-
-  function copyStyle(id = selectedId.value) {
-    const node = id ? findNode(nodes.value, id) : null
-    if (node) styleClipboard.value = clone(node.style ?? {})
+    const node = cloneWithNewIds(clipboard.value)
+    // A copy from another page type shows none of this type's page fields; it gets one of its own once placed.
+    const fields = new Set(pageFields().map((field) => field.key))
+    walk([node], (item) => {
+      if (item.kind === PAGE_CONTENT && !fields.has(item.props?.field)) item.props = { ...item.props, field: '' }
+    })
+    return insert(node, id)
   }
 
   /** Apply the copied style, keeping only what the target kind supports. */
   function pasteStyle(id = selectedId.value) {
+    if (translating.value) return false
+    sharedClipboard.refresh()
     if (!styleClipboard.value || !id) return
     mutate((tree) => {
       const node = findNode(tree, id)
@@ -486,6 +789,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function openContextMenu(id, x, y) {
+    sharedClipboard.refresh()
     if (id) selectedId.value = id
     contextMenu.value = { id: id ?? selectedId.value, x, y }
   }
@@ -495,6 +799,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function make(kind, props = {}, style = {}, children = []) {
+    if (kind === 'divider') {
+      style = { padding_top: 'md', padding_bottom: 'md', text_color: 'muted', ...style }
+    }
+    if (kind === 'tabs' && children.length === 0) {
+      children = [1, 2].map((index) => make('tab', { title: t('site.tabs.tabTitle', { number: index }) }))
+    }
     return createNode(spec.value, kind, props, style, children)
   }
 
@@ -511,6 +821,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   async function renameComponent(id, name) {
+    if (translating.value) return false
     const updated = await componentApi.rename(id, name)
     components.value = components.value.map((item) => (item.id === id ? { ...item, name: updated.name } : item))
     return updated
@@ -518,14 +829,16 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Detach deleted instances in the draft, clipboard and every undo/redo state. */
   async function deleteComponent(id) {
+    if (translating.value) return false
     const component = await componentApi.remove(id)
     // Reuse ids across snapshots so deleting alone does not make a saved layout dirty.
     const copies = new Map()
     function detachInstances(tree) {
       return tree.map((node) => {
         if (node.kind === COMPONENT && node.props?.component === id) {
-          if (!copies.has(node.id)) copies.set(node.id, cloneWithNewIds(component.nodes[0]))
-          const copy = clone(copies.get(node.id))
+          const key = `${node.id}:${JSON.stringify(node.overrides ?? {})}`
+          if (!copies.has(key)) copies.set(key, cloneWithNewIds(withOverrides(component.nodes[0], node.overrides)))
+          const copy = clone(copies.get(key))
           copy.id = node.id
           if (node.name) copy.name = node.name
           if (copy.kind === 'column') copy.props.span = clone(node.props.span ?? copy.props.span)
@@ -546,13 +859,21 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return component
   }
 
-  /** Whether a structure node can become a component (not a component's own root). */
+  /** Content slots stay in their own document rather than becoming reusable components. */
   function canConvert(node) {
-    return !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !!componentApi.create
+    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !holdsPageContent(node) && !!componentApi.create
+  }
+
+  /** Whether `node` is or contains a page content place or the modal's site content slot. */
+  function holdsPageContent(node) {
+    let found = false
+    if (node) walk([node], (item) => !(found = [PAGE_CONTENT, SITE_CONTENT].includes(item.kind)))
+    return found
   }
 
   /** Swap the node `id` for an instance of `component`, as one undo step. */
   function replaceWithInstance(id, component) {
+    if (translating.value) return false
     let instance = null
     mutate((tree) => {
       const where = locate(tree, id)
@@ -589,13 +910,14 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   /** The literal content of an element, which can become a field. */
   function literalContent(node) {
     const content = CONTENT_PROPS[node?.kind]
-    if (!content || isSmartValue(node.props?.[content.key]) || typeof (node.props?.[content.key] ?? '') !== 'string') return null
-    return { ...content, value: node.props?.[content.key] ?? '' }
+    const value = content ? valueFor(node, 'props', content.key) : null
+    if (!content || isSmartValue(value) || typeof (value ?? '') !== 'string') return null
+    return { ...content, value: value ?? '' }
   }
 
   /** Whether the element's content can move into a new field of the entry it shows. */
   function canMakeField(node) {
-    return !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
+    return !translating.value && !!literalContent(node) && !!type.value && currentAvailable.value && !!fieldApi.create
       && (fieldApi.can?.(type.value.name) ?? true) && !isInsideTemplate(nodes.value, node.id) && !entryContext(node.id).collection
   }
 
@@ -605,6 +927,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
    * entries start with it.
    */
   async function convertToField(id, label) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (!canMakeField(node)) return null
     const { key: prop, field, value } = literalContent(node)
@@ -628,6 +951,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Give the collection `id` a card of its own, starting from its type's standard card. */
   async function customizeCard(id) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (node?.kind !== 'collection' || !node.props?.type || node.children?.length || !templateApi.load) return null
     const card = (await templateApi.load(node.props.type))?.nodes?.[0]
@@ -647,6 +971,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Go back to the type's standard card. */
   function resetCard(id) {
+    if (translating.value) return false
     mutate((tree) => {
       const node = findNode(tree, id)
       if (node?.kind === 'collection') node.children = []
@@ -659,6 +984,79 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return !!node && locate(nodes.value, node.id)?.parent?.kind === 'collection'
   }
 
+  // ─── Editable props ──────────────────────────────────────────────────────
+
+  /** Saved trees of the components whose instances were selected: id => root node. */
+  const componentTrees = ref({})
+
+  async function loadComponentTree(id) {
+    if (!id || componentTrees.value[id] !== undefined || !componentApi.load) return
+    componentTrees.value = { ...componentTrees.value, [id]: null }
+    const component = await componentApi.load(id)
+    componentTrees.value = { ...componentTrees.value, [id]: component?.nodes?.[0] ?? null }
+  }
+
+  /** Whether a prop of the edited component's node may be set by each placement. */
+  function isEditable(node, key) {
+    return !!node?.editable?.includes(key)
+  }
+
+  /** Let each placement set the prop, or fix it again (editing a component only). */
+  function toggleEditable(id, key) {
+    if (translating.value || !componentId.value) return
+    mutate((tree) => {
+      const node = findNode(tree, id)
+      if (!node || node.kind === COMPONENT) return
+      const editable = node.editable?.includes(key) ? node.editable.filter((item) => item !== key) : [...(node.editable ?? []), key]
+      if (editable.length) node.editable = editable
+      else delete node.editable
+    })
+  }
+
+  /** The component's nodes an instance may set props of, as the instance shows them: [{ node, keys }]. */
+  function instanceFields(instance) {
+    const root = componentTrees.value[instance?.props?.component]
+    if (!root) return []
+    return editableNodes([withOverrides(root, instance.overrides)])
+      .map((node) => ({ node, keys: node.editable.filter((key) => spec.value?.kinds?.[node.kind]?.props?.[key]) }))
+      .filter((item) => item.keys.length)
+  }
+
+  function hasInstanceValue(instance, nodeId, key) {
+    return instance?.overrides?.[nodeId]?.[key] !== undefined
+  }
+
+  /** Set the instance's own value; a translation starts from the component's texts. */
+  function setInstanceValue(instanceId, nodeId, key, value) {
+    mutate((tree) => {
+      const instance = findNode(tree, instanceId)
+      const root = componentTrees.value[instance?.props?.component]
+      const inner = root ? findNode([root], nodeId) : null
+      if (instance?.kind !== COMPONENT || !inner?.editable?.includes(key)) return
+      const def = spec.value?.kinds?.[inner.kind]?.props?.[key]
+      if (translating.value && !def?.localized) return
+      const overrides = clone(instance.overrides ?? {})
+      const current = overrides[nodeId]?.[key] ?? inner.props?.[key]
+      const next = def?.localized ? setLocalized(clone(current), locale.value || defaultLocale.value, value, defaultLocale.value) : value
+      overrides[nodeId] = { ...(overrides[nodeId] ?? {}), [key]: next }
+      instance.overrides = overrides
+    }, { coalesce: `${instanceId}:${nodeId}:${key}` })
+  }
+
+  /** Go back to the component's value: in a translation only that language, otherwise in every language. */
+  function resetInstanceValue(instanceId, nodeId, key, { translation = false } = {}) {
+    mutate((tree) => {
+      const instance = findNode(tree, instanceId)
+      if (!hasInstanceValue(instance, nodeId, key)) return
+      const overrides = clone(instance.overrides)
+      if (translation) overrides[nodeId][key] = removeLocalized(overrides[nodeId][key], locale.value)
+      else delete overrides[nodeId][key]
+      if (!Object.keys(overrides[nodeId]).length) delete overrides[nodeId]
+      if (Object.keys(overrides).length) instance.overrides = overrides
+      else delete instance.overrides
+    })
+  }
+
   /** Open a component in its own builder (the view decides how). */
   function editComponent(id) {
     componentApi.edit?.(id)
@@ -666,12 +1064,13 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Replace an instance with an editable copy of its component. */
   async function detach(id) {
+    if (translating.value) return false
     const node = findNode(nodes.value, id)
     if (node?.kind !== COMPONENT || !componentApi.load) return false
     const component = await componentApi.load(node.props.component)
     const root = component?.nodes?.[0]
     if (!root) return false
-    const copy = cloneWithNewIds(root)
+    const copy = cloneWithNewIds(withOverrides(root, node.overrides))
     if (node.name) copy.name = node.name
     if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(node.props.span ?? copy.props.span) }
     let replaced = false
@@ -709,6 +1108,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function nodeLabel(node) {
     if (!node) return ''
     if (node.name) return node.name
+    if (node.kind === 'tab') return valueFor(node, 'props', 'title') || kindLabel('tab')
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
     if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
@@ -716,7 +1116,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function nodeSummary(node) {
-    const props = node.props ?? {}
+    const props = resolveLocalizedTree(node.props ?? {}, locale.value || defaultLocale.value, defaultLocale.value)
     switch (node.kind) {
       case 'field': {
         return smartSummary(props.source) || t('site.builder.noField')
@@ -726,17 +1126,29 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       case 'button':
         return smartSummary(props.label)
       case 'accordion':
-        return smartSummary(props.title)
+        return props.items ? t('site.accordion.count', { count: props.items.length }) : smartSummary(props.title)
+      case 'tabs':
+        return t('site.tabs.count', { count: node.children?.length ?? 0 })
       case 'icon':
         return props.icon
       case 'collection':
         return types.value.find((item) => item.name === props.type)?.label ?? t('site.builder.noType')
       case 'menu':
         return menus.value.find((item) => item.name === props.menu)?.label ?? props.menu
-      case 'form':
-        return forms.value.find((item) => item.id === props.form)?.name ?? t('site.forms.none')
+      case 'form': {
+        const form = forms.value.find((item) => item.id === props.form)
+        return form ? (types.value.find((item) => item.name === form.type)?.label ?? form.type) : t('site.forms.none')
+      }
+      case 'search': {
+        const names = (props.collections ?? []).map((name) => types.value.find((item) => item.name === name)?.label ?? name)
+        return names.length ? names.join(', ') : t('site.search.allTypes')
+      }
+      case 'video':
+        return smartSummary(props.media) || props.video_url || t('site.placeholder.chooseVideo')
       case 'image':
         return smartSummary(props.media) || t('site.builder.noImage')
+      case 'gallery':
+        return Array.isArray(props.media) ? t('site.builder.galleryCount', { count: props.media.length }) : smartSummary(props.media)
       case 'text':
         return smartSummary(props.html)
       case 'column': {
@@ -751,25 +1163,30 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return t(`site.option.${props.width ?? 'contained'}`)
       case COMPONENT:
         return t('site.component.instanceOf', { kind: kindLabel(props.root) })
+      case PAGE_CONTENT:
+        return pageFields().find((field) => field.key === props.field)?.label ?? t('site.page.noField')
       default:
         return ''
     }
   }
 
   const api = {
-    nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, drag,
+    nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, cssPicker, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
-    currentAvailable, locale, hasSyntaxErrors,
+    currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
     subfieldsOf, templateOwner, fieldConfig, isTemplateField, isDropContainer, typeFields, entryContext,
     customizeCard, resetCard, isCard,
-    updateValue, renameNode, insert, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
+    updateValue, renameNode, insert,
+    device, styleState, overrideTarget, editableInState, viewValue, overridesOf, editValue, editValues, resetOverride, dropAt, remove, duplicate, shift, make, columnRowFor, setColumns,
     kindLabel, nodeLabel, isStacked, nodeSummary,
-    clipboard, styleClipboard, contextMenu, copy, paste, copyStyle, pasteStyle,
+    clipboard, styleClipboard, contextMenu, copy, paste, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
     components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
+    componentTrees, loadComponentTree, isEditable, toggleEditable, instanceFields, hasInstanceValue, setInstanceValue, resetInstanceValue,
     fieldDialog, canMakeField, convertToField,
+    pageFields, placedPageFields, freePageFields, canAddPageField, setUpPageArea, renamePageField, pageFieldError, holdsPageContent,
   }
 
   provide(KEY, api)
@@ -778,4 +1195,9 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
 export function useSiteBuilder() {
   return inject(KEY)
+}
+
+/** The builder when there is one, e.g. for panels the design page shares. */
+export function useOptionalSiteBuilder() {
+  return inject(KEY, null)
 }

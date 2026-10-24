@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace CometCMS\Site;
 
-use CometCMS\Core\Security;
-use CometCMS\Core\ValidationException;
-use CometCMS\Storage\JsonStore;
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
 
 /**
- * Submission-enabled content types are forms. Settings live in their schema;
- * legacy forms in site/forms/{id}.json retain their IDs and placements.
+ * Submission-enabled content types are forms. Settings live in their schema.
  *
  * A form belongs to one content type: every submission becomes a new entry
  * of that type, and the form shows every field of that type a visitor can
@@ -20,10 +18,8 @@ use CometCMS\Storage\JsonStore;
  * are titled with the form's name and the time they arrived.
  * Layouts place a form with a "form" element.
  *
- * Spam protection: a honeypot field and a per-visitor rate limit. The
- * `captcha` setting is reserved for Cloudflare Turnstile and Google
- * reCAPTCHA; only "none" is accepted until they are supported (both need
- * a script, so the site's Content-Security-Policy changes with them).
+ * Spam protection: a honeypot, a per-visitor rate limit and optional
+ * Cloudflare Turnstile or Google reCAPTCHA v2/v3 verification.
  */
 final class FormRepository
 {
@@ -32,91 +28,28 @@ final class FormRepository
 
     public const STATUSES = ['draft', 'published'];
 
-    public const CAPTCHAS = ['none'];
-
-    public const MAX_FORMS = 100;
-
-    private JsonStore $store;
+    public const CAPTCHAS = ['none', 'turnstile', 'recaptcha', 'recaptcha_v3'];
 
     public function __construct(private readonly SiteRepository $site)
     {
-        $this->store = new JsonStore($site->workspace()->path('site') . '/forms');
     }
 
     /** @return list<array> forms sorted by name */
     public function all(): array
     {
-        $forms = [];
-
-        foreach ($this->store->all() as $stored) {
-            $form = $this->read($stored);
-            if ($form !== null) {
-                $forms[] = $form;
-            }
-        }
-        // A submission-enabled type is itself a form, ready for the builder.
-        // Retain existing form IDs so previously placed forms keep working.
-        foreach ($this->types() as $name => $type) {
-            if (!in_array($name, array_column($forms, 'type'), true)) {
-                $forms[] = $this->typeForm($type);
-            }
-        }
+        $forms = array_map(fn(array $type): array => $this->typeForm($type), array_values($this->types()));
         usort($forms, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
-
         return $forms;
     }
 
     public function find(string $id): ?array
     {
-        if ($id === '' || LayoutSchema::key($id) !== $id) {
-            return null;
-        }
-
-        $stored = $this->read($this->store->read($id));
-        if ($stored !== null) {
-            return $stored;
-        }
-        foreach ($this->types() as $type) {
-            $form = $this->typeForm($type);
+        foreach ($this->all() as $form) {
             if ($form['id'] === $id) {
                 return $form;
             }
         }
         return null;
-    }
-
-    public function create(array $input): array
-    {
-        if (count($this->store->all()) >= self::MAX_FORMS) {
-            throw new ValidationException(['name' => 'A website can have at most ' . self::MAX_FORMS . ' forms.']);
-        }
-
-        $form = $this->validate($input);
-        $form['id'] = 'f' . bin2hex(random_bytes(5));
-        $form['created_at'] = Security::now();
-
-        return $this->write($form);
-    }
-
-    public function update(string $id, array $input): array
-    {
-        $current = $this->require($id);
-        $this->assertLegacyForm($id);
-        $form = $this->validate($input);
-        $form['id'] = $current['id'];
-        $form['created_at'] = $current['created_at'];
-
-        return $this->write($form);
-    }
-
-    public function delete(string $id): array
-    {
-        $form = $this->require($id);
-        $this->assertLegacyForm($id);
-        $this->store->delete($id);
-        $this->site->clearCache();
-
-        return $form;
     }
 
     public function require(string $id): array
@@ -135,9 +68,10 @@ final class FormRepository
      *
      * @return list<array{key: string, config: array, label: string}>
      */
-    public function inputs(array $form): array
+    public function inputs(array $form, string $locale = ''): array
     {
-        $type = $this->site->types()[$form['type']] ?? null;
+        $languages = (new LanguageSettings($this->site->workspace()))->all();
+        $type = LocalizedValue::tree($this->site->types()[$form['type']] ?? null, $locale ?: $languages['default_locale'], $languages['default_locale']);
         $inputs = [];
 
         foreach (is_array($type['fields'] ?? null) ? $type['fields'] : [] as $key => $config) {
@@ -187,97 +121,19 @@ final class FormRepository
         return $key === 'title' ? 'Title' : ucfirst(str_replace(['_', '-'], ' ', $key));
     }
 
-    /** Content types a form can submit to: single pages already have their one entry. */
+    /** Content types a form can submit to. */
     public function types(): array
     {
-        return array_filter($this->site->types(), static fn(array $type): bool => empty($type['singleton']) && !empty($type['allow_submissions']));
-    }
-
-    private function validate(array $input): array
-    {
-        $errors = [];
-        $name = self::line($input['name'] ?? '', 120);
-        if ($name === '') {
-            $errors['name'] = 'Give the form a name.';
-        }
-
-        $typeName = LayoutSchema::key($input['type'] ?? '');
-        $type = $this->types()[$typeName] ?? null;
-        if ($type === null) {
-            $errors['type'] = 'Choose the content type that receives the submissions.';
-        } else {
-            foreach (self::unsupported($type) as $key => $config) {
-                if (!empty($config['required'])) {
-                    $errors['type'] = 'The required field “' . self::fieldLabel((string) $key, $config) . '” cannot be filled in on a form. Make it optional or choose another content type.';
-                    break;
-                }
-            }
-            if (!isset($errors['type']) && $this->inputs(['type' => $typeName]) === []) {
-                $errors['type'] = 'This content type has no fields a form can show.';
-            }
-        }
-
-        if ($errors !== []) {
-            throw new ValidationException($errors);
-        }
-
-        $status = (string) ($input['status'] ?? 'draft');
-        $captcha = (string) ($input['captcha'] ?? 'none');
-
-        return [
-            'name' => $name,
-            'type' => $typeName,
-            'submit_label' => self::line($input['submit_label'] ?? '', 80),
-            'success_message' => self::text($input['success_message'] ?? '', 1000),
-            'error_message' => self::text($input['error_message'] ?? '', 1000),
-            'status' => in_array($status, self::STATUSES, true) ? $status : 'draft',
-            'captcha' => in_array($captcha, self::CAPTCHAS, true) ? $captcha : 'none',
-        ];
-    }
-
-    private function read(?array $stored): ?array
-    {
-        $id = LayoutSchema::key($stored['id'] ?? '');
-        if (!is_array($stored) || $id === '') {
-            return null;
-        }
-
-        $type = $this->types()[LayoutSchema::key($stored['type'] ?? '')] ?? null;
-        if ($type === null) {
-            return null;
-        }
-        if (is_array($type['submission_settings'] ?? null)) {
-            $stored = array_replace($stored, $type['submission_settings']);
-        }
-
-        return [
-            'id' => $id,
-            'name' => self::line($stored['name'] ?? '', 120) ?: $id,
-            'type' => LayoutSchema::key($stored['type'] ?? ''),
-            'submit_label' => self::line($stored['submit_label'] ?? '', 80),
-            'success_message' => self::text($stored['success_message'] ?? '', 1000),
-            'error_message' => self::text($stored['error_message'] ?? '', 1000),
-            'status' => in_array($stored['status'] ?? '', self::STATUSES, true) ? (string) $stored['status'] : 'draft',
-            'captcha' => in_array($stored['captcha'] ?? '', self::CAPTCHAS, true) ? (string) $stored['captcha'] : 'none',
-            'created_at' => (string) ($stored['created_at'] ?? ''),
-            'updated_at' => (string) ($stored['updated_at'] ?? ''),
-        ];
-    }
-
-    private function assertLegacyForm(string $id): void
-    {
-        if ($this->store->read($id) === null) {
-            throw new ValidationException(['type' => 'Manage this form through its content type’s submission settings.']);
-        }
+        return array_filter($this->site->types(), static fn(array $type): bool => !empty($type['allow_submissions']));
     }
 
     /** Shared per-type submission settings used by the schema editor and renderer. */
     public static function settings(array $input): array
     {
         return [
-            'submit_label' => self::line($input['submit_label'] ?? '', 80),
-            'success_message' => self::text($input['success_message'] ?? '', 1000),
-            'error_message' => self::text($input['error_message'] ?? '', 1000),
+            'submit_label' => LocalizedValue::normalize($input['submit_label'] ?? '', static fn(mixed $v): string => self::line($v, 80), (new LanguageSettings())->all()['locales']),
+            'success_message' => LocalizedValue::normalize($input['success_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
+            'error_message' => LocalizedValue::normalize($input['error_message'] ?? '', static fn(mixed $v): string => self::text($v, 1000), (new LanguageSettings())->all()['locales']),
             'status' => in_array($input['status'] ?? '', self::STATUSES, true) ? $input['status'] : 'draft',
             'captcha' => in_array($input['captcha'] ?? '', self::CAPTCHAS, true) ? $input['captcha'] : 'none',
         ];
@@ -293,15 +149,6 @@ final class FormRepository
             'created_at' => '',
             'updated_at' => '',
         ];
-    }
-
-    private function write(array $form): array
-    {
-        $form['updated_at'] = Security::now();
-        $this->store->write($form, $form['id']);
-        $this->site->clearCache();
-
-        return $this->read($form) ?? $form;
     }
 
     private static function line(mixed $value, int $max): string

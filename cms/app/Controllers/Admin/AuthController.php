@@ -7,6 +7,8 @@ namespace CometCMS\Controllers\Admin;
 use CometCMS\Auth\LoginThrottle;
 use CometCMS\Core\Http;
 use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
+use CometCMS\Localization\LanguageSettings;
 use CometCMS\Setup\WebsiteStarter;
 use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -114,6 +116,20 @@ final class AuthController extends BaseController
             $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Choose a valid starting point.']], 422);
         }
 
+        $context = new WorkspaceContext($workspaceSlug);
+        $languageSettings = new LanguageSettings($context);
+        $languages = array_key_exists('languages', $body) ? $body['languages'] : ['locales' => ['en'], 'default_locale' => 'en'];
+        if (!is_array($languages) || !is_array($languages['locales'] ?? null)
+            || !array_is_list($languages['locales']) || !is_string($languages['default_locale'] ?? null)
+            || array_filter($languages['locales'], static fn(mixed $locale): bool => !is_string($locale)) !== []) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => 'Choose at least one valid language and a default language.']], 422);
+        }
+        try {
+            $languages = $languageSettings->validate($languages);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
+        }
+
         try {
             $user = $this->users->create($username, $password, 'admin');
         } catch (\Throwable $e) {
@@ -137,9 +153,9 @@ final class AuthController extends BaseController
         $settings['default_workspace'] = $workspaceSlug;
         $store->save($settings);
 
-        $context = new WorkspaceContext($workspaceSlug);
         $context->ensure();
         WorkspaceContext::setActive($workspaceSlug);
+        $languageSettings->save($languages);
 
         if ($starterTemplate === 'website') {
             (new WebsiteStarter($context))->create($user);

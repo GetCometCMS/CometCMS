@@ -14,15 +14,27 @@
     <Transition name="sidebar">
       <aside
         id="primary-navigation"
-        class="fixed inset-y-0 left-0 z-40 w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col lg:static lg:translate-x-0 lg:z-auto"
-        :class="
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        "
+        class="admin-sidebar fixed inset-y-0 left-0 z-40 w-[17.5rem] max-w-[calc(100vw-2rem)] flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col lg:static lg:translate-x-0 lg:z-20"
+        :class="[
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          { 'is-collapsed': sidebarCollapsed },
+        ]"
       >
-        <div class="flex h-16 shrink-0 items-center justify-between px-5">
-          <router-link to="/dashboard" class="flex items-center" @click="sidebarOpen = false">
-            <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto" />
-          </router-link>
+        <div class="sidebar-header flex h-16 shrink-0 items-center justify-between gap-2 px-3">
+          <a :href="api.site.homePreviewUrl()" :title="t('site.preview.title')" class="sidebar-brand flex min-w-0 items-center" @click="sidebarOpen = false">
+            <img :src="logoSrc" alt="CometCMS" class="brand-logo h-10 w-auto max-w-full object-contain" />
+          </a>
+          <button
+            type="button"
+            :aria-label="sidebarToggleLabel"
+            :title="sidebarToggleLabel"
+            aria-controls="primary-navigation"
+            :aria-expanded="!sidebarCollapsed"
+            class="sidebar-action hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500 lg:inline-flex"
+            @click="sidebarCollapsed = !sidebarCollapsed"
+          >
+            <Icon :icon="sidebarCollapsed ? 'mdi:chevron-double-right' : 'mdi:chevron-double-left'" class="h-5 w-5" aria-hidden="true" />
+          </button>
           <button
             type="button"
             :aria-label="t('app.actions.closeNavigation')"
@@ -37,15 +49,18 @@
           class="px-3 pb-2 relative"
           ref="switcherRef"
         >
-          <button
-            type="button"
-            :aria-expanded="workspaceSwitcherOpen"
-            aria-haspopup="menu"
-            @click="workspaceSwitcherOpen = !workspaceSwitcherOpen"
-            class="sidebar-surface w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 group"
+          <component
+            :is="canSwitchWorkspaces ? 'button' : 'div'"
+            :type="canSwitchWorkspaces ? 'button' : undefined"
+            :aria-expanded="canSwitchWorkspaces ? workspaceSwitcherOpen : undefined"
+            :aria-label="`${t(canSwitchWorkspaces ? 'app.nav.switchWorkspace' : 'app.nav.workspace')}: ${activeWorkspaceLabel}`"
+            :title="sidebarCollapsed ? activeWorkspaceLabel : undefined"
+            :aria-haspopup="canSwitchWorkspaces ? 'menu' : undefined"
+            @click="canSwitchWorkspaces && (workspaceSwitcherOpen = !workspaceSwitcherOpen)"
+            class="sidebar-workspace sidebar-surface h-9 w-full flex items-center gap-2.5 rounded-lg px-2 group"
           >
             <div
-              class="w-7 h-7 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none shadow-sm"
+              class="w-6 h-6 shrink-0 rounded-md overflow-hidden bg-theme-600 flex items-center justify-center text-white text-[10px] font-bold select-none leading-none shadow-sm"
             >
               <img
                 v-if="activeWorkspace.has_icon"
@@ -55,25 +70,23 @@
               />
               <span v-else>{{ workspaceInitials }}</span>
             </div>
-            <div class="flex-1 min-w-0 text-left">
-              <div class="sidebar-label !p-0 !text-[10px] leading-tight">
-                {{ t("app.nav.workspace") }}
-              </div>
+            <div class="sidebar-text flex-1 min-w-0 text-left">
               <div class="text-[13px] font-semibold truncate leading-tight">
                 {{ activeWorkspaceLabel }}
               </div>
             </div>
             <Icon
+              v-if="canSwitchWorkspaces"
               icon="mdi:unfold-more-horizontal"
-              class="w-4 h-4 opacity-50 shrink-0 group-hover:opacity-80 transition-opacity"
+              class="sidebar-text w-4 h-4 opacity-50 shrink-0 group-hover:opacity-80 transition-opacity"
             />
-          </button>
+          </component>
 
           <Transition name="ws-dropdown">
             <div
-              v-if="workspaceSwitcherOpen"
+              v-if="canSwitchWorkspaces && workspaceSwitcherOpen"
               role="menu"
-              class="absolute left-3 right-3 top-full z-50 mt-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+              class="sidebar-menu absolute left-3 right-3 top-full z-50 mt-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             >
               <div class="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                 {{ t("app.nav.switchWorkspace") }}
@@ -117,7 +130,7 @@
               <template v-if="auth.can('workspaces.manage')">
                 <div class="my-1 border-t border-slate-100" />
                 <router-link
-                  to="/workspaces"
+                  to="/website/workspaces"
                   @click="
                     workspaceSwitcherOpen = false;
                     sidebarOpen = false;
@@ -135,13 +148,15 @@
         <div class="px-3 pb-1">
           <button
             type="button"
-            class="sidebar-surface flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm"
+            class="sidebar-search sidebar-surface flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm"
+            :aria-label="t('app.search.open')"
+            :title="sidebarCollapsed ? `${t('app.search.open')} (${shortcutLabel})` : undefined"
             aria-haspopup="dialog"
             @click="paletteOpen = true; sidebarOpen = false"
           >
             <Icon icon="mdi:magnify" class="h-[18px] w-[18px] shrink-0 sidebar-muted" />
-            <span class="flex-1 text-left sidebar-muted">{{ t("app.search.open") }}</span>
-            <span class="sidebar-kbd">{{ shortcutLabel }}</span>
+            <span class="sidebar-text flex-1 text-left sidebar-muted">{{ t("app.search.open") }}</span>
+            <span class="sidebar-text sidebar-kbd">{{ shortcutLabel }}</span>
           </button>
         </div>
 
@@ -149,29 +164,74 @@
           :aria-label="t('app.actions.primaryNavigation')"
           class="nav-scrollbar flex-1 overflow-y-auto px-3 pb-4"
         >
-          <div v-for="group in navGroups" :key="group.key" role="group" :aria-label="group.label">
-            <div v-if="group.label" class="sidebar-label" aria-hidden="true">{{ group.label }}</div>
+          <div v-for="group in navGroups" :key="group.key" class="sidebar-nav-group" role="group" :aria-label="group.label">
+            <div v-if="group.label" class="sidebar-text sidebar-label" aria-hidden="true">{{ group.label }}</div>
             <div class="space-y-0.5" :class="{ 'pt-2': !group.label }">
-              <router-link
-                v-for="item in group.items"
-                :key="item.key"
-                :to="item.to"
-                class="nav-link"
-                :class="{ 'is-active': isActive(item, route.path) }"
-                :aria-current="isActive(item, route.path) ? 'page' : undefined"
-                @click="sidebarOpen = false"
-              >
-                <Icon :icon="item.icon" class="nav-icon" />
-                <span class="truncate">{{ item.label }}</span>
-              </router-link>
+              <template v-for="item in group.items" :key="item.key">
+                <router-link
+                  v-if="!item.children"
+                  :to="item.to"
+                  class="nav-link"
+                  :class="{ 'is-active': isActive(item, route.path) }"
+                  :aria-current="isActive(item, route.path) ? 'page' : undefined"
+                  :aria-label="item.label"
+                  :title="sidebarCollapsed ? item.label : undefined"
+                  @click="sidebarOpen = false"
+                >
+                  <Icon :icon="item.icon" class="nav-icon" />
+                  <span class="sidebar-text truncate">{{ item.label }}</span>
+                </router-link>
+                <div v-else>
+                  <button
+                    type="button"
+                    class="nav-link w-full text-left"
+                    :class="{ 'is-section-active': isActive(item, route.path) }"
+                    :aria-label="item.label"
+                    :aria-expanded="!navigationCollapsed && isSectionExpanded(item)"
+                    :aria-controls="`nav-section-${item.key}`"
+                    :title="sidebarCollapsed ? item.label : undefined"
+                    @click="toggleNavSection(item)"
+                  >
+                    <Icon :icon="item.icon" class="nav-icon" />
+                    <span class="sidebar-text min-w-0 flex-1 truncate">{{ item.label }}</span>
+                    <Icon
+                      icon="mdi:chevron-right"
+                      class="sidebar-text nav-chevron"
+                      :class="{ 'rotate-90': isSectionExpanded(item) }"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <div
+                    v-show="!navigationCollapsed && isSectionExpanded(item)"
+                    :id="`nav-section-${item.key}`"
+                    class="nav-sub"
+                    role="group"
+                    :aria-label="item.label"
+                  >
+                    <router-link
+                      v-for="child in item.children"
+                      :key="child.key"
+                      :to="child.to"
+                      class="nav-sublink"
+                      :class="{ 'is-active': isActive(child, route.path) }"
+                      :aria-current="isActive(child, route.path) ? 'page' : undefined"
+                      @click="sidebarOpen = false"
+                    >
+                      <span class="truncate">{{ child.label }}</span>
+                    </router-link>
+                  </div>
+                </div>
+              </template>
               <router-link
                 v-if="group.key === 'content' && allTypes.length === 0 && auth.can('schema.create')"
                 to="/content-types/new"
                 class="nav-link opacity-70"
+                :aria-label="t('app.nav.addType')"
+                :title="sidebarCollapsed ? t('app.nav.addType') : undefined"
                 @click="sidebarOpen = false"
               >
                 <Icon icon="mdi:plus" class="nav-icon" />
-                <span class="truncate">{{ t("app.nav.addType") }}</span>
+                <span class="sidebar-text truncate">{{ t("app.nav.addType") }}</span>
               </router-link>
             </div>
           </div>
@@ -186,7 +246,7 @@
             <div
               v-if="accountMenuOpen"
               role="menu"
-              class="absolute bottom-full left-3 right-3 z-50 mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+              class="sidebar-menu absolute bottom-full left-3 right-3 z-50 mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
             >
               <div class="border-b border-slate-100 px-2.5 pb-2.5 pt-1.5 mb-1">
                 <div class="truncate text-sm font-semibold text-slate-900">
@@ -241,6 +301,8 @@
             class="sidebar-profile-link flex w-full min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-sidebar-hover"
             aria-haspopup="menu"
             :aria-expanded="accountMenuOpen"
+            :aria-label="auth.user?.display_name || auth.user?.username"
+            :title="sidebarCollapsed ? (auth.user?.display_name || auth.user?.username) : undefined"
             @click="accountMenuOpen = !accountMenuOpen"
           >
             <div
@@ -254,7 +316,7 @@
               />
               <span v-else>{{ auth.user?.username?.[0]?.toUpperCase() }}</span>
             </div>
-            <span class="min-w-0 flex-1">
+            <span class="sidebar-text min-w-0 flex-1">
               <span class="block truncate text-sm font-medium leading-tight">{{
                 auth.user?.display_name || auth.user?.username
               }}</span>
@@ -264,7 +326,7 @@
             </span>
             <Icon
               icon="mdi:chevron-up"
-              class="h-4 w-4 shrink-0 opacity-50 transition-transform"
+              class="sidebar-text h-4 w-4 shrink-0 opacity-50 transition-transform"
               :class="{ 'rotate-180': accountMenuOpen }"
             />
           </button>
@@ -332,6 +394,7 @@ import ApiEndpointFooter from "./ApiEndpointFooter.vue";
 import ToastStack from "./ToastStack.vue";
 import CommandPalette from "./CommandPalette.vue";
 import { useNavigation } from "../composables/useNavigation.js";
+import { useNavigationSections } from "../composables/useNavigationSections.js";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -351,9 +414,50 @@ const { t } = useI18n();
 const avatarVersion = ref(Date.now());
 const appVersion = ref("");
 const sidebarOpen = ref(false);
+const sidebarStorageKey = "cometcms-admin-sidebar-collapsed";
+const sidebarCollapsed = ref(readSidebarCollapsed());
+const desktopViewport = ref(false);
+const navigationCollapsed = computed(() => sidebarCollapsed.value && desktopViewport.value);
+const { isExpanded: isSectionExpanded, toggle: toggleSection, reveal: revealSection } = useNavigationSections(
+  navGroups, computed(() => route.path), isActive,
+);
+let desktopQuery;
+function syncDesktopViewport() {
+  desktopViewport.value = desktopQuery.matches;
+}
+function toggleNavSection(item) {
+  if (navigationCollapsed.value) {
+    sidebarCollapsed.value = false;
+    revealSection(item);
+  } else {
+    toggleSection(item);
+  }
+}
+const sidebarToggleLabel = computed(() =>
+  t(sidebarCollapsed.value ? "app.actions.expandNavigation" : "app.actions.collapseNavigation"),
+);
+
+function readSidebarCollapsed() {
+  try {
+    return localStorage.getItem(sidebarStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+watch(sidebarCollapsed, (collapsed) => {
+  try {
+    localStorage.setItem(sidebarStorageKey, String(collapsed));
+  } catch {
+    // Keep the control usable when browser storage is unavailable.
+  }
+});
+
 const workspaces = ref([]);
+const canSwitchWorkspaces = computed(() => workspaces.value.length > 1);
 const selectedWorkspace = ref(getActiveWorkspace());
 const workspaceSwitcherOpen = ref(false);
+watch(canSwitchWorkspaces, () => { workspaceSwitcherOpen.value = false; });
 const switcherRef = ref(null);
 const accountMenuOpen = ref(false);
 const accountMenuRef = ref(null);
@@ -415,13 +519,16 @@ const logoSrc = computed(() => logoForTheme(auth.user?.theme, assetBase));
 watch(
   () => typesStore.list,
   () => {
-    if (auth.can("site.manage")) site.loadStatus().catch(() => {});
+    site.loadStatus().catch(() => {});
   },
   { immediate: true },
 );
 
 
 onMounted(() => {
+  desktopQuery = window.matchMedia("(min-width: 1024px)");
+  syncDesktopViewport();
+  desktopQuery.addEventListener("change", syncDesktopViewport);
   if (auth.can("workspaces.read")) {
     fetchWorkspaces();
   }
@@ -433,6 +540,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  desktopQuery?.removeEventListener("change", syncDesktopViewport);
   document.removeEventListener("click", handleSwitcherOutsideClick);
   document.removeEventListener("keydown", handleGlobalShortcut);
   window.removeEventListener(workspaceSyncEvent, handleWorkspaceSync);
@@ -488,6 +596,54 @@ async function handleLogout() {
 </script>
 
 <style scoped>
+/* Keep the mobile drawer expanded regardless of the desktop preference. */
+@media (min-width: 1024px) {
+  .admin-sidebar.is-collapsed {
+    width: 4.5rem;
+  }
+
+  .is-collapsed .sidebar-text,
+  .is-collapsed .sidebar-brand {
+    display: none;
+  }
+
+  .is-collapsed .sidebar-header,
+  .is-collapsed .sidebar-workspace,
+  .is-collapsed .sidebar-search,
+  .is-collapsed .sidebar-profile-link,
+  .is-collapsed .nav-link {
+    justify-content: center;
+  }
+
+  .is-collapsed .sidebar-workspace,
+  .is-collapsed .sidebar-search,
+  .is-collapsed .sidebar-profile-link,
+  .is-collapsed .nav-link {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* The section button expands the sidebar to reveal its sub-pages. */
+  .is-collapsed .nav-sub {
+    display: none;
+  }
+
+  .is-collapsed .sidebar-nav-group + .sidebar-nav-group {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgb(var(--color-sidebar-border) / var(--color-sidebar-border-alpha));
+  }
+
+  .is-collapsed .sidebar-menu {
+    right: auto;
+    width: 15rem;
+  }
+
+  .is-collapsed .nav-scrollbar {
+    scrollbar-gutter: auto;
+  }
+}
+
 /* Sidebar slide animation (mobile) */
 .sidebar-enter-active,
 .sidebar-leave-active {

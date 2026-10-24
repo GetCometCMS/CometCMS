@@ -31,15 +31,13 @@ If you want to preserve the existing user account, you can reset the password by
    php -r "echo password_hash('yourNewPassword', PASSWORD_BCRYPT) . PHP_EOL;"
    ```
 
-   **Via an online generator** (e.g. [bcrypt-generator.com](https://bcrypt-generator.com)) — the cost factor shown by the tool doesn't matter; any valid bcrypt hash will work.
-
-3. Open the user JSON file and replace the `password` field value with the new hash:
+3. Open the user JSON file and replace the `password_hash` field value with the new hash:
 
    ```json
    {
      "id": "...",
      "username": "admin",
-     "password": "$2y$12$yourNewHashHere",
+     "password_hash": "$2y$12$yourNewHashHere",
      "role": "admin",
      ...
    }
@@ -50,4 +48,4 @@ If you want to preserve the existing user account, you can reset the password by
 ## Important notes
 
 - Never expose the `cms/storage/` directory to the public web. Your web server should only serve files through `index.php`.
-- If you generated a bcrypt hash on an untrusted machine or online service, change the password again from within the admin panel once you regain access.
+- Generate password hashes on a machine you trust.

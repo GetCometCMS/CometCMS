@@ -9,6 +9,11 @@ const theme = {
 }
 
 describe('builder option bars', () => {
+  it('offers distinct icons for flow, free and fixed positioning', () => {
+    const options = barOptions('style', 'position', ['', 'static', 'absolute', 'fixed'], { title })
+    expect(options.map((option) => option.icon)).toEqual([DEFAULT_ICON, 'mdi:format-align-justify', 'mdi:pin-outline', 'mdi:pin'])
+  })
+
   it('mixes icons and token labels for corners, with theme values as hints', () => {
     const options = barOptions('style', 'radius', ['', 'none', 'theme', 'sm', 'md', 'lg', 'full'], { title, theme })
     expect(options.map((option) => option.icon ?? option.label)).toEqual([

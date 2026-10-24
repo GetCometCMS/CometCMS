@@ -3,6 +3,40 @@ import { renderToString } from 'vue/server-renderer'
 import { describe, expect, it } from 'vitest'
 import { createSiteBuilder } from './useSiteBuilder.js'
 import { reference } from './smartValues.js'
+import { findNode, resolveDrop } from './layoutTree.js'
+
+describe('builder tabs', () => {
+  it('edits normal elements inside tabs, supports history and duplicates panel IDs safely', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.kinds.column.children.push('tabs')
+    builder.spec.value.kinds.tabs = { props: { title: { default: 'Tabs' }, initial_tab: { default: 1 } }, children: ['tab'] }
+    builder.spec.value.kinds.tab = { props: { title: { default: 'Tab' } }, children: ['text', 'heading', 'row', 'tabs'] }
+    const column = builder.nodes.value[0].children[0].children[0]
+    const tabs = builder.make('tabs')
+    expect(tabs.children).toHaveLength(2)
+    expect(builder.insert(tabs, column.id)).toBe(true)
+    const second = tabs.children[1]
+    const text = builder.make('text', { html: reference('intro') })
+    expect(builder.insert(text, second.id)).toBe(true)
+    expect(builder.entryContext(text.id).type.name).toBe('posts')
+    expect(findNode(builder.nodes.value, second.id).children[0].id).toBe(text.id)
+    builder.updateValue(tabs.id, 'props', 'initial_tab', 2)
+    const heading = builder.make('heading')
+    expect(builder.insert(heading, tabs.id)).toBe(true)
+    expect(findNode(builder.nodes.value, second.id).children[1].id).toBe(heading.id)
+    expect(resolveDrop(builder.spec.value, builder.nodes.value, second, null, 'inside')).toBeNull()
+    builder.remove(second.id)
+    expect(findNode(builder.nodes.value, second.id)).toBeNull()
+    builder.undo()
+    expect(findNode(builder.nodes.value, second.id).children).toHaveLength(2)
+    builder.duplicate(tabs.id)
+    const copy = builder.selected.value
+    expect(copy.kind).toBe('tabs')
+    expect(copy.id).not.toBe(tabs.id)
+    expect(copy.children[1].id).not.toBe(second.id)
+    expect(copy.children[1].children[0].id).not.toBe(text.id)
+  })
+})
 
 async function builderFixture() {
   let builder
@@ -12,11 +46,72 @@ async function builderFixture() {
     text: { props: { html: { default: '' } }, children: [] }, heading: { props: { text: { default: '' } }, children: [] }, field: { props: { source: { default: '' } }, children: ['text', 'heading', 'field'] },
   } }
   builder.type.value = { name: 'posts', fields: { intro: { type: 'text' } } }
-  builder.types.value = [builder.type.value, { name: 'company', singleton: true, fields: { steps: { type: 'repeater', subfields: [{ key: 'detail', type: 'textarea' }] } } }]
-  const repeater = builder.make('field', { source: { ...reference('steps', 'single'), collection: 'company' } }, {}, [builder.make('text', { html: reference('detail', 'item') })])
+  builder.types.value = [builder.type.value, { name: 'company', fields: { steps: { type: 'repeater', subfields: [{ key: 'detail', type: 'textarea' }] } } }]
+  const repeater = builder.make('field', { source: { ...reference('steps', 'entry'), collection: 'company', entry: 'CompanyUid' } }, {}, [builder.make('text', { html: reference('detail', 'item') })])
   builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [builder.make('text', { html: reference('intro') }), repeater])])])])
   return builder
 }
+
+describe('builder copy and paste', () => {
+  it('copies content and style together and pastes only supported styles without changing content', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    const column = section.children[0].children[0]
+    const text = column.children[0]
+    section.style = { background: 'accent', padding_top: { desktop: 'lg', mobile: 'sm' } }
+    builder.spec.value.kinds.text.style = ['background']
+
+    builder.copy(section.id)
+    section.style.background = 'muted'
+    expect(builder.styleClipboard.value.background).toBe('accent')
+    builder.pasteStyle(text.id)
+    expect(findNode(builder.nodes.value, text.id)).toMatchObject({ props: text.props, style: { background: 'accent' } })
+    builder.paste(section.id)
+    const pasted = builder.selected.value
+    expect(pasted.id).not.toBe(section.id)
+    expect(pasted.children[0].children[0].children[0].props).toEqual(text.props)
+    expect(pasted.style).toEqual({ background: 'accent', padding_top: { desktop: 'lg', mobile: 'sm' } })
+
+    // Each new copy replaces the style too, including elements without styling.
+    builder.copy(column.id)
+    expect(builder.styleClipboard.value).toEqual({})
+    builder.pasteStyle(text.id)
+    expect(findNode(builder.nodes.value, text.id).style).toEqual({})
+  })
+})
+
+describe('builder spacing', () => {
+  it('splits paired padding in one undo step and resets individual edges to the default', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    section.style = { padding_y: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' }
+    builder.load(builder.nodes.value)
+    builder.updateValue(section.id, 'style', 'padding_top', 'sm')
+    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' })
+    builder.undo()
+    expect(builder.nodes.value[0].style).toEqual(section.style)
+    builder.redo()
+    builder.updateValue(section.id, 'style', 'padding_left', '')
+    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_right: 'xs', background: 'accent' })
+    builder.undo()
+    expect(builder.nodes.value[0].style.padding_x).toBe('md')
+    builder.updateValue(section.id, 'style', 'margin_bottom', 'none')
+    expect(builder.nodes.value[0].style.margin_bottom).toBe('none')
+    builder.updateValue(section.id, 'style', 'margin_bottom', '')
+    expect(builder.nodes.value[0].style).not.toHaveProperty('margin_bottom')
+  })
+
+  it('sets linked sides in one step and drops paired padding instead of leaving it behind defaults', async () => {
+    const builder = await builderFixture()
+    const section = builder.nodes.value[0]
+    section.style = { padding_y: 'lg', padding_x: 'md', background: 'accent' }
+    builder.load(builder.nodes.value)
+    builder.editValues(section.id, 'style', { padding_top: '', padding_right: '', padding_bottom: '', padding_left: '' })
+    expect(builder.nodes.value[0].style).toEqual({ background: 'accent' })
+    builder.undo()
+    expect(builder.nodes.value[0].style).toEqual(section.style)
+  })
+})
 
 describe('builder page navigation', () => {
   it('removes disabled types from navigation while retaining their layouts and data bindings', async () => {
@@ -39,7 +134,7 @@ describe('builder page navigation', () => {
     expect(builder.pageTypes.value).toEqual([])
   })
 
-  it('retains a public homepage without a separate route for single pages and collections', async () => {
+  it('retains a public homepage without a separate route', async () => {
     const builder = await builderFixture()
     builder.settings.value = { routes: {}, homepage: { type: 'company', entry: '' } }
     expect(builder.pageTypes.value.map((type) => type.name)).toEqual(['company'])
@@ -212,6 +307,52 @@ describe('builder components', () => {
     expect(stored.nodes[0].id).toBe('root')
   })
 
+  it('marks props editable only while editing a component', async () => {
+    const { builder, column } = await componentFixture({})
+    const text = column.children[0]
+    builder.toggleEditable(text.id, 'html')
+    expect(findNode(builder.nodes.value, text.id).editable).toBeUndefined()
+
+    builder.componentId.value = 'cabc'
+    builder.toggleEditable(text.id, 'html')
+    expect(builder.isEditable(findNode(builder.nodes.value, text.id), 'html')).toBe(true)
+    builder.toggleEditable(text.id, 'html')
+    expect(findNode(builder.nodes.value, text.id).editable).toBeUndefined()
+  })
+
+  it('sets, translates and resets an instance\'s own values, and keeps them when detaching', async () => {
+    const stored = { id: 'cabc', root: 'column', nodes: [{ id: 'root', kind: 'column', props: { span: { mobile: 12, tablet: 0, desktop: 0 } }, style: {}, children: [
+      { id: 'own', kind: 'text', props: { html: 'Shared' }, style: {}, editable: ['html'], children: [] },
+      { id: 'fixed', kind: 'text', props: { html: 'Fixed' }, style: {}, children: [] },
+    ] }] }
+    const { builder } = await componentFixture({ load: async () => stored })
+    builder.spec.value.kinds.text.props.html.localized = true
+    builder.components.value = [{ id: 'cabc', name: 'Promo', root: 'column' }]
+    const instance = builder.make('component', { component: 'cabc', root: 'column' })
+    builder.insert(instance, builder.nodes.value[0].children[0].children[1].id)
+
+    await builder.loadComponentTree('cabc')
+    const current = () => findNode(builder.nodes.value, instance.id)
+    expect(builder.instanceFields(current()).map((item) => [item.node.id, item.keys])).toEqual([['own', ['html']]])
+
+    builder.setInstanceValue(instance.id, 'own', 'html', 'Mine')
+    builder.setInstanceValue(instance.id, 'fixed', 'html', 'Ignored')
+    expect(builder.instanceFields(current())[0].node.props.html).toEqual({ type: 'localized', values: { en: 'Mine' } })
+    builder.locale.value = 'de'
+    builder.setInstanceValue(instance.id, 'own', 'html', 'Meins')
+    expect(current().overrides.own.html.values).toMatchObject({ en: 'Mine', de: 'Meins' })
+    builder.resetInstanceValue(instance.id, 'own', 'html', { translation: true })
+    expect(current().overrides.own.html.values).toEqual({ en: 'Mine' })
+    builder.locale.value = 'en'
+
+    expect(await builder.detach(instance.id)).toBe(true)
+    const copy = builder.selected.value
+    expect(copy.children.map((item) => item.props.html?.values?.en ?? item.props.html)).toEqual(['Mine', 'Fixed'])
+    builder.undo()
+    builder.resetInstanceValue(instance.id, 'own', 'html')
+    expect(current().overrides).toBeUndefined()
+  })
+
   it('keeps the single root of a component in place', async () => {
     const { builder } = await componentFixture({ create: async () => ({}) })
     builder.rootKind.value = 'section'
@@ -373,16 +514,16 @@ async function contentFixture(fieldApi) {
     field: { props: { source: { default: '' } }, children: ['heading'] },
   } }
   builder.type.value = { name: 'posts', label: 'Posts', fields: { title: { type: 'text' }, heading: { type: 'text' } } }
-  builder.types.value = [builder.type.value, { name: 'company', singleton: true, fields: { steps: { type: 'repeater', subfields: [{ key: 'name', type: 'text' }] } } }]
+  builder.types.value = [builder.type.value, { name: 'company', fields: { steps: { type: 'repeater', subfields: [{ key: 'name', type: 'text' }] } } }]
   const heading = builder.make('heading', { text: 'Our story' })
   const image = builder.make('image', { media: 'team.jpg' })
   const bound = builder.make('heading', { text: reference('title') })
-  const template = builder.make('field', { source: { ...reference('steps', 'single'), collection: 'company' } }, {}, [builder.make('heading', { text: 'Step' })])
+  const template = builder.make('field', { source: { ...reference('steps', 'entry'), collection: 'company', entry: 'CompanyUid' } }, {}, [builder.make('heading', { text: 'Step' })])
   builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column', {}, {}, [heading, image, bound, template])])])])
   return { builder, heading, image, bound, item: template.children[0] }
 }
 
-describe('builder content fields', () => {
+describe('builder custom fields', () => {
   it('offers literal content for conversion, but not bound or template content', async () => {
     const { builder, heading, image, bound, item } = await contentFixture({ create: async () => null, can: () => true })
     expect(builder.canMakeField(heading)).toBe(true)
@@ -477,5 +618,324 @@ describe('loading layout revisions', () => {
     expect(builder.isDirty.value).toBe(true)
     builder.markSaved(draft)
     expect(builder.isDirty.value).toBe(false)
+  })
+})
+
+describe('builder localization', () => {
+  it('keeps translated values on node identities through language changes history and duplication', async () => {
+    const builder = await builderFixture()
+    builder.settings.value = { default_locale: 'en', locales: ['en', 'de'] }
+    builder.spec.value.kinds.heading.props.text.localized = true
+    builder.locale.value = 'en'
+    const column = builder.nodes.value[0].children[0].children[0]
+    const heading = builder.make('heading', { text: 'English' })
+    builder.insert(heading, column.id)
+    builder.locale.value = 'de'
+    builder.updateValue(heading.id, 'props', 'text', 'Deutsch')
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
+    expect(findNode(builder.nodes.value, heading.id).props.text.values).toEqual({ en: 'English', de: 'Deutsch' })
+    expect(builder.insert(builder.make('text'), column.id)).toBe(false)
+    builder.remove(heading.id)
+    expect(findNode(builder.nodes.value, heading.id)).not.toBeNull()
+    builder.undo()
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('English')
+    builder.redo()
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Deutsch')
+    builder.locale.value = 'en'
+    expect(builder.translating.value).toBe(false)
+    builder.duplicate(heading.id)
+    const copy = builder.selected.value
+    expect(copy.id).not.toBe(heading.id)
+    expect(copy.props.text.values).toEqual({ en: 'English', de: 'Deutsch' })
+    builder.locale.value = 'en'
+    builder.updateValue(heading.id, 'props', 'text', 'Changed source')
+    builder.locale.value = 'de'
+    expect(builder.translationState(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('review')
+    expect(builder.valueFor(copy, 'props', 'text')).toBe('Deutsch')
+    builder.resetTranslation(heading.id, 'props', 'text')
+    expect(builder.valueFor(findNode(builder.nodes.value, heading.id), 'props', 'text')).toBe('Changed source')
+  })
+})
+
+describe('builder page content', () => {
+  async function pageFixture({ fields = { design: { type: 'page', label: 'Design' } }, fieldApi = {}, clipboardStorage } = {}) {
+    let builder
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key, fieldApi, clipboardStorage }); return () => null } }))
+    builder.spec.value = { root: ['section', 'page_content'], kinds: {
+      section: { props: {}, children: ['row'] }, row: { props: {}, children: ['column'] },
+      column: { props: {}, children: ['text', 'page_content'] }, text: { props: { html: { default: '' } }, children: [] },
+      page_content: { props: { field: { default: '' } }, children: ['section'] },
+    } }
+    builder.type.value = { name: 'pages', fields: { intro: { type: 'text' }, ...fields } }
+    builder.types.value = [builder.type.value]
+    builder.load([builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])])
+    return builder
+  }
+
+  it('places page content once per field, never inside itself, and keeps it out of copies and components', async () => {
+    const builder = await pageFixture()
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await Promise.resolve()
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('design')
+    expect(builder.typeFields().map((field) => field.key)).not.toContain('design')
+
+    const column = builder.nodes.value[0].children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'design' }), column.id)).toBe(false)
+    const inner = builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])])
+    expect(builder.insert(inner, place.id)).toBe(true)
+    const innerColumn = inner.children[0].children[0]
+    expect(builder.insert(builder.make('page_content', { field: 'other' }), innerColumn.id)).toBe(false)
+
+    builder.select(place.id)
+    builder.duplicate()
+    expect(builder.nodes.value.filter((node) => node.kind === 'page_content')).toHaveLength(1)
+    expect(builder.holdsPageContent(place)).toBe(true)
+    expect(builder.holdsPageContent(builder.nodes.value[0])).toBe(false)
+    expect(builder.isDropContainer(place)).toBe(true)
+  })
+
+  it('pastes copies from other builders and gives page content from another page type a field of its own', async () => {
+    const items = new Map()
+    const clipboardStorage = { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, value), removeItem: (key) => items.delete(key) }
+    const source = await pageFixture({ clipboardStorage })
+    const place = source.make('page_content')
+    expect(source.insert(place, null)).toBe(true)
+    await Promise.resolve()
+    source.copy(place.id)
+
+    const target = await pageFixture({ fields: { layout: { type: 'page', label: 'Layout' } }, clipboardStorage })
+    expect(target.clipboard.value.kind).toBe('page_content')
+    expect(target.paste(null)).toBe(true)
+    await Promise.resolve()
+    const pasted = target.selected.value
+    expect(pasted.id).not.toBe(place.id)
+    expect(pasted.props.field).toBe('layout')
+    expect(target.styleClipboard.value).toEqual({})
+  })
+
+  it('wraps an element dropped into page content in a section', async () => {
+    const builder = await pageFixture()
+    const column = builder.nodes.value[0].children[0].children[0]
+    const place = builder.make('page_content')
+    expect(builder.insert(place, column.id)).toBe(true)
+
+    const text = builder.make('text')
+    builder.drag.value = { source: 'palette', create: () => text }
+    expect(builder.dropAt(place.id, 'inside')).toBe(true)
+    const section = findNode(builder.nodes.value, place.id).children[0]
+    expect(section.kind).toBe('section')
+    expect(section.children[0].children[0].children[0].id).toBe(text.id)
+  })
+
+  it('renames a page field as the name of its area', async () => {
+    const updated = []
+    const builder = await pageFixture({
+      fieldApi: { can: () => true, create: async () => null, update: async ({ type, key, config }) => { updated.push({ type, key, config }); return null } },
+    })
+    await builder.renamePageField('design', '  Sidebar  ')
+    expect(updated).toEqual([{ type: 'pages', key: 'design', config: { type: 'page', label: 'Sidebar' } }])
+    expect(builder.pageFields().find((field) => field.key === 'design').label).toBe('Sidebar')
+
+    // Other languages keep the name of the default language.
+    builder.defaultLocale.value = 'en'
+    builder.locale.value = 'de'
+    await builder.renamePageField('design', 'Seitenleiste')
+    expect(builder.type.value.fields.design.label.values).toEqual({ en: 'Sidebar', de: 'Seitenleiste' })
+    await builder.renamePageField('intro', 'Not a page field')
+    expect(updated).toHaveLength(2)
+  })
+
+  it('gives a type without a page field one when the page content element is placed', async () => {
+    const created = []
+    const builder = await pageFixture({
+      fields: {},
+      fieldApi: {
+        can: () => true,
+        create: async ({ type, key, config }) => {
+          created.push({ type, key, config })
+          return { fields: { ...builder.type.value.fields, [key]: config } }
+        },
+      },
+    })
+    const place = builder.make('page_content')
+    expect(builder.insert(place, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created).toEqual([{ type: 'pages', key: 'page_content', config: { type: 'page', label: 'site.page.fieldLabel' } }])
+    expect(findNode(builder.nodes.value, place.id).props.field).toBe('page_content')
+    expect(builder.pageFields().map((field) => field.key)).toEqual(['page_content'])
+
+    const second = builder.make('page_content')
+    expect(builder.insert(second, null)).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(created[1]).toEqual({ type: 'pages', key: 'page_content_2', config: { type: 'page', label: 'site.page.fieldLabel 2' } })
+    expect(findNode(builder.nodes.value, second.id).props.field).toBe('page_content_2')
+
+    // Setting up an area without a field takes an unplaced field before adding one.
+    const third = builder.make('page_content', { field: '' })
+    builder.load([...builder.nodes.value, third])
+    expect(builder.freePageFields(third.id)).toEqual([])
+    expect(builder.freePageFields(place.id).map((field) => field.key)).toEqual(['page_content'])
+    await builder.setUpPageArea(third.id)
+    expect(findNode(builder.nodes.value, third.id).props.field).toBe('page_content_3')
+    expect(builder.isDirty.value).toBe(true)
+
+    expect(builder.placedPageFields().map((field) => field.key)).toEqual(['page_content', 'page_content_2', 'page_content_3'])
+
+    // A field whose area was removed is reused by the next one.
+    const fourth = builder.make('page_content', { field: '' })
+    builder.load([...builder.nodes.value.filter((node) => node.id !== second.id), fourth])
+    // The removed area's field stays on the type, but entries can no longer design it.
+    expect(builder.placedPageFields().map((field) => field.key)).toEqual(['page_content', 'page_content_3'])
+    await builder.setUpPageArea(fourth.id)
+    expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_2')
+    expect(created).toHaveLength(3)
+  })
+})
+
+describe('builder device and state overrides', () => {
+  it('routes edits by the previewed device and state, follows larger screens and resets', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.style = { padding_top: { default: '' }, background: { default: '' } }
+    builder.spec.value.kinds.heading.style = ['padding_top', 'background']
+    builder.spec.value.kinds.heading.responsive = { props: [], style: ['padding_top', 'background'] }
+    builder.spec.value.kinds.heading.states = { props: [], style: ['background'] }
+    const heading = builder.make('heading')
+    builder.insert(heading, builder.nodes.value[0].children[0].children[0].id)
+    const node = () => findNode(builder.nodes.value, heading.id)
+
+    builder.editValue(heading.id, 'style', 'padding_top', 'lg')
+    expect(node().style.padding_top).toBe('lg')
+    builder.device.value = 'tablet'
+    expect(builder.viewValue(node(), 'style', 'padding_top')).toBe('lg')
+    builder.editValue(heading.id, 'style', 'padding_top', 'sm')
+    expect(node().style.padding_top).toBe('lg')
+    expect(node().responsive).toEqual({ tablet: { style: { padding_top: 'sm' } } })
+    builder.device.value = 'mobile'
+    // Mobile follows tablet until it has a value of its own.
+    expect(builder.viewValue(node(), 'style', 'padding_top')).toBe('sm')
+    expect(builder.overridesOf(node(), 'style', 'padding_top')).toEqual({ devices: ['tablet'], states: [] })
+
+    builder.device.value = 'desktop'
+    builder.styleState.value = 'hover'
+    expect(builder.editableInState(node(), 'style', 'padding_top')).toBe(false)
+    expect(builder.viewValue(node(), 'style', 'background')).toBe('')
+    builder.editValue(heading.id, 'style', 'background', 'accent')
+    expect(node().states).toEqual({ hover: { style: { background: 'accent' } } })
+    expect(node().style.background).toBeUndefined()
+
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'background')
+    expect(node().states).toBeUndefined()
+    builder.resetOverride(heading.id, 'responsive', 'tablet', 'style', 'padding_top')
+    expect(node().responsive).toBeUndefined()
+    builder.undo()
+    expect(node().responsive.tablet.style.padding_top).toBe('sm')
+  })
+})
+
+
+describe('independent hover animations', () => {
+  it('edits, resets and restores hover settings independently of entrance animations', async () => {
+    const builder = await builderFixture()
+    builder.spec.value.style = { animation: { default: 'none' }, animation_duration: { default: 'normal' }, animation_delay: { default: 0 } }
+    builder.spec.value.kinds.heading.style = ['animation', 'animation_duration', 'animation_delay', 'animation_trigger']
+    builder.spec.value.kinds.heading.states = { props: [], style: [], variants: { hover: { style: ['animation', 'animation_duration', 'animation_delay'] } } }
+    const heading = builder.make('heading', {}, { animation: 'fade-up', animation_trigger: 'load', animation_duration: 'slow', animation_delay: 1 })
+    builder.load([heading])
+    const node = () => builder.nodes.value[0]
+    const entrance = { ...node().style }
+    builder.styleState.value = 'hover'
+    expect(builder.viewValue(node(), 'style', 'animation')).toBe('')
+    expect(builder.editableInState(node(), 'style', 'animation')).toBe(true)
+    expect(builder.editableInState(node(), 'style', 'animation_trigger')).toBe(false)
+    builder.editValues(heading.id, 'style', { animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 })
+    expect(node().style).toEqual(entrance)
+    expect(node().states.hover.style).toEqual({ animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 })
+    builder.undo()
+    expect(node().states).toBeUndefined()
+    builder.redo()
+    expect(node().states.hover.style.animation).toBe('zoom-in')
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'animation_duration')
+    expect(node().states.hover.style.animation_duration).toBeUndefined()
+    builder.undo()
+    expect(node().states.hover.style.animation_duration).toBe('fast')
+    builder.markSaved(JSON.parse(JSON.stringify(builder.nodes.value)))
+    expect(builder.isDirty.value).toBe(false)
+    expect(node().states.hover.style.animation_delay).toBe(2)
+    builder.styleState.value = 'focus'
+    expect(builder.editableInState(node(), 'style', 'animation')).toBe(false)
+    builder.editValue(heading.id, 'style', 'animation', 'blur')
+    builder.editValues(heading.id, 'style', { animation: 'blur' })
+    expect(node().style).toEqual(entrance)
+    expect(node().states.focus).toBeUndefined()
+    builder.styleState.value = 'hover'
+    builder.editValue(heading.id, 'style', 'animation', 'none')
+    expect(node().states).toBeUndefined()
+    expect(node().style).toEqual(entrance)
+    builder.undo()
+    expect(node().states.hover.style.animation).toBe('zoom-in')
+    builder.resetOverride(heading.id, 'states', 'hover', 'style', 'animation')
+    expect(node().states).toBeUndefined()
+  })
+
+  it('migrates nested legacy hover effects on load and revision restore without mutating input', async () => {
+    const builder = await builderFixture()
+    const legacy = builder.make('heading', {}, { animation: 'zoom-in', animation_trigger: 'hover', animation_duration: 'fast', animation_delay: 2 })
+    const tree = [builder.make('section', {}, {}, [legacy])]
+    builder.load(tree)
+    expect(tree[0].children[0].style.animation_trigger).toBe('hover')
+    expect(builder.nodes.value[0].children[0]).toMatchObject({ style: {}, states: { hover: { style: { animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 } } } })
+    expect(builder.isDirty.value).toBe(false)
+    legacy.states = { hover: { style: { animation: 'blur' } } }
+    builder.loadRevision(tree)
+    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'blur' })
+    builder.undo()
+    expect(builder.nodes.value[0].children[0].states.hover.style.animation).toBe('zoom-in')
+    legacy.states.hover.style.animation = 'none'
+    builder.markSaved(tree)
+    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'none' })
+    expect(builder.nodes.value[0].children[0].style).toEqual({})
+  })
+})
+
+
+describe('modal template', () => {
+  async function modalFixture() {
+    let builder
+    await renderToString(createSSRApp({ setup() { builder = createSiteBuilder({ t: (key) => key }); return () => null } }))
+    const inside = ['heading', 'row', 'collection', 'site_content', 'modal_close']
+    builder.spec.value = { root: ['modal'], item_elements: [], kinds: {
+      modal: { props: { size: { default: 'lg' } }, children: inside }, row: { props: {}, children: ['column'] }, column: { props: {}, children: inside },
+      collection: { props: {}, children: ['column'] }, heading: { props: {}, children: [] }, site_content: { props: {}, children: [] }, modal_close: { props: {}, children: [] },
+    } }
+    builder.rootKind.value = 'modal'
+    builder.load([builder.make('modal', {}, {}, [builder.make('modal_close'), builder.make('site_content')])])
+    return builder
+  }
+
+  it('keeps its one panel and takes new elements into it without a selection', async () => {
+    const builder = await modalFixture()
+    const panel = builder.nodes.value[0]
+    builder.remove(panel.id)
+    builder.duplicate(panel.id)
+    expect(builder.nodes.value).toHaveLength(1)
+    builder.selectedId.value = null
+    expect(builder.insert(builder.make('heading'))).toBe(true)
+    expect(builder.nodes.value[0].children.map((node) => node.kind)).toEqual(['modal_close', 'site_content', 'heading'])
+  })
+
+  it('holds exactly one site content element, never inside a card', async () => {
+    const builder = await modalFixture()
+    const panel = builder.nodes.value[0]
+    const slot = panel.children[1]
+    expect(builder.insert(builder.make('site_content'), panel.id)).toBe(false)
+    builder.duplicate(slot.id)
+    expect(panel.children.filter((node) => node.kind === 'site_content')).toHaveLength(1)
+    const card = builder.make('column')
+    builder.insert(builder.make('collection', {}, {}, [card]), panel.id)
+    builder.remove(slot.id)
+    expect(builder.insert(builder.make('site_content'), card.id)).toBe(false)
+    builder.undo()
+    expect(findNode(builder.nodes.value, slot.id).kind).toBe('site_content')
   })
 })

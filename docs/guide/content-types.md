@@ -1,27 +1,21 @@
 # Content Types
 
-A **content type** defines the structure (schema) for content. Most content types are collections of entries, such as `posts`. A content type can also be marked as a **single page** for one-off content like `start-page`, `contact-page`, or `imprint`.
+A **content type** defines the structure (schema) for content. Every content type is a collection of entries, such as `posts`. One-off content like a start page, contact page or imprint is simply an entry, for example in a `pages` collection.
 
-New content types use the **Page Builder** by default. **Content fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
+New content types use the **Page Builder** by default. **Custom Fields** provide structured values for entries and can be bound to shared layouts, keeping content and design separate.
 
-The headless API is disabled for new types. Enable **Expose content fields through the API** explicitly to make published, unprotected entries publicly readable. Drafts and protected entries keep their access rules. API exposure is independent of website pages. Existing schemas retain their previous API access until reconfigured.
+The headless API is disabled for new types. Enable **Expose custom fields through the API** explicitly to make published, unprotected entries publicly readable. Drafts and protected entries keep their access rules. API exposure is independent of website pages. Existing schemas retain their previous API access until reconfigured.
 
 ![Content types overview in the CometCMS admin](../screenshots/view-content-types.png)
 
 ## Creating a content type
 
 1. In the sidebar, under **Administration**, click **Content types**.
-2. Click **New content type**.
+2. Click **New type**.
 3. Enter a **type identifier** (e.g. `posts`). The name is used as the collection identifier in the API — use lowercase letters, numbers, and hyphens only.
-4. Choose the **Content model**:
-   - **Collection** for repeatable content with many entries.
-   - **Single page** for one fixed entry.
-5. Add content fields (see [Field Types](./field-types)).
-6. Optional: add locales and choose a default locale.
-7. For forms, enable **Allow Submissions** on a collection and configure the new-entry status, button and messages below.
-8. Click **Save**.
-
-Single page content types appear under **Content** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and, when API exposure is enabled, the API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
+4. Add custom fields (see [Field Types](./field-types)).
+5. For forms, enable **Allow Submissions** and configure the new-entry status, button and messages below.
+6. Click **Save type**.
 
 ## Editing a content type
 
@@ -31,21 +25,17 @@ Open an existing content type to add, reorder, remove fields, or set supported f
 
 Field defaults pre-fill new entries in the admin editor and are applied to API-created entries when the field is omitted.
 
-You can change a collection to a single page only when it has at most one active entry. This avoids ambiguity about which existing entry should become the fixed page content.
-
 ## Localization
 
-Content types can define `locales` and a `default_locale`. Leave locales empty to disable multi-language editing for that type.
+Configure available languages and the default language once in **Website settings → General → Languages** (permission `workspaces.manage`). Every content type and the website use exactly those settings, including languages added later. There are no per-type language overrides or inheritance settings. Previous per-type subsets no longer restrict the available languages. A single-language workspace uses the same model.
 
-Localized entries store translated `title` and custom field values per locale. Slug, status, author, publish date, timestamps, and entry ID are shared by all locales.
+Each entry has localized titles, slugs, field values, publication status, and publication dates. IDs, authors, creation dates, and fields marked **Shared across languages** remain shared. Shared values are stored once and edited in the default language.
 
-Changing locale settings is non-destructive:
+A missing value inherits the default-language value. An intentional empty value stays empty. An absent or unpublished entry translation stays unavailable publicly, and public fallback never reveals a draft in another language.
 
-- Adding a locale makes it available for future translations. Existing entries show it as missing until an editor saves that locale.
-- Enabling localization for an existing non-localized content type copies each entry's root content into the new default locale.
-- Removing a locale hides it from the editor and from `?locale=` resolution, but saved translation data is kept in storage.
-- Changing the default locale updates existing entries to use that locale as their fallback root value when a translation exists.
-- Disabling localization keeps existing translation data in storage, but the admin and API use the shared root values until localization is enabled again.
+Changing workspace languages never copies content or automatically publishes new entry translations. Removing a language deactivates it and hides its public content while keeping saved values and publication states. Add the language again to reactivate it. You can also unpublish individual entry translations while keeping the language active.
+
+Field labels, help text, and select-option labels also support translations, independently of whether the field's stored values are shared. Option keys and validation rules stay shared.
 
 ## Workspace-scoped API access
 
@@ -72,15 +62,12 @@ Deleting a content type also removes all entries in that collection. This action
 
 ## Content type schema (JSON)
 
-Content types are stored in `cms/storage/content-types/{name}.json`. A typical schema looks like:
+Content types are stored in `cms/storage/workspaces/{workspace}/content-types/{name}.json`. A typical schema looks like:
 
 ```json
 {
   "name": "posts",
   "label": "Posts",
-  "singleton": false,
-  "locales": ["en", "de"],
-  "default_locale": "en",
   "api_enabled": true,
   "fields": {
     "title": { "type": "text", "required": true },
@@ -90,8 +77,10 @@ Content types are stored in `cms/storage/content-types/{name}.json`. A typical s
       "label": "Body",
       "default": "Start writing..."
     },
-    "published": { "type": "boolean", "label": "Published", "default": false },
-    "published_at": { "type": "datetime", "label": "Publish date" }
+    "featured": { "type": "boolean", "label": "Featured", "default": false },
+    "starts_at": { "type": "datetime", "label": "Start date" }
   }
 }
 ```
+
+The schema API returns read-only `locales` and `default_locale` from the workspace. Language settings are not stored in content type schemas or configurable through schema writes. Old language overrides are ignored and removed when the schema is next saved.

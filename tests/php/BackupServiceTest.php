@@ -5,9 +5,8 @@ declare(strict_types=1);
 use CometCMS\Backups\BackupService;
 use CometCMS\Backups\RestoreService;
 use CometCMS\Site\SiteRepository;
-use CometCMS\Storage\JsonStore;
 
-test('website backups restore separate theme files over both new and legacy themes', function (): void {
+test('website backups restore separate theme files and respect overwrite', function (): void {
     $site = new SiteRepository();
     $theme = $site->saveTheme(['colors' => ['primary' => '#123456'], 'custom_css' => '.backup { color: red; }']);
     // Restored files are new files, so only their contents must match.
@@ -25,21 +24,11 @@ test('website backups restore separate theme files over both new and legacy them
     (new RestoreService())->restore($path, true, ['id' => 'admin'], ['site']);
     assert_same($withoutTime($theme), $withoutTime($site->theme()));
 
-    $store = new JsonStore($site->workspace()->path('site'));
-    $store->write(['custom_css' => '.legacy {}'], 'theme');
-    unlink($site->workspace()->path('site') . '/theme/theme.json');
-    unlink($site->workspace()->path('site') . '/theme/style.css');
-    $legacyBackup = $backups->create(['id' => 'admin'], ['site']);
-    $legacyPath = COMET_STORAGE . '/backups/' . $legacyBackup['name'];
+    $site->saveTheme(['custom_css' => '.keep {}']);
     (new RestoreService())->restore($path, false, ['id' => 'admin'], ['site']);
-    assert_same('.legacy {}', $site->theme()['custom_css'], 'Restoring without overwrite preserves the existing theme.');
+    assert_same('.keep {}', $site->theme()['custom_css']);
     (new RestoreService())->restore($path, true, ['id' => 'admin'], ['site']);
     assert_same($withoutTime($theme), $withoutTime($site->theme()));
-    assert_null($store->read('theme'));
-    (new RestoreService())->restore($legacyPath, false, ['id' => 'admin'], ['site']);
-    assert_same($withoutTime($theme), $withoutTime($site->theme()), 'An old backup without overwrite preserves a migrated theme.');
-    (new RestoreService())->restore($legacyPath, true, ['id' => 'admin'], ['site']);
-    assert_same('.legacy {}', $site->theme()['custom_css']);
 });
 
 test('backup notes protect backups from deletion until cleared', function (): void {

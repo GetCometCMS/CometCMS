@@ -3,13 +3,15 @@
 ## Uploading files
 
 1. Click **Media** in the sidebar.
-2. Click **Upload** and select one or more files.
+2. Click **Add file(s)** and select one or more files.
 
 Supported formats include JPEG, PNG, WebP, GIF, SVG, AVIF, MP4, WebM, QuickTime/MOV, M4V, AVI, MKV, common audio formats, archives, and common document types.
 
 The bundled CMS limit is 1 GiB per file, and the admin upload request has no browser-side timeout. Your PHP and web-server limits still apply. The included Apache/mod_php and PHP-FPM defaults set `upload_max_filesize` to `1G` and `post_max_size` to `1100M`; when using Nginx, a reverse proxy, or a hosting control panel, configure its body-size and request-timeout limits to match. You can lower the CMS limit with `media.max_upload_bytes` in `config/config.php`.
 
 ![Media library view in the CometCMS admin](../screenshots/view-media.png)
+
+Admin, API, and public form uploads validate detected MIME types against a shared safe extension map. Executable/configuration suffixes and MIME/extension mismatches are rejected. Renaming preserves the original file type; names with additional suffixes such as `file.php.gif` are rejected. Storage must remain inaccessible directly and must never execute scripts; serve files through `/media/{workspace}/{filename}`.
 
 ## Organising with categories
 

@@ -205,162 +205,7 @@
       v-else
       class="rounded-lg border border-slate-300 overflow-hidden focus-within:border-theme-400 focus-within:ring-1 focus-within:ring-theme-400"
     >
-      <div
-        class="flex flex-wrap gap-0.5 p-1.5 border-b border-slate-200 bg-slate-50"
-      >
-        <button
-          type="button"
-          class="tiptap-btn font-bold"
-          :title="t('editor.bold')"
-          :aria-label="t('editor.bold')"
-          @click="editor?.chain().focus().toggleBold().run()"
-          :class="{ 'is-active': editor?.isActive('bold') }"
-          :aria-pressed="!!editor?.isActive('bold')"
-        >
-          B
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn italic"
-          :title="t('editor.italic')"
-          :aria-label="t('editor.italic')"
-          @click="editor?.chain().focus().toggleItalic().run()"
-          :class="{ 'is-active': editor?.isActive('italic') }"
-          :aria-pressed="!!editor?.isActive('italic')"
-        >
-          I
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.strike')"
-          :aria-label="t('editor.strike')"
-          @click="editor?.chain().focus().toggleStrike().run()"
-          :class="{ 'is-active': editor?.isActive('strike') }"
-          :aria-pressed="!!editor?.isActive('strike')"
-        >
-          <s>S</s>
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h1')"
-          :aria-label="t('editor.h1')"
-          @click="editor?.chain().focus().toggleHeading({ level: 1 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 1 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 1 })"
-        >
-          H1
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h2')"
-          :aria-label="t('editor.h2')"
-          @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 2 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 2 })"
-        >
-          H2
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.h3')"
-          :aria-label="t('editor.h3')"
-          @click="editor?.chain().focus().toggleHeading({ level: 3 }).run()"
-          :class="{ 'is-active': editor?.isActive('heading', { level: 3 }) }"
-          :aria-pressed="!!editor?.isActive('heading', { level: 3 })"
-        >
-          H3
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.bulletList')"
-          :aria-label="t('editor.bulletList')"
-          @click="editor?.chain().focus().toggleBulletList().run()"
-          :class="{ 'is-active': editor?.isActive('bulletList') }"
-          :aria-pressed="!!editor?.isActive('bulletList')"
-        >
-          • List
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.orderedList')"
-          :aria-label="t('editor.orderedList')"
-          @click="editor?.chain().focus().toggleOrderedList().run()"
-          :class="{ 'is-active': editor?.isActive('orderedList') }"
-          :aria-pressed="!!editor?.isActive('orderedList')"
-        >
-          1. List
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.blockquote')"
-          :aria-label="t('editor.blockquote')"
-          @click="editor?.chain().focus().toggleBlockquote().run()"
-          :class="{ 'is-active': editor?.isActive('blockquote') }"
-          :aria-pressed="!!editor?.isActive('blockquote')"
-        >
-          "
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn font-mono text-xs"
-          :title="t('editor.code')"
-          :aria-label="t('editor.code')"
-          @click="editor?.chain().focus().toggleCode().run()"
-          :class="{ 'is-active': editor?.isActive('code') }"
-          :aria-pressed="!!editor?.isActive('code')"
-        >
-          &lt;/&gt;
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn font-mono text-xs"
-          :title="t('editor.codeBlock')"
-          :aria-label="t('editor.codeBlock')"
-          @click="editor?.chain().focus().toggleCodeBlock().run()"
-          :class="{ 'is-active': editor?.isActive('codeBlock') }"
-          :aria-pressed="!!editor?.isActive('codeBlock')"
-        >
-          ```
-        </button>
-        <span class="w-px bg-slate-200 mx-0.5 self-stretch"></span>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.rule')"
-          :aria-label="t('editor.rule')"
-          @click="editor?.chain().focus().setHorizontalRule().run()"
-        >
-          —
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.undo')"
-          :aria-label="t('editor.undo')"
-          @click="editor?.chain().focus().undo().run()"
-        >
-          ↩
-        </button>
-        <button
-          type="button"
-          class="tiptap-btn"
-          :title="t('editor.redo')"
-          :aria-label="t('editor.redo')"
-          @click="editor?.chain().focus().redo().run()"
-        >
-          ↪
-        </button>
-      </div>
+      <RichTextToolbar ref="richTextToolbar" :editor="editor" class="border-b border-slate-200 p-1.5" />
       <EditorContent :editor="editor" class="tiptap-content" />
     </div>
   </div>
@@ -773,9 +618,10 @@
     @input="$emit('update:modelValue', $event.target.value)"
   />
 
+  <Teleport to="body">
   <div
     v-if="mediaPreviewFile"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/70 px-4 py-6"
+    class="fixed inset-0 z-[310] flex items-center justify-center bg-ink-950/70 px-4 py-6"
     @click.self="closeMediaPreview"
   >
     <div
@@ -823,6 +669,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -833,7 +680,8 @@ import ToggleSwitch from "./ToggleSwitch.vue";
 import FieldInput from "./FieldInput.vue";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
-import StarterKit from "@tiptap/starter-kit";
+import RichTextToolbar from "./RichTextToolbar.vue";
+import { richTextExtensions } from "../composables/richTextEditor.js";
 import { Icon } from "@iconify/vue";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
 import { markdownToHtml, sanitizeHtml, turndown } from "../composables/richText.js";
@@ -847,6 +695,8 @@ import {
   uploadedMediaFilename,
 } from "../composables/mediaUtils.js";
 import { selectOptions } from "../composables/fieldBuilderUtils.js";
+import { resolveLocalizedTree } from "../composables/localizedValues.js";
+import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
 
 const { t } = useI18n();
@@ -854,11 +704,15 @@ const { t } = useI18n();
 const props = defineProps({
   name: { type: String, required: true },
   config: { type: Object, required: true },
+  locale: { type: String, default: "" },
   modelValue: { default: null },
   readonly: { type: Boolean, default: false },
   /** Smaller media thumbnail and buttons, for narrow sidebars. */
   compact: { type: Boolean, default: false },
 });
+
+const languages = useLanguages();
+const config = computed(() => resolveLocalizedTree(props.config, props.locale || languages.defaultLocale.value, languages.defaultLocale.value));
 
 const emit = defineEmits(["update:modelValue"]);
 const pickerOpen = ref(false);
@@ -870,13 +724,14 @@ const isMediaDropActive = computed(() => mediaDragDepth.value > 0);
 
 // ---- Rich text visual editor ----
 const richTextMode = ref("visual");
+const richTextToolbar = ref(null);
 
 const isRichTextField = computed(() =>
-  ["markdown", "html"].includes(props.config.type),
+  ["markdown", "html"].includes(config.value.type),
 );
 
 function richTextToEditorHtml(value) {
-  if (props.config.type === "html") {
+  if (config.value.type === "html") {
     return sanitizeHtml(value);
   }
 
@@ -886,7 +741,7 @@ function richTextToEditorHtml(value) {
 function editorStoredValue() {
   const html = sanitizeHtml(editor.value?.getHTML() ?? "");
 
-  if (props.config.type === "html") {
+  if (config.value.type === "html") {
     return html;
   }
 
@@ -894,18 +749,26 @@ function editorStoredValue() {
 }
 
 const editor = useEditor({
-  extensions: [StarterKit],
+  extensions: richTextExtensions(),
+  editorProps: {
+    handleKeyDown(_view, event) {
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return false;
+      event.preventDefault();
+      richTextToolbar.value?.openLink();
+      return true;
+    },
+  },
   content: "",
   onCreate({ editor }) {
     if (!isRichTextField.value) return;
     const html = richTextToEditorHtml(props.modelValue);
-    editor.commands.setContent(html, false);
+    editor.commands.setContent(html, { emitUpdate: false });
   },
   onUpdate({ editor }) {
     if (!isRichTextField.value) return;
     if (richTextMode.value === "visual") {
       const value =
-        props.config.type === "html"
+        config.value.type === "html"
           ? sanitizeHtml(editor.getHTML())
           : turndown.turndown(sanitizeHtml(editor.getHTML()));
       if (value !== String(props.modelValue ?? "")) {
@@ -920,7 +783,7 @@ function setRichTextMode(mode) {
   if (mode === richTextMode.value) return;
   if (mode === "visual") {
     const html = richTextToEditorHtml(props.modelValue);
-    editor.value?.commands.setContent(html, false);
+    editor.value?.commands.setContent(html, { emitUpdate: false });
   }
   richTextMode.value = mode;
 }
@@ -933,7 +796,7 @@ watch(
     const value = String(val ?? "");
     if (editorStoredValue() !== value) {
       const html = richTextToEditorHtml(value);
-      editor.value?.commands.setContent(html, false);
+      editor.value?.commands.setContent(html, { emitUpdate: false });
     }
   },
 );
@@ -941,7 +804,7 @@ watch(
 watch(
   () => props.modelValue,
   (val) => {
-    if (props.config.type !== "media") return;
+    if (config.value.type !== "media") return;
 
     const normalized = normalizeMediaModel(val);
 
@@ -964,8 +827,8 @@ watch(
 watch(
   () => props.modelValue,
   (val) => {
-    if (!props.config.multiple) return;
-    if (props.config.type !== "relation" && props.config.type !== "select")
+    if (!config.value.multiple) return;
+    if (config.value.type !== "relation" && config.value.type !== "select")
       return;
 
     const normalized = normalizeChoiceValues(val);
@@ -1012,21 +875,21 @@ const readonlyMarkdownHtml = computed(() =>
 
 const readonlyHtml = computed(() => sanitizeHtml(props.modelValue));
 
-const rangeMin = computed(() => numberOr(props.config.min, 0));
+const rangeMin = computed(() => numberOr(config.value.min, 0));
 const rangeMax = computed(() =>
-  Math.max(numberOr(props.config.max, 100), rangeMin.value),
+  Math.max(numberOr(config.value.max, 100), rangeMin.value),
 );
 const rangeStep = computed(() => {
-  const step = numberOr(props.config.step, 1);
+  const step = numberOr(config.value.step, 1);
   return step > 0 ? step : 1;
 });
 const rangeValue = computed(() => {
   const fallback =
-    props.config.default === null ||
-    props.config.default === undefined ||
-    props.config.default === ""
+    config.value.default === null ||
+    config.value.default === undefined ||
+    config.value.default === ""
       ? rangeMin.value
-      : props.config.default;
+      : config.value.default;
 
   return clamp(
     numberOr(props.modelValue, numberOr(fallback, rangeMin.value)),
@@ -1069,7 +932,7 @@ function formatRangeNumber(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value ?? "");
 
-  const decimals = props.config.display_decimals;
+  const decimals = config.value.display_decimals;
   if (decimals === "full") {
     return String(value);
   }
@@ -1179,7 +1042,7 @@ async function uploadDroppedMedia(files) {
 
     emit(
       "update:modelValue",
-      props.config.multiple ? uploadedNames : uploadedNames.slice(0, 1),
+      config.value.multiple ? uploadedNames : uploadedNames.slice(0, 1),
     );
   } catch (err) {
     mediaUploadError.value = err.message ?? t("fieldInput.uploadFailed");
@@ -1191,7 +1054,7 @@ async function uploadDroppedMedia(files) {
 const mediaValues = computed(() => normalizeMediaValues(props.modelValue));
 const mediaLabel = computed(() => {
   if (mediaValues.value.length === 0) return t("fieldInput.noMedia");
-  if (props.config.multiple)
+  if (config.value.multiple)
     return t(mediaValues.value.length === 1 ? "fieldInput.mediaSelectedOne" : "fieldInput.mediaSelectedMany", { count: mediaValues.value.length });
   return mediaValues.value[0];
 });
@@ -1211,9 +1074,9 @@ const mediaPreviewEmptyTiles = computed(() =>
 );
 const mediaPreviewUrl = computed(() => mediaUrl(mediaPreviewFile.value));
 const mediaPreviewIsImage = computed(() => isImage(mediaPreviewFile.value));
-const selectInputOptions = computed(() => selectOptions(props.config.options));
+const selectInputOptions = computed(() => selectOptions(config.value.options));
 const relationValue = computed(() => {
-  if (props.config.multiple) {
+  if (config.value.multiple) {
     return normalizeChoiceValues(props.modelValue);
   }
 
@@ -1229,7 +1092,7 @@ function normalizeMediaValues(value) {
 }
 
 function normalizeMediaModel(value) {
-  return normalizeMediaModelValue(value, props.config.multiple);
+  return normalizeMediaModelValue(value, config.value.multiple);
 }
 
 function mediaUrl(value) {
@@ -1259,13 +1122,13 @@ function onRelationSearch(q) {
 
 const relationOptions = computed(() =>
   relationEntries.value.map((entry) => ({
-    value: entry.id,
+    value: entry.uid || entry.id,
     label: entry.title || entry.id,
   })),
 );
 
 async function loadRelationEntries() {
-  if (props.config.type !== "relation" || !props.config.target) {
+  if (config.value.type !== "relation" || !config.value.target) {
     relationEntries.value = [];
     return;
   }
@@ -1277,7 +1140,7 @@ async function loadRelationEntries() {
       params.q = relationSearch.value.trim();
     }
 
-    const res = await api.content.list(props.config.target, params);
+    const res = await api.content.list(config.value.target, params);
     relationEntries.value = res.data;
   } finally {
     relationLoading.value = false;
@@ -1287,9 +1150,9 @@ async function loadRelationEntries() {
 onMounted(loadRelationEntries);
 
 watch(
-  () => props.config.target,
+  () => config.value.target,
   () => {
-    emit("update:modelValue", props.config.multiple ? [] : null);
+    emit("update:modelValue", config.value.multiple ? [] : null);
     loadRelationEntries();
   },
 );
@@ -1313,7 +1176,7 @@ const collapsedRows = ref(new Set());
 watch(
   () => props.modelValue,
   (val) => {
-    if (props.config.type !== "repeater") return;
+    if (config.value.type !== "repeater") return;
     // Only sync from outside if it genuinely differs (avoid stomping in-progress edits)
     const external = repeaterRows.value.map(({ _rid, ...r }) => r);
     if (JSON.stringify(external) !== JSON.stringify(val)) {
@@ -1332,7 +1195,7 @@ function emitRepeater() {
 
 function addRepeaterRow() {
   const row = { _rid: ridCounter++ };
-  for (const sub of props.config.subfields ?? []) {
+  for (const sub of config.value.subfields ?? []) {
     row[sub.key] = fieldDefaultValue(sub);
   }
   repeaterRows.value.push(row);
@@ -1359,7 +1222,7 @@ function toggleRepeaterRow(rid) {
 }
 
 function repeaterRowSummary(row) {
-  for (const sub of props.config.subfields ?? []) {
+  for (const sub of config.value.subfields ?? []) {
     const val = row[sub.key];
     if (val === null || val === undefined || val === "") continue;
     if (typeof val === "string")
@@ -1385,7 +1248,7 @@ function updateRepeaterCell(rowIndex, key, value) {
 }
 
 const subFieldGridCols = computed(() => {
-  const count = (props.config.subfields ?? []).length;
+  const count = (config.value.subfields ?? []).length;
   if (count >= 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
   if (count === 2) return "grid-cols-1 sm:grid-cols-2";
   return "grid-cols-1";
@@ -1393,14 +1256,6 @@ const subFieldGridCols = computed(() => {
 </script>
 
 <style scoped>
-.tiptap-btn {
-  @apply text-xs px-2 py-1 rounded text-slate-600 hover:bg-slate-200 transition-colors;
-}
-
-.tiptap-btn.is-active {
-  @apply bg-slate-200 text-slate-900 font-semibold;
-}
-
 .tiptap-content :deep(.ProseMirror) {
   @apply p-3 min-h-[16rem] text-sm text-slate-800 outline-none;
 }
@@ -1459,5 +1314,24 @@ const subFieldGridCols = computed(() => {
 
 .tiptap-content :deep(.ProseMirror s) {
   @apply line-through;
+}
+
+.tiptap-content :deep(.ProseMirror u) {
+  @apply underline;
+}
+
+.tiptap-content :deep(.ProseMirror a) {
+  @apply text-theme-600 underline underline-offset-2;
+}
+
+.tiptap-content :deep(.ProseMirror mark) {
+  background: rgb(253 224 71 / 0.6);
+  color: inherit;
+  border-radius: 0.15rem;
+  padding: 0 0.1rem;
+}
+
+:root[data-theme="dark"] .tiptap-content :deep(.ProseMirror mark) {
+  background: rgb(250 204 21 / 0.3);
 }
 </style>

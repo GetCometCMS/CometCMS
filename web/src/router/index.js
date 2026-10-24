@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { setActiveWorkspace } from '../api/index.js'
 import { ADMIN_BASE } from '../basePath.js'
 
 const routes = [
@@ -28,7 +29,7 @@ const routes = [
   },
   {
     path: '/content/:collection',
-    component: () => import('../views/ContentRouteView.vue'),
+    component: () => import('../views/ContentListView.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -94,16 +95,20 @@ const routes = [
     redirect: '/connect/api',
   },
   {
-    // Components are managed in the builder's components panel.
-    path: '/page-builder/components',
-    redirect: '/page-builder/builder/region/header?settings=components',
-  },
-  {
     path: '/page-builder/forms',
     redirect: '/content-types',
   },
+  // Site settings and SEO moved to the Website page.
   {
-    path: '/page-builder/:tab(overview|seo|menus)?',
+    path: '/page-builder/overview',
+    redirect: (to) => ({ path: '/website/general', query: to.query, hash: to.hash }),
+  },
+  {
+    path: '/page-builder/seo',
+    redirect: '/website/seo',
+  },
+  {
+    path: '/page-builder/:tab(design|templates|menus|fonts|components)?',
     component: () => import('../views/PageBuilderView.vue'),
     meta: { requiresAuth: true },
   },
@@ -113,10 +118,17 @@ const routes = [
     redirect: (to) => ({ path: `/page-builder/builder/layout/${to.params.name}/index`, query: to.query }),
   },
   {
-    // Full-screen editor for a content type layout, the header/footer or a component.
-    path: '/page-builder/builder/:target(layout|region|component)/:name/:variant?',
+    // Full-screen editor for a content type layout, the header/footer, a component,
+    // or one entry's page content (/page/:type/:entry, ?field= picks the page field).
+    path: '/page-builder/builder/:target(layout|region|component|page)/:name/:variant?',
     component: () => import('../views/PageBuilderEditorView.vue'),
-    meta: { requiresAuth: true, bare: true },
+    // One editor for all builder pages: it loads the next page in place instead of remounting.
+    meta: { requiresAuth: true, bare: true, viewKey: 'page-builder-editor' },
+  },
+  {
+    path: '/website/:tab(general|seo|forms|workspaces)?',
+    component: () => import('../views/WebsiteView.vue'),
+    meta: { requiresAuth: true },
   },
   // Old /website URLs (bookmarks, links in notes).
   {
@@ -138,8 +150,7 @@ const routes = [
   },
   {
     path: '/workspaces',
-    component: () => import('../views/WorkspacesView.vue'),
-    meta: { requiresAuth: true },
+    redirect: '/website/workspaces',
   },
   {
     // Unknown admin URLs (typos, removed pages, stale bookmarks).
@@ -162,6 +173,10 @@ router.beforeEach(async (to) => {
   if (!authInitialized) {
     await auth.init()
     authInitialized = true
+  }
+
+  if (auth.isAuthenticated && typeof to.query.workspace === 'string' && auth.can('workspaces.read')) {
+    setActiveWorkspace(to.query.workspace)
   }
 
   if (auth.notSetUp && to.path !== '/setup') {

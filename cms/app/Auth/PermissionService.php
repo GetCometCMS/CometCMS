@@ -47,12 +47,11 @@ final class PermissionService
 
     public function capabilities(array $principal): array
     {
+        $grants = $this->grants($principal);
+
         return [
-            'permissions' => $this->grants($principal),
-            'actions' => array_values(array_unique(array_merge(...array_map(
-                fn(array $grant): array => array_map('strval', (array) ($grant['actions'] ?? $grant['action'] ?? [])),
-                $this->grants($principal),
-            )))),
+            'permissions' => $grants,
+            'actions' => array_values(array_unique(array_merge(...array_column($grants, 'actions')))),
         ];
     }
 
@@ -78,7 +77,7 @@ final class PermissionService
                 continue;
             }
 
-            $grant = $this->normalizeGrant($grant);
+            $grant = self::normalizeGrant($grant);
             if ($grant['effect'] === 'deny') {
                 continue;
             }
@@ -219,7 +218,7 @@ final class PermissionService
         if (($principal['_principal_type'] ?? 'user') !== 'token') {
             $role = (string) ($principal['role'] ?? 'viewer');
             foreach ($this->roles->permissions($role) as $grant) {
-                $grants[] = $this->normalizeGrant($grant);
+                $grants[] = self::normalizeGrant($grant);
             }
 
             return $grants;
@@ -227,17 +226,20 @@ final class PermissionService
 
         foreach ((array) ($principal['permissions'] ?? []) as $grant) {
             if (is_array($grant)) {
-                $grants[] = $this->normalizeGrant($grant);
+                $grants[] = self::normalizeGrant($grant);
             }
         }
 
         return $grants;
     }
 
-    private function normalizeGrant(array $grant): array
+    /**
+     * Canonical grant shape shared by roles, tokens and permission checks.
+     */
+    public static function normalizeGrant(array $grant): array
     {
-        $actions = $grant['actions'] ?? $grant['action'] ?? [];
-        $resources = $grant['resources'] ?? $grant['resource'] ?? [];
+        $actions = is_array($grant['actions'] ?? null) ? $grant['actions'] : [];
+        $resources = is_array($grant['resources'] ?? null) ? $grant['resources'] : [];
 
         return array_filter([
             'effect' => ($grant['effect'] ?? 'allow') === 'deny' ? 'deny' : 'allow',
@@ -246,6 +248,31 @@ final class PermissionService
             'fields' => array_key_exists('fields', $grant) ? array_values(array_filter(array_map('strval', (array) $grant['fields']))) : null,
             'conditions' => is_array($grant['conditions'] ?? null) ? $grant['conditions'] : null,
         ], static fn(mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * Normalize a stored grant list, dropping entries without actions or resources.
+     */
+    public static function normalizeGrants(mixed $grants): array
+    {
+        if (!is_array($grants)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($grants as $grant) {
+            if (!is_array($grant)) {
+                continue;
+            }
+
+            $grant = self::normalizeGrant($grant);
+            if ($grant['actions'] !== [] && $grant['resources'] !== []) {
+                $normalized[] = $grant;
+            }
+        }
+
+        return $normalized;
     }
 
     private function grantApplies(array $grant, string $action, array $context, array $fields): bool
@@ -262,6 +289,8 @@ final class PermissionService
             return false;
         }
 
+        // A grant limited to languages cannot authorize mutations of an entire resource.
+        if (isset($grant['conditions']['locales']) && !str_ends_with($action, '.read') && empty($context['locale'])) return false;
         return $this->conditionsAllowed((array) ($grant['conditions'] ?? []), $context);
     }
 
@@ -290,10 +319,12 @@ final class PermissionService
             $entry = is_array($context['entry'] ?? null) ? $context['entry'] : [];
             $id = (string) ($context['id'] ?? $entry['id'] ?? $entry['slug'] ?? '*');
             $slug = (string) ($entry['slug'] ?? '');
+            $uid = (string) ($entry['uid'] ?? '');
             $candidates = [
                 'content:' . $collection . ':' . $id,
             ];
 
+            if ($uid !== '') $candidates[] = 'content:' . $collection . ':' . $uid;
             if ($slug !== '' && $slug !== $id) {
                 $candidates[] = 'content:' . $collection . ':' . $slug;
             }
@@ -369,6 +400,11 @@ final class PermissionService
         if ($type === 'workspace') {
             $slug = (string) ($context['slug'] ?? '*');
             return ['workspaces:' . $slug, 'workspaces:*', '*'];
+        }
+
+        if ($type === 'site') {
+            $workspace = (string) ($context['workspace'] ?? '');
+            return $workspace !== '' ? ['workspace:' . $workspace . ':site:*', 'site:*', '*'] : ['site:*', '*'];
         }
 
         $resource = (string) ($context['resource'] ?? $type . ':*');

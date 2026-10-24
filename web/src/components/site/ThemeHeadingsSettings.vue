@@ -27,10 +27,7 @@
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="form-label" :for="`${id}-font`">{{ t("site.theme.headingLevelFont") }}</label>
-        <select :id="`${id}-font`" v-model="heading.font" class="form-select w-full rounded-lg border-slate-300 text-sm">
-          <option value="">{{ t("site.theme.inherit", { value: t(`site.font.${theme.fonts.heading}`) }) }}</option>
-          <option v-for="font in fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
-        </select>
+        <FontPicker :id="`${id}-font`" v-model="heading.font" allow-empty :empty-label="t('site.theme.inherit', { value: fontLabel(theme.fonts.heading) })" />
       </div>
       <div>
         <label class="form-label" :for="`${id}-weight`">{{ t("site.theme.headingLevelWeight") }}</label>
@@ -85,6 +82,7 @@
 import { computed, ref, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import FontPicker from "./FontPicker.vue";
 import { useSiteStore } from "../../stores/site.js";
 import { useI18n } from "../../i18n/index.js";
 
@@ -111,7 +109,7 @@ const { t } = useI18n();
 const id = `theme-heading-${useId()}`;
 const level = ref("h1");
 const theme = computed(() => site.draft.theme);
-const fonts = computed(() => site.data.fonts);
+const fontLabel = (id) => site.data.font_families?.find((font) => font.id === id)?.name ?? t(`site.font.${id}`);
 /** One level's values when nothing is overridden (Theme::headingDefaults()). */
 const defaults = computed(() => site.data.theme_defaults.headings.h1);
 const heading = computed(() => theme.value.headings[level.value]);

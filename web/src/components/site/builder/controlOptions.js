@@ -18,7 +18,6 @@ const ICONS = {
   'style.max_width': { narrow: 'mdi:arrow-collapse-horizontal', prose: 'mdi:text-long' },
   'props.orientation': { horizontal: 'mdi:dots-horizontal', vertical: 'mdi:dots-vertical' },
   'props.sort_order': { desc: 'mdi:sort-descending', asc: 'mdi:sort-ascending' },
-  'props.display': { cards: 'mdi:view-grid-outline', list: 'mdi:format-list-bulleted' },
   'props.fit': { cover: 'mdi:crop', contain: 'mdi:fit-to-screen-outline' },
   'style.animation': {
     none: DEFAULT_ICON,
@@ -33,6 +32,7 @@ const ICONS = {
   },
   'style.animation_trigger': { scroll: 'mdi:gesture-swipe-up', load: 'mdi:play-outline', hover: 'mdi:cursor-default-outline' },
   'style.animation_duration': { fast: 'mdi:speedometer', normal: 'mdi:speedometer-medium', slow: 'mdi:speedometer-slow' },
+  'style.position': { static: 'mdi:format-align-justify', absolute: 'mdi:pin-outline', fixed: 'mdi:pin' },
   'style.overlay': { none: 'mdi:image-outline', light: 'mdi:brightness-5', dark: 'mdi:brightness-3' },
 }
 
@@ -59,6 +59,7 @@ function tokenHint(key, value, kind, theme) {
 }
 
 export const DEVICE_ICONS = { mobile: 'mdi:cellphone', tablet: 'mdi:tablet', desktop: 'mdi:monitor' }
+export const STATE_ICONS = { hover: 'mdi:cursor-default-click-outline', focus: 'mdi:keyboard-outline' }
 
 /**
  * Bar options for an enum, or null when a bar would not fit.

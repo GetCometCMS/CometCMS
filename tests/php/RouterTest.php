@@ -9,7 +9,10 @@ function comet_router_test_get(int $port, string $path): array
     ]));
     $status = 0;
 
-    foreach ($http_response_header ?? [] as $header) {
+    $responseHeaders = function_exists('http_get_last_response_headers')
+        ? (http_get_last_response_headers() ?? [])
+        : (${'http_response_header'} ?? []);
+    foreach ($responseHeaders as $header) {
         if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $match)) {
             $status = (int) $match[1];
         }
@@ -34,10 +37,11 @@ test('built-in server router only serves compiled admin assets as static files',
     file_put_contents($root . '/config/config.php', "<?php echo 'EXECUTED';");
 
     $port = 20080 + random_int(0, 2000);
+    $nullDevice = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
     $process = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, '-t', $root, $root . '/router.php'], [
-        0 => ['file', '/dev/null', 'r'],
-        1 => ['file', '/dev/null', 'w'],
-        2 => ['file', '/dev/null', 'w'],
+        0 => ['file', $nullDevice, 'r'],
+        1 => ['file', $nullDevice, 'w'],
+        2 => ['file', $nullDevice, 'w'],
     ], $pipes);
 
     try {

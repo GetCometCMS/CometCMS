@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace CometCMS\Media;
 
+use CometCMS\Localization\LocalizedValue;
+use CometCMS\Localization\LanguageSettings;
+
 use CometCMS\Cache\ApiCache;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Workspaces\WorkspaceContext;
@@ -32,7 +35,6 @@ final class MediaRepository
             mkdir(dirname($this->metadataPath), 0775, true);
         }
 
-        $this->removeLegacyThumbnailCache();
     }
 
     public function directory(): string
@@ -427,6 +429,7 @@ final class MediaRepository
         }
 
         $newName = $this->normalizeFilename($newName, $file);
+        MimeDetector::assertRename($file, $newName);
         $target = $this->path($newName);
 
         if ($newName === $file) {
@@ -483,6 +486,7 @@ final class MediaRepository
             'alt'         => $fileMeta['alt'] ?? '',
             'title'       => $fileMeta['title'] ?? '',
             'visibility'  => $fileMeta['visibility'] ?? 'public',
+            'revision' => LocalizedValue::hash($fileMeta),
         ];
     }
 
@@ -507,7 +511,16 @@ final class MediaRepository
         $this->writeMetadata($metadata);
     }
 
-    public function updateMeta(string $file, string $alt, string $title): ?array
+    public function updateMeta(string $file, mixed $alt, mixed $title, ?string $revision = null): ?array
+    {
+        return (new \CometCMS\Storage\JsonStore($this->workspace->path('media-meta')))->synchronized(function () use ($file, $alt, $title, $revision): ?array {
+            $current = $this->find($file);
+            if ($current !== null && $revision !== null && $revision !== $current['revision']) throw new \CometCMS\Core\ConflictException();
+            return $this->updateMetaUnlocked($file, $alt, $title);
+        }, 'metadata');
+    }
+
+    private function updateMetaUnlocked(string $file, mixed $alt, mixed $title): ?array
     {
         $file = basename(rawurldecode($file));
         $path = $this->path($file);
@@ -516,8 +529,10 @@ final class MediaRepository
             return null;
         }
 
-        $alt   = substr(trim($alt), 0, 500);
-        $title = substr(trim($title), 0, 500);
+        $normalize = static fn(mixed $value): string => is_scalar($value) ? substr(trim((string) $value), 0, 500) : '';
+        $locales = (new LanguageSettings($this->workspace))->all()['locales'];
+        $alt = LocalizedValue::normalize($alt, $normalize, $locales);
+        $title = LocalizedValue::normalize($title, $normalize, $locales);
 
         $metadata = $this->metadata();
         $metadata['files'][$file] ??= [];
@@ -726,7 +741,6 @@ final class MediaRepository
 
         $maxPixels = max(1, (int) comet_config('media.variants.max_pixels', 16000000));
         if ($targetWidth * $targetHeight > $maxPixels) {
-            imagedestroy($sourceImage);
             throw new \InvalidArgumentException('Requested variant exceeds the configured pixel limit.');
         }
 
@@ -741,18 +755,15 @@ final class MediaRepository
         $target = $directory . '/' . $sourceFingerprint . '-' . $transform . '.' . $extension;
 
         if (is_file($target) && !($internal && ($options['refresh'] ?? false))) {
-            imagedestroy($sourceImage);
             return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
         }
 
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
-            imagedestroy($sourceImage);
             throw new \RuntimeException('Could not create the image variant cache directory.');
         }
 
         $variant = imagecreatetruecolor($targetWidth, $targetHeight);
         if (!$variant instanceof \GdImage) {
-            imagedestroy($sourceImage);
             throw new \RuntimeException('Could not allocate the image variant.');
         }
 
@@ -760,8 +771,7 @@ final class MediaRepository
         imagecopyresampled($variant, $sourceImage, 0, 0, $sourceX, $sourceY, $targetWidth, $targetHeight, $cropWidth, $cropHeight);
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
         $saved = $this->saveVariantImage($variant, $tmp, $format, $quality);
-        imagedestroy($variant);
-        imagedestroy($sourceImage);
+        unset($variant, $sourceImage);
 
         if (!$saved) {
             if (is_file($tmp)) {
@@ -987,22 +997,6 @@ final class MediaRepository
         return $this->variantDir . '/' . sha1(basename($file));
     }
 
-    private function removeLegacyThumbnailCache(): void
-    {
-        $directory = $this->workspace->root() . '/media-thumbs';
-        if (!is_dir($directory)) {
-            return;
-        }
-
-        foreach (glob($directory . '/*') ?: [] as $path) {
-            if (is_file($path)) {
-                unlink($path);
-            }
-        }
-
-        @rmdir($directory);
-    }
-
     private function deleteVariants(string $file): void
     {
         $directory = $this->variantStorageDirectory($file);
@@ -1075,8 +1069,6 @@ final class MediaRepository
         if (!$rotated instanceof \GdImage) {
             return $image;
         }
-
-        imagedestroy($image);
 
         return $rotated;
     }
@@ -1229,10 +1221,10 @@ final class MediaRepository
                     $entry['uploaded_at'] = (string) $item['uploaded_at'];
                 }
                 if (isset($item['alt']) && $item['alt'] !== '') {
-                    $entry['alt'] = (string) $item['alt'];
+                    $entry['alt'] = LocalizedValue::normalize($item['alt'], static fn(mixed $v): string => is_scalar($v) ? substr(trim((string) $v), 0, 500) : '', (new LanguageSettings($this->workspace))->all()['locales']);
                 }
                 if (isset($item['title']) && $item['title'] !== '') {
-                    $entry['title'] = (string) $item['title'];
+                    $entry['title'] = LocalizedValue::normalize($item['title'], static fn(mixed $v): string => is_scalar($v) ? substr(trim((string) $v), 0, 500) : '', (new LanguageSettings($this->workspace))->all()['locales']);
                 }
                 if (isset($item['visibility']) && $item['visibility'] === 'private') {
                     $entry['visibility'] = 'private';

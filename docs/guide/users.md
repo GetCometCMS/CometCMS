@@ -16,7 +16,7 @@ Open the **Roles** tab in **Administration → Users & roles** to create roles o
 
 ## Viewing users
 
-Navigate to **Administration → Users & roles** in the sidebar. Users are grouped by role: Admins → Editors → Viewers.
+Navigate to **Administration → Users & roles** in the sidebar. Users are grouped by their assigned role.
 
 ## Creating a user
 
@@ -24,9 +24,9 @@ Navigate to **Administration → Users & roles** in the sidebar. Users are group
 2. Enter a username, password (min 8 characters), and role.
 3. Click **Create**.
 
-## Editing a user (admin only)
+## Editing a user
 
-Admins can click the **Edit** button on any other user's card to update their display name, email, role, or set a new password. You cannot edit your own account from this page — use your [profile page](#your-profile) instead.
+With `users.update` permission, click **Edit** on another user's card to update their display name, email, role, or password. Your own grants must cover that account's existing permissions and any role you assign. You cannot edit your own account from this page — use your [profile page](#your-profile) instead.
 
 ## Deleting a user
 

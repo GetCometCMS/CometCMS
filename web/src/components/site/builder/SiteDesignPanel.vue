@@ -1,12 +1,15 @@
 <template>
-  <div class="flex h-full flex-col">
-    <div class="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+  <div :class="layout === 'page' ? 'card' : 'flex h-full flex-col'">
+    <div v-if="showHeader" class="relative z-10 flex shrink-0 items-center gap-2 border-b border-slate-200" :class="layout === 'page' ? 'px-6 py-4' : 'px-4 py-3'">
       <Icon icon="mdi:palette-outline" class="h-5 w-5 shrink-0 text-theme-600" />
       <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-semibold text-slate-900">{{ t("site.builder.designSettings") }}</h2>
-        <p class="text-xs text-slate-500">{{ t("site.builder.designSettingsHint") }}</p>
+        <div :class="layout === 'sidebar' ? 'flex min-w-0 items-center gap-1' : ''">
+          <h2 :class="layout === 'page' ? 'card-title' : 'truncate text-sm font-semibold text-slate-900'">{{ t("site.builder.designSettings") }}</h2>
+          <BuilderHelp v-if="layout === 'sidebar'" :label="`${t('site.builder.designSettings')} — ${t('site.builder.help')}`" :hints="[t('site.builder.designSettingsHint')]" />
+        </div>
+        <p v-if="layout === 'page'" class="card-description">{{ t("site.builder.designSettingsHint") }}</p>
       </div>
-      <button type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
+      <button v-if="layout === 'sidebar'" type="button" class="panel-action" :title="t('site.builder.closeSettings')" @click="emit('close')">
         <Icon icon="mdi:close" class="h-4 w-4" />
         <span class="sr-only">{{ t("site.builder.closeSettings") }}</span>
       </button>
@@ -15,7 +18,7 @@
     <p v-if="!theme && site.error" role="alert" class="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ site.error }}</p>
     <div v-else-if="!theme" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
-    <div v-else class="flex-1 space-y-5 overflow-y-auto p-3">
+    <div v-else class="space-y-5" :class="layout === 'page' ? 'p-6' : 'flex-1 overflow-y-auto p-3'">
       <BuilderGroup v-model:open="expanded.presets" :title="t('site.theme.presets')" content-class="mt-2 grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
         <button
           v-for="preset in PRESETS"
@@ -93,18 +96,16 @@
       </BuilderGroup>
 
       <BuilderGroup v-model:open="expanded.typography" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
+        <button type="button" class="btn-secondary btn-sm w-full" @click="fontManagerOpen = true"><Icon icon="mdi:format-font" class="h-4 w-4" />{{ t('site.fonts.manage') }}</button>
+        <FontManager v-model="fontManagerOpen" :draft-nodes="draftNodes" />
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label" for="design-font-heading">{{ t("site.theme.headingFont") }}</label>
-            <select id="design-font-heading" v-model="theme.fonts.heading" class="form-select w-full rounded-lg border-slate-300 text-sm">
-              <option v-for="font in site.data.fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
-            </select>
+            <FontPicker id="design-font-heading" v-model="theme.fonts.heading" />
           </div>
           <div>
             <label class="form-label" for="design-font-body">{{ t("site.theme.bodyFont") }}</label>
-            <select id="design-font-body" v-model="theme.fonts.body" class="form-select w-full rounded-lg border-slate-300 text-sm">
-              <option v-for="font in site.data.fonts" :key="font" :value="font">{{ t(`site.font.${font}`) }}</option>
-            </select>
+            <FontPicker id="design-font-body" v-model="theme.fonts.body" />
           </div>
           <div>
             <label class="form-label" for="design-scale">{{ t("site.theme.typeScale") }}</label>
@@ -225,19 +226,28 @@
 import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderGroup from "./BuilderGroup.vue";
+import BuilderHelp from "./BuilderHelp.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import ToggleSwitch from "../../ToggleSwitch.vue";
 import RangeRow from "../RangeRow.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
+import FontPicker from "../FontPicker.vue";
+import FontManager from "../FontManager.vue";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
 import { newId } from "../../../composables/layoutTree.js";
 
-/** Global design of the website, edited on the site draft; the builder canvas is its preview. */
+/** Global design of the website, shared by the backend settings and builder sidebar. */
+defineProps({
+  showHeader: { type: Boolean, default: true },
+  layout: { type: String, default: "sidebar", validator: (value) => ["sidebar", "page"].includes(value) },
+  draftNodes: { type: Array, default: () => [] },
+});
 const emit = defineEmits(["close"]);
+const fontManagerOpen = ref(false);
 
 const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
 const RADIUS_TOKENS = ["sm", "md", "lg"];
@@ -299,7 +309,7 @@ const PRESETS = [
 const site = useSiteStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: true, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
+const expanded = ref({ presets: false, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
 const motionPreview = ref(0);
 
 const palettes = computed(() => {

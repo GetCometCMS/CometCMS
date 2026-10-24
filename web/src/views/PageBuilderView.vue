@@ -2,32 +2,13 @@
   <div>
     <div class="editor-sticky-header flex flex-wrap items-center gap-3">
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <h1 class="page-title">{{ t("site.title") }}</h1>
-          <span
-            v-if="site.data"
-            class="badge badge-dot"
-            :class="site.data.settings.enabled ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/15'"
-          >
-            {{ site.data.settings.enabled ? t("site.status.live") : t("site.status.off") }}
-          </span>
-        </div>
+        <h1 class="page-title">{{ t("site.title") }}</h1>
         <p class="mt-0.5 text-sm text-slate-500">{{ t("site.description") }}</p>
       </div>
 
-      <a
-        v-if="site.data?.settings.enabled"
-        :href="site.data.site_url + '/'"
-        target="_blank"
-        rel="noopener"
-        class="btn-secondary"
-      >
-        <Icon icon="mdi:open-in-new" class="h-4 w-4" />
-        {{ t("site.openWebsite") }}
-      </a>
-      <router-link :to="DESIGN_PATH" class="btn-secondary">
-        <Icon icon="mdi:palette-outline" class="h-4 w-4" />
-        {{ t("site.design.open") }}
+      <router-link v-if="site.data" :to="builderLink" class="btn-secondary">
+        <Icon icon="mdi:view-dashboard-edit-outline" class="h-4 w-4" />
+        {{ t("site.builderCta.open") }}
       </router-link>
       <button
         v-if="site.draft"
@@ -54,20 +35,6 @@
 
     <template v-else-if="site.draft">
       <div
-        v-if="!site.live"
-        class="mb-6 flex flex-col gap-3 rounded-xl border border-theme-200 bg-theme-50 px-4 py-3 text-sm text-theme-900 sm:flex-row sm:items-center"
-      >
-        <Icon icon="mdi:information-outline" class="h-5 w-5 shrink-0 text-theme-600" />
-        <p class="flex-1">{{ t("site.offNotice") }}</p>
-        <router-link v-if="activeTab !== 'overview'" to="/page-builder/overview" class="btn-secondary btn-sm shrink-0">
-          {{ t("site.chooseHomepage") }}
-        </router-link>
-        <router-link to="/content-types" class="btn-secondary btn-sm shrink-0">
-          {{ t("site.enablePages") }}
-        </router-link>
-      </div>
-
-      <div
         v-if="Object.keys(site.fieldErrors).length > 0"
         class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
       >
@@ -82,10 +49,41 @@
         :items="tabs"
         :model-value="activeTab"
         :aria-label="t('site.navigation')"
-      />
+      >
+        <template v-if="activeTab === 'menus'" #end><LanguageTabs /></template>
+      </TabNavigation>
 
-      <SiteOverviewPanel v-if="activeTab === 'overview'" />
-      <SiteSeoPanel v-else-if="activeTab === 'seo'" />
+      <div v-if="activeTab === 'design'" class="grid items-start gap-6 lg:grid-cols-2">
+        <div class="min-w-0 space-y-4">
+          <SiteDesignPanel layout="page" />
+          <div class="card overflow-hidden">
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-theme-500"
+              :aria-expanded="cssEditorOpen"
+              aria-controls="design-custom-css"
+              @click="cssEditorOpen = !cssEditorOpen"
+            >
+              <Icon icon="mdi:language-css3" class="h-4 w-4" />
+              {{ t("site.theme.customCss") }}
+              <Icon :icon="cssEditorOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="ml-auto h-4 w-4" />
+            </button>
+            <section v-if="cssEditorOpen" id="design-custom-css" class="h-[28rem] overflow-hidden border-t border-slate-200" :aria-label="t('site.theme.customCss')">
+              <CustomCssPanel :show-header="false" />
+            </section>
+          </div>
+        </div>
+        <SiteThemePreview class="min-w-0 lg:sticky lg:top-24" />
+      </div>
+      <SiteTemplatesPanel v-else-if="activeTab === 'templates'" />
+      <SiteComponentsPanel v-else-if="activeTab === 'components'" />
+      <section v-else-if="activeTab === 'fonts'" class="card p-6">
+        <div class="mb-4">
+          <h2 class="card-title">{{ t("site.fonts.libraryTitle") }}</h2>
+          <p class="card-description">{{ t("site.fonts.libraryHint") }}</p>
+        </div>
+        <FontLibrary layout="page" />
+      </section>
       <SiteMenusPanel v-else />
     </template>
 
@@ -102,36 +100,57 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import TabNavigation from "../components/TabNavigation.vue";
-import SiteOverviewPanel from "../components/site/SiteOverviewPanel.vue";
-import SiteSeoPanel from "../components/site/SiteSeoPanel.vue";
+import LanguageTabs from "../components/LanguageTabs.vue";
+import SiteDesignPanel from "../components/site/builder/SiteDesignPanel.vue";
+import CustomCssPanel from "../components/site/builder/CustomCssPanel.vue";
+import SiteThemePreview from "../components/site/SiteThemePreview.vue";
 import SiteMenusPanel from "../components/site/SiteMenusPanel.vue";
+import SiteComponentsPanel from "../components/site/SiteComponentsPanel.vue";
+import SiteTemplatesPanel from "../components/site/SiteTemplatesPanel.vue";
+import FontLibrary from "../components/site/FontLibrary.vue";
 import { useUnsavedChangesGuard } from "../composables/useUnsavedChangesGuard.js";
 import { useSiteStore } from "../stores/site.js";
 import { useToastStore } from "../stores/toast.js";
 import { useI18n } from "../i18n/index.js";
+import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 
 const route = useRoute();
 const site = useSiteStore();
 const toast = useToastStore();
 const { t } = useI18n();
-/** The design is edited and saved in the builder; this screen owns settings and menus. */
-const PARTS = ["settings", "menus"];
-const DESIGN_PATH = "/page-builder/builder/region/header?settings=design";
+const cssEditorOpen = ref(false);
+provideLanguageSwitcher();
+/** Global design, menus and templates share a draft across these tabs. */
+const PARTS = ["theme", "menus", "templates"];
 const isDirty = computed(() => site.dirtyParts.some((part) => PARTS.includes(part)));
+// Opens the homepage layout, or the header when no homepage is chosen. Uses saved
+// settings because leaving discards any pending edits.
+const builderLink = computed(() => {
+  const homepage = site.data.settings.homepage;
+  const type = site.data.types.find((type) => type.name === homepage.type && type.visibility !== "private");
+  if (!type) return "/page-builder/builder/region/header";
+
+  return {
+    path: `/page-builder/builder/layout/${encodeURIComponent(type.name)}/${homepage.entry ? "detail" : "index"}`,
+    query: homepage.entry ? { entry: homepage.entry } : {},
+  };
+});
 const { leavePromptOpen, confirmLeave } = useUnsavedChangesGuard(isDirty);
 
-const validTabs = new Set(["overview", "seo", "menus"]);
-const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "overview"));
+const validTabs = new Set(["design", "templates", "menus", "fonts", "components"]);
+const activeTab = computed(() => (validTabs.has(route.params.tab) ? route.params.tab : "design"));
 const tabs = computed(() => [
-  { value: "overview", label: t("site.tab.overview"), icon: "mdi:cog-outline", to: "/page-builder/overview" },
-  { value: "seo", label: t("site.tab.seo"), icon: "mdi:magnify", to: "/page-builder/seo" },
+  { value: "design", label: t("site.builder.designSettings"), icon: "mdi:palette-outline", to: "/page-builder/design" },
+  { value: "templates", label: t("site.templates.title"), icon: "mdi:page-layout-header-footer", to: "/page-builder/templates" },
   { value: "menus", label: t("site.tab.menus"), icon: "mdi:menu", to: "/page-builder/menus" },
+  { value: "components", label: t("site.component.group"), icon: "mdi:puzzle-outline", to: "/page-builder/components" },
+  { value: "fonts", label: t("site.tab.fonts"), icon: "mdi:format-font", to: "/page-builder/fonts" },
 ]);
 
 async function save() {

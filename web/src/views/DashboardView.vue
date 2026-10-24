@@ -77,11 +77,11 @@
         </component>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      <div class="grid gap-4 lg:grid-cols-2">
         <!-- Recent Activity -->
         <ActivityFeed />
 
-        <div class="space-y-6">
+        <div class="min-w-0 space-y-4">
           <DashboardSiteWidget :status="websiteStatus" />
 
           <!-- Quick actions -->
@@ -116,7 +116,6 @@ import ActivityFeed from "../components/ActivityFeed.vue";
 import DashboardSiteWidget from "../components/DashboardSiteWidget.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAuthStore } from "../stores/auth.js";
-import { contentTypeIcon } from "../composables/useNavigation.js";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { api, getActiveWorkspace } from "../api/index.js";
@@ -146,9 +145,9 @@ const quickActions = computed(() => {
     .slice(0, 4)
     .map((type) => ({
       key: `type:${type.name}`,
-      label: type.singleton ? t("dashboard.editPage", { type: type.label }) : t("app.search.newEntry", { type: type.label }),
-      icon: type.singleton ? contentTypeIcon(type) : "mdi:plus",
-      to: type.singleton ? `/content/${type.name}` : `/content/${type.name}/new`,
+      label: t("app.search.newEntry", { type: type.label }),
+      icon: "mdi:plus",
+      to: `/content/${type.name}/new`,
     }));
   actions.push({ key: "media", label: t("dashboard.uploadMedia"), icon: "mdi:upload-outline", to: "/media" });
   if (canSchema("schema.create")) {
@@ -184,7 +183,7 @@ const gettingStartedSteps = computed(() => {
       title: t("dashboard.start.connectTitle"),
       body: t("dashboard.start.connectBody"),
       done: false,
-      to: "/page-builder/overview",
+      to: "/website/general",
     },
   ];
 });

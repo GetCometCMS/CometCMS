@@ -1,6 +1,6 @@
 <template>
   <div v-if="$route.meta.requiresAuth && $route.meta.bare" class="app-shell min-h-screen">
-    <router-view :key="$route.path" />
+    <router-view :key="$route.meta.viewKey ?? $route.path" />
     <ToastStack />
   </div>
 

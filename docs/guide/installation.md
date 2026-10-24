@@ -3,19 +3,28 @@
 ## Requirements
 
 **Server (production):**
-- PHP 8.1 or later (with `json`, `mbstring`, `fileinfo` extensions)
+- PHP 8.2 or later (with `json`, `mbstring`, `fileinfo` extensions)
 - A web server (Apache, Nginx, Caddy)
 
 **Development machine:**
-- Node.js 18+ (only needed to build the admin frontend — not required on the server)
+- Node.js 24 LTS, pinned in `.nvmrc` (only needed for local development and builds)
+- PHP 8.2+ for local development and backend tests
+
+The PHP `zip` extension enables ZIP backups, restore, and release installation. GD enables image thumbnails and responsive variants.
 
 ## Deployment
 
-### 1. Clone the repository
+### Install a release
+
+Download the built ZIP from [GitHub Releases](https://github.com/GetCometCMS/CometCMS/releases/latest), extract it, and upload its contents to your server. Include hidden files such as `.htaccess` and `.user.ini`. Continue with the web-server configuration below. No local build is needed for a release ZIP.
+
+### 1. Build from source (optional)
 
 ```bash
-git clone https://github.com/your-org/cometcms.git
-cd cometcms
+git clone https://github.com/GetCometCMS/CometCMS.git
+cd CometCMS
+nvm use
+npm ci
 ```
 
 ### 2. Build a deployment package
@@ -41,17 +50,23 @@ storage/      ← empty, writable directory for content/users/etc.
 
 ### 4. Configure your web server
 
-All requests must be routed through `index.php`.
+Application requests must be routed through `index.php`. Block direct access to `app/`, `config/`, and `storage/`; the included Apache configuration already does this. Serve the compiled admin assets normally.
 
 **Apache** (`.htaccess` is included in the build):
 ```apache
+Options -Indexes
 RewriteEngine On
+RewriteRule ^(app|config|storage)(/|$) - [F,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]
 ```
 
 **Nginx:**
 ```nginx
+location ~ ^/(app|config|storage)(/|$) {
+    deny all;
+}
+
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
@@ -59,9 +74,7 @@ location / {
 
 ### 5. Ensure `storage/` is writable
 
-```bash
-chmod -R 755 storage/
-```
+Grant the PHP process write access to `storage/` using the ownership and permissions supported by your host. A mode of `755` is sufficient only when PHP runs as the directory owner. Release installation also needs write access to the application files it replaces.
 
 ### 6. Open the admin
 
@@ -79,7 +92,7 @@ Navigate to `https://yourdomain.com/admin`. The first-run setup screen will appe
 - `updates.repository_url` — GitHub repository used by the admin update page
 - `updates.require_checksum` — require a `.sha256` release asset before installing
 - `updates.preserved_paths` — paths skipped when installing release ZIPs
-- `webhooks` — outbound webhook URLs
+- `webhooks` — fallback outbound webhook configuration; the admin saves changes in `storage/settings.json`
 
 The URL is **auto-detected** from the HTTP request — no `base_url` setting is needed.
 

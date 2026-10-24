@@ -24,7 +24,7 @@ const steps = [
   },
 ]
 
-const requirements = ['PHP 8.1+', 'Apache · Nginx · Caddy', 'No database', 'No Composer', 'No CLI / SSH']
+const requirements = ['PHP 8.2+', 'Apache · Nginx · Caddy', 'No database', 'No Composer', 'No CLI / SSH']
 </script>
 
 <template>

@@ -1,0 +1,103 @@
+@layer base {
+  :root[data-theme="green"] {
+    --color-theme-50: 236 253 245;
+    --color-theme-100: 209 250 229;
+    --color-theme-200: 167 243 208;
+    --color-theme-300: 110 231 183;
+    --color-theme-400: 52 211 153;
+    --color-theme-500: 16 185 129;
+    --color-theme-600: 5 150 105;
+    --color-theme-700: 4 120 87;
+    --color-theme-800: 6 95 70;
+    --color-theme-900: 6 78 59;
+    --color-app-bg: 245 248 247;
+    --color-sidebar: 6 40 32;
+    --color-sidebar-hover: 14 58 47;
+  }
+}
+
+@layer base {
+  :root[data-theme="purple"] {
+    --color-theme-50: 245 243 255;
+    --color-theme-100: 237 233 254;
+    --color-theme-200: 221 214 254;
+    --color-theme-300: 196 181 253;
+    --color-theme-400: 167 139 250;
+    --color-theme-500: 139 92 246;
+    --color-theme-600: 124 58 237;
+    --color-theme-700: 109 40 217;
+    --color-theme-800: 91 33 182;
+    --color-theme-900: 76 29 149;
+    --color-app-bg: 247 246 250;
+    --color-sidebar: 27 19 50;
+    --color-sidebar-hover: 42 31 72;
+  }
+}
+
+@layer base {
+  :root[data-theme="orange"] {
+    --color-theme-50: 255 247 237;
+    --color-theme-100: 255 237 213;
+    --color-theme-200: 254 215 170;
+    --color-theme-300: 253 186 116;
+    --color-theme-400: 251 146 60;
+    --color-theme-500: 249 115 22;
+    --color-theme-600: 234 88 12;
+    --color-theme-700: 194 65 12;
+    --color-theme-800: 154 52 18;
+    --color-theme-900: 124 45 18;
+    --color-app-bg: 249 247 245;
+    --color-sidebar: 255 255 255;
+    --color-sidebar-hover: 255 247 237;
+    --color-sidebar-border: 234 226 218;
+    --color-sidebar-border-alpha: 1;
+    --color-sidebar-text: 55 65 81;
+    --color-sidebar-muted: 107 114 128;
+    --color-sidebar-heading: 140 146 158;
+    --color-sidebar-footer: 107 114 128;
+    --color-sidebar-hover-text: 17 24 39;
+    --color-sidebar-active-text: 154 52 18;
+    --sidebar-active-bg: rgb(var(--color-theme-50));
+    --sidebar-hover-bg: rgb(0 0 0 / 0.035);
+    --sidebar-indicator: rgb(var(--color-theme-500));
+    --sidebar-surface: rgb(0 0 0 / 0.02);
+    --sidebar-surface-border: rgb(234 226 218);
+    --sidebar-kbd: rgb(0 0 0 / 0.05);
+  }
+}
+
+@layer base {
+  :root[data-theme="cyan"] {
+    --color-theme-50: 236 254 255;
+    --color-theme-100: 207 250 254;
+    --color-theme-200: 165 243 252;
+    --color-theme-300: 103 232 249;
+    --color-theme-400: 34 211 238;
+    --color-theme-500: 6 182 212;
+    --color-theme-600: 8 145 178;
+    --color-theme-700: 14 116 144;
+    --color-theme-800: 21 94 117;
+    --color-theme-900: 22 78 99;
+    --color-app-bg: 245 248 249;
+    --color-sidebar: 6 36 48;
+    --color-sidebar-hover: 14 55 70;
+  }
+}
+
+@layer base {
+  :root[data-theme="red"] {
+    --color-theme-50: 254 242 242;
+    --color-theme-100: 254 226 226;
+    --color-theme-200: 254 202 202;
+    --color-theme-300: 252 165 165;
+    --color-theme-400: 248 113 113;
+    --color-theme-500: 239 68 68;
+    --color-theme-600: 220 38 38;
+    --color-theme-700: 185 28 28;
+    --color-theme-800: 153 27 27;
+    --color-theme-900: 127 29 29;
+    --color-app-bg: 249 246 246;
+    --color-sidebar: 44 14 16;
+    --color-sidebar-hover: 66 24 27;
+  }
+}

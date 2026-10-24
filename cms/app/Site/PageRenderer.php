@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CometCMS\Site;
 
 use CometCMS\Core\Security;
+use CometCMS\Localization\Messages;
 
 /**
  * Builds complete HTML documents: header region, the layout of the page,
@@ -13,6 +14,8 @@ use CometCMS\Core\Security;
 final class PageRenderer
 {
     private NodeRenderer $nodes;
+    private ?\Closure $savedRender = null;
+    private ?array $template = null;
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -21,11 +24,20 @@ final class PageRenderer
 
     public function entryPage(array $type, array $entry, int $page = 1): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($type, $entry, $page): ?string {
+            $original = $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true);
+            if ($original === null || ($original['status'] ?? '') !== ($entry['status'] ?? '')
+                || ($original['published_at'] ?? null) !== ($entry['published_at'] ?? null)) {
+                return null;
+            }
+            return (new self($saved))->entryPage($type, $original, $page);
+        };
         $name = (string) $type['name'];
         $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->entryPath($name, $entry) === '/';
         $state = $this->state($entry, $type, $url, $page, $this->entryAlternates($type, $entry));
-        $main = $this->nodes->render($this->ctx->layout($name, 'detail'), $state);
+        $state['template'] = $this->pageTemplate($name, 'detail', $entry);
+        $main = $this->nodes->render($this->ctx->layout($name, 'detail', $state['template']['template']['id']), $state);
         $title = (string) ($entry['title'] ?? '');
 
         return $this->document([
@@ -41,6 +53,7 @@ final class PageRenderer
 
     public function indexPage(array $type, int $page = 1): string
     {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->indexPage($type, $page);
         $name = (string) $type['name'];
         $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
         $isHome = $this->ctx->indexPath($name) === '/';
@@ -50,14 +63,15 @@ final class PageRenderer
         }
 
         $state = $this->state(null, $type, $url, $page, $alternates);
-        $main = $this->nodes->render($this->ctx->layout($name, 'index'), $state);
+        $state['template'] = $this->pageTemplate($name, 'index', null);
+        $main = $this->nodes->render($this->ctx->layout($name, 'index', $state['template']['template']['id']), $state);
         $route = $this->ctx->route($name);
         $title = (string) (($route['index_title'] ?? '') ?: $type['label']);
 
         return $this->document([
             'title' => $isHome ? $this->homeTitle() : $this->pageTitle($title . ($page > 1 ? ' – ' . $page : '')),
             'description' => (string) ($this->ctx->settings()['description'] ?? ''),
-            'canonical' => $url . ($page > 1 ? '?page=' . $page : ''),
+            'canonical' => $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : ''),
             'og_type' => 'website',
             'body_class' => 'c-type-' . $name . ' c-view-index' . ($isHome ? ' c-view-home' : ''),
         ], $main, $state);
@@ -66,46 +80,96 @@ final class PageRenderer
     /** Branded blank page shown until a public homepage is available. */
     public function autoHome(): string
     {
+        $this->savedRender = null;
+        if ($this->ctx->previewBanner) {
+            return $this->document(['title' => $this->homeTitle(), 'noindex' => true],
+                '<section class="c-section"><div class="c-container"><h1>' . Security::e($this->homeTitle()) . '</h1></div></section>',
+                $this->state(null, null, $this->ctx->homeUrl(), 1, []));
+        }
         return PlaceholderPage::render($this->homeTitle(), $this->ctx->htmlLang());
+    }
+
+    public function previewExpired(): string
+    {
+        $this->savedRender = null;
+        $de = str_starts_with((string) ($this->ctx->adminUser['language'] ?? 'en'), 'de');
+        $title = $de ? 'Diese Vorschau ist nicht mehr verfügbar' : 'This preview is no longer available';
+        $message = $de ? 'Öffne eine neue Vorschau im Editor, um deine aktuellen Änderungen zu sehen.' : 'Open a new preview from the editor to see your current changes.';
+        return $this->document(['title' => $title, 'noindex' => true],
+            '<section class="c-section c-py-2xl"><div class="c-container c-container-narrow"><h1>' . Security::e($title) . '</h1><p>' . Security::e($message) . '</p></div></section>',
+            $this->state(null, null, $this->ctx->homeUrl(), 1, []));
     }
 
     public function notFound(string $path): string
     {
-        $settings = $this->ctx->settings();
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->notFound($path);
+        $title = Messages::get('not_found_title', $this->ctx->htmlLang());
         $state = $this->state(null, null, $path, 1, []);
-        $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
-            . '<div class="c-el"><h1 class="c-heading">' . Security::e($settings['not_found_title']) . '</h1></div>'
-            . '<div class="c-el"><p>' . Security::e($settings['not_found_message']) . '</p></div>'
-            . '<div class="c-el"><a class="c-button c-button-primary c-button-md" href="' . Security::e($this->ctx->homeUrl()) . '">' . Security::e($this->homeLabel()) . '</a></div>'
-            . '</div></section>';
-
-        return $this->document([
-            'title' => $this->pageTitle($settings['not_found_title']),
+        $meta = [
+            'title' => $this->pageTitle($title),
             'description' => '',
             'canonical' => '',
             'noindex' => true,
             'body_class' => 'c-view-404',
-        ], $main, $state);
+        ];
+        // A 404 page built in the Page Builder replaces the default message.
+        $custom = $this->ctx->customRegion('not_found');
+        if ($custom !== null) {
+            return $this->document($meta, $this->nodes->render($custom, $state), $state, true, $this->ctx->annotate);
+        }
+        $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
+            . '<div class="c-el"><h1 class="c-heading">' . Security::e($title) . '</h1></div>'
+            . '<div class="c-el"><p>' . Security::e(Messages::get('not_found_message', $this->ctx->htmlLang())) . '</p></div>'
+            . '<div class="c-el"><a class="c-button c-button-primary c-button-md" href="' . Security::e($this->ctx->homeUrl()) . '">' . Security::e($this->homeLabel()) . '</a></div>'
+            . '</div></section>';
+
+        return $this->document($meta, $main, $state);
+    }
+
+    /** Shown for every public URL while maintenance mode is on; without header and footer. */
+    public function maintenance(): string
+    {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->maintenance();
+        $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
+        $main = $this->nodes->render($this->ctx->region(LayoutSchema::MAINTENANCE), $state);
+
+        return $this->document([
+            'title' => $this->pageTitle(Messages::get('maintenance_title', $this->ctx->htmlLang())),
+            'description' => '',
+            'canonical' => '',
+            'noindex' => true,
+            'body_class' => 'c-view-maintenance',
+        ], $this->ctx->annotate ? '<div data-drop-root>' . $main . '</div>' : $main, $state, false);
     }
 
     /**
-     * Builder preview of one layout. Only the edited layout carries node
-     * annotations; header and footer are shown for context.
+     * Builder preview of one template's content area. Only the content carries
+     * node annotations; the template's header and footer are shown for context.
      */
-    public function layoutPreview(array $type, string $variant, ?array $entry): string
+    public function layoutPreview(array $type, string $variant, ?array $entry, string $area = SiteRepository::DEFAULT_TEMPLATE): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($type, $variant, $entry, $area): string {
+            $original = $entry !== null ? $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true) : null;
+            return (new self($saved))->layoutPreview($type, $variant, $original, $area);
+        };
         $name = (string) $type['name'];
         $entry ??= $this->sampleEntry($type);
-        $layout = $this->ctx->layout($name, $variant);
+        $layout = $this->ctx->layout($name, $variant, $area);
 
         if ($variant === 'index') {
             $url = $this->ctx->indexUrl($name) ?? $this->ctx->homeUrl();
-            $state = $this->state(null, $type, $url, 1, []);
+            $alternates = [];
+            foreach ($this->ctx->locales() as $locale) {
+                $alternate = $this->ctx->indexUrl($name, $locale);
+                if ($alternate !== null) $alternates[$locale] = $alternate;
+            }
+            $state = $this->state(null, $type, $url, 1, $alternates);
         } else {
             $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
-            $state = $this->state($entry, $type, $url, 1, []);
+            $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
         }
 
+        $state['template'] = $this->areaTemplate($name, $variant, $variant === 'index' ? null : $entry, $area);
         $main = $this->nodes->render($layout, $state);
 
         return $this->document([
@@ -115,13 +179,52 @@ final class PageRenderer
         ], $main, $state, true, true);
     }
 
+    /**
+     * Builder preview of one entry's page content (see SiteContext::$pageDraft)
+     * in its type's detail layout. Only the page content is annotated; the
+     * rest of the page is shown for context. A layout without a place for the
+     * page field shows the content below it, so it can still be edited.
+     */
+    public function pagePreview(array $type, array $entry, string $field): string
+    {
+        $name = (string) $type['name'];
+        $template = $this->pageTemplate($name, 'detail', $entry);
+        $layout = $this->ctx->layout($name, 'detail', $template['template']['id']);
+        if (!isset(LayoutSchema::pagePlaces($layout)[$field])) {
+            $layout[] = LayoutSchema::node(LayoutSchema::PAGE_CONTENT, ['field' => $field]);
+        }
+        $url = $this->ctx->entryUrl($name, $entry) ?? $this->ctx->homeUrl();
+        $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
+        $state['template'] = $template;
+        $main = $this->nodes->renderPlain($layout, $state);
+
+        return $this->document([
+            'title' => $this->pageTitle((string) ($entry['title'] ?? '')),
+            'noindex' => true,
+            'body_class' => 'c-type-' . $name . ' c-view-detail c-view-page-edit',
+        ], $main, $state, true, true, 'page');
+    }
+
     public function regionPreview(string $region): string
     {
+        if ($region === LayoutSchema::MODAL) return $this->modalPreview();
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->regionPreview($region);
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
-            . '<div class="c-preview-main">Page content</div></div></section>';
+            . '<div class="c-preview-main" data-placeholder="regionMain">Page content</div></div></section>';
 
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
+    }
+
+    /** The modal template, open over a stand-in backdrop; a placeholder shows where opened pages appear. */
+    public function modalPreview(): string
+    {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->modalPreview();
+        $state = ['modal_preview' => true] + $this->state(null, null, $this->ctx->homeUrl(), 1, []);
+        $modal = $this->nodes->render($this->ctx->region(LayoutSchema::MODAL), $state);
+
+        return $this->document(['title' => Messages::get('modal', $this->ctx->htmlLang()), 'noindex' => true, 'body_class' => 'c-view-modal-preview'],
+            '<div class="c-modal-stage"' . ($this->ctx->annotate ? ' data-drop-root' : '') . '>' . $modal . '</div>', $state, false);
     }
 
     /**
@@ -131,10 +234,16 @@ final class PageRenderer
      */
     public function componentPreview(array $component, ?array $type, ?array $entry): string
     {
+        $this->savedRender = function (SiteContext $saved) use ($component, $type, $entry): ?string {
+            $original = $saved->component($component['id']);
+            if ($original === null) return null;
+            $savedEntry = $type !== null && $entry !== null ? $saved->findEntry($type['name'], (string) ($entry['uid'] ?? $entry['id']), true) : null;
+            return (new self($saved))->componentPreview($original, $type, $savedEntry);
+        };
         if ($type !== null) {
             $entry ??= $this->sampleEntry($type);
             $url = $this->ctx->entryUrl((string) $type['name'], $entry) ?? $this->ctx->homeUrl();
-            $state = $this->state($entry, $type, $url, 1, []);
+            $state = $this->state($entry, $type, $url, 1, $this->entryAlternates($type, $entry));
         } else {
             $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
         }
@@ -154,6 +263,42 @@ final class PageRenderer
         ], '<div data-drop-root>' . $html . '</div>', $state, false);
     }
 
+    /**
+     * The template a page uses: {type, variant, template, reason, live}; see
+     * SiteContext::template(). `live` is the id of that template. Kept for
+     * the builder after rendering.
+     */
+    private function pageTemplate(string $type, string $variant, ?array $entry): array
+    {
+        $resolved = $this->ctx->template($type, $variant, $entry);
+
+        return $this->template = ['type' => $type, 'variant' => $variant, 'live' => $resolved['template']['id']] + $resolved;
+    }
+
+    /**
+     * The template whose content area the builder edits, around it. When the
+     * sample entry uses another one on the website, the reason is "edited"
+     * and `live` names the entry's.
+     */
+    private function areaTemplate(string $type, string $variant, ?array $entry, string $area): array
+    {
+        $resolved = $this->pageTemplate($type, $variant, $entry);
+        if ($resolved['template']['id'] === $area) {
+            return $resolved;
+        }
+        foreach ($this->ctx->templates($type, $variant) as $template) {
+            if ($template['id'] === $area) return $this->template = ['template' => $template, 'reason' => 'edited'] + $resolved;
+        }
+
+        return $resolved;
+    }
+
+    /** The template the last rendered page used, if any. */
+    public function template(): ?array
+    {
+        return $this->template;
+    }
+
     public function sampleEntry(array $type): array
     {
         return [
@@ -162,9 +307,9 @@ final class PageRenderer
             'collection' => (string) $type['name'],
             'title' => 'Sample ' . strtolower((string) $type['label']),
             'status' => 'published',
-            'published_at' => Security::now(),
-            'created_at' => Security::now(),
-            'updated_at' => Security::now(),
+            'published_at' => $this->ctx->previewTime ??= Security::now(),
+            'created_at' => $this->ctx->previewTime ??= Security::now(),
+            'updated_at' => $this->ctx->previewTime ??= Security::now(),
         ];
     }
 
@@ -174,33 +319,61 @@ final class PageRenderer
      * @param bool $withRegions  include header and footer
      * @param bool $plainRegions render header/footer without builder annotations
      * @param string $annotatedRegion the region being edited in the builder
+     *
+     * $state['template'] (see pageTemplate()) gives the header and footer; pages without one show the site's own.
      */
     private function document(array $meta, string $main, array $state, bool $withRegions = true, bool $plainRegions = false, string $annotatedRegion = ''): string
     {
         $settings = $this->ctx->settings();
         $header = $footer = '';
+        // An embedded page (see SiteContext::$embed) is its main content, inside the parent page's modal.
+        $embed = $this->ctx->embed;
 
-        if ($withRegions) {
+        if ($withRegions && !$embed) {
             $regionState = $state;
-            $render = function (string $region) use ($regionState, $plainRegions, $annotatedRegion): string {
-                $nodes = $this->ctx->region($region);
+            $template = $state['template'] ?? null;
+            $render = function (string $region, string $tag) use ($regionState, $plainRegions, $annotatedRegion, $template): string {
+                $nodes = $this->ctx->partNodes($region, (string) ($template['template'][$region] ?? LayoutSchema::FRAME_DEFAULT), (string) ($template['type'] ?? ''));
+                $dropRoot = $this->ctx->annotate && $annotatedRegion === $region ? ' data-drop-root' : '';
+                if ($nodes === null) {
+                    // The builder keeps a removed header or footer selectable, to bring it back.
+                    return $this->ctx->annotate
+                        ? '<' . $tag . ' class="c-region c-' . $region . ' c-region-none"><div class="c-placeholder"' . ' data-placeholder="' . $region . 'None">No ' . $region . ' on these pages</div></' . $tag . '>'
+                        : '';
+                }
                 $plain = $plainRegions || ($annotatedRegion !== '' && $annotatedRegion !== $region);
+                $html = $plain ? $this->nodes->renderPlain($nodes, $regionState) : $this->nodes->render($nodes, $regionState);
 
-                return $plain ? $this->nodes->renderPlain($nodes, $regionState) : $this->nodes->render($nodes, $regionState);
+                return '<' . $tag . ' class="c-region c-' . $region . '"' . $dropRoot . '>' . $html . '</' . $tag . '>';
             };
-            $dropRoot = fn(string $region): string => $this->ctx->annotate && $annotatedRegion === $region ? ' data-drop-root' : '';
-            $header = '<header class="c-region c-header"' . $dropRoot('header') . '>' . $render('header') . '</header>';
-            $footer = '<footer class="c-region c-footer"' . $dropRoot('footer') . '>' . $render('footer') . '</footer>';
+            $header = $render('header', 'header');
+            $footer = $render('footer', 'footer');
+        }
+
+        // Full-page previews behave like the website. The editor iframe keeps
+        // its parent-managed interactions and selection behavior.
+        $interactive = !$this->ctx->preview || ($this->ctx->browsePreview && !$this->ctx->annotate);
+        $markup = $header . $main . $footer;
+        // Links inside an embedded page are followed by the parent page's modal script.
+        $modal = $interactive && !$embed && str_contains($markup, ' data-link-modal ') ? LinkModal::markup($this->ctx, $this->nodes, $state) : '';
+        $markup .= $modal;
+        $headScript = $interactive && str_contains($markup, 'data-theme-toggle')
+            ? '<script>' . ThemeToggle::script() . '</script>' : '';
+        $bodyScripts = '';
+        foreach (['data-link-modal-dialog' => LinkModal::class, 'data-gallery-lightbox' => GalleryLightbox::class, 'data-tabs=' => Tabs::class, 'data-search=' => SiteSearch::class, ' data-menu ' => Menus::class, ' data-list-filters' => ListFilters::class, 'data-form-captcha=' => FormCaptcha::class] as $marker => $module) {
+            if ($interactive && str_contains($markup, $marker)) {
+                $bodyScripts .= '<script type="module">' . $module::script() . '</script>';
+            }
         }
 
         $title = Security::e((string) ($meta['title'] ?? $this->ctx->siteTitle()));
         $description = trim((string) ($meta['description'] ?? ''));
         $canonical = (string) ($meta['canonical'] ?? '');
-        $noindex = ($meta['noindex'] ?? false) || $this->ctx->preview || !empty($settings['noindex']);
+        $noindex = ($meta['noindex'] ?? false) || $embed || $this->ctx->preview || !empty($settings['noindex']);
         $head = '<meta charset="utf-8">'
-            // Previews are shown in the admin (in an iframe, or as a page); they
-            // never run scripts even though the admin itself does.
-            . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'; base-uri \'none\'; form-action \'none\'">' : '')
+            . ($this->ctx->preview ? '<meta http-equiv="Content-Security-Policy" content="'
+                . SiteScripts::cspDirective($headScript . $bodyScripts)
+                . '; object-src \'none\'; base-uri \'none\'; form-action \'none\'">' : '')
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . $title . '</title>'
             . '<meta name="generator" content="CometCMS">';
@@ -260,36 +433,61 @@ final class PageRenderer
 
         // Previews render unsaved themes, so they inline the stylesheet.
         $head .= $this->ctx->preview
-            ? '<style>' . Theme::stylesheet($this->ctx->theme()) . '</style>'
+            ? '<style>' . Theme::stylesheet($this->ctx->theme(), new FontRegistry($this->ctx->site->workspace()), $this->ctx->basePath) . '</style>'
             : '<link rel="stylesheet" href="' . Security::e($this->ctx->stylesheetUrl()) . '">'
                 . '<link rel="stylesheet" href="' . Security::e($this->ctx->customStylesheetUrl()) . '">';
 
-        $banner = $this->ctx->previewBanner
-            ? '<div class="c-preview-bar" role="status">Preview – this is how the page will look once it is published.</div>'
-            : '';
+        // The theme toggle's script runs before the body, so a saved choice never flashes.
+        $head .= $headScript;
 
-        return '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
-            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . '">'
-            . $banner
-            . '<a class="c-skip-link" href="#main">Skip to content</a>'
+        $opening = '<!doctype html><html lang="' . Security::e($this->ctx->htmlLang()) . '"><head>' . $head . '</head>'
+            . '<body class="c-site ' . Security::e((string) ($meta['body_class'] ?? '')) . ($this->ctx->annotate ? ' c-builder' : '') . ($embed ? ' c-embed' : '') . '">';
+        $content = ($embed ? '' : '<a class="c-skip-link" href="#main">' . Security::e(Messages::get('skip', $this->ctx->htmlLang())) . '</a>')
             . $header
             . '<main id="main" class="c-main"' . ($this->ctx->annotate && $annotatedRegion === '' && $withRegions ? ' data-drop-root' : '') . '>' . $main . '</main>'
             . $footer
+            . $modal
+            . $bodyScripts
             . '</body></html>';
+        $banner = '';
+        if ($this->ctx->previewBanner && !$embed) {
+            // Compare the page that was actually rendered, including shared regions,
+            // embedded entries, locale and theme. A token alone does not imply changes,
+            // and a page that read no override is the saved page: skip the second render.
+            $compare = $this->ctx->previewToken !== '' && $this->ctx->readsOverrides();
+            $saved = $compare && $this->savedRender !== null ? ($this->savedRender)($this->ctx->withoutOverrides()) : null;
+            $unsaved = $compare && ($saved === null
+                || $this->comparisonHtml($saved) !== $this->comparisonHtml($opening . $content));
+            $banner = (new PreviewAdminBar($this->ctx))->render($state, $unsaved);
+        }
+        return $opening . $banner . $content;
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private function comparisonHtml(string $html): string
+    {
+        // Default layouts can generate fresh node IDs. Menu and form control IDs
+        // do not change the displayed content; preserve their relationships and order.
+        preg_match_all('/<input type="checkbox" id="([^"]+)" class="c-menu-toggle"|<input type="hidden" name="_anchor" value="([^"]+)"/', $html, $matches, PREG_SET_ORDER);
+        $ids = [];
+        foreach ($matches as $match) {
+            $id = ($match[1] ?? '') !== '' ? $match[1] : $match[2];
+            $ids[$id] ??= '__preview_control_' . count($ids);
+        }
+        return strtr($html, $ids);
+    }
 
     private function state(?array $entry, ?array $type, string $path, int $page, array $alternates): array
     {
         // A previewed draft shows the date it gets once published instead of an unresolved reference.
         if ($this->ctx->preview && $entry !== null && empty($entry['published_at'])) {
-            $entry['published_at'] = Security::now();
+            $entry['published_at'] = $this->ctx->previewTime ??= Security::now();
         }
         return [
             'entry' => $entry,
             'type' => $type,
-            'path' => strtok($path, '?') ?: $path,
+            'path' => $this->ctx->browsePreview ? $path : (strtok($path, '?') ?: $path),
             'page' => $page,
             'alternates' => $alternates,
             'depth' => 0,
@@ -299,15 +497,9 @@ final class PageRenderer
     private function entryAlternates(array $type, array $entry): array
     {
         $alternates = [];
-        $typeLocales = (array) ($type['locales'] ?? []);
 
         foreach ($this->ctx->locales() as $locale) {
-            if (!in_array($locale, $typeLocales, true)) {
-                continue;
-            }
-
-            $translated = is_array($entry['translations'] ?? null) && is_array($entry['translations'][$locale] ?? null);
-            if ($translated || $locale === ($type['default_locale'] ?? '')) {
+            if ($this->ctx->content->isPubliclyVisible($entry, $locale)) {
                 $url = $this->ctx->entryUrl((string) $type['name'], $entry, $locale);
                 if ($url !== null) {
                     $alternates[$locale] = $url;
@@ -335,7 +527,7 @@ final class PageRenderer
 
     private function homeLabel(): string
     {
-        return in_array(substr($this->ctx->htmlLang(), 0, 2), ['de'], true) ? 'Zur Startseite' : 'Back to the homepage';
+        return Messages::get('back_home', $this->ctx->htmlLang());
     }
 
     private function entryDescription(array $type, array $entry): string
@@ -346,15 +538,23 @@ final class PageRenderer
 
         if ($field === '' || !isset($fields[$field])) {
             $field = '';
-            foreach ($fields as $name => $config) {
-                if (is_array($config) && in_array($config['type'] ?? '', ['textarea', 'markdown', 'html'], true) && !empty($entry[$name])) {
-                    $field = (string) $name;
-                    break;
+            // Text fields first; page content describes an entry that has no such text.
+            foreach ([['textarea', 'markdown', 'html'], ['page']] as $types) {
+                foreach ($fields as $name => $config) {
+                    if (is_array($config) && in_array($config['type'] ?? '', $types, true) && !empty($entry[$name])) {
+                        $field = (string) $name;
+                        break 2;
+                    }
                 }
             }
         }
 
-        if ($field !== '' && is_scalar($entry[$field] ?? null) && (string) $entry[$field] !== '') {
+        if ($field !== '' && ($fields[$field]['type'] ?? '') === 'page') {
+            $text = LayoutSchema::text(LayoutSchema::pageNodes($entry[$field] ?? null), $this->ctx->htmlLang(), $this->ctx->defaultLocale());
+            if ($text !== '') {
+                return Text::summary($text);
+            }
+        } elseif ($field !== '' && is_scalar($entry[$field] ?? null) && (string) $entry[$field] !== '') {
             $type = (string) ($fields[$field]['type'] ?? 'text');
             $value = (string) $entry[$field];
             $text = match ($type) {

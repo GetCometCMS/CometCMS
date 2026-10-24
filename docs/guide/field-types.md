@@ -111,7 +111,7 @@ A dropdown with predefined options.
 
 | Option     | Description                                               |
 | ---------- | --------------------------------------------------------- |
-| `options`  | Array of `{ value, label }` objects or plain strings.     |
+| `options`  | A map of stored values to labels, or a list of strings.     |
 | `multiple` | Allow selecting more than one value. Multi-select values are stored as arrays. |
 | `default`  | Initial option value, or array of option values for multi-select. |
 
@@ -119,10 +119,9 @@ Example field definition:
 
 ```json
 {
-  "key": "status",
   "type": "select",
-  "label": "Status",
-  "options": ["draft", "published", "archived"]
+  "label": "Event type",
+  "options": { "meetup": "Meetup", "workshop": "Workshop" }
 }
 ```
 
@@ -166,6 +165,25 @@ A raw JSON editor. Useful for storing arbitrary structured data. The value is st
 Supports `default`.
 
 ---
+
+### `repeater`
+
+An ordered list of rows, each containing the subfields defined in `subfields`. Editors can add, reorder, and remove rows. Values are stored as an array of objects.
+
+```json
+{
+  "type": "repeater",
+  "label": "Highlights",
+  "subfields": [
+    { "key": "heading", "type": "text", "label": "Heading", "required": true },
+    { "key": "description", "type": "textarea", "label": "Description" }
+  ]
+}
+```
+
+### `page`
+
+An entry's own sections designed in the Page Builder. Add an **Entry content** element to the shared entry layout to create the field and provide default content. **Design in page builder** in the entry editor creates an entry-specific design. An empty value follows the layout default. The structure is shared across languages; visitor-facing text can be translated in the builder. See [Entry content of single entries](./website#entry-content-of-single-entries).
 
 ## Color
 

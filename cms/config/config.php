@@ -3,7 +3,7 @@
 return [
     'app' => [
         'name' => 'CometCMS',
-        'version' => '1.1.0',
+        'version' => '2.0.0',
         'debug' => false,
         'timezone' => 'UTC',
     ],
@@ -41,6 +41,29 @@ return [
         'forms' => [
             // Per-file and total attachment budget for public website forms.
             'max_upload_bytes' => 10 * 1024 * 1024,
+            'captcha' => [
+                // Secrets stay on the server. Register the website domains with each provider.
+                'turnstile' => [
+                    'site_key' => getenv('COMET_TURNSTILE_SITE_KEY') ?: '',
+                    'secret_key' => getenv('COMET_TURNSTILE_SECRET_KEY') ?: '',
+                    'hostnames' => [],
+                ],
+                // Use reCAPTCHA v2 checkbox keys.
+                'recaptcha' => [
+                    'site_key' => getenv('COMET_RECAPTCHA_SITE_KEY') ?: '',
+                    'secret_key' => getenv('COMET_RECAPTCHA_SECRET_KEY') ?: '',
+                    'hostnames' => [],
+                ],
+                // Use separate reCAPTCHA v3 keys. Scores below this threshold are rejected.
+                'recaptcha_v3' => [
+                    'site_key' => getenv('COMET_RECAPTCHA_V3_SITE_KEY') ?: '',
+                    'secret_key' => getenv('COMET_RECAPTCHA_V3_SECRET_KEY') ?: '',
+                    'hostnames' => [],
+                    'min_score' => 0.5,
+                ],
+                // Optional: workspace slug => provider => complete credentials and hostnames.
+                'workspaces' => [],
+            ],
         ],
     ],
     'cache' => [

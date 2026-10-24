@@ -1,5 +1,8 @@
 <script setup>
 import { ref } from 'vue'
+import imgBuilder from '../../../screenshots/view-page-builder.png'
+import imgEntry from '../../../screenshots/edit-content-entry.png'
+import imgWorkspaces from '../../../screenshots/view-workspaces.png'
 import imgDashboard from '../../../screenshots/view-dashboard.png'
 import imgContentTypes from '../../../screenshots/view-content-types.png'
 import imgEditSchema from '../../../screenshots/edit-content-type.png'
@@ -9,6 +12,9 @@ import imgBackups from '../../../screenshots/view-backups.png'
 import imgWebhooks from '../../../screenshots/view-webhooks.png'
 
 const screenshots = [
+  { label: 'Page Builder', src: imgBuilder,      alt: 'Page Builder with a fictional studio page, element palette and inspector' },
+  { label: 'Entry Editor', src: imgEntry,        alt: 'Entry editor with translation tabs and publication settings' },
+  { label: 'Workspaces',   src: imgWorkspaces,   alt: 'Workspace management with fictional studio workspaces' },
   { label: 'Dashboard',     src: imgDashboard,    alt: 'CometCMS admin dashboard' },
   { label: 'Content Types', src: imgContentTypes, alt: 'Content types overview' },
   { label: 'Edit Schema',   src: imgEditSchema,   alt: 'Editing a content type schema' },
@@ -25,7 +31,7 @@ const active = ref(0)
   <section class="gallery-section">
     <div class="gallery-inner">
       <h2 class="landing-title">See CometCMS in action</h2>
-      <p class="landing-sub">A clean, intuitive admin UI — everything you need, nothing you don't.</p>
+      <p class="landing-sub">Explore the current admin interface with fictional studio content.</p>
 
       <div class="tabs" role="tablist" aria-label="Screenshot tabs">
         <button

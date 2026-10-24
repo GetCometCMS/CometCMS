@@ -25,9 +25,6 @@ final class Theme
     /** Spacing scale tokens in px, used by padding, space below, gaps and spacers. */
     public const SPACE_TOKENS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
-    /** Density presets of earlier themes, kept to convert them into a spacing scale. */
-    public const SPACING = ['compact' => 0.8, 'normal' => 1.0, 'relaxed' => 1.25];
-
     public const TYPE_SCALES = ['1.125', '1.2', '1.25', '1.333'];
 
     /** Entrance animation speeds in ms. */
@@ -111,6 +108,11 @@ final class Theme
         ];
     }
 
+    private static function fontChoice(mixed $value, string $default): string
+    {
+        return FontRegistry::validId($value) ? $value : $default;
+    }
+
     public static function normalize(array $theme): array
     {
         $defaults = self::defaults();
@@ -121,16 +123,15 @@ final class Theme
             'dark_colors' => self::colors($theme['dark_colors'] ?? [], $defaults['dark_colors']),
             'custom_colors' => self::customColors($theme['custom_colors'] ?? []),
             'fonts' => [
-                'body' => self::oneOf($theme['fonts']['body'] ?? null, array_keys(self::FONT_STACKS), $defaults['fonts']['body']),
-                'heading' => self::oneOf($theme['fonts']['heading'] ?? null, array_keys(self::FONT_STACKS), $defaults['fonts']['heading']),
+                'body' => self::fontChoice($theme['fonts']['body'] ?? null, $defaults['fonts']['body']),
+                'heading' => self::fontChoice($theme['fonts']['heading'] ?? null, $defaults['fonts']['heading']),
             ],
             'base_size' => self::clampInt($theme['base_size'] ?? null, 12, 24, $defaults['base_size']),
             'line_height' => round(self::clampFloat($theme['line_height'] ?? null, 1.1, 2.2, $defaults['line_height']), 2),
             'type_scale' => self::oneOf(isset($theme['type_scale']) ? (string) $theme['type_scale'] : null, self::TYPE_SCALES, $defaults['type_scale']),
             'heading_weight' => self::clampInt($theme['heading_weight'] ?? null, 300, 900, $defaults['heading_weight'], 100),
             'headings' => self::headings($theme['headings'] ?? []),
-            // "xl" was a fixed size before radius tokens existed.
-            'radius' => self::oneOf(($theme['radius'] ?? null) === 'xl' ? 'lg' : ($theme['radius'] ?? null), self::RADII, $defaults['radius']),
+            'radius' => self::oneOf($theme['radius'] ?? null, self::RADII, $defaults['radius']),
             'radii' => self::radii($theme, $defaults['radii']),
             'container_width' => self::clampInt($theme['container_width'] ?? null, 720, 1920, $defaults['container_width']),
             'narrow_width' => self::clampInt($theme['narrow_width'] ?? null, 480, 1200, $defaults['narrow_width']),
@@ -145,9 +146,11 @@ final class Theme
      * CSS custom properties for a normalized theme, followed by the shipped
      * base stylesheet and the administrator's custom CSS.
      */
-    public static function stylesheet(array $theme): string
+    public static function stylesheet(array $theme, ?FontRegistry $fonts = null, string $basePath = ''): string
     {
         $theme = self::normalize($theme);
+        $fonts ??= FontRegistry::active();
+        $stacks = $fonts->stacks();
         $scale = (float) $theme['type_scale'];
         $radius = match ($theme['radius']) {
             'none' => '0',
@@ -156,8 +159,8 @@ final class Theme
         };
 
         $root = [
-            '--font-body' => self::FONT_STACKS[$theme['fonts']['body']],
-            '--font-heading' => self::FONT_STACKS[$theme['fonts']['heading']],
+            '--font-body' => ($stacks[$theme['fonts']['body']] ?? self::FONT_STACKS['system']),
+            '--font-heading' => ($stacks[$theme['fonts']['heading']] ?? self::FONT_STACKS['system']),
             '--font-size' => $theme['base_size'] . 'px',
             '--line-height' => (string) $theme['line_height'],
             '--heading-weight' => (string) $theme['heading_weight'],
@@ -183,7 +186,7 @@ final class Theme
             $root['--space-' . $token] = self::number($px / 16) . 'rem';
         }
 
-        foreach (['sm' => -1, 'base' => 0, 'lg' => 1, 'xl' => 2, '2xl' => 3, '3xl' => 4, '4xl' => 5, '5xl' => 6] as $step => $power) {
+        foreach (['sm' => -1, 'base' => 0, 'lg' => 1, 'xl' => 2, '2xl' => 3, '3xl' => 4, '4xl' => 5, '5xl' => 6, '6xl' => 7, '7xl' => 8, '8xl' => 9, '9xl' => 10] as $step => $power) {
             $root['--fs-' . $step] = self::number(pow($scale, $power)) . 'rem';
         }
 
@@ -207,15 +210,27 @@ final class Theme
             $css .= '@media (prefers-color-scheme: dark){:root{color-scheme:dark;' . self::declarations($dark) . '}}';
         }
 
+        // A visitor's choice from a theme toggle (see ThemeToggle) wins over the mode.
+        $css .= ':root[data-theme="light"]{color-scheme:light;' . self::declarations($light) . '}'
+            . ':root[data-theme="dark"]{color-scheme:dark;' . self::declarations($dark) . '}';
+
         $css .= "\n" . self::baseStylesheet();
-        $css .= self::headingStyles($theme['headings']);
+        $css .= self::headingStyles($theme['headings'], $stacks) . $fonts->css($basePath);
 
         foreach ($theme['custom_colors'] as $key => $_color) {
             $css .= "\n.c-bg-" . $key . '{--c-fill:var(--c-' . $key . ');background-color:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
             $css .= '.c-fg-' . $key . '{color:var(--c-' . $key . ');}';
             $css .= '.c-bd.c-bdc-' . $key . '{--c-bd-c:var(--c-' . $key . ');}';
             $css .= '.c-bg-' . $key . ' a:not(.c-button){color:inherit;}';
+            $css .= '.c-bg-' . $key . '{--c-menu-accent:currentColor;}';
+            $css .= '.c-lc-' . $key . ' a:not(.c-button){color:var(--c-' . $key . ');}';
+            $css .= '.c-button.c-btn-bg-' . $key . '{background:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
+            $css .= '.c-button.c-btn-fg-' . $key . '{color:var(--c-' . $key . ');}';
+            $css .= '.c-button.c-btn-bdc-' . $key . '{border-color:var(--c-' . $key . ');}';
         }
+
+        // Custom CSS comes last, so it can still change any override.
+        $css .= StyleVariants::css($css);
 
         if ($theme['custom_css'] !== '') {
             $css .= "\n/* Custom CSS */\n" . $theme['custom_css'] . "\n";
@@ -235,14 +250,14 @@ final class Theme
      * they replace its defaults, while builder style classes (font size,
      * weight, family) still win through their higher specificity.
      */
-    private static function headingStyles(array $headings): string
+    private static function headingStyles(array $headings, array $stacks): string
     {
         $css = '';
         $mobile = '';
 
         foreach ($headings as $level => $heading) {
             $declarations = array_filter([
-                'font-family' => $heading['font'] !== '' ? self::FONT_STACKS[$heading['font']] : null,
+                'font-family' => $heading['font'] !== '' ? ($stacks[$heading['font']] ?? self::FONT_STACKS['system']) : null,
                 'font-size' => $heading['size'] !== null ? $heading['size'] . 'px' : null,
                 'font-weight' => $heading['weight'] !== null ? (string) $heading['weight'] : null,
                 'line-height' => $heading['line_height'] !== null ? self::number($heading['line_height']) : null,
@@ -392,7 +407,7 @@ final class Theme
         foreach (array_keys(self::HEADING_LEVELS) as $level) {
             $heading = is_array($headings[$level] ?? null) ? $headings[$level] : [];
             $normalized[$level] = [
-                'font' => self::oneOf($heading['font'] ?? null, ['', ...array_keys(self::FONT_STACKS)], ''),
+                'font' => self::fontChoice($heading['font'] ?? null, ''),
                 'size' => self::optionalInt($heading['size'] ?? null, 10, 160),
                 'weight' => self::optionalInt($heading['weight'] ?? null, 100, 900, 100),
                 'line_height' => self::optionalFloat($heading['line_height'] ?? null, 0.8, 2.2, 2),
@@ -426,15 +441,13 @@ final class Theme
         return $radii;
     }
 
-    /** The spacing scale; themes saved with a density preset are converted. */
+    /** The explicit spacing scale. */
     private static function space(array $theme, array $defaults): array
     {
-        $factor = self::SPACING[$theme['spacing'] ?? 'normal'] ?? 1.0;
         $space = [];
 
         foreach (self::SPACE_TOKENS as $token) {
-            $fallback = (int) round($defaults[$token] * $factor);
-            $space[$token] = self::clampInt($theme['space'][$token] ?? null, 0, 400, $fallback);
+            $space[$token] = self::clampInt($theme['space'][$token] ?? null, 0, 400, $defaults[$token]);
         }
 
         return $space;

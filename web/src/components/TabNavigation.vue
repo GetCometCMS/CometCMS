@@ -53,6 +53,7 @@
         :active="item.value === modelValue"
       />
     </div>
+    <div v-if="$slots.end" class="ml-auto self-center py-1.5"><slot name="end" /></div>
   </nav>
 </template>
 

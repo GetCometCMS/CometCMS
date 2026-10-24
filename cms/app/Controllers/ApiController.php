@@ -11,6 +11,7 @@ use CometCMS\Auth\PermissionService;
 use CometCMS\Cache\ApiCache;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Content\ExternalReadPolicy;
 use CometCMS\Core\ApiResponder;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
@@ -85,7 +86,7 @@ final class ApiController
     {
         $principal = $this->tokenPrincipal();
         $types = array_values(array_filter($this->types->all(), function (array $type) use ($principal): bool {
-            if (empty($type['api_enabled'])) {
+            if (!ExternalReadPolicy::apiEnabled($type)) {
                 return false;
             }
             if (($type['visibility'] ?? 'public') !== 'private') {
@@ -111,7 +112,7 @@ final class ApiController
         }
 
         $schema = $this->types->find($name);
-        if (empty($schema['api_enabled'])) {
+        if (!ExternalReadPolicy::apiEnabled($schema)) {
             $this->response->error('not_found', 'Content type is not exposed through the API.', 404);
         }
 
@@ -138,10 +139,6 @@ final class ApiController
         }
 
         $body['name'] = $name;
-
-        if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
-            $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
-        }
 
         try {
             $this->types->save($body);
@@ -172,17 +169,12 @@ final class ApiController
         $body = $this->http->requestJson();
         $body['name'] = $name;
 
-        if (!empty($body['singleton']) && count($this->content->all($name)) > 1) {
-            $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
-        }
-
         try {
             $this->types->save($body);
         } catch (ValidationException $e) {
             $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
         }
         $schema = $this->types->find($name);
-        $this->content->syncLocalization($name, $schema);
         $this->cache->clear();
         (new Logger())->info('content_type.updated', ['name' => $name, 'user_id' => $user['id'] ?? null]);
         $this->response->data($schema);
@@ -207,10 +199,6 @@ final class ApiController
         $this->requireCollection($collection);
         $schema = $this->types->find($collection);
 
-        if (!empty($schema['singleton'])) {
-            $this->contentShow($collection, $collection);
-        }
-
         $this->readPrincipal = ($schema['visibility'] ?? 'public') === 'private'
             ? $this->requireToken('content.read', ['type' => 'content', 'collection' => $collection])
             : $this->optionalTokenWithPermission('content.read', ['type' => 'content', 'collection' => $collection]);
@@ -219,7 +207,7 @@ final class ApiController
             $result = $this->content->query($collection, $_GET, $admin);
             $include = $this->includeFields();
             $locale = (string) ($_GET['locale'] ?? '');
-            $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale), $result['data']);
+            $result['data'] = array_map(fn(array $entry): array => $this->content->expandRelations($entry, $collection, $include, $locale, fn(array $target): bool => $this->canReadRelatedEntry($target)), $result['data']);
 
             return [
                 'data' => array_values(array_map(fn(array $entry): array => $this->publicEntry($entry, $collection, $admin), $result['data'])),
@@ -250,9 +238,10 @@ final class ApiController
             }
         }
 
-        $entry = $this->content->findByIdentifier($collection, $id, $user !== null);
+        $locale = $this->content->locale((string) ($_GET['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($collection, $id, $user !== null, $locale);
 
-        if ($entry === null || ($user === null && !$this->content->isPubliclyVisible($entry))) {
+        if ($entry === null || ($user === null && !$this->content->isPubliclyVisible($entry, $locale))) {
             $this->response->error('not_found', 'Content entry not found.', 404);
         }
 
@@ -262,14 +251,9 @@ final class ApiController
 
         $this->readPrincipal = $user;
 
-        $locale = (string) ($_GET['locale'] ?? '');
-        $locales = is_array($schema['locales'] ?? null) ? $schema['locales'] : [];
+        $entry = $this->content->resolveLocaleFields($entry, $locale, $user === null);
 
-        if ($locale !== '' && in_array($locale, $locales, true)) {
-            $entry = $this->content->resolveLocaleFields($entry, $locale);
-        }
-
-        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields(), $locale);
+        $entry = $this->content->expandRelations($entry, $collection, $this->includeFields(), $locale, fn(array $target): bool => $this->canReadRelatedEntry($target));
         $body = ['data' => $this->publicEntry($entry, $collection, $user !== null)];
         $user ? $this->http->json($body) : $this->publicCached($body);
     }
@@ -278,7 +262,8 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $user = $this->requireToken('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $user = $this->requireToken('content.create', ['type' => 'content', 'collection' => $collection, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
         $this->requirePublishToken($user, $collection, null, $body);
 
         try {
@@ -294,14 +279,16 @@ final class ApiController
     {
         $this->requireCollection($collection);
         $body = $this->http->requestJson();
-        $existing = $this->content->findByIdentifier($collection, $id, true);
+        $body['locale'] = $this->content->locale((string) ($body['locale'] ?? ''));
+        $existing = $this->content->findByIdentifier($collection, $id, true, $body['locale']);
 
         if ($existing === null) {
             $this->response->error('not_found', 'Content entry not found.', 404);
         }
 
+        $existing = $this->content->resolveLocaleFields($existing, $body['locale']);
         try {
-            $user = $this->requireToken('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale'] ?? null]);
+            $user = $this->requireToken('content.update', ['type' => 'content', 'collection' => $collection, 'entry' => $existing, 'fields' => $this->payloadFields($body), 'locale' => $body['locale']]);
             $this->requirePublishToken($user, $collection, $existing, $body);
             $entry = $this->content->save($collection, $body, $user, (string) $existing['id'], true);
         } catch (ValidationException $e) {
@@ -314,14 +301,18 @@ final class ApiController
     public function contentDelete(string $collection, string $id): never
     {
         $this->requireCollection($collection);
-        $entry = $this->content->findByIdentifier($collection, $id, true);
+        $entry = $this->content->findByIdentifier($collection, $id, true, (string) ($_GET['locale'] ?? ''));
 
         if ($entry === null) {
             $this->response->error('not_found', 'Content entry not found.', 404);
         }
 
         $user = $this->requireToken('content.delete', ['type' => 'content', 'collection' => $collection, 'entry' => $entry]);
-        $this->content->softDelete($collection, (string) $entry['id'], $user);
+        try {
+            $this->content->softDelete($collection, (string) $entry['id'], $user);
+        } catch (ValidationException $e) {
+            $this->response->error('validation_failed', $e->getMessage(), 422, $e->fields());
+        }
         $this->response->data(['ok' => true]);
     }
 
@@ -380,8 +371,11 @@ final class ApiController
             }
 
             $original = (string) ($file['name'] ?? 'upload');
-            $extension = pathinfo($original, PATHINFO_EXTENSION);
-            $ext = $extension !== '' ? '.' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', $extension)) : '';
+            try {
+                $ext = '.' . MimeDetector::validatedExtension($mime, $original);
+            } catch (\InvalidArgumentException $e) {
+                $this->response->error('file_type_not_allowed', $e->getMessage(), 422);
+            }
             $base = Security::slug(pathinfo($original, PATHINFO_FILENAME)) ?: 'upload';
             $name = $base;
             $suffix = 2;
@@ -515,7 +509,7 @@ final class ApiController
     {
         $this->requireToken('media.update', $this->media->permissionContext(rawurldecode($file)));
         $body = $this->http->requestJson();
-        $item = $this->media->updateMeta($file, (string) ($body['alt'] ?? ''), (string) ($body['title'] ?? ''));
+        $item = $this->media->updateMeta($file, $body['alt'] ?? '', $body['title'] ?? '', $body['revision'] ?? null);
 
         if ($item === null) {
             $this->response->error('not_found', 'Media file not found.', 404);
@@ -618,7 +612,7 @@ final class ApiController
 
     private function requireCollection(string $collection): void
     {
-        if (!$this->types->exists($collection) || empty($this->types->find($collection)['api_enabled'])) {
+        if (!$this->types->exists($collection) || !ExternalReadPolicy::apiEnabled($this->types->find($collection))) {
             $this->response->error('not_found', 'Content collection not found.', 404);
         }
     }
@@ -655,8 +649,13 @@ final class ApiController
             'id' => $this->content->stableId($entry),
             'slug' => (string) ($entry['slug'] ?? $entry['id'] ?? ''),
             'type' => $collection,
+            'locale' => $entry['locale'],
+            'revision' => $entry['revision'],
             'status' => (string) ($entry['status'] ?? 'draft'),
             'title' => (string) ($entry['title'] ?? ''),
+            // Hierarchical types: the parent's id ('' at the top level) and the order among siblings.
+            'parent' => !empty($schema['hierarchical']) ? \CometCMS\Content\PageTree::parent($entry) : null,
+            'position' => !empty($schema['hierarchical']) ? (int) ($entry['position'] ?? 0) : null,
             'published_at' => $entry['published_at'] ?? null,
             'created_at' => (string) ($entry['created_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),
@@ -753,6 +752,9 @@ final class ApiController
 
     private function publicMediaItem(array $file): array
     {
+        $languages = (new \CometCMS\Localization\LanguageSettings($this->workspace))->all();
+        $locale = (new \CometCMS\Localization\LanguageSettings($this->workspace))->requireLocale((string) ($_GET['locale'] ?? ''));
+        $file = \CometCMS\Localization\LocalizedValue::tree($file, $locale, $languages['default_locale']);
         $variantDescriptor = $this->media->variantDescriptor((string) $file['name']);
         $variants = null;
 
@@ -785,6 +787,7 @@ final class ApiController
             'uploaded_at' => $file['uploaded_at'] ?? null,
             'width' => $file['width'] ?? null,
             'height' => $file['height'] ?? null,
+            'revision' => $file['revision'],
             'alt' => $file['alt'] ?? '',
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
@@ -882,29 +885,16 @@ final class ApiController
 
     private function publicRelationValue(mixed $value, string $target, bool $admin): mixed
     {
-        if ($target !== '' && !$this->canExposeCollection($target)) {
-            return null;
-        }
-
         if (is_array($value)) {
-            return $this->publicValue($value, $admin);
+            if (isset($value['collection'], $value['id'])) return $this->publicValue($value, $admin);
+            return array_values(array_filter(array_map(fn(mixed $item): mixed => $this->publicRelationValue($item, $target, $admin), $value), static fn(mixed $item): bool => $item !== null));
         }
-
-        if ($target === '' || $value === null || $value === '') {
-            return $value;
-        }
-
-        $entry = $this->content->find($target, (string) $value);
-
-        if ($entry === null) {
-            return (string) $value;
-        }
-
-        if (!$admin && !$this->content->isPubliclyVisible($entry)) {
-            return null;
-        }
-
-        return $this->content->stableId($entry);
+        if ($target === '' || $value === null || $value === '') return $value;
+        $locale = $this->content->locale((string) ($_GET['locale'] ?? ''));
+        $entry = $this->content->findByIdentifier($target, (string) $value, false, $locale);
+        if ($entry === null) return null;
+        $entry = $this->content->resolveLocaleFields($entry, $locale, !$admin);
+        return $this->canReadRelatedEntry($entry) ? $this->content->stableId($entry) : null;
     }
 
     private function publicValue(mixed $value, bool $admin): mixed
@@ -914,7 +904,7 @@ final class ApiController
         }
 
         if (isset($value['collection'], $value['id'])) {
-            if (!$this->canExposeCollection((string) $value['collection'])) {
+            if (!$this->canReadRelatedEntry($value)) {
                 return null;
             }
 
@@ -934,26 +924,9 @@ final class ApiController
         return array_is_list($mapped) ? array_values(array_filter($mapped, static fn(mixed $item): bool => $item !== null)) : $mapped;
     }
 
-    private function canExposeCollection(string $collection): bool
+    private function canReadRelatedEntry(array $entry): bool
     {
-        if (!$this->types->exists($collection)) {
-            return false;
-        }
-
-        $schema = $this->types->find($collection);
-        if (empty($schema['api_enabled'])) {
-            return false;
-        }
-        if (($schema['visibility'] ?? 'public') !== 'private') {
-            return true;
-        }
-
-        return $this->readPrincipal !== null && $this->permissions->allows($this->readPrincipal, 'content.read', [
-            'type' => 'content',
-            'collection' => $collection,
-            'principal' => $this->readPrincipal,
-            'workspace' => $this->workspace->slug(),
-        ]);
+        return ExternalReadPolicy::allowsEntry($entry, $this->content, $this->types, $this->workspace, $this->readPrincipal);
     }
 
     private function optionalTokenWithPermission(string $action, array $context = []): ?array
@@ -1071,7 +1044,7 @@ final class ApiController
 
     private function payloadFields(array $payload): array
     {
-        return array_values(array_diff(array_keys($payload), ['id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'translations', 'locale']));
+        return array_values(array_unique(array_merge((array) ($payload['reset_fields'] ?? []), array_diff(array_keys($payload), ['revision', 'reset_fields', 'id', 'uid', 'collection', 'created_at', 'updated_at', 'deleted_at', 'deleted_by', 'updated_by', 'values', 'publication', 'revision', 'reset_fields', 'locale']))));
     }
 
     private function requirePublishToken(array $user, string $collection, ?array $entry, array $payload): void
@@ -1080,7 +1053,7 @@ final class ApiController
             return;
         }
 
-        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug()])) {
+        if ($this->permissions->allows($user, 'content.publish', ['type' => 'content', 'collection' => $collection, 'entry' => $entry ?? [], 'principal' => $user, 'workspace' => $this->workspace->slug(), 'locale' => $payload['locale'] ?? $this->content->locale()])) {
             return;
         }
 

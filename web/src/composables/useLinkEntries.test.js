@@ -38,7 +38,7 @@ describe('content destination search', () => {
   })
 
   it('hydrates an existing selection outside the result page independently', async () => {
-    mocks.get.mockResolvedValue({ data: { uid: 'saved', title: 'Saved', translations: { de: { title: 'Gespeichert' } } } })
+    mocks.get.mockResolvedValue({ data: { uid: 'saved', title: 'Saved', values: { title: { type: 'localized', values: { en: 'Saved', de: 'Gespeichert' } } } } })
     const { state } = setup({ identifier: ref('saved') })
     await flush()
     expect(state.entries.value).toEqual([])

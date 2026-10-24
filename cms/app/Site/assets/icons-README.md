@@ -3,7 +3,7 @@
 This curated subset of Material Design Icons by Pictogrammers is shared by the
 page builder's icon picker and the public site's inline SVG renderer. It includes
 the existing admin picker's catalog (excluding the unavailable `file-text-outline`)
-and common navigation, action, and social icons.
+and common navigation, action, social, and light/dark theme icons.
 
 Source: https://github.com/iconify/icon-sets/blob/master/json/mdi.json
 

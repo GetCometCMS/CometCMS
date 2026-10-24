@@ -3,7 +3,7 @@
     <button
       ref="triggerRef"
       type="button"
-      class="-mx-1 flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-slate-100"
+      class="page-switcher-trigger -mx-1 flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
       :title="t('site.builder.switchPage')"
       aria-haspopup="menu"
       :aria-expanded="open"
@@ -12,18 +12,18 @@
       @keydown.down.prevent="openMenu()"
       @keydown.esc.stop.prevent="close(true)"
     >
-      <span class="truncate text-sm font-semibold leading-tight text-slate-900">{{ heading }}</span>
-      <Icon icon="mdi:chevron-down" class="h-4 w-4 shrink-0 text-slate-400 transition-transform" :class="{ 'rotate-180': open }" aria-hidden="true" />
+      <span class="truncate text-sm font-semibold leading-tight">{{ heading }}</span>
+      <Icon icon="mdi:chevron-down" class="h-4 w-4 shrink-0 opacity-70 transition-transform" :class="{ 'rotate-180': open }" aria-hidden="true" />
     </button>
 
     <div
       v-if="open"
       :id="menuId"
       tabindex="-1"
-      class="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
+      class="absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
       @keydown="onMenuKeydown"
     >
-      <div v-if="showFilter" class="border-b border-slate-100 p-2">
+      <div class="border-b border-slate-100 p-2">
         <input
           ref="filterRef"
           v-model="filter"
@@ -44,31 +44,36 @@
             tabindex="-1"
             :aria-current="item.current ? 'page' : undefined"
             class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-            :class="item.current ? 'font-medium text-theme-700' : 'text-slate-700'"
+            :class="[item.current ? 'font-medium text-theme-700' : 'text-slate-700', { 'py-1 pl-8 text-[13px]': item.depth === 1 }]"
+            :title="item.title"
             @click="go(item)"
           >
-            <Icon :icon="item.icon" class="h-4 w-4 shrink-0" :class="item.current ? 'text-theme-600' : 'text-slate-400'" aria-hidden="true" />
+            <Icon :icon="item.icon" class="shrink-0" :class="[item.current ? 'text-theme-600' : 'text-slate-400', item.depth === 1 ? 'h-3.5 w-3.5' : 'h-4 w-4']" aria-hidden="true" />
             <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+            <span v-if="item.detail" class="min-w-0 max-w-[55%] shrink truncate text-xs font-normal text-slate-400">{{ item.detail }}</span>
             <span v-if="item.isHomepage" class="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.overview.homepage") }}</span>
-            <span v-if="item.isDefault" class="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] font-medium text-slate-500">{{ t("site.pages.default") }}</span>
             <Icon v-if="item.current" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
           </button>
         </div>
-        <p v-if="!groups.length" role="status" class="px-3 py-2 text-xs text-slate-500">{{ t("site.builder.noPages") }}</p>
+        <p v-if="searching && !entryResults.length" role="status" class="px-3 py-2 text-xs text-slate-500">{{ t("site.builder.searchingEntries") }}</p>
+        <p v-else-if="!groups.length" role="status" class="px-3 py-2 text-xs text-slate-500">{{ t("site.builder.noPages") }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { api } from "../../../api/index.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
+import { FRAME_DEFAULT, frameLabel, templateList, templateName, usesTemplates } from "../../../composables/templates.js";
+import { hasListPage } from "../../../composables/siteLinks.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
 
-/** The builder title, opening a menu of every page, region and component to edit instead. */
+/** The builder title, opening a menu of every page, region and component to edit instead, and a search for entries. */
 const props = defineProps({
   heading: { type: String, required: true },
   target: { type: String, required: true },
@@ -76,6 +81,8 @@ const props = defineProps({
 });
 
 const REGION_ICONS = { header: "mdi:page-layout-header", footer: "mdi:page-layout-footer" };
+const ENTRIES_PER_TYPE = 5;
+const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", maintenance: "mdi:tools", modal: "mdi:dock-window" };
 
 const route = useRoute();
 const router = useRouter();
@@ -89,31 +96,71 @@ const filterRef = ref(null);
 const open = ref(false);
 const filter = ref("");
 const menuId = `page-switcher-${useId()}`;
+const entryResults = ref([]);
+const searching = ref(false);
+
+/**
+ * A content type's pages: each page kind and, once it has more than the
+ * default one, its templates in order. A template opens its own content; its
+ * header and footer are edited under "Site-wide", in Components or from the
+ * canvas, so the row only names the parts that differ from the site's.
+ */
+function typeItems(type) {
+  const editing = ["layout", "page"].includes(props.target) && props.name === type.name;
+  const variants = hasListPage(builder.settings.value, type.name) ? ["detail", "index"] : ["detail"];
+  return variants.flatMap((variant) => {
+    const path = `/page-builder/builder/layout/${type.name}/${variant}`;
+    const components = builder.components.value;
+    const templates = site.draft?.templates ?? site.data?.templates;
+    const shown = usesTemplates(templates, type.name, variant) ? templateList(templates, type.name, variant) : [];
+    const editingVariant = editing && (props.target === "page" ? variant === "detail" : route.params.variant === variant);
+    const editingTemplate = editingVariant && shown.some((template) => template.id === route.query.template);
+    return [
+      {
+        key: `layout:${type.name}:${variant}`,
+        label: t(`site.variant.${variant}`),
+        icon: variant === "index" ? "mdi:view-grid-outline" : type.icon || "mdi:file-multiple-outline",
+        path,
+        current: editingVariant && !editingTemplate,
+        isHomepage: builder.settings.value?.homepage?.type === type.name && (variant === "index") === !builder.settings.value?.homepage?.entry,
+      },
+      ...shown.map((template) => {
+        const parts = [frameLabel(t, template.header, "header", components), frameLabel(t, template.footer, "footer", components)];
+        const distinct = [template.header !== FRAME_DEFAULT && parts[0], template.footer !== FRAME_DEFAULT && parts[1]].filter(Boolean);
+        return {
+          key: `template:${type.name}:${variant}:${template.id}`,
+          label: templateName(t, template),
+          detail: distinct.join(" · "),
+          title: parts.join(" · "),
+          icon: "mdi:page-layout-header-footer",
+          depth: 1,
+          path,
+          query: { template: template.id },
+          current: editingVariant && route.query.template === template.id,
+        };
+      }),
+    ];
+  });
+}
 
 const allGroups = computed(() => [
+  ...builder.pageTypes.value.map((type) => ({
+    key: `type:${type.name}`,
+    label: type.label ?? type.name,
+    items: typeItems(type),
+  })),
   {
-    key: "pages",
-    label: t("site.builder.pages"),
-    items: builder.pageTypes.value.map((type) => ({
-      key: `layout:${type.name}`,
-      label: type.label ?? type.name,
-      icon: type.singleton ? "mdi:file-document-outline" : "mdi:file-multiple-outline",
-      path: `/page-builder/builder/layout/${type.name}/detail`,
-      current: props.target === "layout" && props.name === type.name,
-      isHomepage: builder.settings.value?.homepage?.type === type.name,
-      isDefault: site.data?.layouts?.[type.name]?.detail === false,
-    })),
-  },
-  {
-    key: "regions",
-    label: t("site.builder.regions"),
-    items: Object.keys(site.data?.regions ?? REGION_ICONS).map((region) => ({
+    key: "site",
+    label: t("site.builder.siteWide"),
+    items: [
+      ...Object.keys(site.data?.regions ?? REGION_ICONS).map((region) => [region, REGION_ICONS[region] ?? "mdi:page-layout-body"]),
+      ...Object.keys(site.data?.special_pages ?? SPECIAL_PAGE_ICONS).map((page) => [page, SPECIAL_PAGE_ICONS[page] ?? "mdi:file-outline"]),
+    ].map(([region, icon]) => ({
       key: `region:${region}`,
       label: t(`site.region.${region}`),
-      icon: REGION_ICONS[region] ?? "mdi:page-layout-body",
+      icon,
       path: `/page-builder/builder/region/${region}`,
       current: props.target === "region" && props.name === region,
-      isDefault: site.data?.regions?.[region] === false,
     })),
   },
   {
@@ -127,19 +174,61 @@ const allGroups = computed(() => [
         icon: "mdi:puzzle-outline",
         path: `/page-builder/builder/component/${component.id}`,
         current: props.target === "component" && props.name === component.id,
-        isDefault: false,
       })),
   },
 ]);
 
-const showFilter = computed(() => allGroups.value.reduce((count, group) => count + group.items.length, 0) > 8);
-
 const groups = computed(() => {
   const terms = filter.value.trim().toLowerCase();
-  return allGroups.value
-    .map((group) => ({ ...group, items: terms ? group.items.filter((item) => item.label.toLowerCase().includes(terms)) : group.items }))
-    .filter((group) => group.items.length);
+  return [
+    ...allGroups.value
+      // Rows no longer repeat their type's name, so a match on the heading keeps the whole group.
+      .map((group) => ({ ...group, items: !terms || group.label.toLowerCase().includes(terms) ? group.items : group.items.filter((item) => `${item.label} ${item.detail ?? ""}`.toLowerCase().includes(terms)) })),
+    { key: "entries", label: t("site.builder.entries"), items: entryResults.value },
+  ].filter((group) => group.items.length);
 });
+
+/**
+ * An entry opens its own page content when its type has a page field, and
+ * otherwise the type's entry template previewing it.
+ */
+function entryItem(type, entry) {
+  const hasPage = Object.values(type.fields ?? {}).some((config) => config?.type === "page");
+  return {
+    key: `entry:${type.name}:${entry.id}`,
+    label: entry.title || entry.slug || entry.id,
+    detail: type.label ?? type.name,
+    icon: type.icon || "mdi:file-document-outline",
+    path: hasPage ? `/page-builder/builder/page/${type.name}/${entry.id}` : `/page-builder/builder/layout/${type.name}/detail`,
+    query: hasPage ? {} : { entry: entry.id },
+    current: hasPage ? props.target === "page" && props.name === type.name && route.params.variant === entry.id : false,
+  };
+}
+
+// Entries are searched across the page types, debounced and guarded against out-of-order responses.
+let searchTimer = null;
+let searchGeneration = 0;
+
+watch(filter, (value) => {
+  clearTimeout(searchTimer);
+  const needle = value.trim();
+  const generation = ++searchGeneration;
+  if (needle.length < 2) {
+    entryResults.value = [];
+    searching.value = false;
+    return;
+  }
+  searching.value = true;
+  searchTimer = setTimeout(() => searchEntries(needle, generation), 200);
+});
+
+async function searchEntries(needle, generation) {
+  const types = builder.pageTypes.value;
+  const responses = await Promise.allSettled(types.map((type) => api.content.list(type.name, { q: needle, limit: ENTRIES_PER_TYPE, offset: 0 })));
+  if (generation !== searchGeneration) return;
+  entryResults.value = responses.flatMap((response, i) => (response.status === "fulfilled" ? (response.value.data ?? []).map((entry) => entryItem(types[i], entry)) : []));
+  searching.value = false;
+}
 
 function menuItems() {
   return [...(menuRef.value?.querySelectorAll('[role="menuitem"]') ?? [])];
@@ -149,12 +238,7 @@ async function openMenu() {
   filter.value = "";
   open.value = true;
   await nextTick();
-  if (filterRef.value) {
-    filterRef.value.focus();
-    return;
-  }
-  const items = menuItems();
-  (items.find((item) => item.getAttribute("aria-current")) ?? items[0] ?? menuRef.value)?.focus();
+  filterRef.value?.focus();
 }
 
 function close(restoreFocus = false) {
@@ -165,9 +249,10 @@ function close(restoreFocus = false) {
 function go(item) {
   close();
   if (item.current) return;
-  // Keep where the builder was opened from, so "back" still leads there.
+  // Keep where the builder was opened from, so "back" still leads there, and the previewed entry.
   const back = typeof route.query.back === "string" ? route.query.back : "";
-  router.push({ path: item.path, query: back ? { back } : {} });
+  const entry = item.path.startsWith("/page-builder/builder/layout/") && typeof route.query.entry === "string" ? route.query.entry : "";
+  router.push({ path: item.path, query: { ...(entry ? { entry } : {}), ...(item.query ?? {}), ...(back ? { back } : {}) } });
 }
 
 function onMenuKeydown(event) {
@@ -209,5 +294,18 @@ function onFocusout(event) {
 }
 
 onMounted(() => document.addEventListener("pointerdown", onOutsidePointerdown));
-onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePointerdown));
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onOutsidePointerdown);
+  clearTimeout(searchTimer);
+});
 </script>
+
+<style scoped>
+.page-switcher-trigger {
+  color: rgb(var(--builder-toolbar-text, var(--color-slate-900)));
+}
+.page-switcher-trigger:hover,
+.page-switcher-trigger[aria-expanded="true"] {
+  background: var(--builder-toolbar-hover, rgb(var(--color-slate-100)));
+}
+</style>

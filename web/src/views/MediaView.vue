@@ -797,14 +797,14 @@
               class="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1"
               >{{ t("media.altText") }}</label
             >
-            <input
+            <LocalizedInput
               :id="`detail-alt-${detailFile.name}`"
               v-model="detailAlt"
               :readonly="!canEditDetail"
-              type="text"
-              class="form-input w-full rounded-lg border-slate-300 text-sm"
+
+              class="w-full"
               :placeholder="t('media.altPlaceholder')"
-              @blur="saveMetaIfChanged"
+              @focusout="saveMetaIfChanged"
             />
           </div>
           <div>
@@ -813,14 +813,14 @@
               class="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-1"
               >{{ t("media.titleField") }}</label
             >
-            <input
+            <LocalizedInput
               :id="`detail-title-${detailFile.name}`"
               v-model="detailTitle"
               :readonly="!canEditDetail"
-              type="text"
-              class="form-input w-full rounded-lg border-slate-300 text-sm"
+
+              class="w-full"
               :placeholder="t('media.titlePlaceholder')"
-              @blur="saveMetaIfChanged"
+              @focusout="saveMetaIfChanged"
             />
           </div>
           <div v-if="savingMeta" class="text-xs text-slate-400">
@@ -911,6 +911,7 @@ import {
   mediaDetailEndpoint,
   mediaListEndpoint,
 } from "../composables/apiEndpoint.js";
+import LocalizedInput from "../components/LocalizedInput.vue";
 import { useI18n } from "../i18n/index.js";
 import {
   categoryLabel,
@@ -1300,21 +1301,21 @@ async function saveMetaIfChanged() {
   const file = detailFile.value;
   if (!file) return;
 
-  const alt = detailAlt.value.trim();
-  const title = detailTitle.value.trim();
+  const alt = detailAlt.value;
+  const title = detailTitle.value;
 
-  if (alt === (file.alt ?? "") && title === (file.title ?? "")) return;
+  if (JSON.stringify(alt) === JSON.stringify(file.alt ?? "") && JSON.stringify(title) === JSON.stringify(file.title ?? "")) return;
 
   savingMeta.value = true;
   try {
-    const res = await api.media.updateMeta(file.name, alt, title);
+    const res = await api.media.updateMeta(file.name, alt, title, file.revision);
     const updated = res.data;
     files.value = files.value.map((item) =>
       item.name === file.name ? updated : item,
     );
     detailFile.value = updated;
-    detailAlt.value = updated.alt ?? "";
-    detailTitle.value = updated.title ?? "";
+    if (JSON.stringify(detailAlt.value) === JSON.stringify(alt)) detailAlt.value = updated.alt ?? "";
+    if (JSON.stringify(detailTitle.value) === JSON.stringify(title)) detailTitle.value = updated.title ?? "";
   } catch (err) {
     toast.error(err.message);
   } finally {

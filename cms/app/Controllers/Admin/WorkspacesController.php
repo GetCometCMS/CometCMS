@@ -7,6 +7,7 @@ namespace CometCMS\Controllers\Admin;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
 use CometCMS\Setup\WebsiteStarter;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
@@ -50,14 +51,22 @@ final class WorkspacesController extends BaseController
         }
 
         $slug = Security::slug((string) ($body['slug'] ?? $body['label'] ?? ''));
-        if ($slug === '' || $this->workspaces->exists($slug, true)) {
-            $this->json(['error' => ['code' => 'validation_failed', 'message' => $slug === '' ? 'Choose a workspace slug.' : 'Workspace already exists.']], 422);
+        $existing = $this->workspaces->find($slug, true);
+        if ($slug === '' || $existing !== null) {
+            $message = $slug === '' ? 'Choose a workspace slug.' : (
+                !empty($existing['archived'])
+                    ? 'An archived workspace already uses this slug. Choose a different slug.'
+                    : 'Workspace already exists.'
+            );
+            $code = !empty($existing['archived']) ? 'workspace_archived' : 'validation_failed';
+            $this->json(['error' => ['code' => $code, 'message' => $message]], 422);
         }
 
         try {
             $workspace = $this->workspaces->save([
                 'slug' => $slug,
                 'label' => (string) ($body['label'] ?? ''),
+                ...isset($body['languages']) ? ['languages' => $body['languages']] : [],
             ]);
             if ($starterTemplate === 'website') {
                 $activeWorkspace = WorkspaceContext::active()->slug();
@@ -67,6 +76,8 @@ final class WorkspacesController extends BaseController
                     WorkspaceContext::setActive($activeWorkspace);
                 }
             }
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
         } catch (\Throwable $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
         }
@@ -84,7 +95,10 @@ final class WorkspacesController extends BaseController
             $workspace = $this->workspaces->save([
                 'label' => (string) ($body['label'] ?? ''),
                 'archived' => (bool) ($body['archived'] ?? false),
+                ...isset($body['languages']) ? ['languages' => $body['languages']] : [],
             ], $slug);
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
         } catch (\Throwable $e) {
             $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage()]], 422);
         }
@@ -181,7 +195,7 @@ final class WorkspacesController extends BaseController
         $target = COMET_STORAGE . '/workspaces/' . $slug . '/icon.png';
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
         $saved = imagepng($image, $tmp);
-        imagedestroy($image);
+        unset($image);
 
         if (!$saved || !rename($tmp, $target)) {
             if (is_file($tmp)) {
