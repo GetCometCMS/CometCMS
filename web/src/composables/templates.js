@@ -88,6 +88,7 @@ export function frameLabel(t, value, region, components) {
 
 /** The comparisons a condition on a field of this type can make (mirrors SiteRepository::conditionOps()). */
 export function conditionOps(fieldType) {
+  if (fieldType === 'entry') return ['equals']
   if (!fieldType || ['page', 'json', 'repeater'].includes(fieldType)) return []
   const ops = ['equals', 'not_equals', 'contains', 'empty', 'not_empty']
   return ops.filter((op) => {
@@ -104,17 +105,27 @@ function conditionFieldLabel(type, key) {
 }
 
 /** Fields of a content type that conditions can test, with their field type. */
-export function conditionFields(type) {
+export function conditionFields(type, t = (key) => key === 'site.templates.entry' ? 'Entry' : key) {
   const fields = Object.entries(type?.fields ?? {})
     .filter(([, config]) => conditionOps(config?.type).length)
     .map(([key, config]) => ({ key, label: conditionFieldLabel(type, key), type: config?.type }))
-  return fields.some((field) => field.key === 'slug') ? fields : [...fields, { key: 'slug', label: 'Slug', type: 'slug' }]
+  return [
+    { key: 'uid', label: t('site.templates.entry'), type: 'entry' },
+    ...fields,
+    ...(fields.some((field) => field.key === 'slug') ? [] : [{ key: 'slug', label: 'Slug', type: 'slug' }]),
+  ]
 }
 
 export const needsValue = (op) => !['empty', 'not_empty'].includes(op)
 
 /** A condition in words, e.g. "Category = Tips". */
-export function conditionLabel(t, condition, type) {
+export function conditionLabel(t, condition, type, entries = []) {
+  if (condition.field === 'uid') {
+    const ids = Array.isArray(condition.value) ? condition.value : []
+    const names = ids.map((uid) => entries.find((entry) => entry.uid === uid)?.title)
+    const value = ids.length && names.every(Boolean) ? names.join(', ') : t('site.templates.selectedEntries', { count: ids.length })
+    return t('site.templates.op.equals', { field: t('site.templates.entry'), value })
+  }
   const config = type?.fields?.[condition.field]
   const field = conditionFieldLabel(type, condition.field)
   let value = condition.value

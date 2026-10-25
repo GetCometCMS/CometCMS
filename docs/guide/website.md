@@ -107,13 +107,15 @@ The editing canvas shows library videos with their player (autoplay is off while
 
 ### Animations
 
-Under **Style → Normal → Animation**, choose an entrance effect and when it plays. **When scrolled into view** plays the entrance once as the element first appears in the viewport, using the theme's speed and stagger delay. **When the page opens** plays on load. Independently, **Style → Hover → Animation** lets you choose a hover effect with its own duration and delay. It starts from the element's current appearance, gently moves, scales, dims or blurs it, and returns when the pointer leaves. Reduced-motion preferences disable these effects.
+Under **Style → Normal → Animation**, choose an entrance effect and when it plays. **When scrolled into view** plays the entrance once as the element first appears in the viewport, using the theme's speed and stagger delay. **When the page opens** plays on load. Independently, **Style → Hover → Animation** lets you choose a hover effect with its own duration and delay. It starts from the element's current appearance, gently moves, scales, dims or blurs it, and returns when the pointer leaves. Hover colors, borders and shadows fade in over the theme's **Hover transition** time (**Design → Animations**, 0.2 s by default; 0 switches instantly). Reduced-motion preferences disable these effects.
+
+In **Design → Animations**, select **Fast**, **Normal** or **Slow** to edit that duration. Enter an exact time in seconds or use the slider, then replay the entrance cards to see the speed and stagger together. Hover over or focus the sample button to try the separate hover transition.
 
 Scroll inside the preview to test entry animations. Each preview update creates a new page and restores its scroll position, so elements already in view can play immediately. In browsers without [CSS scroll-triggered animations](https://developer.chrome.com/blog/scroll-triggered-animations), entrances progress with scrolling instead; an element already fully in view then looks finished when the effect is enabled. Browsers without view timelines play entrances on page load.
 
 ### Shadows
 
-**Shadow** and **Text shadow** offer soft sizes, a colored **Hard / block** effect and **Glow**; box shadows also offer **Inset**. Choose a preset, then expand **Customize** to adjust its palette color, horizontal and vertical offset, blur and opacity. Box shadows also have spread and an inset toggle. Editing a value switches to **Custom**, which keeps the settings visible. For block-style depth, use zero blur and an offset with a contrasting color; for a glow, use zero offset and increase blur. Colors follow the site's light and dark palettes. **None** explicitly removes a shadow, including on a device or state override; **Default** follows the normal or larger-screen value.
+**Shadow** offers the editable sizes **S**, **M** and **L** and the site's **theme shadows** (by default **Block**, **Glow** and **Inset**; see *Design settings → Shadows*). **Text shadow** offers soft sizes, **Block** and **Glow**. Choose a preset, then expand **Customize** to adjust its palette color, horizontal and vertical offset, blur and opacity. Box shadows also have spread and an inset toggle. Editing a value switches to **Custom**, which keeps the settings visible. For block-style depth, use zero blur and an offset with a contrasting color; for a glow, use zero offset and increase blur. Colors follow the site's light and dark palettes; **Black** stays black in both. **None** explicitly removes a shadow, including on a device or state override; **Default** follows the normal or larger-screen value.
 
 ### Positioning
 
@@ -281,6 +283,8 @@ The header and footer are shown on every page and are edited directly in the pag
 
 Menu elements show a navigation list on desktop and collapse into a menu button on mobile by default. Enable **Always show menu button** in the element's content options to use the button at every screen size, including desktop. **Menu button opens** chooses what the button shows: a dropdown under the button, a full-screen menu with large centered links, or a side panel over a dimmed page. **Side panel position** chooses whether the panel slides in from the left or right (the default). For full-screen menus and side panels, **Menu panel background** and **Menu panel text color** select colors from the theme palette, including custom colors; **Default** keeps the theme's background and text colors. These colors apply to the open panel's content and close button. Full-screen menus and side panels have their own close button (clicking the dimmed page also closes a side panel), and the page behind them does not scroll while they are open.
 
+**Hover effect** sets how a hovered link stands out: a highlighted row (the default), a color change only, an underline, an overline, or an underline that grows from the middle. Lines use the theme's link thickness and distance. **Hover color** picks the color hovered links and the current page take; **Default** uses the element's text color or the section's highlight color. Dropdowns and panels keep their own colors. **Current page** marks the link of the open page in bold (the default), with the same effect as a hovered link, or with its color only.
+
 ![Menu editor showing fictional studio navigation and entry destinations](../screenshots/view-menus.png)
 
 ### Templates
@@ -331,10 +335,13 @@ Site backups include installed fonts and their metadata. Fonts referenced by sav
 
 **Heading levels** fine-tune H1 to H6 one by one: font, size, weight, line height, letter spacing and capitalization. Empty values follow the general typography settings, so a level only needs the values that should differ. Custom sizes from 32 px shrink by 20 % on phones. Font, size and weight chosen for a single element in the builder still take precedence.
 
+**Links** sets how text links look across the site: their color and hover color from the theme palette (including custom colors, so dark mode follows along), whether they are underlined always, only on hover, or never, and the underline's thickness and distance from the text. Heading links and **Link** style buttons use the same hover color and underline. Links in colored sections, and elements with their own **Link color**, keep theirs. Themes saved with the earlier **Underline links** switch keep their look.
+
 The theme also defines the **tokens** the builder offers, so one change reshapes the whole site:
 
 - **Spacing scale** — the pixel values behind XS to 2XL for padding, space below and spacers (Compact / Normal / Relaxed fill them in).
 - **Corners** — the S, M and L radii, and the default corner used by buttons, images, cards and “Theme default”. “Round” turns buttons into pills while images and cards use L.
+- **Shadows** — select S, M or L to customize its shadow, preview it and reset it individually, just like corners. Additional theme shadows are offered by every element's **Shadow** setting. Add, rename, adjust or remove theme shadows here; a change updates every element that uses it. A removed shadow is no longer shown, and the element's setting reports it as missing.
 - **Widths** — the maximum content width of “Contained” and “Narrow” sections.
 
 Administrators can add **custom CSS**. Every class the website uses starts with `c-`, e.g. `.c-site-name` or `.c-button-primary`. Elements also accept extra CSS classes in the builder.

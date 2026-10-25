@@ -9,7 +9,10 @@
         :aria-controls="contentId"
         @click="open = !open"
       >
-        {{ title }}
+        <span class="flex min-w-0 flex-1 items-center gap-2">
+          <Icon v-if="icon" :icon="icon" class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <span>{{ title }}</span>
+        </span>
         <Icon
           icon="mdi:chevron-right"
           class="h-4 w-4 shrink-0 text-slate-400 transition-transform"
@@ -31,6 +34,7 @@ import { Icon } from "@iconify/vue";
 /** A collapsible group of the builder sidebars (palette categories, style groups). */
 defineProps({
   title: { type: String, required: true },
+  icon: { type: String, default: "" },
   headingTag: { type: String, default: "h3" },
   contentClass: { type: [String, Array, Object], default: "mt-2" },
 });

@@ -37,6 +37,11 @@ export const STACKED_ICONS = {
   column: 'mdi:view-split-horizontal',
 }
 
-export function nodeIcon(node, stacked = false) {
+export function componentIcon(component) {
+  return component?.icon || KIND_ICONS.component
+}
+
+export function nodeIcon(node, stacked = false, component = null) {
+  if (node?.kind === 'component') return componentIcon(component)
   return (stacked && STACKED_ICONS[node?.kind]) || KIND_ICONS[node?.kind] || 'mdi:shape-outline'
 }

@@ -217,9 +217,20 @@ describe('builder shadow controls', () => {
     for (const name of ['shadow', 'text_shadow']) {
       const html = await renderControl(name, { type: 'shadow', text: name === 'text_shadow', options: ['primary', 'accent'], default: '' }, 'hard', { group: 'style' })
       expect(html).toContain(`id="builder-icon1-style-${name}"`)
-      expect(html).toContain('Hard / block')
+      // No saved theme here, so the box shadow's preset is unknown.
+      expect(html).toContain(name === 'shadow' ? 'hard (missing)' : '>Block</option>')
       expect(html).toContain('Customize')
       expect(html).toContain(name === 'shadow' ? 'box-shadow:6px 6px 0px 0px' : 'text-shadow:3px 3px 0px')
     }
+  })
+})
+
+describe('builder bound controls', () => {
+  it('render one editor, not a second plain input below it', async () => {
+    const text = await renderControl('text', { type: 'string', max: 300, default: '', binding: 'text' }, 'Portfolio', { node: { id: 'h1', kind: 'heading', props: { text: 'Portfolio' } } })
+    expect(text.match(/Portfolio/g)?.length ?? 0).toBeLessThanOrEqual(1)
+    expect(text).not.toContain('id="builder-h1-props-text"')
+    const link = await renderControl('link', { type: 'link', default: { type: 'none' }, binding: 'link' }, { type: 'none' }, { node: { id: 'h1', kind: 'heading', props: {} } })
+    expect(link).not.toContain('id="builder-h1-props-link"')
   })
 })

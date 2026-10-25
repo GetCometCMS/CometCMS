@@ -98,6 +98,58 @@ test('components are created from one structure node and keep their root kind', 
     assert_same(1, count($site->componentRevisions($component['id'])));
 });
 
+test('component icons persist through renaming, tree saves and history restores', function (): void {
+    $site = comet_site_test_setup();
+    $component = $site->createComponent('Promo', [comet_component_test_section([['kind' => 'heading']])]);
+    $id = $component['id'];
+    assert_same('', $component['icon']);
+
+    $updated = $site->patchComponent($id, ['icon' => 'mdi:star-outline']);
+    assert_same('mdi:star-outline', (new SiteRepository())->component($id)['icon']);
+    assert_same('mdi:star-outline', $site->components()[0]['icon']);
+    assert_same($component['nodes'], $updated['nodes']);
+    assert_same([], $site->componentRevisions($id));
+    assert_same('mdi:star-outline', $site->renameComponent($id, 'Renamed')['icon']);
+    $saved = $site->saveComponent($id, [comet_component_test_section([['kind' => 'text']])]);
+    assert_same('mdi:star-outline', $saved['icon']);
+    $revision = $site->componentRevisions($id)[0];
+    $site->patchComponent($id, ['icon' => 'mdi:heart-outline']);
+    assert_same('mdi:heart-outline', $site->restoreComponentRevision($id, $revision['id'])['component']['icon']);
+    assert_same('', $site->patchComponent($id, ['icon' => ''])['icon']);
+
+    // Definitions from before icon metadata was introduced retain their default.
+    $path = $site->workspace()->path('site') . '/theme/components/' . $id . '.json';
+    $stored = json_decode(file_get_contents($path), true);
+    unset($stored['icon']);
+    file_put_contents($path, json_encode($stored));
+    assert_same('', (new SiteRepository())->component($id)['icon']);
+});
+
+test('component metadata rejects invalid icons without partially saving a rename', function (): void {
+    $site = comet_site_test_setup();
+    $component = $site->createComponent('Promo', [comet_component_test_section([])]);
+    foreach ([null, [], 42, '<svg/>', 'invalid icon', 'mdi:star-outline extra', str_repeat('x', 121)] as $icon) {
+        assert_throws(ValidationException::class, fn() => $site->patchComponent($component['id'], ['name' => 'Changed', 'icon' => $icon]));
+        assert_same('Promo', $site->component($component['id'])['name']);
+        assert_same('', $site->component($component['id'])['icon']);
+    }
+});
+
+test('component icon API accepts icon-only patches and enforces site permissions', function (): void {
+    $seed = '$site = new \\CometCMS\\Site\\SiteRepository(); $site->createComponent("Shared", [["kind" => "section"]]);';
+    $action = '(new \\CometCMS\\Controllers\\Admin\\SiteController(new \\CometCMS\\Core\\Http()))->patchComponent("shared");';
+    [$status, $json] = comet_admin_request('admin', $seed, 'PATCH', '/admin/api/site/components/shared', $action, ['icon' => 'mdi:star-outline']);
+    assert_same(200, $status);
+    assert_same('Shared', $json['data']['name']);
+    assert_same('mdi:star-outline', $json['data']['icon']);
+
+    [$status, $json] = comet_admin_request('admin', $seed, 'PATCH', '/admin/api/site/components/shared', $action, ['icon' => '<svg/>']);
+    assert_same(422, $status);
+
+    [$status] = comet_admin_request('editor', '$users->create("editor", "secret-password", "editor");' . $seed, 'PATCH', '/admin/api/site/components/shared', $action, ['icon' => 'mdi:star-outline']);
+    assert_same(403, $status);
+});
+
 test('components that show entry fields need the content type they belong to', function (): void {
     $site = comet_site_test_setup();
     $section = comet_component_test_section([['id' => 'h1', 'kind' => 'heading', 'props' => ['text' => SmartValue::reference('title')]]]);

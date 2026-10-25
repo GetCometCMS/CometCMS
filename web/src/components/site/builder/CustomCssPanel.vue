@@ -34,7 +34,7 @@
 
       <template v-if="elementScope">
         <div class="flex min-w-0 items-center gap-2 text-xs text-slate-600">
-          <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <Icon :icon="nodeIcon(node, builder.isStacked(node), builder.componentOf(node))" class="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
           <span class="truncate font-medium text-slate-800">{{ builder.nodeLabel(node) }}</span>
         </div>
 

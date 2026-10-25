@@ -54,6 +54,7 @@ final class SiteController extends BaseController
             'settings' => $this->site->settings(),
             'form_settings' => (new FormCaptchaSettings($this->site->workspace()))->admin(),
             'theme' => $this->site->theme(),
+            'theme_presets' => $this->site->themePresets(),
             'menus' => $this->site->menus(),
             'menus_revision' => \CometCMS\Localization\LocalizedValue::hash($this->site->menus()),
             'menu_limits' => SiteRepository::MENU_LIMITS,
@@ -202,6 +203,29 @@ final class SiteController extends BaseController
         $this->json(['data' => $theme]);
     }
 
+    /** Body: {name, theme}: the design to keep under that name. */
+    public function createThemePreset(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        $input = $this->requestJson();
+        $preset = $this->validated(fn() => $this->site->createThemePreset($input['name'] ?? '', $input['theme'] ?? null));
+        $this->logger->info('site.theme_preset_created', ['preset' => $preset['id']]);
+        $this->json(['data' => $preset], 201);
+    }
+
+    public function deleteThemePreset(string $id): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+        if ($this->site->themePreset($id) === null) {
+            $this->json(['error' => ['code' => 'not_found', 'message' => 'Preset not found.']], 404);
+        }
+        $this->site->deleteThemePreset($id);
+        $this->logger->info('site.theme_preset_deleted', ['preset' => $id]);
+        $this->json(['data' => ['deleted' => true]]);
+    }
+
     public function updateMenus(): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
@@ -296,7 +320,8 @@ final class SiteController extends BaseController
         $area = $this->requestedTemplate($type, $variant, $this->requestJson()['template'] ?? null);
         $nodes = $this->validated(fn() => $this->site->saveLayout($type, $variant, $this->requestJson()['nodes'] ?? [], $user, 'saved', $this->requestJson()['revision'] ?? null, $area));
         $this->logger->info('site.layout_updated', ['type' => $type, 'variant' => $variant, 'template' => $area]);
-        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => true]]);
+        // Saving may have given areas back their storage (see SiteRepository::ensureAreas()).
+        $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => true, 'type' => $this->site->types()[$type] ?? null]]);
     }
 
     public function resetLayout(string $type, string $variant): never
@@ -308,6 +333,28 @@ final class SiteController extends BaseController
         $nodes = $this->site->resetLayout($type, $variant, $user, 'reset', $area);
         $this->logger->info('site.layout_reset', ['type' => $type, 'variant' => $variant, 'template' => $area]);
         $this->json(['data' => ['nodes' => $nodes, 'revision' => \CometCMS\Localization\LocalizedValue::hash($nodes), 'customized' => false]]);
+    }
+
+    // ─── Content areas ───────────────────────────────────────────────────────
+
+    /** The type's Entry content areas, where its templates place them and how many entries designed each. */
+    public function areas(string $type): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requireType($type, 'detail');
+        $this->json(['data' => $this->site->areas($type)]);
+    }
+
+    /** Delete an area and every entry's design in it; templates placing it show it as missing. */
+    public function deleteArea(string $type, string $key): never
+    {
+        $user = $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->requirePermission('schema.update', ['type' => 'schema', 'name' => $type]);
+        $this->verifyCsrf();
+        $this->requireType($type, 'detail');
+        $this->validated(fn() => $this->site->deleteArea($type, $key));
+        $this->logger->info('site.area_deleted', ['type' => $type, 'field' => $key, 'user_id' => $user['id'] ?? null]);
+        $this->json(['data' => $this->site->areas($type)]);
     }
 
     // ─── Page content of one entry ───────────────────────────────────────────
@@ -574,13 +621,14 @@ final class SiteController extends BaseController
         $this->json(['data' => ['nodes' => $component['nodes'], 'revision' => \CometCMS\Localization\LocalizedValue::hash($component['nodes']), 'customized' => true, 'component' => $component]]);
     }
 
-    public function renameComponent(string $id): never
+    public function patchComponent(string $id): never
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $this->verifyCsrf();
         $this->requireComponent($id);
-        $component = $this->validated(fn() => $this->site->renameComponent($id, $this->requestJson()['name'] ?? ''));
-        $this->logger->info('site.component_renamed', ['component' => $id]);
+        $input = $this->requestJson();
+        $component = $this->validated(fn() => $this->site->patchComponent($id, $input));
+        $this->logger->info(array_key_exists('name', $input) ? 'site.component_renamed' : 'site.component_updated', ['component' => $id]);
         $this->json(['data' => $component]);
     }
 
@@ -1095,6 +1143,8 @@ final class SiteController extends BaseController
             'menus' => array_map(static fn(array $menu): array => ['name' => $menu['name'], 'label' => $menu['label']], $this->site->menus()),
             'locales' => $this->site->settings()['locales'],
             'default_locale' => $this->site->settings()['default_locale'],
+            // The website's address serves another workspace (or none), so live links would mislead.
+            'live_conflict' => $this->site->settings()['enabled'] && $this->liveUrlConflict($this->siteUrl() . '/'),
             'spec' => LayoutSchema::spec($pageContent, $modal),
             'components' => $this->site->components(),
             'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),

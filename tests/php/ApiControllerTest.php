@@ -68,16 +68,39 @@ test('media endpoint serves configured image variants', function (): void {
         '$image = imagecreatetruecolor(1200, 600);' .
         'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
         'unset($image);' .
-        '$_GET = ["w" => "320", "format" => "jpeg"];' .
+        '$_GET = ["w" => "400", "format" => "jpeg"];' .
         '$_SERVER["REQUEST_METHOD"] = "GET";' .
-        '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?w=320&format=jpeg";' .
+        '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?w=400&format=jpeg";' .
         '$_SERVER["SCRIPT_NAME"] = "/index.php";' .
         '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default")->mediaShow("hero.jpg");'
     ]);
 
     $dimensions = getimagesizefromstring($output);
-    assert_same(320, $dimensions[0] ?? null);
-    assert_same(160, $dimensions[1] ?? null);
+    assert_same(400, $dimensions[0] ?? null);
+    assert_same(200, $dimensions[1] ?? null);
+});
+
+test('media endpoint serves named image sizes', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $output = comet_test_run_php(['-r',
+        comet_api_controller_test_bootstrap_require_snippet() .
+        'comet_test_reset_storage();' .
+        '$image = imagecreatetruecolor(1200, 600);' .
+        'imagejpeg($image, comet_test_workspace_path() . "/media/hero.jpg", 90);' .
+        'unset($image);' .
+        '$_GET = ["size" => "medium", "format" => "jpeg"];' .
+        '$_SERVER["REQUEST_METHOD"] = "GET";' .
+        '$_SERVER["REQUEST_URI"] = "/media/default/hero.jpg?size=medium&format=jpeg";' .
+        '$_SERVER["SCRIPT_NAME"] = "/index.php";' .
+        '(new \\CometCMS\\Controllers\\ApiController(new \\CometCMS\\Core\\Http()))->useWorkspace("default")->mediaShow("hero.jpg");'
+    ]);
+
+    $dimensions = getimagesizefromstring($output);
+    assert_same(960, $dimensions[0] ?? null);
+    assert_same(480, $dimensions[1] ?? null);
 });
 
 test('media listing advertises responsive variant urls', function (): void {
@@ -98,8 +121,10 @@ test('media listing advertises responsive variant urls', function (): void {
     ]);
 
     assert_true(str_contains($output, '"variants": {'));
-    assert_true(str_contains($output, 'hero.jpg?w=320&format='));
-    assert_false(str_contains($output, 'hero.jpg?w=1280&format='));
+    assert_true(str_contains($output, 'hero.jpg?w=400&format='));
+    assert_false(str_contains($output, 'hero.jpg?w=1920&format='));
+    assert_true(str_contains($output, 'hero.jpg?size=medium'));
+    assert_false(str_contains($output, 'hero.jpg?size=large'), 'Sizes the original does not exceed are left out.');
 });
 
 /** Read the same public collection with and without explicit API exposure. */

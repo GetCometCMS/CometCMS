@@ -75,7 +75,7 @@
         v-for="component in components"
         :key="component.id"
         wide
-        :icon="KIND_ICONS.component"
+        :icon="componentIcon(component)"
         :label="component.name"
         :meta="component.type ? typeLabel(component.type) : builder.kindLabel(component.root)"
         :disabled="!builder.canInsertComponent(component)"
@@ -97,7 +97,7 @@
 import { computed, ref, useId, watch } from "vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
-import { KIND_ICONS } from "./kindIcons.js";
+import { componentIcon, KIND_ICONS } from "./kindIcons.js";
 import { fieldShortcut } from "../../../composables/smartValues.js";
 import { MODAL, ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";

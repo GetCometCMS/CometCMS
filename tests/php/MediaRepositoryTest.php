@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use CometCMS\Core\ValidationException;
 use CometCMS\Media\MediaRepository;
 
 function comet_media_test_file(string $name, string $body = 'file'): void
@@ -77,12 +78,12 @@ test('media repository generates cached variants without upscaling originals', f
     unset($source);
     $repository = new MediaRepository();
 
-    $variant = $repository->variant('landscape.jpg', ['w' => 320, 'format' => 'jpeg']);
-    assert_same(320, $variant['width']);
-    assert_same(160, $variant['height']);
+    $variant = $repository->variant('landscape.jpg', ['w' => 400, 'format' => 'jpeg']);
+    assert_same(400, $variant['width']);
+    assert_same(200, $variant['height']);
     assert_same('image/jpeg', $variant['mime']);
     assert_file_exists_at($variant['path']);
-    assert_same($variant['path'], $repository->variant('landscape.jpg', ['w' => 320, 'format' => 'jpeg'])['path']);
+    assert_same($variant['path'], $repository->variant('landscape.jpg', ['w' => 400, 'format' => 'jpeg'])['path']);
 
     $large = $repository->variant('landscape.jpg', ['w' => 1920, 'format' => 'jpeg']);
     assert_same(1200, $large['width']);
@@ -100,7 +101,7 @@ test('media repository generates cached variants without upscaling originals', f
     }
 
     $descriptor = $repository->variantDescriptor('landscape.jpg');
-    assert_same([320, 640, 960], $descriptor['widths']);
+    assert_same([400, 960], $descriptor['widths']);
     assert_true(isset($descriptor['formats'][0]));
 });
 
@@ -114,7 +115,7 @@ test('media variant cache is disposable and removed with its original', function
     imagejpeg($source, $path, 90);
     unset($source);
     $repository = new MediaRepository();
-    $variant = $repository->variant('photo.jpg', ['w' => 320, 'format' => 'jpeg']);
+    $variant = $repository->variant('photo.jpg', ['w' => 400, 'format' => 'jpeg']);
     $cacheDirectory = dirname($variant['path']);
 
     $repository->delete('photo.jpg');
@@ -139,4 +140,53 @@ test('media thumbnails are stored as variants', function (): void {
     assert_true(is_string($thumbnail));
     assert_true(str_starts_with($thumbnail, comet_test_workspace_path() . '/media-variants/'));
     assert_false(is_dir(comet_test_workspace_path() . '/media-thumbs'));
+});
+
+test('uploads get every named size smaller than the original, proportions kept', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $source = imagecreatetruecolor(1000, 2000);
+    imagejpeg($source, comet_test_workspace_path() . '/media/portrait.jpg', 90);
+    unset($source);
+    $repository = new MediaRepository();
+
+    assert_same(['thumbnail' => ['width' => 200, 'height' => 400], 'medium' => ['width' => 480, 'height' => 960], 'large' => ['width' => 960, 'height' => 1920]], $repository->imageSizes('portrait.jpg'));
+    assert_same($repository->imageSizes('portrait.jpg'), $repository->find('portrait.jpg')['sizes']);
+    assert_true($repository->generateSizes('portrait.jpg'));
+    assert_same(3, count(glob(comet_test_workspace_path() . '/media-variants/*/*') ?: []));
+
+    $medium = $repository->sizeVariant('portrait.jpg', 'medium', 'jpeg');
+    assert_same([480, 960], array_slice(getimagesize($medium['path']) ?: [], 0, 2));
+    assert_null($repository->sizeVariant('portrait.jpg', 'huge'));
+});
+
+test('a named size the original does not exceed is the original', function (): void {
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return;
+    }
+
+    $path = comet_test_workspace_path() . '/media/small.jpg';
+    $source = imagecreatetruecolor(600, 300);
+    imagejpeg($source, $path, 90);
+    unset($source);
+    $repository = new MediaRepository();
+
+    assert_same(['thumbnail'], array_keys($repository->imageSizes('small.jpg')));
+    assert_same($path, $repository->sizePath('small.jpg', 'large'));
+    assert_same([], $repository->imageSizes('notes.txt'));
+    file_put_contents(comet_test_workspace_path() . '/media/notes.txt', 'text');
+    assert_same(['small.jpg'], $repository->resizableFiles());
+});
+
+test('workspace image sizes are bounded and must grow', function (): void {
+    $sizes = (new MediaRepository())->sizes();
+
+    assert_same(['thumbnail' => 400, 'medium' => 960, 'large' => 1920], $sizes->all());
+    assert_same(['thumbnail' => 300, 'medium' => 800, 'large' => 1600], $sizes->save(['thumbnail' => 300, 'medium' => '800', 'large' => 1600]));
+    assert_same(['thumbnail' => 300, 'medium' => 800, 'large' => 1600], (new MediaRepository())->sizes()->all());
+    assert_throws(ValidationException::class, fn() => $sizes->save(['thumbnail' => 900, 'medium' => 800, 'large' => 1600]));
+    assert_throws(ValidationException::class, fn() => $sizes->save(['thumbnail' => 10, 'medium' => 800, 'large' => 1600]));
+    assert_throws(ValidationException::class, fn() => $sizes->save(['thumbnail' => 300, 'medium' => 800, 'large' => 9000]));
 });

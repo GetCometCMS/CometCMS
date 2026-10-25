@@ -24,7 +24,7 @@ https://yourdomain.com/api/v1/workspaces/{workspace}
 
 Requests to unscoped `/api/v1/...` content, content-type, and media routes are rejected with `workspace_required`.
 
-For example, `GET /api/v1/workspaces/site-a/content/posts` reads posts from the `site-a` workspace. Direct media URLs for scoped responses use `/media/{workspace}/{filename}`; thumbnails use the same endpoint with `?variant=thumbnail`.
+For example, `GET /api/v1/workspaces/site-a/content/posts` reads posts from the `site-a` workspace. Direct media URLs for scoped responses use `/media/{workspace}/{filename}`; named image sizes use the same endpoint with `?size=thumbnail`, `?size=medium` or `?size=large`.
 
 ## Response shape
 
@@ -250,8 +250,9 @@ Each file object includes the following fields:
 | ------------- | ---------------------------------------------------- |
 | `filename`    | File name                                            |
 | `url`         | Absolute URL to the file                             |
-| `thumb_url`   | Absolute URL to the generated thumbnail variant, or `url` |
-| `variants`    | Responsive widths, formats, limits, and ready-to-use URLs for raster images; otherwise `null` |
+| `thumb_url`   | Absolute URL to the thumbnail size, or `url` |
+| `sizes`       | The named sizes (`thumbnail`, `medium`, `large`) smaller than the original, each with `width`, `height` and `url`. A missing size is served by `url`. |
+| `variants`    | Accepted widths (the named sizes), formats, limits, and ready-to-use URLs for raster images; otherwise `null` |
 | `size`        | File size in bytes                                   |
 | `mime`        | MIME type                                            |
 | `category`    | Assigned category path, or empty string              |
@@ -352,20 +353,20 @@ Raster images accept these optional transformation parameters:
 
 | Parameter | Description |
 | --------- | ----------- |
-| `w` | Target width. Must be a configured width unless custom sizes are enabled. |
+| `size` | A named size: `thumbnail`, `medium` or `large`. Serves the original when it is not larger. |
+| `w` | Target width. Must be one of the named sizes unless custom sizes are enabled. |
 | `h` | Target height. Available when custom sizes are enabled. |
 | `fit` | `contain` (default) or centered `cover`. |
 | `format` | An enabled and GD-supported output format: `jpeg`, `png`, `webp`, or `avif`. |
 
-At least `w` or `h` is required to request a variant. Images retain their aspect ratio and are never upscaled. Variants use the same public/private authorization as the original, are cached on disk, and return `ETag`, `Last-Modified`, and `Cache-Control` headers.
+`size`, `w` or `h` is required to request a variant. Images retain their aspect ratio and are never upscaled. Variants use the same public/private authorization as the original, are cached on disk, and return `ETag`, `Last-Modified`, and `Cache-Control` headers.
 
 ```html
 <img
-  src="https://yourdomain.com/media/site-a/hero.jpg?w=640&format=webp"
-  srcset="https://yourdomain.com/media/site-a/hero.jpg?w=320&format=webp 320w,
-          https://yourdomain.com/media/site-a/hero.jpg?w=640&format=webp 640w,
-          https://yourdomain.com/media/site-a/hero.jpg?w=960&format=webp 960w"
-  sizes="(max-width: 640px) 100vw, 640px"
+  src="https://yourdomain.com/media/site-a/hero.jpg?size=medium"
+  srcset="https://yourdomain.com/media/site-a/hero.jpg?size=thumbnail 400w,
+          https://yourdomain.com/media/site-a/hero.jpg?size=medium 960w"
+  sizes="(max-width: 960px) 100vw, 960px"
   alt=""
 >
 ```

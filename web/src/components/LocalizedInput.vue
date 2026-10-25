@@ -1,21 +1,25 @@
 <template>
-  <fieldset :disabled="readonly" class="min-w-0 space-y-2">
-    <div v-if="label || showSelect" class="flex flex-wrap items-center justify-between gap-2">
+  <fieldset :disabled="readonly" class="min-w-0" :class="compact ? 'grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2' : 'space-y-2'">
+    <div v-if="label || showSelect" :class="compact ? 'relative flex h-[38px] w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-50 focus-within:ring-2 focus-within:ring-theme-500' : 'flex flex-wrap items-center justify-between gap-2'">
       <label v-if="label" :for="id" class="text-sm font-medium text-slate-700">{{ label }}</label>
+      <span v-if="compact && showSelect" :class="['fi', `fi-${localeFlagCountry(active)}`]" aria-hidden="true"></span>
       <select
         v-if="showSelect"
         v-model="selected"
-        class="form-select max-w-full rounded-lg border-slate-200 bg-slate-50 py-1.5 pl-3 pr-8 text-xs font-medium text-slate-600"
+        :class="compact ? 'absolute inset-0 h-full w-full cursor-pointer opacity-0' : 'form-select max-w-full rounded-lg border-slate-200 bg-slate-50 py-1.5 pl-3 pr-8 text-xs font-medium text-slate-600'"
+        :title="compact ? `${languageLabel(active)} — ${t('site.builder.language')}` : undefined"
         :aria-label="t('site.builder.language')"
       >
         <option v-for="code in languages.locales.value" :key="code" :value="code">{{ languageLabel(code) }}</option>
       </select>
     </div>
+    <div class="min-w-0" :class="{ 'col-span-2': compact && !showSelect }">
     <slot :value="value" :update="update">
       <textarea v-if="multiline" :id="id" :value="value ?? ''" :rows="rows" :maxlength="maxlength" :placeholder="placeholder" :aria-invalid="invalid || undefined" class="form-textarea w-full rounded-lg text-sm" :class="borderClass" @input="update($event.target.value)"></textarea>
       <input v-else :id="id" :value="value ?? ''" :maxlength="maxlength" :placeholder="placeholder" :aria-invalid="invalid || undefined" type="text" class="form-input w-full rounded-lg text-sm" :class="borderClass" @input="update($event.target.value)" />
     </slot>
-    <div v-if="active !== defaultLocale" class="space-y-2 rounded-lg bg-slate-50 px-3 py-2.5 text-xs">
+    </div>
+    <div v-if="active !== defaultLocale" :class="{ 'col-span-2': compact }" class="space-y-2 rounded-lg bg-slate-50 px-3 py-2.5 text-xs">
       <div class="space-y-1">
         <p class="font-medium text-slate-500">{{ t('localization.source') }} · {{ defaultLocale.toUpperCase() }}</p>
         <p class="whitespace-pre-wrap break-words text-slate-700">{{ source }}</p>
@@ -37,10 +41,10 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { hasLanguageSwitcher, useLanguages } from '../composables/useLanguages.js'
-import { LOCALE_OPTIONS } from '../composables/localeOptions.js'
+import { LOCALE_OPTIONS, localeFlagCountry } from '../composables/localeOptions.js'
 import { localizedState, removeLocalized, resolveLocalized, setLocalized } from '../composables/localizedValues.js'
 import { useI18n } from '../i18n/index.js'
-const props = defineProps({ modelValue: { default: '' }, locale: { type: String, default: '' }, id: { type: String, default: undefined }, label: { type: String, default: '' }, invalid: Boolean, multiline: Boolean, readonly: Boolean, rows: { type: [Number, String], default: 2 }, maxlength: { type: [Number, String], default: undefined }, placeholder: { type: String, default: '' } })
+const props = defineProps({ modelValue: { default: '' }, locale: { type: String, default: '' }, id: { type: String, default: undefined }, label: { type: String, default: '' }, compact: Boolean, invalid: Boolean, multiline: Boolean, readonly: Boolean, rows: { type: [Number, String], default: 2 }, maxlength: { type: [Number, String], default: undefined }, placeholder: { type: String, default: '' } })
 const emit = defineEmits(['update:modelValue'])
 const { t } = useI18n()
 const languages = useLanguages()

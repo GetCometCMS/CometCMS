@@ -95,6 +95,10 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
   --builder-color:#2563eb;
   outline:1px solid transparent;
   outline-offset:-1px;
+}
+/* Zero specificity: the page's own hover transitions (.c-stateful, .c-button)
+   replace this, so the canvas previews them at the theme's speed. */
+:where([data-node]){
   transition:outline-color .12s;
 }
 
@@ -163,6 +167,36 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
 .c-view-page-edit [data-page-area]:empty::after,
 .c-view-page-edit [data-page-area]:hover::after{
   opacity:1;
+}
+
+/* Hidden on this device: kept selectable, but greyed out under warning stripes. */
+:where(.c-builder [class*="c-hide-"]){
+  position:relative;
+}
+
+.c-builder [class*="c-hide-"]::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1000;
+  display:none;
+  pointer-events:none;
+  background:repeating-linear-gradient(-45deg,rgba(245,158,11,.3) 0 10px,transparent 10px 20px);
+}
+
+@media (max-width:767px){
+  .c-builder .c-hide-mobile{filter:grayscale(1) opacity(.5)}
+  .c-builder .c-hide-mobile::after{display:block}
+}
+
+@media (min-width:768px) and (max-width:1023px){
+  .c-builder .c-hide-tablet{filter:grayscale(1) opacity(.5)}
+  .c-builder .c-hide-tablet::after{display:block}
+}
+
+@media (min-width:1024px){
+  .c-builder .c-hide-desktop{filter:grayscale(1) opacity(.5)}
+  .c-builder .c-hide-desktop::after{display:block}
 }
 
 /* Hover and selection */

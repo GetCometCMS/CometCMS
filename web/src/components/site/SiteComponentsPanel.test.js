@@ -11,11 +11,19 @@ import { useSiteStore } from '../../stores/site.js'
 import { useToastStore } from '../../stores/toast.js'
 
 vi.mock('../../api/index.js', () => ({
-  api: { site: { components: vi.fn(), renameComponent: vi.fn(), deleteComponent: vi.fn() } },
+  api: { site: { components: vi.fn(), renameComponent: vi.fn(), setComponentIcon: vi.fn(), deleteComponent: vi.fn() } },
   getActiveWorkspace: () => 'test',
 }))
 vi.mock('../LoadingSpinner.vue', () => ({ default: { render: () => null } }))
-vi.mock('@iconify/vue', () => ({ Icon: { render: () => null } }))
+vi.mock('@iconify/vue', () => ({ Icon: { render: () => null }, addIcon: vi.fn() }))
+vi.mock('../IconPickerGrid.vue', () => ({ default: {
+  props: ['modelValue', 'placeholder', 'label', 'disabled'], emits: ['update:modelValue'],
+  setup: (props, { emit }) => () => h('button', {
+    'data-icon-picker': props.modelValue || props.placeholder,
+    'aria-label': props.label, disabled: props.disabled,
+    onClick: () => emit('update:modelValue', props.modelValue ? '' : 'mdi:star-outline'),
+  }),
+} }))
 vi.mock('../ConfirmModal.vue', () => ({ default: {
   props: ['modelValue', 'loading', 'message'], emits: ['confirm'],
   setup: (props, { emit }) => () => props.modelValue ? h('button', { 'data-confirm-delete': true, onClick: () => emit('confirm') }, props.message) : null,
@@ -116,6 +124,32 @@ describe('component settings library', () => {
     await vi.waitFor(() => expect(textOf(root)).toContain('Renamed promo'))
     expect(api.site.renameComponent).toHaveBeenCalledWith('shared', 'Renamed promo')
     expect(textOf(root)).toContain('Placements: 3')
+  })
+
+  it('saves icon selections immediately, preserves usage counts, and can restore the default', async () => {
+    await mount()
+    const picker = () => find(root, (el) => el.props['aria-label'] === 'Change icon for Shared promo')
+    expect(picker().props['data-icon-picker']).toBe('mdi:puzzle-outline')
+    api.site.setComponentIcon.mockResolvedValueOnce({ data: { ...fixtures[0], icon: 'mdi:star-outline' } })
+    picker().props.onClick()
+    await vi.waitFor(() => expect(picker().props['data-icon-picker']).toBe('mdi:star-outline'))
+    expect(api.site.setComponentIcon).toHaveBeenCalledWith('shared', 'mdi:star-outline')
+    expect(textOf(root)).toContain('Placements: 3')
+
+    api.site.setComponentIcon.mockResolvedValueOnce({ data: { ...fixtures[0], icon: '' } })
+    picker().props.onClick()
+    await vi.waitFor(() => expect(picker().props['data-icon-picker']).toBe('mdi:puzzle-outline'))
+    expect(api.site.setComponentIcon).toHaveBeenLastCalledWith('shared', '')
+  })
+
+  it('keeps the saved icon and reports errors when an icon update fails', async () => {
+    await mount()
+    api.site.setComponentIcon.mockRejectedValue(new Error('Icon update failed'))
+    const picker = () => find(root, (el) => el.props['aria-label'] === 'Change icon for Shared promo')
+    picker().props.onClick()
+    await vi.waitFor(() => expect(useToastStore(pinia).toasts.some((toast) => toast.message === 'Icon update failed')).toBe(true))
+    expect(picker().props['data-icon-picker']).toBe('mdi:puzzle-outline')
+    expect(picker().props.disabled).toBe(false)
   })
 
   it('requires confirmation before deletion and refreshes remaining usage counts', async () => {

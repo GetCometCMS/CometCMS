@@ -6,6 +6,7 @@
       :class="[
         isSelected ? 'bg-theme-600 text-white' : isHovered ? 'bg-theme-50 text-slate-900' : 'text-slate-700 hover:bg-slate-100',
         dropPosition === 'inside' ? 'ring-2 ring-inset ring-theme-500' : '',
+        accent && !isSelected ? `outline-accent outline-accent-${accent}` : '',
       ]"
       :style="{ paddingLeft: `${depth * 14 + 4}px` }"
       :draggable="!renaming"
@@ -33,7 +34,7 @@
       </button>
       <span v-else class="w-5 shrink-0"></span>
 
-      <Icon :icon="icon" class="h-4 w-4 shrink-0" :class="isSelected ? 'text-white/80' : 'text-slate-400'" />
+      <Icon :icon="icon" class="outline-icon h-4 w-4 shrink-0" :class="isSelected ? 'text-white/80' : 'text-slate-400'" />
       <input
         v-if="renaming"
         ref="nameInput"
@@ -113,12 +114,17 @@ const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
 const isHovered = computed(() => builder.hoverId.value === props.node.id);
 const isContainer = computed(() => builder.isDropContainer(props.node));
+// Entry content areas and component instances stand out, in the same colors the canvas marks them with.
+const accent = computed(() => {
+  if (props.node.kind === "page_content" || props.node.kind === "site_content") return "entry";
+  return props.node.kind === "component" ? "component" : "";
+});
 const icon = computed(() => {
   if (props.node.kind === "field") {
     const config = builder.fieldConfig(props.node);
     return config ? fieldTypeIcon(config.type) : "mdi:alert-outline";
   }
-  return nodeIcon(props.node, builder.isStacked(props.node));
+  return nodeIcon(props.node, builder.isStacked(props.node), builder.componentOf(props.node));
 });
 
 // Reveal the selection when it is chosen on the canvas.
@@ -205,6 +211,29 @@ function onDrop() {
 </script>
 
 <style scoped>
+.outline-accent-entry {
+  --outline-accent: 33 127 152;
+}
+.outline-accent-component {
+  --outline-accent: 134 80 177;
+}
+:global(:root[data-theme="dark"]) .outline-accent-entry {
+  --outline-accent: 94 190 214;
+}
+:global(:root[data-theme="dark"]) .outline-accent-component {
+  --outline-accent: 190 150 230;
+}
+.outline-accent {
+  background: rgb(var(--outline-accent) / 0.08);
+  box-shadow: inset 2px 0 0 rgb(var(--outline-accent) / 0.7);
+  color: rgb(var(--outline-accent));
+}
+.outline-accent:hover {
+  background: rgb(var(--outline-accent) / 0.15);
+}
+.outline-accent .outline-icon {
+  color: rgb(var(--outline-accent));
+}
 .outline-action {
   display: inline-flex;
   height: 1.375rem;

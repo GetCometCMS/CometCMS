@@ -77,16 +77,17 @@ return [
     ],
     'media' => [
         'max_upload_bytes' => 1024 * 1024 * 1024,
-        'thumbnails' => [
-            'enabled' => true,
-            'size' => 512,
-            'quality' => 82,
+        // Every uploaded image gets these sizes (longest side in pixels, proportions kept).
+        // Defaults for workspaces that have not set their own in the media library.
+        'sizes' => [
+            'thumbnail' => 400,
+            'medium' => 960,
+            'large' => 1920,
         ],
         'variants' => [
             'enabled' => true,
-            // These widths are exposed by the API and accepted by default.
+            // The named sizes are always accepted as widths (`?w=`).
             // Enable custom sizes to also accept arbitrary bounded w/h values.
-            'widths' => [320, 640, 960, 1280, 1920],
             'allow_custom_sizes' => false,
             'max_dimension' => 4096,
             'max_pixels' => 16000000,

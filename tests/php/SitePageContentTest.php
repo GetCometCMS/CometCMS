@@ -353,3 +353,54 @@ test('page fields saved with the untranslated builder key get a readable label',
 
     assert_same('Page content', (new ContentTypeRepository())->find('blog')['fields']['design']['label']);
 });
+
+test('content type saves keep content areas, only their label changes', function (): void {
+    comet_page_test_setup();
+    $types = new ContentTypeRepository();
+    $blog = $types->find('blog');
+    $without = $blog;
+    unset($without['fields']['design'], $without['revision']);
+    $types->save($without);
+    assert_same('page', $types->find('blog')['fields']['design']['type'] ?? null, 'Leaving an area out keeps it.');
+
+    $retyped = $types->find('blog');
+    $retyped['fields']['design'] = ['type' => 'text', 'label' => 'Renamed'];
+    unset($retyped['revision']);
+    $types->save($retyped);
+    assert_same(['page', 'Design'], [$types->find('blog')['fields']['design']['type'], $types->find('blog')['fields']['design']['label']], 'A save cannot turn an area into another field.');
+
+    $renamed = $types->find('blog');
+    $renamed['fields']['design']['label'] = 'Renamed';
+    unset($renamed['revision']);
+    $types->save($renamed);
+    assert_same('Renamed', $types->find('blog')['fields']['design']['label']);
+});
+
+test('saving a template gives an area whose field is gone its storage back, and designs return', function (): void {
+    $site = comet_page_test_setup();
+    $site->saveLayout('blog', 'detail', comet_page_test_layout());
+    $content = ContentRepository::make();
+    $hello = $content->findByIdentifier('blog', 'hello');
+    $content->savePage('blog', $hello['id'], 'design', [comet_page_test_section('h', [comet_page_test_heading('hh', 'Own page')])], comet_site_test_user());
+
+    $layout = comet_page_test_layout();
+    $layout[1]['props']['field'] = 'sidebar';
+    $site->saveLayout('blog', 'detail', $layout);
+    assert_same('page', (new ContentTypeRepository())->find('blog')['fields']['sidebar']['type'] ?? null);
+});
+
+test('areas list where templates show them, and only unplaced ones can be deleted', function (): void {
+    $site = comet_page_test_setup();
+    $site->saveLayout('blog', 'detail', comet_page_test_layout());
+    $content = ContentRepository::make();
+    $hello = $content->findByIdentifier('blog', 'hello');
+    $content->savePage('blog', $hello['id'], 'design', [comet_page_test_section('h', [comet_page_test_heading('hh', 'Own page')])], comet_site_test_user());
+
+    $areas = array_column($site->areas('blog'), null, 'key');
+    assert_same(1, $areas['design']['entries']);
+    assert_true($areas['design']['templates'] !== []);
+    // A template still placing the area does not block deleting it.
+    $site->deleteArea('blog', 'design');
+    assert_false(isset((new ContentTypeRepository())->find('blog')['fields']['design']));
+    assert_throws(\CometCMS\Core\ValidationException::class, static fn() => $site->deleteArea('blog', 'design'));
+});

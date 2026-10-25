@@ -144,6 +144,55 @@ test('saving templates rejects unknown parts and conditions that do not fit', fu
     assert_same([comet_template_test('a', ['header' => $blog['id']]), $default], $saved['blog']['index']);
 });
 
+test('entry template conditions select any stable UID and survive title and slug changes', function (): void {
+    $site = comet_site_test_setup();
+    $content = \CometCMS\Content\ContentRepository::make();
+    $hello = $content->findByIdentifier('blog', 'hello');
+    $draft = $content->findByIdentifier('blog', 'secret-draft');
+    $condition = ['field' => 'uid', 'op' => 'equals', 'value' => [$hello['uid'], $draft['uid']]];
+    $chosen = $site->createTemplate('blog', 'detail', 'Chosen entries', '', ['header' => 'none', 'conditions' => [$condition]]);
+    $site->saveLayout('blog', 'detail', [comet_template_test_section('Selected entry design')], [], 'saved', null, $chosen['id']);
+    assert_same([$condition], (new SiteRepository())->templates('blog', 'detail')[0]['conditions']);
+    assert_true(SiteRepository::matchesConditions([$condition], $hello));
+    assert_true(SiteRepository::matchesConditions([$condition], $draft));
+    assert_false(SiteRepository::matchesConditions([$condition], ['uid' => 'another-entry', 'slug' => 'hello']));
+    assert_false(SiteRepository::matchesConditions([$condition], ['id' => $hello['uid']]));
+    assert_false(SiteRepository::matchesConditions([['value' => []] + $condition], $hello));
+    assert_false(SiteRepository::matchesConditions([$condition, ['field' => 'category', 'op' => 'equals', 'value' => 'news']], $hello));
+    assert_same('default', SiteRepository::resolveTemplate([$chosen, SiteRepository::defaultTemplate()], null)['reason']);
+    assert_true(str_contains(comet_site_test_get('/blog/hello')['body'], 'Selected entry design'));
+
+    $renamed = $content->save('blog', ['title' => 'Renamed entry', 'slug' => 'renamed-entry'], comet_site_test_user(), $hello['id']);
+    assert_same($hello['uid'], $renamed['uid']);
+    assert_true(str_contains(comet_site_test_get('/blog/renamed-entry')['body'], 'Selected entry design'));
+
+    // The preview reason describes the matching entry and handles an array value.
+    $context = comet_site_test_context();
+    $context->preview = $context->browsePreview = $context->previewBanner = true;
+    $context->adminUser = ['username' => 'admin', 'language' => 'en'];
+    $context->adminCan = static fn(): bool => true;
+    $html = (new \CometCMS\Site\SiteService($context))->respond('/blog/renamed-entry', [])['body'];
+    assert_true(str_contains($html, 'Its conditions match: Entry = Renamed entry'));
+});
+
+test('entry template conditions validate UID lists and keep empty selections from matching', function (): void {
+    $site = comet_site_test_setup();
+    assert_same(['equals'], SiteRepository::conditionOps('entry'));
+    foreach ([null, 'one', true, 1, ['one' => 'two'], [null], [1], [['uid' => 'one']], [''], ['../one'], [str_repeat('a', 129)]] as $value) {
+        assert_throws(ValidationException::class, fn() => $site->saveTemplates(['blog' => ['detail' => [comet_template_test('chosen', [], [['field' => 'uid', 'op' => 'equals', 'value' => $value]])]]]));
+    }
+    foreach (['not_equals', 'contains', 'empty', 'not_empty'] as $op) {
+        assert_throws(ValidationException::class, fn() => $site->createTemplate('blog', 'detail', 'Chosen', '', ['conditions' => [['field' => 'uid', 'op' => $op, 'value' => ['one']]]]));
+    }
+    $chosen = $site->createTemplate('blog', 'detail', 'Chosen', '', ['conditions' => [['field' => 'uid', 'op' => 'equals', 'value' => ['one', 'two', 'one']]]]);
+    assert_same(['one', 'two'], $chosen['conditions'][0]['value']);
+    $chosen['conditions'][0]['value'] = [];
+    $site->saveTemplates(['blog' => ['detail' => [$chosen]]]);
+    $templates = (new SiteRepository())->templates('blog', 'detail');
+    assert_same([], $templates[0]['conditions'][0]['value']);
+    assert_same('default', SiteRepository::resolveTemplate($templates, ['uid' => 'one'])['reason']);
+});
+
 test('each template owns its content area: a copy when created, deleted with the template', function (): void {
     $site = comet_site_test_setup();
     $site->saveLayout('blog', 'detail', [comet_template_test_section('Original')]);

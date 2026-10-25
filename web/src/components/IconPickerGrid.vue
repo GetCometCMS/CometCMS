@@ -1,25 +1,33 @@
 <template>
-  <div class="relative" ref="containerRef">
+  <div class="relative" ref="containerRef" @keydown.esc="onEscape">
     <!-- Trigger -->
     <button
       :id="id"
       type="button"
       :aria-expanded="isOpen"
+      :aria-label="label || undefined"
+      :title="label || undefined"
+      :disabled="disabled"
+      ref="triggerRef"
       @click="toggle"
-      class="form-input w-full text-left flex items-center gap-2 rounded-lg border-slate-300 text-sm cursor-pointer"
+      :class="compact
+        ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-theme-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-500 disabled:cursor-wait disabled:opacity-50'
+        : 'form-input w-full text-left flex items-center gap-2 rounded-lg border-slate-300 text-sm cursor-pointer'"
     >
       <Icon
         :icon="modelValue || placeholder"
-        class="w-5 h-5 shrink-0"
-        :class="modelValue ? 'text-slate-600' : 'text-slate-300'"
+        class="shrink-0"
+        :class="compact ? 'h-6 w-6' : ['h-5 w-5', modelValue ? 'text-slate-600' : 'text-slate-300']"
       />
       <span
+        v-if="!compact"
         class="flex-1 truncate"
         :class="modelValue ? 'text-slate-700' : 'text-slate-400'"
       >
         {{ modelValue || emptyLabel || placeholder }}
       </span>
       <Icon
+        v-if="!compact"
         icon="mdi:chevron-down"
         class="w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150"
         :class="isOpen ? 'rotate-180' : ''"
@@ -29,7 +37,8 @@
     <!-- Dropdown panel -->
     <div
       v-if="isOpen"
-      class="absolute z-50 left-0 mt-1 w-80 max-w-full bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+      class="absolute z-50 left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+      :class="compact ? 'max-w-[calc(100vw-4rem)]' : 'max-w-full'"
     >
       <!-- Search -->
       <div class="p-2 border-b border-slate-100">
@@ -40,7 +49,6 @@
           :placeholder="t('iconPicker.search')"
           :aria-label="t('iconPicker.search')"
           class="form-input w-full rounded-lg border-slate-300 text-sm"
-          @keydown.escape="close"
         />
       </div>
 
@@ -58,6 +66,8 @@
             :key="icon"
             type="button"
             :title="icon"
+            :aria-label="icon"
+            :aria-pressed="icon === modelValue"
             @click="select(icon)"
             class="w-8 h-8 flex items-center justify-center rounded transition-colors"
             :class="
@@ -80,9 +90,11 @@
           :aria-label="t('iconPicker.customLabel')"
           class="form-input w-full rounded-lg border-slate-300 text-xs"
           @input="emit('update:modelValue', $event.target.value)"
-          @keydown.escape="close"
-          @keydown.enter.prevent="close"
+          @keydown.enter.prevent="close(true)"
         />
+      </div>
+      <div v-if="resetLabel && modelValue" class="border-t border-slate-100 p-2">
+        <button type="button" class="btn-secondary btn-sm w-full justify-center" @click="select('')">{{ resetLabel }}</button>
       </div>
     </div>
   </div>
@@ -103,6 +115,11 @@ const props = defineProps({
   allowCustom: { type: Boolean, default: true },
   /** Shown instead of the placeholder's name while no icon is chosen. */
   emptyLabel: { type: String, default: "" },
+  /** Icon-only trigger, suitable for a library row. */
+  compact: { type: Boolean, default: false },
+  label: { type: String, default: "" },
+  disabled: { type: Boolean, default: false },
+  resetLabel: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -223,6 +240,7 @@ const ALL_ICONS = [
 // ── state ─────────────────────────────────────────────────────────────────────
 
 const containerRef = ref(null);
+const triggerRef = ref(null);
 const searchInputRef = ref(null);
 const isOpen = ref(false);
 const query = ref("");
@@ -241,20 +259,29 @@ function toggle() {
 }
 
 async function open() {
+  if (props.disabled) return;
   isOpen.value = true;
   query.value = "";
   await nextTick();
   searchInputRef.value?.focus();
 }
 
-function close() {
+function close(restoreFocus = false) {
   isOpen.value = false;
   query.value = "";
+  if (restoreFocus) triggerRef.value?.focus();
+}
+
+function onEscape(event) {
+  if (!isOpen.value) return;
+  event.stopPropagation();
+  event.preventDefault();
+  close(true);
 }
 
 function select(icon) {
   emit("update:modelValue", icon);
-  close();
+  close(true);
 }
 
 // ── click-outside ─────────────────────────────────────────────────────────────

@@ -478,6 +478,7 @@ final class MediaRepository
             'size'        => (int) filesize($path),
             'mime'        => MimeDetector::detect($path),
             'thumb'       => $this->thumbnailDescriptor($file),
+            'sizes'       => $this->imageSizes($file, $dimensions),
             'category'    => $this->categoryFor($file, $metadata),
             'uploaded_by' => $fileMeta['uploaded_by'] ?? null,
             'uploaded_at' => $uploadedAt,
@@ -630,13 +631,92 @@ final class MediaRepository
 
     public function thumbnailPath(string $file): ?string
     {
-        $file = basename(rawurldecode($file));
+        return $this->sizePath($file, 'thumbnail');
+    }
 
-        if (!is_file($this->path($file))) {
-            return null;
+    public function sizes(): MediaSizes
+    {
+        return new MediaSizes($this->workspace);
+    }
+
+    /**
+     * The named sizes that are smaller than the original, smallest first, with
+     * the dimensions their files have. A size missing here is the original.
+     *
+     * @return array<string, array{width: int, height: int}>
+     */
+    public function imageSizes(string $file, ?array $dimensions = null): array
+    {
+        $file = basename(rawurldecode($file));
+        if (!$this->isThumbnailSource($file) || !$this->hasThumbnailGenerator($file)) {
+            return [];
         }
 
-        return $this->ensureThumbnail($file);
+        $dimensions ??= $this->imageDimensions($this->path($file));
+        $width = (int) ($dimensions['width'] ?? 0);
+        $height = (int) ($dimensions['height'] ?? 0);
+        if ($width <= 0 || $height <= 0) {
+            return [];
+        }
+
+        $sizes = [];
+        foreach ($this->sizes()->all() as $name => $box) {
+            if (max($width, $height) <= $box) {
+                break;
+            }
+            [$targetWidth, $targetHeight] = $this->variantGeometry($width, $height, $box, $box, 'contain');
+            $sizes[$name] = ['width' => $targetWidth, 'height' => $targetHeight];
+        }
+
+        return $sizes;
+    }
+
+    /**
+     * The file of a named size, made when it is missing; the original when
+     * the image is not larger than that size. Null when it cannot be made.
+     */
+    public function sizePath(string $file, string $size, ?string $format = null): ?string
+    {
+        return $this->sizeVariant($file, $size, $format)['path'] ?? null;
+    }
+
+    /** @return array{path:string,mime:string,width:int,height:int}|null */
+    public function sizeVariant(string $file, string $size, ?string $format = null, bool $refresh = false): ?array
+    {
+        $file = basename(rawurldecode($file));
+        $source = $this->path($file);
+        if (!is_file($source) || !in_array($size, MediaSizes::NAMES, true)) {
+            return null;
+        }
+        if (!array_key_exists($size, $this->imageSizes($file))) {
+            return ['path' => $source, 'mime' => MimeDetector::detect($source)] + $this->imageDimensions($source);
+        }
+
+        $box = $this->sizes()->all()[$size];
+        try {
+            return $this->variant($file, [
+                'w' => $box,
+                'h' => $box,
+                'fit' => 'contain',
+                'format' => $format ?? $this->defaultVariantFormat(),
+                'refresh' => $refresh,
+            ], true);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** Make every named size of an upload now, so the first visitor does not wait for them. */
+    public function generateSizes(string $file, bool $refresh = false): bool
+    {
+        $file = basename(rawurldecode($file));
+        foreach (array_keys($this->imageSizes($file)) as $size) {
+            if ($this->sizeVariant($file, $size, null, $refresh) === null) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -654,11 +734,10 @@ final class MediaRepository
         $dimensions = $this->imageDimensions($path);
         $sourceWidth = (int) ($dimensions['width'] ?? 0);
         $maxDimension = max(1, (int) comet_config('media.variants.max_dimension', 4096));
-        $widths = array_values(array_unique(array_filter(array_map(
-            static fn(mixed $width): int => (int) $width,
-            (array) comet_config('media.variants.widths', [320, 640, 960, 1280, 1920])
-        ), static fn(int $width): bool => $width > 0 && $width <= $maxDimension && $width < $sourceWidth)));
-        sort($widths);
+        $widths = array_values(array_filter(
+            $this->variantWidths(),
+            static fn(int $width): bool => $width <= $maxDimension && $width < $sourceWidth
+        ));
 
         return [
             'widths' => $widths,
@@ -696,7 +775,7 @@ final class MediaRepository
         }
 
         $allowCustom = (bool) comet_config('media.variants.allow_custom_sizes', false);
-        $allowedWidths = array_map('intval', (array) comet_config('media.variants.widths', [320, 640, 960, 1280, 1920]));
+        $allowedWidths = $this->variantWidths();
 
         if (!$internal && !$allowCustom && ($height > 0 || !in_array($width, $allowedWidths, true))) {
             throw new \InvalidArgumentException('Choose one of the configured variant widths.');
@@ -786,12 +865,24 @@ final class MediaRepository
         return ['path' => $target, 'mime' => $mime, 'width' => $targetWidth, 'height' => $targetHeight];
     }
 
-    public function regenerateThumbnails(array $files = []): array
+    /** Every file that gets named sizes, for rebuilding them in batches. */
+    public function resizableFiles(): array
+    {
+        $files = array_values(array_filter(
+            scandir($this->mediaDir) ?: [],
+            fn(string $file): bool => $file[0] !== '.' && is_file($this->path($file)) && $this->isThumbnailSource($file)
+        ));
+        sort($files, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $files;
+    }
+
+    /** Rebuild the named sizes of the given files, or of every file. */
+    public function regenerateSizes(array $files = []): array
     {
         $generated = 0;
         $failed = 0;
         $skipped = 0;
-        $enabled = (bool) comet_config('media.thumbnails.enabled', true);
         $targets = $files === [] ? (scandir($this->mediaDir) ?: []) : $files;
 
         foreach ($targets as $file) {
@@ -805,19 +896,17 @@ final class MediaRepository
                 continue;
             }
 
-            if (!$enabled || !$this->isThumbnailSource($file)) {
+            if (!$this->isThumbnailSource($file)) {
                 $skipped++;
                 continue;
             }
 
-            if (!$this->hasThumbnailGenerator($file)) {
-                $failed++;
-                continue;
+            // Each image gets its own time budget where the host allows it.
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(60);
             }
 
-            $path = $this->ensureThumbnail($file, true);
-
-            if ($path !== null) {
+            if ($this->hasThumbnailGenerator($file) && $this->generateSizes($file, true)) {
                 $generated++;
             } else {
                 $failed++;
@@ -857,41 +946,20 @@ final class MediaRepository
 
     private function thumbnailDescriptor(string $file): ?array
     {
-        if (!(bool) comet_config('media.thumbnails.enabled', true) || !$this->isThumbnailSource($file)) {
+        if (!$this->isThumbnailSource($file)) {
             return null;
         }
 
         return [
-            'max_size' => max(64, min(4096, (int) comet_config('media.thumbnails.size', 512))),
-            'mime' => 'image/jpeg',
+            'max_size' => $this->sizes()->all()['thumbnail'],
+            'mime' => 'image/' . $this->defaultVariantFormat(),
         ];
     }
 
-    private function ensureThumbnail(string $file, bool $refresh = false): ?string
+    /** The widths the public variant endpoint accepts: the named sizes. */
+    private function variantWidths(): array
     {
-        if (!(bool) comet_config('media.thumbnails.enabled', true)) {
-            return null;
-        }
-
-        $source = $this->path($file);
-
-        if (!is_file($source) || !$this->isThumbnailSource($file)) {
-            return null;
-        }
-
-        $size = max(64, min(4096, (int) comet_config('media.thumbnails.size', 512)));
-        try {
-            return $this->variant($file, [
-                'w' => $size,
-                'h' => $size,
-                'fit' => 'contain',
-                'format' => 'jpeg',
-                'quality' => (int) comet_config('media.thumbnails.quality', 82),
-                'refresh' => $refresh,
-            ], true)['path'];
-        } catch (\Throwable) {
-            return null;
-        }
+        return array_values($this->sizes()->all());
     }
 
     private function isThumbnailSource(string $file): bool

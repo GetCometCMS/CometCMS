@@ -145,6 +145,9 @@ When a content type field defines a supported `default`, omitted values are crea
 | `PUT`    | `/admin/api/media/bulk-category`         | Assign selected files to a category.                                                                  |
 | `DELETE` | `/admin/api/media/{filename}`            | Delete a media file.                                                                                  |
 | `POST`   | `/admin/api/media/bulk-delete`           | Delete selected media files.                                                                          |
+| `GET`    | `/admin/api/media/sizes`                 | Read the workspace's image sizes (`thumbnail`, `medium`, `large`, longest side in pixels).            |
+| `PUT`    | `/admin/api/media/sizes`                 | Save the image sizes; each between 64 and 4096 and larger than the one before. Requires `site.manage`. |
+| `POST`   | `/admin/api/media/thumbnails/regenerate` | Rebuild the image sizes of the given `files`, or of every file.                                       |
 
 Media category lists are returned as `meta.categories`. Nested categories are represented as paths such as `Brand / Logos`; filtering by a parent category also includes files assigned to its subcategories. To create a subcategory, send `parent` alongside `name` to `/admin/api/media/categories`.
 

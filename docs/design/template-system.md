@@ -92,6 +92,10 @@ theme/
   `not_empty`, `contains` (for select/multi-value fields). Allowed fields: the
   type's own fields and `slug`; date conditions are out of scope. Validation
   rejects unknown fields and operators that don't fit the field type.
+- The **Entry is equal to** condition uses `{"field":"uid","op":"equals","value":["entry-uid", "another-uid"]}`.
+  Select entries of the template's content type; any selected UID matches.
+  UIDs stay stable when titles or localized slugs change. An empty selection
+  matches no entries. Other conditions still all need to match.
 - Templates have no revisions of their own (they are small). Content areas
   keep the revision history layouts have today
   (`revisions/site/content/{type}/{variant}/{id}`).

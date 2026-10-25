@@ -63,7 +63,7 @@ X-Comet-Workspace: site-b
 | `GET /api/v1/workspaces/{slug}/content-types/{type}` | Content type schema for a specific workspace    |
 | `GET /api/v1/workspaces/{slug}/media`                | Media list for a specific workspace             |
 | `GET /media/{slug}/{filename}`                       | Serve media file from a specific workspace      |
-| `GET /media/{slug}/{filename}?variant=thumbnail`     | Serve the thumbnail variant from that workspace |
+| `GET /media/{slug}/{filename}?size=thumbnail`        | Serve a named image size from that workspace    |
 
 ### Workspace header
 
@@ -141,7 +141,7 @@ cms/storage/
     content-types/               # Content type schemas
     media/                       # Uploaded media files
     media-meta/                  # Media metadata
-    media-variants/              # Generated variants, including thumbnails
+    media-variants/              # Generated image sizes and variants
     revisions/                   # Revision history
     trash/                       # Soft-deleted entries
 ```

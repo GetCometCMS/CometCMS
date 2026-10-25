@@ -62,7 +62,7 @@
           >
             <img
               v-if="isImage(file)"
-              :src="mediaUrl(file)"
+              :src="mediaThumbUrl(file)"
               :alt="file"
               class="h-full w-full object-cover"
             />
@@ -302,7 +302,7 @@
         >
           <img
             v-if="isImage(file)"
-            :src="mediaUrl(file)"
+            :src="mediaThumbUrl(file)"
             class="h-full w-full object-cover"
             :alt="file"
           />
@@ -344,7 +344,7 @@
         >
           <img
             v-if="isImage(mediaValues[0])"
-            :src="mediaUrl(mediaValues[0])"
+            :src="mediaThumbUrl(mediaValues[0])"
             class="w-full h-full object-cover"
             :alt="String(mediaValues[0])"
           />
@@ -450,7 +450,7 @@
         >
           <img
             v-if="isImage(file)"
-            :src="mediaUrl(file)"
+            :src="mediaThumbUrl(file)"
             :alt="file"
             class="h-full w-full object-cover"
           />
@@ -689,6 +689,7 @@ import {
   getFileIcon,
   isImageFile,
   mediaUrl as buildMediaUrl,
+  mediaThumbUrl as buildMediaThumbUrl,
   normalizeChoiceValue,
   normalizeChoiceValues,
   normalizeMediaModel as normalizeMediaModelValue,
@@ -1097,6 +1098,11 @@ function normalizeMediaModel(value) {
 
 function mediaUrl(value) {
   return buildMediaUrl(getActiveWorkspace(), value);
+}
+
+/** Previews load the small size; other files are served as they are. */
+function mediaThumbUrl(value) {
+  return buildMediaThumbUrl(getActiveWorkspace(), value);
 }
 
 function openMediaPreview(file) {

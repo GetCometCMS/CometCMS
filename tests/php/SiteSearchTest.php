@@ -30,7 +30,7 @@ test('search elements keep known content types and fields and bound their option
     assert_same(['blog', '7', 'about'], $props['collections']);
     assert_same([], $props['fields']);
     assert_same(SiteSearch::MAX_RESULTS, $props['max_results']);
-    assert_same(1, $props['min_chars']);
+    assert_same(2, $props['min_chars']);
     assert_same('mdi:magnify', $props['icon']);
     assert_same('outline', $props['variant']);
     assert_same('Find posts', $props['placeholder']);
@@ -51,6 +51,7 @@ test('site search finds published pages of public routed types in the chosen fie
     assert_same([], $search->search('private'), 'Private types are not found.');
     assert_same([], $search->search('ada'), 'Types without pages are not found.');
     assert_same([], $search->search('   '));
+    assert_same([], $search->search('h'), 'Single characters are too broad to search.');
 
     assert_same(['Hello <script>alert(1)</script>'], $titles($search->search('bold')), 'Text fields are searched.');
     assert_same([], $search->search('bold', [], ['title']));

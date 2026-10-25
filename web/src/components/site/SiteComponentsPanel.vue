@@ -18,7 +18,18 @@
     </div>
     <ul v-else class="divide-y divide-slate-100">
       <li v-for="component in components" :key="component.id" class="flex flex-wrap items-center gap-3 py-4">
-        <Icon icon="mdi:puzzle-outline" class="h-6 w-6 shrink-0 text-slate-400" />
+        <IconPickerGrid
+          compact
+          class="shrink-0"
+          :model-value="component.icon || ''"
+          placeholder="mdi:puzzle-outline"
+          :icons="SITE_ICONS"
+          :allow-custom="false"
+          :label="t('site.component.changeIcon', { name: component.name })"
+          :reset-label="t('site.component.resetIcon')"
+          :disabled="busy"
+          @update:model-value="setIcon(component, $event)"
+        />
         <div class="min-w-0 flex-1">
           <router-link :to="editPath(component)" class="break-words text-sm font-semibold text-slate-900 hover:text-theme-700" :class="{ 'pointer-events-none': busy }" :aria-disabled="busy || undefined" :tabindex="busy ? -1 : undefined">{{ component.name }}</router-link>
           <p class="mt-1 text-xs text-slate-500">
@@ -72,11 +83,13 @@ import { computed, onBeforeUnmount, onMounted, ref, useId } from "vue";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../ConfirmModal.vue";
 import LoadingSpinner from "../LoadingSpinner.vue";
+import IconPickerGrid from "../IconPickerGrid.vue";
 import ComponentNameModal from "./ComponentNameModal.vue";
 import { api } from "../../api/index.js";
 import { useSiteStore } from "../../stores/site.js";
 import { useToastStore } from "../../stores/toast.js";
 import { useI18n } from "../../i18n/index.js";
+import { SITE_ICONS } from "../../composables/siteIcons.js";
 
 const site = useSiteStore();
 const toast = useToastStore();
@@ -132,6 +145,20 @@ async function rename(name) {
     if (!active) return;
     allComponents.value = allComponents.value.map((component) => component.id === id ? { ...component, ...updated } : component);
     renameTarget.value = null;
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function setIcon(component, icon) {
+  if (busy.value || icon === (component.icon || '')) return;
+  busy.value = true;
+  try {
+    const { data: updated } = await api.site.setComponentIcon(component.id, icon);
+    if (!active) return;
+    allComponents.value = allComponents.value.map((item) => item.id === component.id ? { ...item, ...updated } : item);
   } catch (err) {
     toast.error(err.message);
   } finally {

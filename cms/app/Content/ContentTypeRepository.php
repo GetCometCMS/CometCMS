@@ -106,7 +106,39 @@ final class ContentTypeRepository
         $this->store->synchronized(fn() => $this->saveUnlocked($schema), $name);
     }
 
-    private function saveUnlocked(array $schema): void
+    /**
+     * Remove content area $key (a page field) and with it every entry's
+     * design stored there. Areas leave only this way: saving a type keeps them.
+     */
+    public function removeArea(string $name, string $key): void
+    {
+        $this->store->synchronized(function () use ($name, $key): void {
+            $schema = $this->find($name);
+            if (($schema['fields'][$key]['type'] ?? '') !== 'page') throw new ValidationException(['field' => 'Not a content area.']);
+            unset($schema['fields'][$key], $schema['revision']);
+            $this->saveUnlocked($schema, [$key]);
+        }, $name);
+    }
+
+    /**
+     * Content areas (page fields) belong to the type's templates, not to the
+     * field list: a save that leaves one out or changes its type keeps the
+     * stored one, only its label may change. $drop names areas to let go.
+     */
+    private function keepAreas(array $schema, ?array $previous, array $drop): array
+    {
+        $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
+        foreach ($previous['fields'] ?? [] as $key => $config) {
+            if (($config['type'] ?? '') !== 'page' || in_array($key, $drop, true)) continue;
+            $label = ($fields[$key]['type'] ?? '') === 'page' && array_key_exists('label', $fields[$key]) ? $fields[$key]['label'] : ($config['label'] ?? null);
+            $fields[$key] = ['label' => $label] + $config;
+        }
+        $schema['fields'] = $fields;
+
+        return $schema;
+    }
+
+    private function saveUnlocked(array $schema, array $dropAreas = []): void
     {
         $name = Security::slug((string) ($schema['name'] ?? ''));
         if (!empty($schema['api_enabled'])) {
@@ -119,7 +151,7 @@ final class ContentTypeRepository
         if (!array_key_exists('submission_settings', $schema)) {
             $schema['submission_settings'] = $previous['submission_settings'] ?? null;
         }
-        $schema = $this->normalize($name, $schema);
+        $schema = $this->normalize($name, $this->keepAreas($schema, $previous, $dropAreas));
         if ($schema['allow_submissions']) {
             $fillable = array_filter($schema['fields'], static fn(array $config, string $key): bool => FormRepository::accepts($key, $config, $schema), ARRAY_FILTER_USE_BOTH);
             $unsupported = array_filter(FormRepository::unsupported($schema), static fn(array $config): bool => !empty($config['required']));

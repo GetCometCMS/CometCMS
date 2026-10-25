@@ -62,7 +62,7 @@ final class StyleVariants
             $css .= self::variant($rules, self::STATE_TOKENS, self::PREFIXES[$state], self::PSEUDO[$state], self::LINK_PSEUDO[$state]);
         }
 
-        return "\n/* Device and state overrides */\n.c-stateful{transition:background-color .2s,color .2s,border-color .2s,box-shadow .2s,text-shadow .2s,opacity .2s;}" . $css;
+        return "\n/* Device and state overrides */\n.c-stateful{transition-property:background-color,color,border-color,box-shadow,text-shadow,opacity;transition-duration:calc(var(--motion-hover,200) * 1ms);transition-timing-function:ease;}" . $css;
     }
 
     /**

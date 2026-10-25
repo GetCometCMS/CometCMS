@@ -375,6 +375,7 @@ import BuilderOutline from "../components/site/builder/BuilderOutline.vue";
 import BuilderPageSwitcher from "../components/site/builder/BuilderPageSwitcher.vue";
 import BuilderEntrySwitcher from "../components/site/builder/BuilderEntrySwitcher.vue";
 import BuilderPalette from "../components/site/builder/BuilderPalette.vue";
+import { componentIcon } from "../components/site/builder/kindIcons.js";
 import BuilderEntryFields from "../components/site/builder/BuilderEntryFields.vue";
 import BuilderPanelWindow from "../components/site/builder/BuilderPanelWindow.vue";
 import BuilderHistory from "../components/site/builder/BuilderHistory.vue";
@@ -628,6 +629,8 @@ const pendingView = ref(null);
 const canvasRef = ref(null);
 const indexUrl = ref(null);
 const homeUrl = ref(null);
+/** The website's address answers for another workspace, so there is no live page to open. */
+const liveConflict = ref(false);
 const entryUrl = ref(null);
 const component = ref(null);
 const usages = ref([]);
@@ -656,7 +659,7 @@ const editingModal = computed(() => target.value === "region" && name.value === 
 
 /** The live page of what is being edited, when there is one. */
 const liveUrl = computed(() => {
-  if (target.value === "component" || editingModal.value) return null;
+  if (target.value === "component" || editingModal.value || liveConflict.value) return null;
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
@@ -672,6 +675,7 @@ const liveUrl = computed(() => {
 const liveHint = computed(() => {
   if (editingModal.value) return t("site.modal.noPage");
   if (target.value === "component") return t("site.builder.componentNoPage");
+  if (liveConflict.value) return t("site.builder.liveConflict");
   if (target.value === "region") return t("site.builder.siteOff");
   if (variant.value === "index") return t("site.builder.noLiveIndex");
   return previewEntry.value ? t("site.builder.notLive") : t("site.builder.noEntry");
@@ -884,7 +888,7 @@ const overview = computed(() => {
     return {
       title: heading.value,
       description: t("site.builder.overview.component", { count: usages.value.length }),
-      icon: "mdi:puzzle-outline",
+      icon: componentIcon(component.value),
     };
   }
   if (target.value === "page") {
@@ -1082,6 +1086,8 @@ async function load(next = requested) {
     if (current !== loadSequence) return;
     const data = res.data;
     const moved = !sameContext(next, shown.value);
+    // Clear what belonged to the page that was left before the new one's state comes in.
+    if (moved) leftView();
     shown.value = next;
     loadedRevisions.value.layout = null;
     layoutRevision.value = data.revision;
@@ -1133,11 +1139,11 @@ async function load(next = requested) {
     }
     indexUrl.value = data.index_url ?? null;
     homeUrl.value = data.home_url ?? null;
+    liveConflict.value = !!data.live_conflict;
     locales.value = data.locales ?? [];
     locale.value = locales.value.includes(route.query.locale) ? route.query.locale
       : locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
-    if (moved) leftView();
   } catch (err) {
     if (current !== loadSequence) return;
     // A list page that is turned off does not exist: open the entry page instead.
@@ -1203,6 +1209,7 @@ async function save() {
         res = await api.site.saveComponent(name.value, nodes, layoutRevision.value);
       } else {
         res = await api.site.saveLayout(name.value, variant.value, nodes, layoutRevision.value, editedTemplate.value);
+        if (res.data.type) builder.type.value = res.data.type;
       }
       builder.markSaved(res.data.nodes);
       layoutRevision.value = res.data.revision;

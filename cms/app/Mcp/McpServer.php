@@ -841,6 +841,7 @@ final class McpServer
             'alt' => $file['alt'] ?? '',
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
+            'sizes' => array_map(fn(array $dimensions): array => $dimensions, $file['sizes'] ?? []),
         ];
     }
 

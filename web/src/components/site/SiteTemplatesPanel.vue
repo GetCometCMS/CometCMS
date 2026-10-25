@@ -181,11 +181,27 @@
                   :aria-label="t('site.templates.conditionOp')"
                   @change="changeCondition(index, { op: $event.target.value })"
                 >
-                  <option v-for="op in conditionOps(fieldType(condition.field))" :key="op" :value="op">{{ t(`site.templates.opName.${op}`) }}</option>
+                  <option v-for="op in conditionOps(fieldType(condition.field))" :key="op" :value="op">{{ t(condition.field === 'uid' ? 'site.templates.entryEquals' : `site.templates.opName.${op}`) }}</option>
                 </select>
                 <template v-if="needsValue(condition.op)">
+                  <div v-if="condition.field === 'uid'" class="min-w-0 flex-1 basis-48">
+                    <SearchableSelect
+                      :key="selectedType"
+                      :model-value="condition.value"
+                      :options="entryOptions"
+                      multiple
+                      :loading="entriesLoading"
+                      :placeholder="t('site.templates.chooseEntries')"
+                      :aria-label="t('site.templates.chooseEntries')"
+                      @update:model-value="changeCondition(index, { value: $event })"
+                    />
+                    <p v-if="entriesError" role="alert" class="mt-1 text-xs text-red-700">
+                      {{ entriesError }}
+                      <button type="button" class="underline" @click="entriesRetry++">{{ t('common.retry') }}</button>
+                    </p>
+                  </div>
                   <select
-                    v-if="valueOptions(condition.field)"
+                    v-else-if="valueOptions(condition.field)"
                     class="form-select min-w-0 flex-1 rounded-lg border-slate-300 py-1.5 text-sm"
                     :value="String(condition.value ?? '')"
                     :aria-label="t('site.templates.conditionValue')"
@@ -244,7 +260,9 @@ import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ConfirmModal from "../ConfirmModal.vue";
+import SearchableSelect from "../SearchableSelect.vue";
 import ComponentNameModal from "./ComponentNameModal.vue";
+import { componentIcon } from "./builder/kindIcons.js";
 import SegmentedControl from "./SegmentedControl.vue";
 import TemplatePreviewNodes from "./TemplatePreviewNodes.vue";
 import TemplatePreviewPlaceholder from "./TemplatePreviewPlaceholder.vue";
@@ -308,7 +326,7 @@ const change = (changes) => update(withTemplate(site.draft?.templates, selectedT
 function summary(template) {
   if (isDefault(template)) return t("site.templates.defaultSummary");
   if (!template.conditions.length) return t("site.templates.always");
-  return template.conditions.map((condition) => conditionLabel(t, condition, schema.value)).join(", ");
+  return template.conditions.map((condition) => conditionLabel(t, condition, schema.value, entries.value)).join(", ");
 }
 
 // The site's header and footer stay illustrative; the content and components mirror their saved tree.
@@ -361,7 +379,7 @@ function options(part) {
   return [
     { value: FRAME_DEFAULT, label: t(`site.frame.default.${part}`), icon: PART_ICONS[part] },
     { value: FRAME_NONE, label: t(`site.frame.none.${part}`), icon: "mdi:cancel" },
-    ...frameComponents(components.value, selectedType.value).map((component) => ({ value: component.id, label: component.name, icon: "mdi:puzzle-outline" })),
+    ...frameComponents(components.value, selectedType.value).map((component) => ({ value: component.id, label: component.name, icon: componentIcon(component) })),
   ];
 }
 
@@ -381,8 +399,40 @@ function editPath(part) {
 
 // ─── Conditions ──────────────────────────────────────────────────────────────
 
-const fields = computed(() => conditionFields(schema.value));
+const fields = computed(() => conditionFields(schema.value, t));
 const fieldType = (key) => fields.value.find((field) => field.key === key)?.type ?? "";
+
+const entries = ref([]);
+const entriesLoading = ref(false);
+const entriesError = ref("");
+const entriesRetry = ref(0);
+const entryOptions = computed(() => entries.value.filter((entry) => entry.uid).map((entry) => ({ value: entry.uid, label: entry.title || entry.slug || entry.uid })));
+
+// Read every page so older entries remain selectable. Ignore results after a type change.
+watch([selectedType, selectedVariant, entriesRetry], async ([type, variant], _previous, onCleanup) => {
+  let cancelled = false;
+  onCleanup(() => { cancelled = true; });
+  entries.value = [];
+  entriesError.value = "";
+  entriesLoading.value = false;
+  if (!type || variant !== "detail") return;
+  entriesLoading.value = true;
+  try {
+    let offset = 0;
+    while (!cancelled) {
+      const response = await api.content.list(type, { limit: 100, offset, sort: "title" });
+      if (cancelled) return;
+      const page = response.data ?? [];
+      entries.value.push(...page);
+      offset += page.length;
+      if (!page.length || offset >= (response.meta?.total ?? offset)) break;
+    }
+  } catch (err) {
+    if (!cancelled) entriesError.value = err.message;
+  } finally {
+    if (!cancelled) entriesLoading.value = false;
+  }
+}, { immediate: true });
 
 /** Fixed choices for a condition's value: a select field's options, or yes/no. */
 function valueOptions(key) {
@@ -400,6 +450,7 @@ function parseValue(key, value) {
 }
 
 function initialValue(key) {
+  if (fieldType(key) === "entry") return [];
   return valueOptions(key)?.[0] ? parseValue(key, valueOptions(key)[0].value) : "";
 }
 

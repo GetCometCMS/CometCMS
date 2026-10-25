@@ -66,6 +66,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { componentIcon } from "./kindIcons.js";
 import { api } from "../../../api/index.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
 import { FRAME_DEFAULT, frameLabel, templateList, templateName, usesTemplates } from "../../../composables/templates.js";
@@ -171,7 +172,7 @@ const allGroups = computed(() => [
       .map((component) => ({
         key: `component:${component.id}`,
         label: component.name,
-        icon: "mdi:puzzle-outline",
+        icon: componentIcon(component),
         path: `/page-builder/builder/component/${component.id}`,
         current: props.target === "component" && props.name === component.id,
       })),

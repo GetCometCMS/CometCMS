@@ -60,7 +60,7 @@
     </nav>
     <div class="relative z-10 flex shrink-0 items-center gap-2.5 px-3 pb-2 pt-2.5" :class="{ 'border-b border-slate-200': isInstance }">
       <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-theme-50 text-theme-600 ring-1 ring-inset ring-theme-100">
-        <Icon :icon="nodeIcon(node, builder.isStacked(node))" class="h-[18px] w-[18px]" />
+        <Icon :icon="nodeIcon(node, builder.isStacked(node), builder.componentOf(node))" class="h-[18px] w-[18px]" />
       </span>
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-1">
@@ -202,6 +202,20 @@
         </BuilderGroup>
         <BuilderTabs v-if="node.kind === 'tabs'" :group="node" />
         <p v-if="node.kind === 'tab'" class="text-xs text-slate-500">{{ t('site.tabs.contentHint') }}</p>
+        <div v-if="node.kind === 'page_content' && areaChoices.length > 1">
+          <label class="mb-1 block text-xs text-slate-500" :for="`builder-${node.id}-area`">{{ t("site.page.area") }}</label>
+          <select
+            :id="`builder-${node.id}-area`"
+            class="form-select w-full rounded-lg border-slate-300 py-1.5 text-xs"
+            :value="pageFieldLabel === null ? '' : node.props.field"
+            :disabled="renamingArea || builder.translating?.value"
+            @change="chooseArea($event.target.value)"
+          >
+            <option v-for="choice in areaChoices" :key="choice.key" :value="choice.key">{{ choice.label }}</option>
+          </select>
+          <p class="mt-1 text-[11px] text-slate-400">{{ t("site.page.areaHint") }}</p>
+        </div>
+        <BuilderAreaCleanup v-if="node.kind === 'page_content'" />
         <div v-if="node.kind === 'page_content' && pageFieldLabel !== null">
           <label class="mb-1 block text-xs text-slate-500" :for="`builder-${node.id}-area-name`">{{ t("site.page.areaName") }}</label>
           <input
@@ -216,8 +230,11 @@
           />
           <p class="mt-1 text-[11px] text-slate-400">{{ t("site.page.areaNameHint") }}</p>
         </div>
+        <p v-if="node.kind === 'page_content' && node.props.field && pageFieldLabel === null" class="rounded-lg bg-amber-50 px-3 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
+          {{ t("site.page.missingArea") }}
+        </p>
         <button
-          v-if="node.kind === 'page_content' && !node.props.field && builder.canAddPageField()"
+          v-if="node.kind === 'page_content' && pageFieldLabel === null && areaChoices.length <= 1 && builder.canAddPageField()"
           type="button"
           class="btn-primary btn-sm"
           :disabled="renamingArea"
@@ -308,6 +325,7 @@ import SpacingControl from "./SpacingControl.vue";
 import BuilderHelp from "./BuilderHelp.vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import BuilderTabs from "./BuilderTabs.vue";
+import BuilderAreaCleanup from "./BuilderAreaCleanup.vue";
 import ColumnLayoutPicker from "./ColumnLayoutPicker.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import { DEVICE_ICONS, STATE_ICONS } from "./controlOptions.js";
@@ -420,6 +438,28 @@ const pageFieldLabel = computed(() => {
   return builder.pageFields().find((field) => field.key === node.value.props.field)?.label ?? null;
 });
 const renamingArea = ref(false);
+/**
+ * What the selected area element can show: its area, the type's areas no
+ * other element here shows (their entries' designs come back), and a new one.
+ */
+const areaChoices = computed(() => {
+  if (node.value?.kind !== "page_content") return [];
+  const current = pageFieldLabel.value === null ? [] : [{ key: node.value.props.field, label: pageFieldLabel.value }];
+  const free = builder.freePageFields(node.value.id).filter((field) => field.key !== node.value.props.field);
+  const add = builder.canAddPageField() ? [{ key: "", label: t("site.page.newArea") }] : [];
+  return [...current, ...free, ...add];
+});
+
+async function chooseArea(key) {
+  renamingArea.value = true;
+  try {
+    await builder.choosePageArea(node.value.id, key);
+  } catch (error) {
+    builder.pageFieldError.value = error.message;
+  } finally {
+    renamingArea.value = false;
+  }
+}
 
 async function setUpArea() {
   renamingArea.value = true;

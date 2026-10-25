@@ -164,17 +164,17 @@ final class PreviewAdminBar
             return '';
         }
         $text = $de ? [
-            'template' => 'Vorlage', 'default' => 'Standard', 'header' => 'Header', 'content' => 'Inhalt', 'footer' => 'Footer',
+            'template' => 'Layout', 'default' => 'Standardlayout', 'header' => 'Header', 'content' => 'Inhalt', 'footer' => 'Footer',
             'siteHeader' => 'Website-Header', 'siteFooter' => 'Website-Footer', 'noHeader' => 'Kein Header', 'noFooter' => 'Kein Footer',
-            'editTemplate' => 'Vorlage bearbeiten',
-            'reason.picked' => 'Für diesen Eintrag gewählt', 'reason.conditions' => 'Bedingungen erfüllt', 'reason.first' => 'Erste Vorlage ohne Bedingungen',
-            'reason.default' => 'Keine andere Vorlage passt',
+            'editTemplate' => 'Layout bearbeiten',
+            'reason.picked' => 'Für diesen Eintrag gewählt', 'reason.conditions' => 'Bedingungen erfüllt', 'reason.first' => 'Erstes Layout ohne Bedingungen',
+            'reason.default' => 'Kein anderes Layout passt',
         ] : [
-            'template' => 'Template', 'default' => 'Default', 'header' => 'Header', 'content' => 'Content', 'footer' => 'Footer',
+            'template' => 'Layout', 'default' => 'Default layout', 'header' => 'Header', 'content' => 'Content', 'footer' => 'Footer',
             'siteHeader' => 'Site header', 'siteFooter' => 'Site footer', 'noHeader' => 'No header', 'noFooter' => 'No footer',
-            'editTemplate' => 'Edit template',
-            'reason.picked' => 'Chosen for this entry', 'reason.conditions' => 'Its conditions match', 'reason.first' => 'First template without conditions',
-            'reason.default' => 'No other template applies',
+            'editTemplate' => 'Edit layout',
+            'reason.picked' => 'Chosen for this entry', 'reason.conditions' => 'Its conditions match', 'reason.first' => 'First layout without conditions',
+            'reason.default' => 'No other layout applies',
         ];
         $template = $shown['template'];
         $type = (string) $shown['type'];
@@ -183,8 +183,13 @@ final class PreviewAdminBar
         $reason = $text['reason.' . $shown['reason']] ?? '';
         if ($shown['reason'] === 'conditions') {
             $fields = $this->ctx->site->types()[$type]['fields'] ?? [];
-            $reason .= ': ' . implode(', ', array_map(static fn(array $condition): string => (is_string($fields[$condition['field']]['label'] ?? null) && $fields[$condition['field']]['label'] !== '' ? $fields[$condition['field']]['label'] : $condition['field']) . ' ' . strtr($condition['op'], ['equals' => '=', 'not_equals' => '≠', 'contains' => '∋', 'not_empty' => '≠ ∅', 'empty' => '= ∅'])
-                . ($condition['value'] !== null ? ' ' . (is_bool($condition['value']) ? ($condition['value'] ? 'true' : 'false') : (string) $condition['value']) : ''), $template['conditions']));
+            $reason .= ': ' . implode(', ', array_map(static function (array $condition) use ($fields, $state, $de): string {
+                if ($condition['field'] === 'uid') {
+                    return ($de ? 'Eintrag' : 'Entry') . ' = ' . (string) ($state['entry']['title'] ?? $state['entry']['uid'] ?? '');
+                }
+                return (is_string($fields[$condition['field']]['label'] ?? null) && $fields[$condition['field']]['label'] !== '' ? $fields[$condition['field']]['label'] : $condition['field']) . ' ' . strtr($condition['op'], ['equals' => '=', 'not_equals' => '≠', 'contains' => '∋', 'not_empty' => '≠ ∅', 'empty' => '= ∅'])
+                    . ($condition['value'] !== null ? ' ' . (is_bool($condition['value']) ? ($condition['value'] ? 'true' : 'false') : (string) $condition['value']) : '');
+            }, $template['conditions']));
         }
 
         $row = function (string $label, string $value, ?string $url): string {

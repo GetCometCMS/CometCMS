@@ -37,6 +37,12 @@ final class NodeRenderer
 
     private const MAX_COMPONENT_DEPTH = 5;
 
+    /** Typical screen widths in CSS pixels, from site.css's breakpoints; backgrounds are chosen for them. */
+    private const SCREEN_WIDTHS = ['desktop' => 1920, 'tablet' => 1024, 'mobile' => 430];
+
+    /** Screens are assumed this dense, so images stay sharp on most phones and laptops. */
+    private const PIXEL_DENSITY = 2;
+
     /** Utility class of each style value, without its `c-` (see styleClasses). */
     private const STYLE_TOKENS = [
         'padding_y' => 'py-',
@@ -300,10 +306,16 @@ final class NodeRenderer
             }
         }
 
-        $background = $this->background($node['style']);
+        // The section spans the screen; its content is held to the container's width.
+        $background = $this->background($node['style'], $state, $props['min_height'] !== '');
 
         $embedded = ($state['embedded'] ?? false) === true;
-        $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false] + $state);
+        $slot = $this->slot($state);
+        if (!$embedded && $props['width'] !== 'full') {
+            $theme = $this->ctx->theme();
+            $slot = $this->narrowSlot($slot, [], (float) ($props['width'] === 'narrow' ? ($theme['narrow_width'] ?? 760) : ($theme['container_width'] ?? 1200)));
+        }
+        $inner = $this->render($node['children'], ['nested' => $embedded, 'embedded' => false, 'slot' => $slot] + $state);
         if ($inner === '' && !$this->annotating()) {
             return '';
         }
@@ -374,7 +386,7 @@ final class NodeRenderer
             }
         }
 
-        $background = $this->background($node['style']);
+        $background = $this->background($node['style'], $state);
 
         return '<div' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $inner . '</div>';
     }
@@ -404,12 +416,28 @@ final class NodeRenderer
             $classes[] = 'c-flow-align-' . $node['props']['content_align'];
         }
 
+        // A column fills its share of the row, which falls back to the smaller screen's share.
+        $tablet = $span['tablet'] ?: $span['mobile'];
+        $state['slot'] = $this->narrowSlot($this->slot($state), [
+            'mobile' => $span['mobile'] / 12,
+            'tablet' => $tablet / 12,
+            'desktop' => ($span['desktop'] ?: $tablet) / 12,
+        ]);
         $inner = $this->render($node['children'], ['nested' => true, 'nested_cols' => false] + $state);
         if ($inner === '' && $this->annotating()) {
             $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('emptyColumn') . '>Empty column</div>';
         }
 
-        $background = $this->background($node['style']);
+        // A linked column covers itself with one link instead of wrapping its elements, which may hold links of their own.
+        $link = $this->annotating() ? null : $this->resolveLink($node['props']['link'] ?? ['type' => 'none'], $state);
+        if ($link !== null) {
+            $classes[] = 'c-linked';
+            // The cover has no text of its own, so it is named after the column's.
+            $label = mb_substr(trim((string) preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($inner), ENT_QUOTES | ENT_HTML5))), 0, 160);
+            $inner .= str_replace('<a ', '<a aria-label="' . Security::e($label) . '" ', $this->anchor($link, '', 'c-linked-cover'));
+        }
+
+        $background = $this->background($node['style'], $state);
         $style = implode(';', array_filter([$order !== null ? '--c-column-order:' . $order : '', $background['style']]));
 
         return '<div' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $style) . '>' . $background['layer'] . $inner . '</div>';
@@ -700,7 +728,7 @@ final class NodeRenderer
             if ($autoplay) $attrs .= ' autoplay';
             if (!$props['fullscreen']) $attrs .= ' controlslist="nofullscreen"';
             $poster = ($props['poster'] ?? '') !== '' ? $this->ctx->mediaItem($props['poster']) : null;
-            if ($poster !== null && str_starts_with((string) ($poster['mime'] ?? ''), 'image/')) $attrs .= ' poster="' . Security::e($this->imageSource($poster, 1280)) . '"';
+            if ($poster !== null && str_starts_with((string) ($poster['mime'] ?? ''), 'image/')) $attrs .= ' poster="' . Security::e($this->imageSource($poster)) . '"';
             $player = '<video src="' . $src . '" aria-label="' . $title . '"' . $attrs . '></video>';
         } else {
             $allow = 'autoplay; encrypted-media; picture-in-picture';
@@ -772,13 +800,13 @@ final class NodeRenderer
         }
 
         $columns = $props['columns'];
-        $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) ' . ($columns > 1 ? '50' : '100') . 'vw, 100vw';
+        $state['slot'] = $this->gridSlot($this->slot($state), $columns);
         $link = $this->resolveLink($props['link'], $state);
         $html = '';
         foreach ($items as $item) {
             $image = $this->mediaElement($item, $props, $state);
             if ($props['lightbox'] && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
-                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" aria-haspopup="dialog" aria-label="' . Messages::get('enlarge', $this->ctx->htmlLang()) . '"'
+                $image = '<a class="c-gallery-zoom" data-gallery-image href="' . Security::e($this->imageSource($item)) . '" aria-haspopup="dialog" aria-label="' . Messages::get('enlarge', $this->ctx->htmlLang()) . '"'
                     . ($props['captions'] ? ' data-caption="' . Security::e((string) ($item['title'] ?? '')) . '"' : '') . '>' . $image . '</a>';
             } elseif ($link !== null && str_starts_with((string) ($item['mime'] ?? ''), 'image/')) {
                 $image = $this->anchor($link, $image, 'c-image-link');
@@ -859,7 +887,7 @@ final class NodeRenderer
         $logo = $props['show_logo'] && $settings['logo'] !== '' ? $this->ctx->mediaItem($settings['logo']) : null;
 
         if ($logo !== null) {
-            $parts .= '<img class="c-logo" src="' . Security::e($this->imageSource($logo, 640)) . '" alt="' . ($props['show_name'] ? '' : Security::e($this->ctx->siteTitle())) . '"'
+            $parts .= '<img class="c-logo" src="' . Security::e($this->imageSource($logo)) . '" alt="' . ($props['show_name'] ? '' : Security::e($this->ctx->siteTitle())) . '"'
                 . $this->dimensions($logo) . '>';
         }
 
@@ -1093,12 +1121,16 @@ final class NodeRenderer
         $classes = 'c-menu c-menu-' . $props['orientation'] . ($collapsible ? ' c-menu-collapsible' : '')
             . ($props['always_button'] ? ' c-menu-always-button' : '')
             . ($hasPanel ? ' c-menu-' . $props['panel'] : '')
-            . ($hasPanel && $props['panel'] === 'drawer' ? ' c-menu-drawer-' . $props['panel_side'] : '');
+            . ($hasPanel && $props['panel'] === 'drawer' ? ' c-menu-drawer-' . $props['panel_side'] : '')
+            . ' c-menu-fx-' . $props['hover_effect'] . ' c-menu-active-' . $props['active_style'];
         $toggle = $close = '';
         $panelStyle = [];
         if (!empty($node['style']['text_color'])) {
             $color = $node['style']['text_color'] === 'inverse' ? 'background' : $node['style']['text_color'];
             $panelStyle[] = '--c-menu-color:var(--c-' . $color . ')';
+        }
+        if ($props['hover_color'] !== '') {
+            $panelStyle[] = '--c-menu-hover:var(--c-' . ($props['hover_color'] === 'inverse' ? 'background' : $props['hover_color']) . ')';
         }
         // Submenu dropdowns and the button's panel share one palette.
         if ($props['panel_background'] !== '') {
@@ -1294,7 +1326,7 @@ final class NodeRenderer
             'depth' => ($state['depth'] ?? 0) + 1,
             'path' => $state['path'] ?? '',
             'components' => $state['components'] ?? [],
-            'sizes' => $columns > 1 ? '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, (min-width: 640px) 50vw, 100vw' : '100vw',
+            'slot' => $this->gridSlot($this->slot($state), $columns),
         ];
 
         foreach (array_values($entries) as $index => $entry) {
@@ -1491,7 +1523,7 @@ final class NodeRenderer
         if ($display === 'gallery' && count($items) > 1) {
             $columns = max(2, $props['columns']);
             $gallery = '';
-            $state['sizes'] = '(min-width: 1024px) ' . (int) floor(100 / $columns) . 'vw, 50vw';
+            $state['slot'] = $this->gridSlot($this->slot($state), $columns);
             foreach ($items as $item) {
                 $gallery .= '<div class="c-gallery-item">' . $this->linkedMedia($item, $props, $state) . '</div>';
             }
@@ -1608,21 +1640,15 @@ final class NodeRenderer
             return '<a class="c-file" href="' . Security::e($this->ctx->mediaUrl($item['name'])) . '" download>' . Security::e($label) . '</a>';
         }
 
-        $srcset = '';
-        $descriptor = $this->ctx->variantDescriptor($item['name']);
-        if ($descriptor !== null && $descriptor['widths'] !== []) {
-            $format = (string) $descriptor['default_format'];
-            $candidates = array_map(
-                fn(int $width): string => $this->ctx->mediaUrl($item['name'], ['w' => $width, 'format' => $format]) . ' ' . $width . 'w',
-                $descriptor['widths']
-            );
-            if (!empty($item['width'])) {
-                $candidates[] = $this->ctx->mediaUrl($item['name']) . ' ' . (int) $item['width'] . 'w';
-            }
-            $srcset = ' srcset="' . Security::e(implode(', ', $candidates)) . '" sizes="' . Security::e((string) ($state['sizes'] ?? '100vw')) . '"';
-        }
+        // The browser picks the file from srcset by how wide the image is shown.
+        [$src, $candidates] = $this->imageCandidates($item);
+        $maxWidth = (int) ($props['max_width'] ?? 0);
+        $slot = $maxWidth > 0 ? $this->narrowSlot($this->slot($state), [], (float) $maxWidth) : $this->slot($state);
+        $srcset = count($candidates) > 1
+            ? ' srcset="' . Security::e(implode(', ', $candidates)) . '" sizes="' . Security::e($this->sizesAttribute($slot)) . '"'
+            : '';
 
-        $img = '<img src="' . Security::e($this->imageSource($item, 1280)) . '"' . $srcset . ' alt="' . Security::e($alt) . '"'
+        $img = '<img src="' . Security::e($src) . '"' . $srcset . ' alt="' . Security::e($alt) . '"'
             . $this->dimensions($item) . ' loading="lazy" decoding="async">';
 
         $ratio = $props['ratio'] ?? '';
@@ -1637,24 +1663,95 @@ final class NodeRenderer
         return $img;
     }
 
-    private function imageSource(array $item, int $preferredWidth): string
+    /** The largest file an image is shown with: the large size, or the original when it is not larger. */
+    private function imageSource(array $item): string
     {
-        $descriptor = $this->ctx->variantDescriptor($item['name']);
+        return $this->imageCandidates($item)[0];
+    }
 
-        if ($descriptor === null || $descriptor['widths'] === []) {
-            return $this->ctx->mediaUrl($item['name']);
+    /**
+     * srcset candidates for every named size and the largest of them. The
+     * original is only offered when it is not larger than the large size, so
+     * huge uploads are never sent to visitors.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private function imageCandidates(array $item): array
+    {
+        $candidates = [];
+        $src = '';
+        foreach ($item['sizes'] ?? [] as $name => $dimensions) {
+            $src = $this->ctx->mediaUrl($item['name'], ['size' => $name]);
+            $candidates[] = $src . ' ' . (int) $dimensions['width'] . 'w';
+        }
+        if (isset($item['sizes']['large'])) {
+            return [$src, $candidates];
         }
 
-        $width = null;
-        foreach ($descriptor['widths'] as $candidate) {
-            if ($candidate <= $preferredWidth) {
-                $width = $candidate;
-            }
+        $src = $this->ctx->mediaUrl($item['name']);
+        if (!empty($item['width'])) {
+            $candidates[] = $src . ' ' . (int) $item['width'] . 'w';
         }
 
-        return $width === null
-            ? $this->ctx->mediaUrl($item['name'])
-            : $this->ctx->mediaUrl($item['name'], ['w' => $width, 'format' => (string) $descriptor['default_format']]);
+        return [$src, $candidates];
+    }
+
+    /**
+     * Where an element sits on each device: the share of the screen it may
+     * fill and the most CSS pixels it may reach, as sections and columns
+     * narrow it. Gaps and gutters are left out, so images err on sharp.
+     *
+     * @return array<string, array{0: float, 1: ?float}>
+     */
+    private function slot(array $state): array
+    {
+        return $state['slot'] ?? ['desktop' => [1.0, null], 'tablet' => [1.0, null], 'mobile' => [1.0, null]];
+    }
+
+    /** $slot with each device's share scaled by its factor, then held to $max pixels. */
+    private function narrowSlot(array $slot, array $factors, ?float $max = null): array
+    {
+        foreach ($slot as $device => [$share, $cap]) {
+            $factor = $factors[$device] ?? 1.0;
+            $cap = $cap === null ? null : $cap * $factor;
+            $slot[$device] = [$share * $factor, $max === null ? $cap : min($cap ?? $max, $max)];
+        }
+
+        return $slot;
+    }
+
+    /** One cell of a .c-grid with $columns columns: one per row on phones, two on tablets. */
+    private function gridSlot(array $slot, int $columns): array
+    {
+        $columns = max(1, $columns);
+
+        return $this->narrowSlot($slot, ['mobile' => 1.0, 'tablet' => $columns > 1 ? 0.5 : 1.0, 'desktop' => 1 / $columns]);
+    }
+
+    /** A sizes attribute for $slot, naming each device only where it differs from the next smaller one. */
+    private function sizesAttribute(array $slot): string
+    {
+        $width = static function (array $device): string {
+            [$share, $cap] = $device;
+            $vw = max(1, (int) ceil($share * 100)) . 'vw';
+
+            return $cap === null ? $vw : 'min(' . $vw . ', ' . (int) ceil($cap) . 'px)';
+        };
+        [$desktop, $tablet, $mobile] = [$width($slot['desktop']), $width($slot['tablet']), $width($slot['mobile'])];
+        $sizes = [];
+        if ($desktop !== $tablet) $sizes[] = '(min-width: 1024px) ' . $desktop;
+        if ($tablet !== $mobile) $sizes[] = '(min-width: 768px) ' . $tablet;
+        $sizes[] = $mobile;
+
+        return implode(', ', $sizes);
+    }
+
+    /** The CSS pixels an element in $slot is about as wide on a typical screen of $device. */
+    private function slotPixels(array $slot, string $device): float
+    {
+        [$share, $cap] = $slot[$device];
+
+        return min(self::SCREEN_WIDTHS[$device] * $share, $cap ?? INF);
     }
 
     private function dimensions(array $item): string
@@ -1771,7 +1868,11 @@ final class NodeRenderer
      *
      * @return array{classes: list<string>, style: string, layer: string}
      */
-    private function background(array $style): array
+    /**
+     * A tall element ($tall) is covered by its image on portrait screens too,
+     * which shows the image larger than the element is wide.
+     */
+    private function background(array $style, array $state = [], bool $tall = false): array
     {
         $gradient = Gradient::css($style['background_gradient'] ?? []);
         if ($gradient !== '') {
@@ -1786,7 +1887,9 @@ final class NodeRenderer
 
         $spec = LayoutSchema::styleSpec();
         $option = static fn(string $key): mixed => $style[$key] ?? $spec[$key]['default'];
-        $image = 'url(\'' . $this->imageSource($item, 1920) . '\')';
+        $sources = $this->backgroundSources($item, $this->slot($state), $tall);
+        $image = 'url(\'' . $sources['desktop'] . '\')';
+        $responsive = count(array_unique($sources)) > 1;
         $blur = (int) $option('background_blur');
         $effect = (string) $option('background_effect');
         $classes = [
@@ -1800,8 +1903,16 @@ final class NodeRenderer
             $classes[] = 'c-overlay-' . $option('overlay');
         }
 
+        // Each device loads its own size; site.css swaps them by screen width.
+        $images = $responsive
+            ? implode(';', array_map(static fn(string $device): string => '--c-bg-' . $device[0] . ':url(\'' . $sources[$device] . '\')', array_keys($sources)))
+            : '';
+        if ($responsive) {
+            $classes[] = 'c-bg-responsive';
+        }
+
         if ($blur === 0 && $effect === 'none') {
-            return ['classes' => $classes, 'style' => 'background-image:' . $image, 'layer' => ''];
+            return ['classes' => $classes, 'style' => $responsive ? $images : 'background-image:' . $image, 'layer' => ''];
         }
 
         $classes[] = 'c-has-bg-layer';
@@ -1811,9 +1922,32 @@ final class NodeRenderer
 
         return [
             'classes' => $classes,
-            'style' => '--c-background-image:' . $image . ($blur > 0 ? ';--c-background-blur:' . $blur . 'px' : ''),
+            'style' => ($responsive ? $images : '--c-background-image:' . $image) . ($blur > 0 ? ';--c-background-blur:' . $blur . 'px' : ''),
             'layer' => '<span class="c-background-layer" aria-hidden="true"></span>',
         ];
+    }
+
+    /**
+     * The file a background loads on each device: the smallest size that
+     * covers the element on a typical screen of that device.
+     *
+     * @return array{desktop: string, tablet: string, mobile: string}
+     */
+    private function backgroundSources(array $item, array $slot, bool $tall): array
+    {
+        $sources = [];
+        foreach (array_keys(self::SCREEN_WIDTHS) as $device) {
+            $needed = $this->slotPixels($slot, $device) * self::PIXEL_DENSITY * ($tall && $device !== 'desktop' ? 2 : 1);
+            $sources[$device] = $this->imageSource($item);
+            foreach ($item['sizes'] ?? [] as $name => $dimensions) {
+                if ($dimensions['width'] >= $needed) {
+                    $sources[$device] = $this->ctx->mediaUrl($item['name'], ['size' => $name]);
+                    break;
+                }
+            }
+        }
+
+        return $sources;
     }
 
     private function attributes(array $node, array $classes, string $style = ''): string

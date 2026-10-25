@@ -1,7 +1,17 @@
 <template>
   <div class="css-code-editor relative min-h-0 overflow-hidden rounded-lg border border-slate-300 bg-white" :class="{ 'is-disabled': disabled }">
-    <div ref="hostRef" class="h-full"></div>
-    <div v-if="!ready" class="absolute inset-0 flex items-center justify-center"><LoadingSpinner /></div>
+    <textarea
+      v-if="loadFailed"
+      class="h-full w-full resize-none border-0 bg-transparent p-3 font-mono text-xs leading-relaxed focus:ring-0"
+      :value="modelValue"
+      :disabled="disabled"
+      :placeholder="placeholder"
+      :aria-label="label"
+      spellcheck="false"
+      @input="emit('update:modelValue', $event.target.value)"
+    ></textarea>
+    <div v-else ref="hostRef" class="h-full"></div>
+    <div v-if="!ready && !loadFailed" class="absolute inset-0 flex items-center justify-center"><LoadingSpinner /></div>
   </div>
 </template>
 
@@ -23,41 +33,50 @@ const emit = defineEmits(["update:modelValue"]);
 
 const hostRef = ref(null);
 const ready = ref(false);
+const loadFailed = ref(false);
 let view = null;
 let editable = null;
 let editableExtension = null;
 
 onMounted(async () => {
-  const [{ basicSetup }, { css }, { Compartment, EditorState }, { EditorView, keymap, placeholder }, { indentWithTab }] = await Promise.all([
-    import("codemirror"),
-    import("@codemirror/lang-css"),
-    import("@codemirror/state"),
-    import("@codemirror/view"),
-    import("@codemirror/commands"),
-  ]);
-  if (!hostRef.value) return;
+  try {
+    const [{ basicSetup }, { css }, { Compartment, EditorState }, { EditorView, keymap, placeholder }, { indentWithTab }] = await Promise.all([
+      import("codemirror"),
+      import("@codemirror/lang-css"),
+      import("@codemirror/state"),
+      import("@codemirror/view"),
+      import("@codemirror/commands"),
+    ]);
+    if (!hostRef.value) return;
 
-  editable = new Compartment();
-  editableExtension = (disabled) => [EditorView.editable.of(!disabled), EditorState.readOnly.of(disabled)];
-  view = new EditorView({
-    parent: hostRef.value,
-    state: EditorState.create({
-      doc: props.modelValue ?? "",
-      extensions: [
-        basicSetup,
-        css(),
-        keymap.of([indentWithTab]),
-        placeholder(props.placeholder),
-        editable.of(editableExtension(props.disabled)),
-        EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ "aria-label": props.label, spellcheck: "false" }),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) emit("update:modelValue", update.state.doc.toString());
-        }),
-      ],
-    }),
-  });
-  ready.value = true;
+    editable = new Compartment();
+    editableExtension = (disabled) => [EditorView.editable.of(!disabled), EditorState.readOnly.of(disabled)];
+    view = new EditorView({
+      parent: hostRef.value,
+      state: EditorState.create({
+        doc: props.modelValue ?? "",
+        extensions: [
+          basicSetup,
+          css(),
+          keymap.of([indentWithTab]),
+          placeholder(props.placeholder),
+          editable.of(editableExtension(props.disabled)),
+          EditorView.lineWrapping,
+          EditorView.contentAttributes.of({ "aria-label": props.label, spellcheck: "false" }),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) emit("update:modelValue", update.state.doc.toString());
+          }),
+        ],
+      }),
+    });
+    ready.value = true;
+  } catch (error) {
+    view?.destroy();
+    view = null;
+    if (!hostRef.value) return;
+    loadFailed.value = true;
+    console.warn('CSS editor could not load; using plain text editing.', error);
+  }
 });
 
 // Outside changes, such as the builder's undo, replace the editor's text.

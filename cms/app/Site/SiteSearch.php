@@ -17,6 +17,9 @@ final class SiteSearch
     /** Hits shown at most in the search element's dropdown. */
     public const MAX_RESULTS = 7;
 
+    /** Shorter queries match too much of a large site to be worth scanning for. */
+    public const MIN_QUERY_LENGTH = 2;
+
     public const MAX_QUERY_LENGTH = 100;
 
     /**
@@ -83,7 +86,7 @@ final class SiteSearch
     public function search(string $query, array $collections = [], array $fields = [], int $limit = self::MAX_RESULTS): array
     {
         $query = self::lower(trim(Text::limit($query, self::MAX_QUERY_LENGTH)));
-        if ($query === '') {
+        if (mb_strlen($query) < self::MIN_QUERY_LENGTH) {
             return [];
         }
 

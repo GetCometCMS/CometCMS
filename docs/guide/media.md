@@ -47,19 +47,53 @@ Uploaded files are served from:
 /media/{workspace}/{filename}
 ```
 
-### Responsive image variants
+### Image sizes
 
-Raster images can be resized on demand by adding a configured width to the original media URL:
+Every uploaded raster image gets three sizes besides the original:
+
+| Size        | Default | Used for |
+| ----------- | ------- | -------- |
+| `thumbnail` | 400 px  | The media library, pickers, small images and phones |
+| `medium`    | 960 px  | Images in columns and galleries |
+| `large`     | 1920 px | Full-width images and the gallery viewer |
+
+Values are the longest side; proportions are kept and images are never enlarged. A size the original does not exceed is served by the original. Change the sizes under **Media → Image sizes** (requires `site.manage`). New sizes are made as images are next requested; **Rebuild all images** makes them all at once.
+
+Request a size by name:
 
 ```text
-/media/{workspace}/{filename}?w=640&format=webp
+/media/{workspace}/{filename}?size=medium
 ```
 
-The original is never changed or enlarged. Generated variants are stored in the workspace's disposable `media-variants` cache, reused on subsequent requests, and omitted from backups. Deleting or renaming the original also clears its variants.
+`?variant=thumbnail` still works as an alias for `?size=thumbnail`. Add `format=jpeg` (or another enabled format) to choose the output format.
 
-By default, accepted widths are `320`, `640`, `960`, `1280`, and `1920` pixels. The media API returns ready-to-use URLs for the configured widths that are smaller than each original. Supported output formats depend on the installed GD image encoders and the `media.variants.formats` configuration.
+On the website, images list every size up to `large` in `srcset`, with a `sizes` attribute worked out from the layout: the section's width, the column's span on each device, gallery and card columns, and the image's maximum width. The browser then loads the smallest file that is sharp on the visitor's screen. Originals larger than `large` are never sent to visitors.
 
-Projects that need exact dimensions can enable `media.variants.allow_custom_sizes`. This additionally enables `h` and the `fit` modes `contain` and `cover`:
+Background images load a size per device as well: the smallest one that covers the element on a typical phone, tablet or desktop screen. Tall sections (with a minimum height) keep the large size on phones and tablets, because a covering image is shown larger than the section is wide on portrait screens.
+
+Generated files are stored in the workspace's disposable `media-variants` cache, reused on subsequent requests, and omitted from backups. Deleting or renaming the original also clears them.
+
+Installation-wide defaults for workspaces that have not set their own:
+
+```php
+'sizes' => [
+    'thumbnail' => 400,
+    'medium' => 960,
+    'large' => 1920,
+],
+```
+
+### Width variants
+
+The named sizes are also accepted as widths, for clients that build their own `srcset`:
+
+```text
+/media/{workspace}/{filename}?w=960&format=webp
+```
+
+Supported output formats depend on the installed GD image encoders and the `media.variants.formats` configuration.
+
+Projects that need exact dimensions can enable `media.variants.allow_custom_sizes`. This accepts any bounded `w`, plus `h` and the `fit` modes `contain` and `cover`:
 
 ```text
 /media/{workspace}/{filename}?w=800&h=450&fit=cover&format=webp
@@ -72,7 +106,6 @@ Example configuration:
 ```php
 'variants' => [
     'enabled' => true,
-    'widths' => [320, 640, 960, 1280, 1920],
     'allow_custom_sizes' => false,
     'max_dimension' => 4096,
     'max_pixels' => 16000000,

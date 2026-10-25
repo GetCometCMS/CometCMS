@@ -9,6 +9,7 @@ use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\Http;
 use CometCMS\Core\MimeDetector;
 use CometCMS\Core\Security;
+use CometCMS\Core\ValidationException;
 use CometCMS\Media\MediaRepository;
 use CometCMS\Workspaces\WorkspaceContext;
 
@@ -113,6 +114,7 @@ final class MediaController extends BaseController
             $stored = basename($target);
             $item = $this->media->setUploadedCategory($stored, (string) ($_POST['category'] ?? ''));
             $this->media->setUploadedBy($stored, (string) ($user['id'] ?? ''));
+            $this->media->generateSizes($stored);
             $item = $this->media->item($stored);
             $item['mime'] = $mime;
             $items[] = $this->withMediaUrl($item);
@@ -514,10 +516,40 @@ final class MediaController extends BaseController
         $body = $this->requestJson();
         $files = array_values(array_filter((array) ($body['files'] ?? []), static fn(mixed $file): bool => is_string($file) && $file !== ''));
 
-        $summary = $this->media->regenerateThumbnails($files);
+        $summary = $this->media->regenerateSizes($files);
         $this->cache->clear();
 
         $this->json(['data' => $summary]);
+    }
+
+    /** The files a full rebuild goes through; the editor sends them back in small batches. */
+    public function sizesFiles(): never
+    {
+        $this->requirePermission('media.update', ['type' => 'media']);
+        $this->json(['data' => $this->media->resizableFiles()]);
+    }
+
+    public function sizesShow(): never
+    {
+        $this->requirePermission('media.read', ['type' => 'media']);
+        $this->json(['data' => $this->media->sizes()->all()]);
+    }
+
+    /** New sizes apply as images are next requested; regenerating makes them all at once. */
+    public function sizesUpdate(): never
+    {
+        $this->requirePermission('site.manage', ['resource' => 'site:*']);
+        $this->verifyCsrf();
+
+        try {
+            $sizes = $this->media->sizes()->save($this->requestJson());
+        } catch (ValidationException $e) {
+            $this->json(['error' => ['code' => 'validation_failed', 'message' => $e->getMessage(), 'fields' => $e->fields()]], 422);
+        }
+
+        $this->cache->clear();
+        $this->logger->info('media.sizes_updated', $sizes);
+        $this->json(['data' => $sizes]);
     }
 
     private function withMediaUrl(array $file): array

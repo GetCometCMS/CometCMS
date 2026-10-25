@@ -1285,11 +1285,39 @@ test('entrance animations keep their timing only while an animation is set', fun
 });
 
 test('theme animation speeds and stagger are clamped and become stylesheet variables', function (): void {
-    $theme = Theme::normalize(['motion' => ['fast' => 20, 'normal' => 833, 'slow' => 9000, 'stagger' => 'slow']]);
-    assert_same(['fast' => 100, 'normal' => 850, 'slow' => 5000, 'stagger' => 120], $theme['motion']);
+    $theme = Theme::normalize(['motion' => ['fast' => 20, 'normal' => 833, 'slow' => 9000, 'stagger' => 'slow', 'hover' => 4000]]);
+    assert_same(['fast' => 100, 'normal' => 850, 'slow' => 5000, 'stagger' => 120, 'hover' => 1000], $theme['motion']);
+    assert_same(200, Theme::normalize([])['motion']['hover']);
 
     $css = Theme::stylesheet($theme);
-    assert_true(str_contains($css, '--motion-normal:850;--motion-slow:5000;--motion-stagger:120;'));
+    assert_true(str_contains($css, '--motion-normal:850;--motion-slow:5000;--motion-stagger:120;--motion-hover:1000;'));
+    // Hover state changes follow the theme's hover transition.
+    assert_true(str_contains($css, '.c-stateful{transition-property:background-color,color,border-color,box-shadow,text-shadow,opacity;transition-duration:calc(var(--motion-hover,200) * 1ms);'));
+});
+
+test('theme link settings are palette tokens and fixed choices', function (): void {
+    assert_same(['color' => 'primary', 'hover_color' => '', 'decoration' => 'underline', 'thickness' => 0, 'offset' => 0.18], Theme::normalize([])['links']);
+    $css = Theme::stylesheet([]);
+    assert_true(str_contains($css, '--link-color:var(--c-primary);--link-decoration:underline;--link-hover-decoration:underline;--link-thickness:auto;--link-offset:0.18em;'));
+    assert_false(str_contains($css, '--link-hover-color:'), 'Without a hover color, links keep their color.');
+
+    $theme = Theme::normalize([
+        'custom_colors' => ['custom-brand' => ['label' => 'Brand', 'color' => '#ff0000']],
+        'links' => ['color' => 'custom-brand', 'hover_color' => 'accent', 'decoration' => 'none', 'thickness' => 9, 'offset' => 0.333],
+    ]);
+    assert_same(['color' => 'custom-brand', 'hover_color' => 'accent', 'decoration' => 'none', 'thickness' => 6, 'offset' => 0.33], $theme['links']);
+    $css = Theme::stylesheet($theme);
+    assert_true(str_contains($css, '--link-color:var(--c-custom-brand);--link-decoration:none;--link-hover-decoration:none;--link-thickness:6px;--link-offset:0.33em;--link-hover-color:var(--c-accent);'));
+
+    // Unknown or removed colors and values fall back.
+    $links = Theme::normalize(['links' => ['color' => 'custom-gone', 'hover_color' => 'red;}', 'decoration' => 'blink', 'thickness' => 'x', 'offset' => -1]])['links'];
+    assert_same(['color' => 'primary', 'hover_color' => '', 'decoration' => 'underline', 'thickness' => 0, 'offset' => 0.0], $links);
+
+    // Themes saved with the old switch keep their look: links always underlined on hover.
+    assert_same('hover', Theme::normalize(['link_underline' => false])['links']['decoration']);
+    assert_same('underline', Theme::normalize(['link_underline' => true])['links']['decoration']);
+    assert_same('none', Theme::normalize(['link_underline' => true, 'links' => ['decoration' => 'none']])['links']['decoration']);
+    assert_false(array_key_exists('link_underline', Theme::normalize(['link_underline' => false])));
 });
 
 test('theme spacing and radius tokens drive the stylesheet', function (): void {

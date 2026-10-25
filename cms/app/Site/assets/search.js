@@ -25,7 +25,7 @@ function setup(root) {
   ready.add(root);
 
   const data = root.dataset;
-  const min = Math.max(1, Number(data.searchMin) || 2);
+  const min = Math.max(2, Number(data.searchMin) || 2);
   let timer = 0;
   let request = null;
   let active = -1;

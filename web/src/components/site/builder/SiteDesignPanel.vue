@@ -19,22 +19,52 @@
     <div v-else-if="!theme" class="flex flex-1 items-center justify-center"><LoadingSpinner /></div>
 
     <div v-else class="space-y-5" :class="layout === 'page' ? 'p-6' : 'flex-1 overflow-y-auto p-3'">
-      <BuilderGroup v-model:open="expanded.presets" :title="t('site.theme.presets')" content-class="mt-2 grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
-        <button
-          v-for="preset in PRESETS"
-          :key="preset.key"
-          type="button"
-          class="rounded-lg border border-slate-200 p-2 text-left transition hover:border-theme-400 hover:shadow-sm"
-          @click="applyPreset(preset)"
-        >
-          <span class="flex h-6 overflow-hidden rounded-md ring-1 ring-black/5">
-            <span v-for="color in presetSwatches(preset)" :key="color" class="flex-1" :style="{ background: color }"></span>
-          </span>
-          <span class="mt-1.5 block truncate text-xs font-medium text-slate-700">{{ t(`site.theme.preset.${preset.key}`) }}</span>
-        </button>
+      <BuilderGroup v-model:open="expanded.presets" icon="mdi:view-dashboard-outline" :title="t('site.theme.presets')" content-class="mt-2 space-y-3">
+        <div v-if="savedPresets.length" class="space-y-2">
+          <h4 class="px-1 text-xs font-semibold text-slate-700">{{ t("site.theme.savedPresets") }}</h4>
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+            <div v-for="preset in savedPresets" :key="preset.id" class="group relative">
+              <button
+                type="button"
+                class="w-full rounded-lg border border-slate-200 p-2 text-left transition hover:border-theme-400 hover:shadow-sm"
+                :title="preset.name"
+                @click="applySavedPreset(preset)"
+              >
+                <span class="flex h-6 overflow-hidden rounded-md ring-1 ring-black/5">
+                  <span v-for="(color, index) in presetSwatches(preset)" :key="index" class="flex-1" :style="{ background: color }"></span>
+                </span>
+                <span class="mt-1.5 block truncate pr-4 text-xs font-medium text-slate-700">{{ preset.name }}</span>
+              </button>
+              <button
+                type="button"
+                class="absolute bottom-1.5 right-1 rounded p-0.5 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                :aria-label="t('site.theme.deletePresetNamed', { name: preset.name })"
+                :title="t('common.delete')"
+                @click="deleteTarget = preset"
+              >
+                <Icon icon="mdi:trash-can-outline" class="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <h4 class="px-1 pt-1 text-xs font-semibold text-slate-700">{{ t("site.theme.builtInPresets") }}</h4>
+        </div>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+          <button
+            v-for="preset in PRESETS"
+            :key="preset.key"
+            type="button"
+            class="rounded-lg border border-slate-200 p-2 text-left transition hover:border-theme-400 hover:shadow-sm"
+            @click="applyPreset(preset)"
+          >
+            <span class="flex h-6 overflow-hidden rounded-md ring-1 ring-black/5">
+              <span v-for="color in presetSwatches(preset)" :key="color" class="flex-1" :style="{ background: color }"></span>
+            </span>
+            <span class="mt-1.5 block truncate text-xs font-medium text-slate-700">{{ t(`site.theme.preset.${preset.key}`) }}</span>
+          </button>
+        </div>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.colors" :title="t('site.theme.colors')" content-class="mt-2 space-y-4 px-1">
+      <BuilderGroup v-model:open="expanded.colors" icon="mdi:palette-outline" :title="t('site.theme.colors')" content-class="mt-2 space-y-4 px-1">
         <SegmentedControl
           v-model="theme.mode"
           :options="['light', 'dark', 'auto'].map((mode) => ({ value: mode, label: t(`site.theme.mode.${mode}`) }))"
@@ -95,7 +125,7 @@
         </div>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.typography" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
+      <BuilderGroup v-model:open="expanded.typography" icon="mdi:format-font" :title="t('site.theme.typography')" content-class="mt-2 space-y-4 px-1">
         <button type="button" class="btn-secondary btn-sm w-full" @click="fontManagerOpen = true"><Icon icon="mdi:format-font" class="h-4 w-4" />{{ t('site.fonts.manage') }}</button>
         <FontManager v-model="fontManagerOpen" :draft-nodes="draftNodes" />
         <div class="grid grid-cols-2 gap-3">
@@ -125,22 +155,22 @@
         </div>
         <RangeRow v-model="theme.base_size" :label="t('site.theme.baseSize')" :min="12" :max="24" :step="1" unit="px" />
         <RangeRow v-model="theme.line_height" :label="t('site.theme.lineHeight')" :min="1.1" :max="2.2" :step="0.05" />
-        <label class="flex items-center gap-3">
-          <ToggleSwitch v-model="theme.link_underline" />
-          <span class="text-sm text-slate-700">{{ t("site.theme.linkUnderline") }}</span>
-        </label>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.headings" :title="t('site.theme.headings')" content-class="mt-2 px-1">
+      <BuilderGroup v-if="theme.links" v-model:open="expanded.links" icon="mdi:link-variant" :title="t('site.theme.links')" content-class="mt-2 px-1">
+        <ThemeLinkSettings :links="theme.links" :colors="themeColors" :hover-ms="theme.motion?.hover ?? 200" />
+      </BuilderGroup>
+
+      <BuilderGroup v-model:open="expanded.headings" icon="mdi:format-header-pound" :title="t('site.theme.headings')" content-class="mt-2 px-1">
         <ThemeHeadingsSettings />
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.layout" :title="t('site.theme.layout')" content-class="mt-2 space-y-4 px-1">
+      <BuilderGroup v-model:open="expanded.layout" icon="mdi:view-quilt-outline" :title="t('site.theme.layout')" content-class="mt-2 space-y-4 px-1">
         <RangeRow v-model="theme.container_width" :label="t('site.theme.containerWidth')" :min="720" :max="1920" :step="20" unit="px" />
         <RangeRow v-model="theme.narrow_width" :label="t('site.theme.narrowWidth')" :min="480" :max="1200" :step="20" unit="px" />
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.spacing" :title="t('site.theme.spacingScale')" content-class="mt-2 space-y-4 px-1">
+      <BuilderGroup v-model:open="expanded.spacing" icon="mdi:arrow-expand-horizontal" :title="t('site.theme.spacingScale')" content-class="mt-2 space-y-4 px-1">
         <p class="text-xs text-slate-500">{{ t("site.theme.spacingScaleHint") }}</p>
         <SegmentedControl
           :model-value="spacingPreset"
@@ -158,7 +188,7 @@
         </div>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.corners" :title="t('site.theme.corners')" content-class="mt-2 space-y-4 px-1">
+      <BuilderGroup v-model:open="expanded.corners" icon="mdi:rounded-corner" :title="t('site.theme.corners')" content-class="mt-2 space-y-4 px-1">
         <p class="text-xs text-slate-500">{{ t("site.theme.cornersHint") }}</p>
         <div>
           <span class="form-label">{{ t("site.theme.defaultCorner") }}</span>
@@ -175,49 +205,45 @@
         </div>
       </BuilderGroup>
 
-      <BuilderGroup v-model:open="expanded.motion" :title="t('site.theme.motion')" content-class="mt-2 space-y-4 px-1">
-        <p class="text-xs text-slate-500">{{ t("site.theme.motionHint") }}</p>
-        <!-- Stored in ms, shown in seconds. -->
-        <RangeRow
-          v-for="speed in MOTION_SPEEDS"
-          :key="speed"
-          :model-value="theme.motion[speed] / 1000"
-          :label="t(`site.option.${speed}`)"
-          :min="0.1"
-          :max="5"
-          :step="0.05"
-          unit="s"
-          @update:model-value="theme.motion[speed] = Math.round($event * 1000)"
-        />
-        <RangeRow
-          :model-value="theme.motion.stagger / 1000"
-          :label="t('site.theme.motionStagger')"
-          :min="0"
-          :max="5"
-          :step="0.01"
-          unit="s"
-          @update:model-value="theme.motion.stagger = Math.round($event * 1000)"
-        />
-        <div class="flex items-center gap-3 rounded-lg bg-slate-50 p-2 ring-1 ring-slate-200">
-          <button type="button" class="btn-secondary btn-sm" @click="motionPreview++">
-            <Icon icon="mdi:play" class="h-4 w-4" />
-            {{ t("site.theme.motionPreview") }}
-          </button>
-          <div :key="motionPreview" class="flex flex-1 justify-end gap-1.5" aria-hidden="true">
-            <span
-              v-for="step in 4"
-              :key="step"
-              class="motion-sample h-6 w-6 rounded bg-theme-400"
-              :style="{ animationDuration: `${theme.motion.normal}ms`, animationDelay: `${(step - 1) * theme.motion.stagger}ms` }"
-            ></span>
-          </div>
-        </div>
+      <BuilderGroup v-model:open="expanded.shadows" icon="mdi:box-shadow" :title="t('site.theme.shadows')" content-class="mt-2 space-y-4 px-1">
+        <ThemeShadowsSettings :theme="theme" :colors="themeColors" />
       </BuilderGroup>
 
-      <button type="button" class="btn-secondary w-full justify-center" @click="resetTheme">
-        <Icon icon="mdi:restore" class="h-4 w-4" />
-        {{ t("site.theme.reset") }}
-      </button>
+      <BuilderGroup v-model:open="expanded.motion" icon="mdi:animation-outline" :title="t('site.theme.motion')" content-class="mt-2 space-y-4 px-1">
+        <ThemeMotionSettings :motion="theme.motion" />
+      </BuilderGroup>
+
+      <div class="space-y-2">
+        <button type="button" class="btn-secondary w-full justify-center" :disabled="savedPresets.length >= MAX_THEME_PRESETS" @click="saveOpen = true">
+          <Icon icon="mdi:content-save-outline" class="h-4 w-4" />
+          {{ t("site.theme.savePreset") }}
+        </button>
+        <button type="button" class="btn-secondary w-full justify-center" @click="resetTheme">
+          <Icon icon="mdi:restore" class="h-4 w-4" />
+          {{ t("site.theme.reset") }}
+        </button>
+      </div>
+
+      <ComponentNameModal
+        v-model="saveOpen"
+        icon="mdi:palette-outline"
+        :title="t('site.theme.savePreset')"
+        :message="t('site.theme.savePresetHint')"
+        :label="t('site.theme.presetName')"
+        :placeholder="t('site.theme.presetNamePlaceholder')"
+        :confirm-label="t('site.builder.save')"
+        :loading="busy"
+        @confirm="savePreset"
+      />
+      <ConfirmModal
+        :model-value="deleteTarget !== null"
+        :title="t('site.theme.deletePresetNamed', { name: deleteTarget?.name ?? '' })"
+        :message="t('site.theme.deletePresetMessage')"
+        :confirm-label="t('common.delete')"
+        :loading="busy"
+        @update:model-value="(open) => { if (!open) deleteTarget = null }"
+        @confirm="removePreset"
+      />
     </div>
   </div>
 </template>
@@ -227,17 +253,22 @@ import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import BuilderHelp from "./BuilderHelp.vue";
+import ConfirmModal from "../../ConfirmModal.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
-import ToggleSwitch from "../../ToggleSwitch.vue";
 import RangeRow from "../RangeRow.vue";
 import SegmentedControl from "../SegmentedControl.vue";
 import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
 import FontPicker from "../FontPicker.vue";
 import FontManager from "../FontManager.vue";
+import ComponentNameModal from "../ComponentNameModal.vue";
+import ThemeShadowsSettings from "./ThemeShadowsSettings.vue";
+import ThemeMotionSettings from "./ThemeMotionSettings.vue";
+import ThemeLinkSettings from "./ThemeLinkSettings.vue";
 import { useSiteStore } from "../../../stores/site.js";
+import { useToastStore } from "../../../stores/toast.js";
 import { useI18n } from "../../../i18n/index.js";
-import { MAX_CUSTOM_COLORS } from "../../../composables/themeColors.js";
+import { MAX_CUSTOM_COLORS, themeColorOptions } from "../../../composables/themeColors.js";
 import { newId } from "../../../composables/layoutTree.js";
 
 /** Global design of the website, shared by the backend settings and builder sidebar. */
@@ -253,7 +284,8 @@ const SPACE_TOKENS = ["xs", "sm", "md", "lg", "xl", "2xl"];
 const RADIUS_TOKENS = ["sm", "md", "lg"];
 const TOKEN_LABELS = { xs: "XS", sm: "S", md: "M", lg: "L", xl: "XL", "2xl": "2XL" };
 const SPACING_PRESETS = { compact: 0.8, normal: 1, relaxed: 1.25 };
-const MOTION_SPEEDS = ["fast", "normal", "slow"];
+/** Matches SiteRepository::MAX_THEME_PRESETS. */
+const MAX_THEME_PRESETS = 50;
 
 const COLOR_KEYS = ["primary", "secondary", "accent", "background", "surface", "text", "muted", "border"];
 
@@ -307,16 +339,22 @@ const PRESETS = [
 ];
 
 const site = useSiteStore();
+const toast = useToastStore();
 const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
-const expanded = ref({ presets: false, colors: false, typography: false, headings: false, layout: false, spacing: false, corners: false, motion: false });
-const motionPreview = ref(0);
+const savedPresets = computed(() => site.data?.theme_presets ?? []);
+const saveOpen = ref(false);
+const deleteTarget = ref(null);
+const busy = ref(false);
+const expanded = ref({ presets: false, colors: false, typography: false, headings: false, links: false, layout: false, spacing: false, corners: false, shadows: false, motion: false });
 
 const palettes = computed(() => {
   if (theme.value.mode === "dark") return [{ key: "dark_colors" }];
   if (theme.value.mode === "auto") return [{ key: "colors" }, { key: "dark_colors" }];
   return [{ key: "colors" }];
 });
+
+const themeColors = computed(() => themeColorOptions(theme.value, COLOR_KEYS, (key) => t(`site.theme.color.${key}`)));
 
 function customColorKey(palette) {
   return palette === "dark_colors" ? "dark_color" : "color";
@@ -342,8 +380,51 @@ function applyPreset(preset) {
     space: scaledSpace(spacingFactor),
     custom_css: theme.value.custom_css,
     custom_colors: theme.value.custom_colors ?? {},
+    shadows: theme.value.shadows ?? {},
   };
   site.draft.theme = { ...theme.value, ...next };
+}
+
+/**
+ * A saved design replaces the current one, except custom CSS. Custom colors
+ * and shadows are merged so elements using ones made after saving keep them.
+ */
+function applySavedPreset(preset) {
+  const saved = JSON.parse(JSON.stringify(preset.theme));
+  site.draft.theme = {
+    ...theme.value,
+    ...saved,
+    custom_colors: { ...(theme.value.custom_colors ?? {}), ...(saved.custom_colors ?? {}) },
+    shadows: { ...(theme.value.shadows ?? {}), ...(saved.shadows ?? {}) },
+    custom_css: theme.value.custom_css,
+  };
+}
+
+async function savePreset(name) {
+  busy.value = true;
+  try {
+    await site.createThemePreset(name);
+    saveOpen.value = false;
+    expanded.value.presets = true;
+    toast.success(t("site.theme.presetSaved", { name }));
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function removePreset() {
+  if (!deleteTarget.value) return;
+  busy.value = true;
+  try {
+    await site.deleteThemePreset(deleteTarget.value.id);
+    deleteTarget.value = null;
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    busy.value = false;
+  }
 }
 
 function scaledSpace(factor) {
@@ -363,7 +444,7 @@ function applySpacingPreset(key) {
 }
 
 function resetTheme() {
-  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, custom_colors: theme.value.custom_colors ?? {}, updated_at: theme.value.updated_at };
+  site.draft.theme = { ...JSON.parse(JSON.stringify(site.data.theme_defaults)), custom_css: theme.value.custom_css, custom_colors: theme.value.custom_colors ?? {}, shadows: theme.value.shadows ?? {}, updated_at: theme.value.updated_at };
 }
 
 function addCustomColor() {
@@ -388,12 +469,6 @@ function setHex(palette, key, value) {
 </script>
 
 <style scoped>
-.motion-sample {
-  animation: motion-sample cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-@keyframes motion-sample {
-  from { opacity: 0; transform: translateY(0.75rem); }
-}
 .panel-action {
   display: inline-flex;
   height: 1.75rem;

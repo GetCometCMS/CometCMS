@@ -103,7 +103,7 @@
       @update:model-value="emitValue"
     />
 
-    <ShadowEditor v-else-if="def.type === 'shadow'" :id="inputId" :model-value="value || ''" :text="def.text ?? false" :options="colorOptions" @update:model-value="emitValue" />
+    <ShadowEditor v-else-if="def.type === 'shadow'" :id="inputId" :model-value="value || ''" :text="def.text ?? false" :options="colorOptions" :presets="siteTheme?.shadows ?? {}" :scale="siteTheme?.shadow_scale ?? {}" @update:model-value="emitValue" />
 
     <GradientEditor v-else-if="def.type === 'gradient'" :id="inputId" :model-value="value ?? []" :options="colorOptions" @update:model-value="emitValue" />
 
@@ -453,6 +453,9 @@ function optionLabel(option) {
   if (/^h[1-6]$/.test(option)) return option.toUpperCase();
   if (/^\d+:\d+$/.test(option)) return option;
   if (props.name === "opacity") return `${option}%`;
+  // A property can word a shared option its own way.
+  const scoped = t(`site.option.${props.name}.${option}`);
+  if (scoped !== `site.option.${props.name}.${option}`) return scoped;
   const key = `site.${isHoverAnimation.value ? "hoverEffect" : "option"}.${option}`;
   const translated = t(key);
   return translated === key ? option : translated;

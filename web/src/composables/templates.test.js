@@ -38,7 +38,8 @@ describe('templates', () => {
     expect(conditionOps('select')).toEqual(['equals', 'not_equals', 'contains', 'empty', 'not_empty'])
     expect(conditionOps('media')).toEqual(['empty', 'not_empty'])
     expect(conditionOps('repeater')).toEqual([])
-    expect(conditionFields({ fields: { title: { type: 'text', label: 'Title' }, steps: { type: 'repeater' } } }).map((field) => field.key)).toEqual(['title', 'slug'])
+    expect(conditionOps('entry')).toEqual(['equals'])
+    expect(conditionFields({ fields: { title: { type: 'text', label: 'Title' }, steps: { type: 'repeater' } } }).map((field) => field.key)).toEqual(['uid', 'title', 'slug'])
   })
 
   it('resolves localized condition field labels and falls back to field keys', () => {
@@ -47,13 +48,23 @@ describe('templates', () => {
       title: { type: 'text' },
       missing: { type: 'text', label: { type: 'localized', values: { en: 'Missing translation' } } },
     } }
-    expect(conditionFields(type).map(({ label }) => label)).toEqual(['Beitragsinhalt', 'title', 'missing', 'Slug'])
+    expect(conditionFields(type).map(({ label }) => label)).toEqual(['Entry', 'Beitragsinhalt', 'title', 'missing', 'Slug'])
     const condition = { field: 'body', op: 'contains', value: 'Hello' }
     expect(conditionLabel(words, condition, type)).toBe('Beitragsinhalt=Hello')
-    expect(conditionFields({ ...type, default_locale: 'en' })[0].label).toBe('Post content')
-    expect(conditionFields({ ...type, default_locale: undefined, locales: ['de'] })[0].label).toBe('Beitragsinhalt')
+    expect(conditionFields({ ...type, default_locale: 'en' })[1].label).toBe('Post content')
+    expect(conditionFields({ ...type, default_locale: undefined, locales: ['de'] })[1].label).toBe('Beitragsinhalt')
     expect(conditionLabel(words, { ...condition, field: 'missing' }, type)).toBe('missing=Hello')
     expect(reasonLabel((key, params) => params.conditions ?? words(key, params), 'conditions', { conditions: [condition] }, type)).toBe('Beitragsinhalt=Hello')
+  })
+
+  it('names selected entries without exposing UIDs when records are unavailable', () => {
+    const condition = { field: 'uid', op: 'equals', value: ['stable-a', 'stable-b'] }
+    const translate = (key, params) => key === 'site.templates.entry' ? 'Eintrag'
+      : key === 'site.templates.selectedEntries' ? `Ausgewählte Einträge (${params.count})` : words(key, params)
+    expect(conditionFields({}, translate)[0]).toEqual({ key: 'uid', label: 'Eintrag', type: 'entry' })
+    expect(conditionLabel(translate, condition, {})).toBe('Eintrag=Ausgewählte Einträge (2)')
+    expect(conditionLabel(translate, condition, {}, [{ uid: 'stable-a', title: 'First' }, { uid: 'stable-b', title: 'Renamed' }])).toBe('Eintrag=First, Renamed')
+    expect(conditionLabel(translate, { ...condition, value: [] }, {})).toBe('Eintrag=Ausgewählte Einträge (0)')
   })
 
   it('describes parts, conditions and reasons in words', () => {

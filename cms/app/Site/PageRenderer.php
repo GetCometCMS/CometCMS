@@ -588,21 +588,13 @@ final class PageRenderer
 
     private function ogImageQuery(array $image): array
     {
-        $descriptor = $this->ctx->variantDescriptor($image['name']);
-
-        if ($descriptor === null || $descriptor['widths'] === []) {
+        if (!isset($image['sizes']['large'])) {
             return [];
         }
-
-        $width = null;
-        foreach ($descriptor['widths'] as $candidate) {
-            if ($candidate <= 1280) {
-                $width = $candidate;
-            }
-        }
+        $formats = $this->ctx->variantDescriptor($image['name'])['formats'] ?? [];
 
         // Social networks do not all accept WebP; JPEG is the safe choice.
-        return $width === null ? [] : ['w' => $width, 'format' => in_array('jpeg', $descriptor['formats'], true) ? 'jpeg' : $descriptor['default_format']];
+        return ['size' => 'large'] + (in_array('jpeg', $formats, true) ? ['format' => 'jpeg'] : []);
     }
 
 }

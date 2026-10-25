@@ -191,6 +191,7 @@ final class LayoutSchema
         'search' => ['placeholder', 'no_results_text'],
         'theme_toggle' => ['label'],
         'modal_close' => ['label'],
+        'column' => ['link'],
     ];
 
     public static function styleSpec(): array
@@ -301,13 +302,15 @@ final class LayoutSchema
             ],
             'column' => [
                 'span' => ['type' => 'spans', 'default' => ['mobile' => 12, 'tablet' => 0, 'desktop' => 0]],
-                'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
-                // Space between the column's elements; empty keeps the theme's flow.
-                'spacing' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
                 // Elements underneath each other, or side by side (wrapping when they run out of room).
                 'direction' => ['type' => 'enum', 'options' => ['column', 'row'], 'default' => 'column'],
+                // Space between the column's elements; empty keeps the theme's flow.
+                'spacing' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
+                'vertical_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end'], 'default' => 'start'],
                 'content_justify' => ['type' => 'enum', 'options' => ['start', 'center', 'end', 'between'], 'default' => 'start'],
                 'content_align' => ['type' => 'enum', 'options' => ['start', 'center', 'end', 'stretch'], 'default' => 'center'],
+                // Makes the whole column a link; links inside it stay clickable on their own.
+                'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
             // Only a column component's instances use their own span.
             self::COMPONENT => [
@@ -471,6 +474,10 @@ final class LayoutSchema
                 'always_button' => ['type' => 'bool', 'default' => false],
                 'orientation' => ['type' => 'enum', 'options' => ['horizontal', 'vertical'], 'default' => 'horizontal'],
                 'collapse_mobile' => ['type' => 'bool', 'default' => true],
+                // How hovered links and the current page stand out; an empty hover color uses the text or highlight color.
+                'hover_effect' => ['type' => 'enum', 'options' => ['background', 'color', 'underline', 'overline', 'grow'], 'default' => 'background'],
+                'hover_color' => ['type' => 'color', 'options' => ['', ...Theme::COLOR_KEYS, 'inverse'], 'default' => ''],
+                'active_style' => ['type' => 'enum', 'options' => ['bold', 'effect', 'color'], 'default' => 'bold'],
                 // How the menu button shows the list.
                 'panel' => ['type' => 'enum', 'options' => ['dropdown', 'fullscreen', 'drawer'], 'default' => 'dropdown'],
                 'panel_side' => ['type' => 'enum', 'options' => ['left', 'right'], 'default' => 'right'],
@@ -483,7 +490,7 @@ final class LayoutSchema
                 'collections' => ['type' => 'content_types', 'default' => []],
                 'fields' => ['type' => 'search_fields', 'default' => []],
                 'max_results' => ['type' => 'int', 'min' => 1, 'max' => SiteSearch::MAX_RESULTS, 'default' => SiteSearch::MAX_RESULTS],
-                'min_chars' => ['type' => 'int', 'min' => 1, 'max' => 5, 'default' => 2],
+                'min_chars' => ['type' => 'int', 'min' => SiteSearch::MIN_QUERY_LENGTH, 'max' => 5, 'default' => 2],
                 'icon_position' => ['type' => 'enum', 'options' => ['left', 'right', 'none'], 'default' => 'left'],
                 'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:magnify'],
                 'variant' => ['type' => 'enum', 'options' => ['outline', 'filled', 'underline'], 'default' => 'outline'],

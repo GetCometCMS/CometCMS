@@ -188,6 +188,41 @@
 
         <p class="mb-4 text-xs text-slate-500">{{ t("contentTypeEdit.fieldsHint") }}</p>
 
+        <!-- Content areas belong to the detail templates; they are listed and deleted, not edited, here. -->
+        <div v-if="areaFields.length" class="mb-4 rounded-lg bg-slate-50 text-xs text-slate-600 ring-1 ring-inset ring-slate-200">
+          <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <div class="min-w-0">
+              <p class="font-medium text-slate-800">{{ t("contentTypeEdit.areasTitle") }}</p>
+              <p>{{ t("contentTypeEdit.areasHint") }}</p>
+            </div>
+            <RouterLink :to="`/page-builder/builder/layout/${form.name}/detail`" class="btn-secondary btn-sm shrink-0">
+              {{ t("contentTypeEdit.editAreas") }}
+            </RouterLink>
+          </div>
+          <ul class="divide-y divide-slate-200 border-t border-slate-200">
+            <li v-for="area in areaRows" :key="area.key" class="flex items-center justify-between gap-2 px-3 py-1.5">
+              <div class="min-w-0">
+                <span class="font-medium text-slate-700">{{ areaLabel(area) }}</span>
+                <span class="ml-1.5 font-mono text-[11px] text-slate-400">{{ area.key }}</span>
+                <span v-if="area.templates" class="ml-2 text-slate-500">
+                  {{ area.templates.length ? t("contentTypeEdit.areaPlaced", { count: area.templates.length }) : t("contentTypeEdit.areaUnplaced") }}
+                  · {{ t("site.page.areaEntries", { count: area.entries }) }}
+                </span>
+              </div>
+              <button
+                v-if="canDeleteAreas"
+                type="button"
+                class="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                :title="t('contentTypeEdit.deleteArea')"
+                :aria-label="t('contentTypeEdit.deleteArea')"
+                @click="areaToDelete = area"
+              >
+                <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
+              </button>
+            </li>
+          </ul>
+        </div>
+
         <FieldBuilder
           ref="fieldBuilder"
           v-model="customFields"
@@ -240,6 +275,15 @@
       :loading="deleting"
       @confirm="handleDelete"
     />
+    <ConfirmModal
+      :model-value="!!areaToDelete"
+      :title="t('contentTypeEdit.deleteAreaTitle', { name: areaToDelete ? areaLabel(areaToDelete) : '' })"
+      :message="areaToDelete?.templates?.length ? t('contentTypeEdit.deleteAreaPlacedMessage', { count: areaToDelete.templates.length }) : t('contentTypeEdit.deleteAreaMessage')"
+      :confirm-label="t('contentTypeEdit.deleteArea')"
+      :loading="deletingArea"
+      @update:model-value="(open) => { if (!open) areaToDelete = null; }"
+      @confirm="deleteArea"
+    />
   </div>
 </template>
 
@@ -273,6 +317,7 @@ import { useI18n } from "../i18n/index.js";
 import LanguageTabs from "../components/LanguageTabs.vue";
 import { provideLanguageSwitcher } from "../composables/useLanguages.js";
 import { toSlug } from "../composables/fieldBuilderUtils.js";
+import { resolveLocalized } from "../composables/localizedValues.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -322,6 +367,47 @@ let _formLoaded = false;
 // We store only the "custom" fields (not title/slug) in the builder.
 const customFields = ref([]);
 const fieldTypes = ref([]);
+/** Page fields: the storage of the detail templates' content areas, kept out of the field list. */
+const areaFields = ref([]);
+/** Where the templates place each area and how many entries designed it, when the site is readable. */
+const areaUsage = ref({});
+const areaRows = computed(() => areaFields.value.map((field) => ({ ...field, ...areaUsage.value[field.key] })));
+const areaToDelete = ref(null);
+const deletingArea = ref(false);
+const canDeleteAreas = computed(() => auth.can("site.manage") && auth.can("schema.update"));
+
+function areaLabel(area) {
+  return resolveLocalized(area.label, form.value.default_locale, form.value.default_locale) || area.key;
+}
+
+async function loadAreaUsage() {
+  if (!areaFields.value.length || !auth.can("site.manage")) return;
+  try {
+    const areas = (await api.site.areas(form.value.name)).data ?? [];
+    areaUsage.value = Object.fromEntries(areas.map(({ key, templates, entries }) => [key, { templates, entries }]));
+  } catch {
+    areaUsage.value = {};
+  }
+}
+
+/** Templates placing the area keep the node and show it as missing. */
+async function deleteArea() {
+  const key = areaToDelete.value.key;
+  deletingArea.value = true;
+  try {
+    await api.site.deleteArea(form.value.name, key);
+    areaFields.value = areaFields.value.filter((field) => field.key !== key);
+    // The delete gave the type a new revision; carry it so unsaved edits here still save.
+    const { revision } = (await api.contentTypes.get(form.value.name)).data ?? {};
+    if (revision) form.value.revision = revision;
+    toast.success(t("contentTypeEdit.areaDeleted"));
+    areaToDelete.value = null;
+  } catch (error) {
+    toast.error(error.fields?.field ?? error.message);
+  } finally {
+    deletingArea.value = false;
+  }
+}
 const contentTypes = ref([]);
 const loadError = ref("");
 const saveError = ref("");
@@ -465,7 +551,7 @@ onMounted(async () => {
   try {
     const res = await api.contentTypes.list();
     fieldTypes.value = (res.meta?.field_types ?? res.field_types ?? []).filter(
-      (type) => type !== "slug",
+      (type) => type !== "slug" && type !== "page",
     );
     contentTypes.value = res.data ?? [];
   } catch (err) {
@@ -486,15 +572,15 @@ onMounted(async () => {
 
       // Strip built-in fields; only show the extras in the builder.
       const builtins = new Set(["title", "slug"]);
-      customFields.value = Object.entries(type.fields ?? {})
-        .filter(([k]) => !builtins.has(k))
-        .map(([key, cfg]) => ({ key, ...cfg }));
+      const fields = Object.entries(type.fields ?? {}).filter(([k]) => !builtins.has(k));
+      customFields.value = fields.filter(([, cfg]) => cfg.type !== "page").map(([key, cfg]) => ({ key, ...cfg }));
+      areaFields.value = fields.filter(([, cfg]) => cfg.type === "page").map(([key, cfg]) => ({ key, ...cfg }));
     } catch (err) {
       loadError.value = err.message;
     }
   }
 
-  await loadWebsite();
+  await Promise.all([loadWebsite(), loadAreaUsage()]);
   await nextTick();
   if (route.hash === "#submissions") document.getElementById("submissions")?.scrollIntoView({ behavior: "smooth", block: "start" });
   markClean();
@@ -527,6 +613,8 @@ async function handleSave() {
     // _originalKey / _originalType are internal tracking fields – strip them before sending to the API.
     const fields = {};
     const migrations = [];
+    // Areas go back unchanged and in place; the server keeps them either way.
+    for (const { key, ...cfg } of areaFields.value) fields[key] = cfg;
 
     for (const f of customFields.value) {
       if (f.key) {
@@ -648,6 +736,7 @@ function updateDirtyState() {
 function currentState() {
   const formState = { ...form.value };
   delete formState.fields;
+  delete formState.revision;
 
   return JSON.stringify({
     form: formState,

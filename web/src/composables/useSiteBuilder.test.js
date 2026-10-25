@@ -790,6 +790,14 @@ describe('builder page content', () => {
     await builder.setUpPageArea(fourth.id)
     expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_2')
     expect(created).toHaveLength(3)
+
+    // An area can switch to another free one, or to a new one.
+    builder.load(builder.nodes.value.filter((node) => node.id !== third.id))
+    await builder.choosePageArea(fourth.id, 'page_content_3')
+    expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_3')
+    await builder.choosePageArea(fourth.id, '')
+    expect(findNode(builder.nodes.value, fourth.id).props.field).toBe('page_content_4')
+    expect(created).toHaveLength(4)
   })
 })
 

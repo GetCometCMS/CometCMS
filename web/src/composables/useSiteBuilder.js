@@ -428,6 +428,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (key && findNode(nodes.value, id)) updateValue(id, 'props', 'field', key)
   }
 
+  /** Let page content element `id` show area `key`, or a new area when `key` is empty. */
+  async function choosePageArea(id, key) {
+    const field = key || await createPageField()
+    if (field && findNode(nodes.value, id)) updateValue(id, 'props', 'field', field)
+  }
+
   /** Rename page field `key` in the edited language (an area's name for entries). */
   async function renamePageField(key, label) {
     const config = type.value?.fields?.[key]
@@ -1186,7 +1192,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     replaceWithInstance, convertToComponent, detach, editComponent,
     componentTrees, loadComponentTree, isEditable, toggleEditable, instanceFields, hasInstanceValue, setInstanceValue, resetInstanceValue,
     fieldDialog, canMakeField, convertToField,
-    pageFields, placedPageFields, freePageFields, canAddPageField, setUpPageArea, renamePageField, pageFieldError, holdsPageContent,
+    pageFields, placedPageFields, freePageFields, canAddPageField, setUpPageArea, choosePageArea, renamePageField, pageFieldError, holdsPageContent,
   }
 
   provide(KEY, api)

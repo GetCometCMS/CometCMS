@@ -48,3 +48,24 @@ test('theme files store no save time and stay unchanged when saved unchanged', f
     }
 });
 
+
+test('theme presets keep a design by name without custom CSS', function (): void {
+    $site = comet_site_test_setup();
+
+    $preset = $site->createThemePreset('Mein Design', ['colors' => ['primary' => '#123456'], 'radius' => 'lg', 'custom_css' => 'body { color: red; }']);
+    assert_same('mein-design', $preset['id']);
+    assert_same('#123456', $preset['theme']['colors']['primary']);
+    assert_same('lg', $preset['theme']['radius']);
+    assert_false(array_key_exists('custom_css', $preset['theme']), 'Custom CSS stays out of presets.');
+    assert_file_exists_at($site->workspace()->path('site') . '/theme/presets/mein-design.json');
+
+    assert_same('mein-design-2', $site->createThemePreset('Mein Design', [])['id']);
+    assert_same(['Mein Design', 'Mein Design'], array_column($site->themePresets(), 'name'));
+    assert_throws(\CometCMS\Core\ValidationException::class, fn() => $site->createThemePreset('  ', []));
+    assert_throws(\CometCMS\Core\ValidationException::class, fn() => $site->createThemePreset('No theme', 'red'));
+    assert_same(null, $site->themePreset('../theme'));
+
+    $site->deleteThemePreset('mein-design');
+    assert_same(null, $site->themePreset('mein-design'));
+    assert_same(['mein-design-2'], array_column($site->themePresets(), 'id'));
+});

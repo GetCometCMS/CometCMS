@@ -28,8 +28,13 @@ body {
 .c-main { flex: 1 0 auto; }
 img, video, audio, svg { max-width: 100%; }
 img, video { height: auto; display: block; }
-a { color: var(--c-primary); text-decoration: var(--link-decoration); text-underline-offset: 0.18em; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--link-color, var(--c-primary)); text-decoration-line: var(--link-decoration, underline);
+  text-decoration-thickness: var(--link-thickness, auto); text-underline-offset: var(--link-offset, 0.18em);
+  transition-property: color, text-decoration-color; transition-duration: calc(var(--motion-hover, 200) * 1ms);
+}
+/* No specificity beyond the element's, so any element's own link rules still win. */
+a:where(:hover) { color: var(--link-hover-color, var(--link-color, var(--c-primary))); text-decoration-line: var(--link-hover-decoration, underline); }
 :focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
@@ -52,7 +57,7 @@ hr, .c-divider { border: 0; border-top: 1px solid var(--c-border); margin: var(-
 code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 0.9em; }
 :not(pre) > code { background: var(--c-surface); padding: 0.1em 0.35em; border-radius: calc(var(--radius-box) / 2); }
 .c-heading a, .c-site-title, .c-heading a:hover { color: inherit; text-decoration: none; }
-.c-heading a:hover { text-decoration: underline; }
+.c-heading a:hover { text-decoration-line: var(--link-hover-decoration, underline); }
 .c-skip-link { position: absolute; left: -999px; top: 0; background: var(--c-primary); color: var(--c-on-primary); padding: 0.5rem 1rem; z-index: 100; }
 .c-skip-link:focus { left: 1rem; top: 1rem; }
 
@@ -131,6 +136,11 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 /* Columns and elements anchor overlay and blur layers; sections stay sticky when asked. */
 :where(.c-has-bg-image) { position: relative; }
 .c-has-bg-layer { isolation: isolate; }
+/* Responsive backgrounds: each device loads its own image size, the layer reads the same variable. */
+.c-bg-responsive { --c-background-image: var(--c-bg-d); }
+@media (max-width: 1023px) { .c-bg-responsive { --c-background-image: var(--c-bg-t); } }
+@media (max-width: 767px) { .c-bg-responsive { --c-background-image: var(--c-bg-m); } }
+.c-bg-responsive:not(.c-has-bg-layer) { background-image: var(--c-background-image); }
 /*
  * Clip only the decorative image layer, keeping menus and section content free to overflow.
  * Clip rather than hide, so the layer is no scroll container for the parallax timeline.
@@ -226,6 +236,10 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-flow-row { display: flex; flex-wrap: wrap; gap: var(--flow); }
 .c-flow-row > :where(.c-el) { margin-bottom: 0; }
 .c-flow-row > .c-placeholder { flex: 1; }
+/* A linked column: the cover link fills it, links and controls inside stay above it. */
+.c-linked { position: relative; cursor: pointer; }
+.c-linked-cover { position: absolute; inset: 0; z-index: 1; }
+.c-linked :where(a:not(.c-linked-cover), button, input, select, textarea, label) { position: relative; z-index: 2; }
 .c-flow-justify-start { justify-content: flex-start; } .c-flow-justify-center { justify-content: center; }
 .c-flow-justify-end { justify-content: flex-end; } .c-flow-justify-between { justify-content: space-between; }
 .c-flow-align-start { align-items: flex-start; } .c-flow-align-center { align-items: center; }
@@ -502,7 +516,8 @@ html:has(.c-lightbox[open], .c-modal:modal) { overflow: hidden; }
 .c-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
   font: inherit; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer;
-  border: 2px solid transparent; border-radius: var(--radius); transition: background-color .15s, color .15s, border-color .15s, opacity .15s;
+  border: 2px solid transparent; border-radius: var(--radius);
+  transition-property: background-color, color, border-color, box-shadow, opacity; transition-duration: calc(var(--motion-hover, 200) * 1ms);
 }
 .c-button:hover { text-decoration: none; }
 .c-button-sm { padding: 0.4em 0.85em; font-size: var(--fs-sm); }
@@ -516,8 +531,8 @@ html:has(.c-lightbox[open], .c-modal:modal) { overflow: hidden; }
 .c-button-secondary:hover { opacity: 0.9; }
 .c-button-outline { border-color: currentColor; color: var(--c-primary); background: transparent; }
 .c-button-outline:hover { background: rgb(var(--c-primary-rgb) / 0.08); }
-.c-button-link { padding-left: 0; padding-right: 0; color: var(--c-primary); }
-.c-button-link:hover { text-decoration: underline; }
+.c-button-link { padding-left: 0; padding-right: 0; color: var(--link-color, var(--c-primary)); text-decoration-thickness: var(--link-thickness, auto); text-underline-offset: var(--link-offset, 0.18em); }
+.c-button-link:hover { color: var(--link-hover-color, var(--link-color, var(--c-primary))); text-decoration-line: var(--link-hover-decoration, underline); }
 .c-button-icon { flex: none; width: 1em; height: 1em; }
 .c-button-gap-xs { gap: 0.25em; } .c-button-gap-md { gap: 0.6em; } .c-button-gap-lg { gap: 0.85em; }
 /* Own colors replace the variant's; a filled color brings its matching text color. */
@@ -637,16 +652,32 @@ html:has(.c-lightbox[open], .c-modal:modal) { overflow: hidden; }
 .c-menu-label { display: flex; align-items: center; border-radius: calc(var(--radius) * 0.75); }
 .c-menu a, .c-menu-label > span:not(.c-menu-chevron) { display: block; flex: 1 1 auto; min-width: 0; padding: 0.4em 0.75em; color: inherit; text-decoration: none; border-radius: inherit; overflow-wrap: anywhere; }
 /* The current and hovered links take the menu's text color, else the section's highlight color (see .c-bg-*). */
-.c-menu a:hover, .c-menu summary.c-menu-label:hover { color: var(--c-menu-color, var(--c-menu-accent, var(--c-primary))); }
-.c-menu a[aria-current="page"] { color: var(--c-menu-color, var(--c-menu-accent, var(--c-primary))); font-weight: 600; }
+/* A hover color of the menu's own comes first; "li" outranks an element's link color (.c-lc-*). */
+.c-menu li a:hover, .c-menu summary.c-menu-label:hover, .c-menu li a[aria-current="page"] { color: var(--c-menu-hover, var(--c-menu-color, var(--c-menu-accent, var(--c-primary)))); }
+.c-menu-active-bold a[aria-current="page"] { font-weight: 600; }
 /* A link and its toggle highlight as one row, which stays marked while its submenu is open. */
-.c-menu-label:has(> a:hover), .c-menu summary.c-menu-label:hover, .c-menu-disclosure[open] > summary.c-menu-label,
-.c-has-children:has(> .c-menu-disclosure > summary:hover) > .c-menu-label, .c-has-children:has(> .c-menu-disclosure[open]) > .c-menu-label {
+.c-menu-fx-background :is(.c-menu-label:has(> a:hover), summary.c-menu-label:hover, .c-menu-disclosure[open] > summary.c-menu-label,
+.c-has-children:has(> .c-menu-disclosure > summary:hover) > .c-menu-label, .c-has-children:has(> .c-menu-disclosure[open]) > .c-menu-label),
+.c-menu-fx-background.c-menu-active-effect .c-menu-label:has(> a[aria-current="page"]) {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
-/* Dropdowns and panels sit on a palette of their own, never the bar's text color. */
+/* Line effects mark the label's text, not the whole row. */
+:is(.c-menu-fx-underline, .c-menu-fx-overline) :is(a:hover, summary.c-menu-label:hover > span:not(.c-menu-chevron)),
+:is(.c-menu-fx-underline, .c-menu-fx-overline).c-menu-active-effect a[aria-current="page"] {
+  text-decoration-thickness: var(--link-thickness, auto); text-underline-offset: var(--link-offset, 0.18em);
+}
+.c-menu-fx-underline :is(a:hover, summary.c-menu-label:hover > span:not(.c-menu-chevron)), .c-menu-fx-underline.c-menu-active-effect a[aria-current="page"] { text-decoration-line: underline; }
+.c-menu-fx-overline :is(a:hover, summary.c-menu-label:hover > span:not(.c-menu-chevron)), .c-menu-fx-overline.c-menu-active-effect a[aria-current="page"] { text-decoration-line: overline; }
+/* A line that grows from the label's middle; the label's padding keeps it under the text. */
+.c-menu-fx-grow :is(a, .c-menu-label > span:not(.c-menu-chevron)) { position: relative; }
+.c-menu-fx-grow :is(a, .c-menu-label > span:not(.c-menu-chevron))::after {
+  content: ""; position: absolute; left: 0.75em; right: 0.75em; bottom: 0.2em; height: 2px; border-radius: 2px; background: currentColor;
+  scale: 0 1; transition: scale calc(var(--motion-hover, 200) * 1ms) ease;
+}
+.c-menu-fx-grow :is(a:hover, summary.c-menu-label:hover > span:not(.c-menu-chevron))::after, .c-menu-fx-grow.c-menu-active-effect a[aria-current="page"]::after { scale: 1 1; }
+/* Dropdowns and panels sit on a palette of their own, never the bar's text or hover color. */
 .c-menu-horizontal > .c-menu-list > li > .c-menu-disclosure > .c-submenu, .c-menu-always-button .c-menu-list, .c-menu-collapsible > .c-menu-toggle:checked ~ .c-menu-list {
-  --c-menu-color: var(--c-menu-text, var(--c-primary));
+  --c-menu-color: var(--c-menu-text, var(--c-primary)); --c-menu-hover: initial;
 }
 .c-menu-horizontal .c-menu-list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15em; }
 .c-menu-vertical .c-menu-list { display: flex; flex-direction: column; }
@@ -949,9 +980,6 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-r-theme, .c-r-sm, .c-r-md, .c-r-lg, .c-r-full { overflow: hidden; }
 
 /* Colored effects follow the theme palette, including dark mode. */
-.c-sh-hard { box-shadow: 6px 6px 0 var(--c-primary); }
-.c-sh-glow { box-shadow: 0 0 24px 4px color-mix(in srgb, var(--c-primary) 55%, transparent); }
-.c-sh-inset { box-shadow: inset 0 2px 8px rgb(0 0 0 / 0.25); }
 .c-ts-hard { text-shadow: 3px 3px 0 var(--c-primary); }
 .c-ts-glow { text-shadow: 0 0 16px var(--c-primary); }
 .c-sh-custom-normal { box-shadow: var(--c-sh-custom-normal); }
@@ -1024,8 +1052,9 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
   --c-hover-anim-ms: var(--motion-normal, 700);
   --c-hover-anim-step: 0;
   --c-hover-anim-shift: 0.375rem;
-  transition-property: background-color, color, border-color, box-shadow, translate, scale, opacity, filter;
-  transition-duration: .2s, .2s, .2s, .2s, calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms);
+  --c-hover-state-ms: calc(var(--motion-hover, 200) * 1ms);
+  transition-property: background-color, color, border-color, box-shadow, text-shadow, translate, scale, opacity, filter;
+  transition-duration: var(--c-hover-state-ms), var(--c-hover-state-ms), var(--c-hover-state-ms), var(--c-hover-state-ms), var(--c-hover-state-ms), calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms), calc(var(--c-hover-anim-ms) * 1ms);
   transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
   transition-delay: 0s;
 }
@@ -1077,9 +1106,10 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 @keyframes c-anim-zoom-out { from { opacity: 0; transform: scale(1.08); } }
 @keyframes c-anim-blur { from { opacity: 0; filter: blur(10px); } }
 
-@media (max-width: 767px) { .c-hide-mobile { display: none !important; } }
-@media (min-width: 768px) and (max-width: 1023px) { .c-hide-tablet { display: none !important; } }
-@media (min-width: 1024px) { .c-hide-desktop { display: none !important; } }
+/* The builder keeps them visible, marked as hidden (see BuilderCanvas). */
+@media (max-width: 767px) { .c-site:not(.c-builder) .c-hide-mobile { display: none !important; } }
+@media (min-width: 768px) and (max-width: 1023px) { .c-site:not(.c-builder) .c-hide-tablet { display: none !important; } }
+@media (min-width: 1024px) { .c-site:not(.c-builder) .c-hide-desktop { display: none !important; } }
 
 @media (max-width: 767px) {
   h1 { font-size: var(--fs-3xl); }

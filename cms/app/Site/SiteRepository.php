@@ -28,6 +28,7 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *     templates/{type}/{variant}.json        the page kind's templates: header, footer and when each applies
  *     content/{type}/{variant}/{template}.json   each template's own content area
  *     components/{id}.json      reusable blocks placed in content areas and regions
+ *     presets/{id}.json         designs saved under a name in the theme editor
  *
  * Theme files hold no save timestamps, so saving unchanged content leaves
  * them unchanged; "updated_at" comes from the file modification time.
@@ -52,6 +53,7 @@ final class SiteRepository
     public const DEFAULT_TEMPLATE = 'default';
 
     public const MAX_TEMPLATES = 50;
+    public const MAX_THEME_PRESETS = 50;
     public const MAX_CONDITIONS = 10;
 
     private JsonStore $store;
@@ -192,6 +194,81 @@ final class SiteRepository
         $this->clearCache();
 
         return $theme + ['updated_at' => self::modifiedAt($this->themeStore->path('theme') . '.json', $this->themeStore->path('style') . '.css')];
+    }
+
+    /**
+     * Designs saved under a name, so a customized theme can be brought back
+     * after trying another preset. Custom CSS stays out: it is admin-only
+     * and kept when a preset is applied.
+     *
+     * @return list<array{id: string, name: string, theme: array, created_at: string}>
+     */
+    public function themePresets(): array
+    {
+        $list = array_values(array_filter(array_map(fn(array $stored): ?array => $this->readThemePreset($stored), $this->themeStore->all('presets'))));
+        usort($list, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+        return $list;
+    }
+
+    public function themePreset(string $id): ?array
+    {
+        if ($id === '' || LayoutSchema::key($id) !== $id) {
+            return null;
+        }
+
+        return $this->readThemePreset($this->themeStore->read('presets', $id));
+    }
+
+    public function createThemePreset(mixed $name, mixed $theme): array
+    {
+        $name = self::line($name, 120);
+        if ($name === '') {
+            throw new ValidationException(['name' => 'Give the preset a name.']);
+        }
+        if (!is_array($theme)) {
+            throw new ValidationException(['theme' => 'A preset needs a theme.']);
+        }
+
+        return $this->themeStore->synchronized(function () use ($name, $theme): array {
+            if (count($this->themeStore->all('presets')) >= self::MAX_THEME_PRESETS) {
+                throw new ValidationException(['name' => 'A website can keep up to ' . self::MAX_THEME_PRESETS . ' presets.']);
+            }
+            $preset = [
+                'id' => self::componentId($name, fn(string $id): bool => is_file($this->themeStore->path('presets', $id) . '.json')),
+                'name' => $name,
+                'theme' => self::presetTheme($theme),
+                'created_at' => Security::now(),
+            ];
+            $this->themeStore->write($preset, 'presets', $preset['id']);
+
+            return $preset;
+        }, 'presets');
+    }
+
+    public function deleteThemePreset(string $id): void
+    {
+        $this->themeStore->delete('presets', $id);
+    }
+
+    private function readThemePreset(?array $stored): ?array
+    {
+        $id = $stored['id'] ?? null;
+        if (!is_string($id) || LayoutSchema::key($id) !== $id || !is_array($stored['theme'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'name' => self::line($stored['name'] ?? '', 120) ?: $id,
+            'theme' => self::presetTheme($stored['theme']),
+            'created_at' => (string) ($stored['created_at'] ?? ''),
+        ];
+    }
+
+    private static function presetTheme(array $theme): array
+    {
+        return array_diff_key(Theme::normalize($theme), ['custom_css' => true]);
     }
 
     /** When the newest of the given files changed, formatted like Security::now(); '' if none exists. */
@@ -493,6 +570,12 @@ final class SiteRepository
     public static function matchesConditions(array $conditions, array $entry): bool
     {
         foreach ($conditions as $condition) {
+            // Entry selections use immutable UIDs, independent of localized slugs.
+            if ($condition['field'] === 'uid') {
+                if ($condition['op'] !== 'equals' || !is_array($condition['value'])
+                    || !is_string($entry['uid'] ?? null) || !in_array($entry['uid'], $condition['value'], true)) return false;
+                continue;
+            }
             $value = $entry[$condition['field']] ?? null;
             $empty = $value === null || $value === '' || $value === [];
             $expected = $condition['value'];
@@ -604,12 +687,25 @@ final class SiteRepository
         foreach ($conditions as $condition) {
             $field = is_array($condition) && is_string($condition['field'] ?? null) ? $condition['field'] : '';
             $op = is_array($condition) && is_string($condition['op'] ?? null) ? $condition['op'] : '';
-            $fieldType = $field === 'slug' ? 'slug' : (string) ($schema['fields'][$field]['type'] ?? '');
+            $fieldType = match ($field) {
+                'uid' => 'entry',
+                'slug' => 'slug',
+                default => (string) ($schema['fields'][$field]['type'] ?? ''),
+            };
             if (!in_array($op, self::conditionOps($fieldType), true)) {
                 if ($strict) throw new ValidationException(['templates' => $fieldType === '' ? 'Unknown field in a condition: ' . $field : 'This condition does not fit the field ' . $field . '.']);
                 continue;
             }
             $value = in_array($op, ['empty', 'not_empty'], true) ? null : ($condition['value'] ?? null);
+            if ($fieldType === 'entry') {
+                if (!is_array($value) || !array_is_list($value)
+                    || array_filter($value, static fn(mixed $uid): bool => !is_string($uid) || strlen($uid) > 128 || !preg_match('/^[A-Za-z0-9_-]+$/', $uid)) !== []) {
+                    if ($strict) throw new ValidationException(['templates' => 'Choose a list of entry IDs.']);
+                    continue;
+                }
+                $result[] = ['field' => $field, 'op' => $op, 'value' => array_values(array_unique($value))];
+                continue;
+            }
             if ($value !== null && !is_scalar($value)) {
                 if ($strict) throw new ValidationException(['templates' => 'Compare ' . $field . ' with a single value.']);
                 continue;
@@ -623,6 +719,7 @@ final class SiteRepository
     /** The comparisons a condition on a field of this type can make. */
     public static function conditionOps(string $fieldType): array
     {
+        if ($fieldType === 'entry') return ['equals'];
         $ops = ['empty', 'not_empty'];
         if (in_array($fieldType, ['text', 'slug', 'textarea', 'number', 'range', 'boolean', 'select', 'color', 'date', 'datetime'], true)) {
             $ops = [...$ops, 'equals', 'not_equals'];
@@ -717,11 +814,73 @@ final class SiteRepository
         $this->assertVariant($schema, $variant);
         $this->assertArea($type, $variant, $area);
         $nodes = LayoutSchema::normalize($nodes, $variant === 'detail');
+        if ($variant === 'detail') $this->ensureAreas($type, $nodes);
         $this->writeRevision(['content', $type, $variant, $area], $this->layoutSnapshot($type, $variant, $area), $user, $event);
         $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'content', $type, $variant, $area);
         $this->clearCache();
 
         return $nodes;
+    }
+
+    /**
+     * Give every Entry content area in $nodes its storage: an area whose key
+     * the type does not hold (its field was removed, or it came from
+     * elsewhere) gets a page field again, so its key always resolves and
+     * entries' designs under it come back.
+     */
+    private function ensureAreas(string $type, array $nodes): void
+    {
+        $missing = array_diff_key(LayoutSchema::pagePlaces($nodes), $this->requireType($type)['fields'] ?? []);
+        if ($missing === []) return;
+        $schema = $this->types->find($type);
+        foreach (array_keys($missing) as $key) {
+            $schema['fields'][(string) $key] = ['type' => 'page', 'label' => ucfirst(str_replace('_', ' ', (string) $key))];
+        }
+        unset($schema['revision']);
+        $this->types->save($schema);
+        $this->typesCache = null;
+    }
+
+    /**
+     * The type's content areas: {key, label, templates (ids placing it),
+     * entries (how many have a design of their own there)}.
+     *
+     * @return list<array{key: string, label: mixed, templates: list<string>, entries: int}>
+     */
+    public function areas(string $type): array
+    {
+        $schema = $this->requireType($type);
+        $placed = [];
+        foreach ($this->templates($type, 'detail') as $template) {
+            foreach (array_keys(LayoutSchema::pagePlaces($this->layout($type, 'detail', (string) $template['id']))) as $key) {
+                $placed[(string) $key][] = (string) $template['id'];
+            }
+        }
+        $areas = [];
+        $entries = \CometCMS\Content\ContentRepository::make($this->workspace)->all($type);
+        foreach ($schema['fields'] ?? [] as $key => $config) {
+            if (($config['type'] ?? '') !== 'page') continue;
+            $count = count(array_filter($entries, static fn(array $entry): bool => LayoutSchema::hasPageContent($entry[$key] ?? null)));
+            $areas[] = ['key' => (string) $key, 'label' => $config['label'] ?? (string) $key, 'templates' => $placed[$key] ?? [], 'entries' => $count];
+        }
+
+        return $areas;
+    }
+
+    /**
+     * Delete an area and every entry's design in it. Templates still placing
+     * it show it as missing until it is removed or set up there again.
+     */
+    public function deleteArea(string $type, string $key): void
+    {
+        foreach ($this->areas($type) as $area) {
+            if ($area['key'] !== $key) continue;
+            $this->types->removeArea($type, $key);
+            $this->typesCache = null;
+            $this->clearCache();
+            return;
+        }
+        throw new ValidationException(['field' => 'Not a content area.']);
     }
 
     /** Back to the content generated from the content type. */
@@ -873,7 +1032,7 @@ final class SiteRepository
      * fields of the page's entry ("current" references) belongs to one
      * content type and is only offered in that type's layouts.
      *
-     * @return list<array{id: string, name: string, root: string, type: string, created_at: string, updated_at: string}>
+     * @return list<array{id: string, name: string, icon: string, root: string, type: string, created_at: string, updated_at: string}>
      */
     public function components(): array
     {
@@ -937,6 +1096,7 @@ final class SiteRepository
         $component = $this->validateComponent([
             'id' => self::componentId($name, fn(string $id): bool => is_file($this->themeStore->path('components', $id) . '.json')),
             'name' => $name,
+            'icon' => '',
             'root' => $root,
             'type' => '',
             'created_at' => Security::now(),
@@ -964,10 +1124,28 @@ final class SiteRepository
 
     public function renameComponent(string $id, mixed $name): array
     {
-        $component = $this->requireComponent($id);
-        $component['name'] = $this->componentName($name);
+        return $this->patchComponent($id, ['name' => $name]);
+    }
 
-        return $this->writeComponent($component);
+    /** Change library metadata without changing the component tree or its history. */
+    public function patchComponent(string $id, array $input): array
+    {
+        return $this->themeStore->synchronized(function () use ($id, $input): array {
+            $component = $this->requireComponent($id);
+            if (!array_key_exists('name', $input) && !array_key_exists('icon', $input)) {
+                throw new ValidationException(['name' => 'Provide a component name or icon.']);
+            }
+            if (array_key_exists('name', $input)) $component['name'] = $this->componentName($input['name']);
+            if (array_key_exists('icon', $input)) {
+                $icon = $input['icon'];
+                if (!is_string($icon) || strlen($icon) > 120 || ($icon !== '' && preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/D', $icon) !== 1)) {
+                    throw new ValidationException(['icon' => 'Choose an icon or leave it empty to use the default.']);
+                }
+                $component['icon'] = $icon;
+            }
+
+            return $this->writeComponent($component);
+        }, 'components', $id);
     }
 
     /**
@@ -1217,6 +1395,7 @@ final class SiteRepository
         return [
             'id' => $id,
             'name' => self::line($stored['name'] ?? '', 120) ?: $id,
+            'icon' => is_string($stored['icon'] ?? null) ? $stored['icon'] : '',
             'root' => $root,
             'type' => LayoutSchema::key($stored['type'] ?? ''),
             'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
@@ -1295,6 +1474,7 @@ final class SiteRepository
             'format_version' => LayoutSchema::FORMAT_VERSION,
             'id' => $component['id'],
             'name' => $component['name'],
+            'icon' => $component['icon'] ?? '',
             'root' => $component['root'],
             'type' => $component['type'],
             'created_at' => $component['created_at'],

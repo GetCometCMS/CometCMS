@@ -231,6 +231,18 @@ export const useSiteStore = defineStore('site', () => {
     return response.data
   }
 
+  /** Keep the design as currently edited (saved or not) under a name. */
+  async function createThemePreset(name) {
+    const response = await api.site.createThemePreset(name, draft.value.theme)
+    data.value.theme_presets = [...(data.value.theme_presets ?? []), response.data].sort((a, b) => a.name.localeCompare(b.name))
+    return response.data
+  }
+
+  async function deleteThemePreset(id) {
+    await api.site.deleteThemePreset(id)
+    data.value.theme_presets = (data.value.theme_presets ?? []).filter((preset) => preset.id !== id)
+  }
+
   /** Restoring the design must preserve pending settings and menu edits. */
   function applyRestoredTheme(theme) {
     if (!data.value || !draft.value) return;
@@ -258,5 +270,5 @@ export const useSiteStore = defineStore('site', () => {
     statusWorkspace = ''
   }
 
-  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, homepagePreview, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, createTemplate, applyRestoredTheme, discardTheme, invalidate }
+  return { data, draft, loading, error, saving, fieldErrors, dirtyParts, isDirty, live, pageBuilderActive, homepagePreview, load, loadStatus, applyFonts, refreshFonts, save, saveRoute, resetDraft, markCustomized, createTemplate, createThemePreset, deleteThemePreset, applyRestoredTheme, discardTheme, invalidate }
 })

@@ -3,6 +3,15 @@
     <PageHeader class="!mb-0" :title="t('media.title')" :description="t('media.description')">
       <template #actions>
         <button
+          v-if="canManageSizes"
+          type="button"
+          class="btn-secondary shrink-0"
+          @click="sizesOpen = true"
+        >
+          <Icon icon="mdi:image-size-select-large" class="h-4 w-4" />
+          {{ t("media.sizes.title") }}
+        </button>
+        <button
           v-if="canUpload"
           type="button"
           class="btn-primary shrink-0"
@@ -535,6 +544,8 @@
     </div>
 
     <!-- Media detail panel -->
+    <MediaSizesPanel v-if="canManageSizes" v-model="sizesOpen" @regenerated="load" />
+
     <SlidePanel
       v-model="showDetail"
       :title="detailFile?.name ?? ''"
@@ -800,6 +811,7 @@
             <LocalizedInput
               :id="`detail-alt-${detailFile.name}`"
               v-model="detailAlt"
+              compact
               :readonly="!canEditDetail"
 
               class="w-full"
@@ -816,6 +828,7 @@
             <LocalizedInput
               :id="`detail-title-${detailFile.name}`"
               v-model="detailTitle"
+              compact
               :readonly="!canEditDetail"
 
               class="w-full"
@@ -905,6 +918,8 @@ import { api } from "../api/index.js";
 import { useToastStore } from "../stores/toast.js";
 import { useAuthStore } from "../stores/auth.js";
 import { usePermissions } from "../composables/usePermissions.js";
+import MediaSizesPanel from "../components/MediaSizesPanel.vue";
+import { regenerateInBatches } from "../composables/useMediaSizes.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { useHeightTransition } from "../composables/useHeightTransition.js";
 import {
@@ -929,6 +944,8 @@ const toast = useToastStore();
 const auth = useAuthStore();
 const { canMedia, canAnyMedia } = usePermissions();
 const canUpload = computed(() => canAnyMedia("media.upload"));
+const canManageSizes = computed(() => auth.can("site.manage"));
+const sizesOpen = ref(false);
 const canSelectFiles = computed(() => canAnyMedia("media.update") || canAnyMedia("media.delete"));
 const canEditDetail = computed(() =>
   detailFile.value ? canMedia("media.update", detailFile.value.category) : false,
@@ -1234,10 +1251,7 @@ async function regenerateThumbnails(fileNames = []) {
   regeneratingThumbs.value = true;
 
   try {
-    const res = await api.media.regenerateThumbnails(names);
-    const summary = res.data ?? {};
-    const generated = Number(summary.generated ?? 0);
-    const failed = Number(summary.failed ?? 0);
+    const { generated, failed } = await regenerateInBatches(names);
 
     if (failed > 0) {
       toast.error(t("media.regenerateThumbsFailed", { count: failed }));

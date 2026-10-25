@@ -35,6 +35,11 @@ export default defineConfig(({ command }) => ({
     },
   ],
   root: __dirname,
+  // Prepare the lazy-loaded editor together so opening it does not trigger a
+  // dependency re-optimization that invalidates in-flight module requests.
+  optimizeDeps: {
+    include: ['codemirror', '@codemirror/lang-css', '@codemirror/state', '@codemirror/view', '@codemirror/commands'],
+  },
   test: {
     setupFiles: ['./src/test/setup.js'],
   },

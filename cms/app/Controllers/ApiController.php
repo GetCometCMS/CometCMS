@@ -394,6 +394,7 @@ final class ApiController
             $stored = basename($target);
             $this->media->setUploadedCategory($stored, (string) ($_POST['category'] ?? ''));
             $this->media->setUploadedBy($stored, (string) ($user['id'] ?? ''));
+            $this->media->generateSizes($stored);
             $items[] = $this->publicMediaItem($this->media->item($stored));
         }
 
@@ -541,10 +542,18 @@ final class ApiController
             $this->requirePrivateMediaAccess($file);
         }
 
-        if (($_GET['variant'] ?? null) === 'thumbnail') {
-            $thumbnail = $this->media->thumbnailPath($file);
-            if ($thumbnail !== null) {
-                $this->streamMediaFile($thumbnail, 'image/jpeg', $private);
+        // A named size; `variant=thumbnail` is the older way to ask for the smallest one.
+        $size = ($_GET['variant'] ?? null) === 'thumbnail' ? 'thumbnail' : ($_GET['size'] ?? null);
+        if (is_string($size) && $size !== '' && $size !== 'original') {
+            $format = is_string($_GET['format'] ?? null) && $_GET['format'] !== '' ? strtolower($_GET['format']) : null;
+            $format = $format === 'jpg' ? 'jpeg' : $format;
+            $formats = $this->media->variantDescriptor($file)['formats'] ?? [];
+            if (!in_array($size, \CometCMS\Media\MediaSizes::NAMES, true) || ($format !== null && !in_array($format, $formats, true))) {
+                $this->response->error('invalid_image_variant', 'Choose one of the image sizes and an available format.', 422);
+            }
+            $variant = $this->media->sizeVariant($file, $size, $format);
+            if ($variant !== null) {
+                $this->streamMediaFile($variant['path'], $variant['mime'], $private);
             }
         }
 
@@ -772,6 +781,12 @@ final class ApiController
             ];
         }
 
+        $baseUrl = $this->absoluteUrl($this->mediaRoute('/media', (string) $file['name']));
+        $sizes = [];
+        foreach ($file['sizes'] ?? [] as $name => $dimensions) {
+            $sizes[$name] = $dimensions + ['url' => $baseUrl . '?size=' . $name];
+        }
+
         return [
             'filename' => $file['name'],
             'name' => $file['name'],
@@ -792,6 +807,8 @@ final class ApiController
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
             'variants' => $variants,
+            // Named sizes smaller than the original; a missing size is served by `url`.
+            'sizes' => $sizes === [] ? new \stdClass() : $sizes,
         ];
     }
 

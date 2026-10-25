@@ -321,3 +321,28 @@ test('menu API exposes limits and returns field errors instead of truncating sub
     assert_same('validation_failed', $body['error']['code']);
     assert_true(count($body['error']['fields']) > 0);
 });
+
+test('menu hover effects, hover colors and current page styles are fixed choices', function (): void {
+    $site = comet_site_test_setup();
+    $site->saveMenus([['name' => 'main', 'label' => 'Main', 'items' => [comet_menu_test_item('home')]]]);
+    $render = function (array $props) use ($site): string {
+        $menu = LayoutSchema::node('menu', $props);
+        $layout = LayoutSchema::normalize([LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [$menu])])])]);
+
+        return (new NodeRenderer(comet_site_test_context($site)))->render($layout);
+    };
+
+    $html = comet_menu_test_render(comet_site_test_context($site));
+    assert_true(str_contains($html, ' c-menu-fx-background c-menu-active-bold'), 'Existing menus keep the row highlight and bold current page.');
+    assert_false(str_contains($html, '--c-menu-hover'));
+
+    $html = $render(['hover_effect' => 'grow', 'hover_color' => 'accent', 'active_style' => 'effect']);
+    assert_true(str_contains($html, ' c-menu-fx-grow c-menu-active-effect'));
+    assert_true(str_contains($html, '--c-menu-hover:var(--c-accent)'));
+    assert_true(str_contains($render(['hover_color' => 'inverse']), '--c-menu-hover:var(--c-background)'));
+    assert_true(str_contains($render(['hover_color' => 'custom-brand']), '--c-menu-hover:var(--c-custom-brand)'));
+
+    $html = $render(['hover_effect' => 'blink; color:red', 'hover_color' => 'red;}', 'active_style' => ['bold']]);
+    assert_true(str_contains($html, ' c-menu-fx-background c-menu-active-bold'));
+    assert_false(str_contains($html, '--c-menu-hover'));
+});

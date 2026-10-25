@@ -35,6 +35,9 @@ final class Theme
 
     public const TEXT_TRANSFORMS = ['', 'uppercase', 'lowercase', 'capitalize'];
 
+    /** When text links show their underline. */
+    public const LINK_DECORATIONS = ['underline', 'hover', 'none'];
+
     /** Custom heading sizes from this many px shrink on phones (see MOBILE_HEADING_FACTOR). */
     private const MOBILE_HEADING_FROM = 32;
 
@@ -43,6 +46,8 @@ final class Theme
     public const MAX_CUSTOM_CSS = 100000;
 
     public const MAX_CUSTOM_COLORS = 64;
+
+    public const MAX_SHADOWS = 32;
 
     /**
      * Local font stacks only: nothing is fetched from third-party font CDNs,
@@ -86,6 +91,14 @@ final class Theme
                 'border' => '#1e293b',
             ],
             'custom_colors' => [],
+            'shadow_scale' => Shadow::scaleDefaults(),
+            // Additional box shadow presets alongside the editable S–L scale.
+            // An empty label shows the preset's translated name.
+            'shadows' => [
+                'hard' => ['label' => '', 'color' => 'primary', 'x' => 6, 'y' => 6, 'blur' => 0, 'spread' => 0, 'opacity' => 100, 'inset' => false],
+                'glow' => ['label' => '', 'color' => 'primary', 'x' => 0, 'y' => 0, 'blur' => 24, 'spread' => 4, 'opacity' => 55, 'inset' => false],
+                'inset' => ['label' => '', 'color' => Shadow::BLACK, 'x' => 0, 'y' => 2, 'blur' => 8, 'spread' => 0, 'opacity' => 25, 'inset' => true],
+            ],
             'fonts' => [
                 'body' => 'system',
                 'heading' => 'system',
@@ -101,9 +114,10 @@ final class Theme
             'container_width' => 1200,
             'narrow_width' => 760,
             'space' => ['xs' => 4, 'sm' => 8, 'md' => 16, 'lg' => 32, 'xl' => 56, '2xl' => 96],
-            'link_underline' => true,
-            // Animation speeds and the extra delay per stagger step, in ms.
-            'motion' => ['fast' => 400, 'normal' => 700, 'slow' => 1100, 'stagger' => 120],
+            // Text links; an empty hover color keeps the link color. Thickness 0 is the font's own.
+            'links' => ['color' => 'primary', 'hover_color' => '', 'decoration' => 'underline', 'thickness' => 0, 'offset' => 0.18],
+            // Animation speeds, the extra delay per stagger step and the hover state transition, in ms.
+            'motion' => ['fast' => 400, 'normal' => 700, 'slow' => 1100, 'stagger' => 120, 'hover' => 200],
             'custom_css' => '',
         ];
     }
@@ -116,12 +130,16 @@ final class Theme
     public static function normalize(array $theme): array
     {
         $defaults = self::defaults();
+        $customColors = self::customColors($theme['custom_colors'] ?? []);
 
         return [
             'mode' => self::oneOf($theme['mode'] ?? null, self::MODES, $defaults['mode']),
             'colors' => self::colors($theme['colors'] ?? [], $defaults['colors']),
             'dark_colors' => self::colors($theme['dark_colors'] ?? [], $defaults['dark_colors']),
-            'custom_colors' => self::customColors($theme['custom_colors'] ?? []),
+            'custom_colors' => $customColors,
+            'shadow_scale' => self::shadowScale($theme['shadow_scale'] ?? []),
+            // Themes saved before presets existed get the shipped ones; an emptied list stays empty.
+            'shadows' => array_key_exists('shadows', $theme) ? self::shadows($theme['shadows']) : $defaults['shadows'],
             'fonts' => [
                 'body' => self::fontChoice($theme['fonts']['body'] ?? null, $defaults['fonts']['body']),
                 'heading' => self::fontChoice($theme['fonts']['heading'] ?? null, $defaults['fonts']['heading']),
@@ -136,7 +154,7 @@ final class Theme
             'container_width' => self::clampInt($theme['container_width'] ?? null, 720, 1920, $defaults['container_width']),
             'narrow_width' => self::clampInt($theme['narrow_width'] ?? null, 480, 1200, $defaults['narrow_width']),
             'space' => self::space($theme, $defaults['space']),
-            'link_underline' => (bool) ($theme['link_underline'] ?? $defaults['link_underline']),
+            'links' => self::links($theme, $customColors, $defaults['links']),
             'motion' => self::motion($theme['motion'] ?? [], $defaults['motion']),
             'custom_css' => self::customCss((string) ($theme['custom_css'] ?? '')),
         ];
@@ -170,8 +188,16 @@ final class Theme
             '--radius-box' => $theme['radius'] === 'full' ? 'var(--radius-lg)' : $radius,
             '--container' => $theme['container_width'] . 'px',
             '--narrow' => $theme['narrow_width'] . 'px',
-            '--link-decoration' => $theme['link_underline'] ? 'underline' : 'none',
+            '--link-color' => 'var(--c-' . $theme['links']['color'] . ')',
+            '--link-decoration' => $theme['links']['decoration'] === 'underline' ? 'underline' : 'none',
+            '--link-hover-decoration' => $theme['links']['decoration'] === 'none' ? 'none' : 'underline',
+            '--link-thickness' => $theme['links']['thickness'] > 0 ? $theme['links']['thickness'] . 'px' : 'auto',
+            '--link-offset' => self::number($theme['links']['offset']) . 'em',
         ];
+
+        if ($theme['links']['hover_color'] !== '') {
+            $root['--link-hover-color'] = 'var(--c-' . $theme['links']['hover_color'] . ')';
+        }
 
         foreach ($theme['radii'] as $token => $px) {
             $root['--radius-' . $token] = $px . 'px';
@@ -227,6 +253,15 @@ final class Theme
             $css .= '.c-button.c-btn-bg-' . $key . '{background:var(--c-' . $key . ');color:var(--c-on-' . $key . ');}';
             $css .= '.c-button.c-btn-fg-' . $key . '{color:var(--c-' . $key . ');}';
             $css .= '.c-button.c-btn-bdc-' . $key . '{border-color:var(--c-' . $key . ');}';
+        }
+
+        // Before the variants, so scale edits and presets apply on devices and states too.
+        foreach ($theme['shadow_scale'] as $key => $shadow) {
+            $css .= "\n.c-sh-" . $key . '{box-shadow:' . Shadow::scaleCss($key, $shadow) . ';}';
+        }
+
+        foreach ($theme['shadows'] as $key => $shadow) {
+            $css .= "\n.c-sh-" . $key . '{box-shadow:' . Shadow::css($shadow) . ';}';
         }
 
         // Custom CSS comes last, so it can still change any override.
@@ -372,6 +407,56 @@ final class Theme
         return $normalized;
     }
 
+    /**
+     * Link colors are palette tokens, so they follow dark mode. Themes saved
+     * before link settings existed carry only the underline switch, and links
+     * have always underlined on hover.
+     */
+    private static function links(array $theme, array $customColors, array $defaults): array
+    {
+        $links = is_array($theme['links'] ?? null) ? $theme['links'] : [];
+        if (!isset($links['decoration']) && array_key_exists('link_underline', $theme)) {
+            $links['decoration'] = $theme['link_underline'] ? 'underline' : 'hover';
+        }
+        $color = static fn(mixed $value, string $default): string => is_string($value) && (in_array($value, self::COLOR_KEYS, true) || isset($customColors[$value])) ? $value : $default;
+
+        return [
+            'color' => $color($links['color'] ?? null, $defaults['color']),
+            'hover_color' => $color($links['hover_color'] ?? null, $defaults['hover_color']),
+            'decoration' => self::oneOf($links['decoration'] ?? null, self::LINK_DECORATIONS, $defaults['decoration']),
+            'thickness' => self::clampInt($links['thickness'] ?? null, 0, 6, $defaults['thickness']),
+            'offset' => round(self::clampFloat($links['offset'] ?? null, 0, 0.5, $defaults['offset']), 2),
+        ];
+    }
+
+    private static function shadowScale(mixed $scale): array
+    {
+        $normalized = Shadow::scaleDefaults();
+        foreach ($normalized as $key => $default) {
+            $value = is_array($scale) && is_array($scale[$key] ?? null) ? Shadow::normalize($scale[$key] + $default) : '';
+            if (is_array($value)) $normalized[$key] = $value;
+        }
+        return $normalized;
+    }
+
+    private static function shadows(mixed $shadows): array
+    {
+        $normalized = [];
+        foreach (is_array($shadows) ? $shadows : [] as $key => $shadow) {
+            if (count($normalized) >= self::MAX_SHADOWS) {
+                break;
+            }
+            $value = Shadow::isPresetKey($key) && is_array($shadow) ? Shadow::normalize($shadow) : '';
+            if (!is_array($value)) {
+                continue;
+            }
+            $label = is_string($shadow['label'] ?? null) ? trim(strip_tags($shadow['label'])) : '';
+            $normalized[$key] = ['label' => Text::limit($label, 80)] + $value;
+        }
+
+        return $normalized;
+    }
+
     private static function hexColor(mixed $value): ?string
     {
         $value = is_string($value) ? strtolower(trim($value)) : '';
@@ -462,6 +547,7 @@ final class Theme
             $normalized[$speed] = self::clampInt($motion[$speed] ?? null, 100, 5000, $defaults[$speed], 50);
         }
         $normalized['stagger'] = self::clampInt($motion['stagger'] ?? null, 0, 5000, $defaults['stagger'], 10);
+        $normalized['hover'] = self::clampInt($motion['hover'] ?? null, 0, 1000, $defaults['hover'], 10);
 
         return $normalized;
     }
