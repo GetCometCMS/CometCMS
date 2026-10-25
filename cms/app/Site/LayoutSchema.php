@@ -1224,12 +1224,12 @@ final class LayoutSchema
      * columns. $places collects the page fields that already have a place
      * (null where no page content place may go).
      */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $inModal = false): array
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $inModal = false, string $path = 'root'): array
     {
         $allowed = self::childrenFor($parent, $places !== null, $inModal);
         $normalized = [];
 
-        foreach (array_values($nodes) as $node) {
+        foreach (array_values($nodes) as $index => $node) {
             if (!is_array($node) || $count >= self::MAX_NODES) {
                 continue;
             }
@@ -1262,7 +1262,12 @@ final class LayoutSchema
             $count++;
             $id = self::key($node['id'] ?? '');
             if ($id === '' || isset($seen[$id])) {
-                $id = self::newId();
+                // Legacy/hand-edited files are normalized on every read. Random
+                // repairs would change their revision without any actual edit.
+                $attempt = 0;
+                do {
+                    $id = 'n' . substr(hash('sha256', $path . ':' . $index . ':' . $attempt++), 0, 10);
+                } while (isset($seen[$id]));
             }
             $seen[$id] = true;
 
@@ -1272,7 +1277,7 @@ final class LayoutSchema
             $repeated = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true);
             $childPlaces = $repeated ? null : $places;
             $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT, self::MODAL], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces, ($inModal || $kind === self::MODAL) && !$repeated)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces, ($inModal || $kind === self::MODAL) && !$repeated, $path . ':' . $index)
                 : [];
             if ($childPlaces !== null) {
                 $places = $childPlaces;

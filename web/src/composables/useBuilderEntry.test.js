@@ -39,6 +39,24 @@ async function fixture({ entries, schema = {}, canUpdate = () => true, get } = {
 }
 
 describe('builder entry content', () => {
+  it('recovers entry edits after reload without losing their original revisions or baselines', async () => {
+    const original = await fixture()
+    original.stored.first.revision = 'loaded-revision'
+    original.state.record.value.entry.revision = 'loaded-revision'
+    original.state.update('intro', 'Recovered intro')
+    const saved = clone(original.state.recoveryDraft.value)
+    const reloaded = await fixture({ entries: { first: { ...original.stored.first, revision: 'changed-elsewhere', intro: 'Remote intro' } } })
+    reloaded.state.restoreDraft(saved)
+    expect(reloaded.state.valueFor('intro')).toBe('Recovered intro')
+    expect(reloaded.state.isDirty.value).toBe(true)
+    expect(reloaded.state.draft.value.baseline.intro).toBe('First intro')
+    reloaded.contentApi.update.mockRejectedValueOnce(Object.assign(new Error('Conflict'), { status: 409 }))
+    await expect(reloaded.state.save()).rejects.toThrow('Conflict')
+    expect(reloaded.contentApi.update).toHaveBeenCalledWith('posts', 'stable-first', expect.objectContaining({ revision: 'loaded-revision', intro: 'Recovered intro' }))
+    expect(reloaded.state.valueFor('intro')).toBe('Recovered intro')
+    expect(reloaded.state.isDirty.value).toBe(true)
+  })
+
   it('edits assigned content without mutating the loaded entry or submitting publishing metadata', async () => {
     const { state, contentApi, stored } = await fixture()
     expect(Object.keys(state.fields.value)).toEqual(['title', 'intro'])

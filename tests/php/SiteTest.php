@@ -292,6 +292,39 @@ test('default and legacy builder designs can be saved with their loaded revision
     }
 });
 
+test('legacy builder element ID repairs keep revision checks stable', function (): void {
+    comet_site_test_setup();
+    $theme = new JsonStore(comet_test_workspace_path() . '/site/theme');
+    $nodes = LayoutSchema::defaultLayout((new SiteRepository())->types()['about'], 'detail');
+    $damageIds = function (array $tree) use (&$damageIds): array {
+        foreach ($tree as $index => &$node) {
+            // A hand-edited or migrated design may have absent and repeated IDs.
+            if ($index % 2 === 0) unset($node['id']);
+            else $node['id'] = 'duplicate';
+            $node['children'] = $damageIds($node['children'] ?? []);
+        }
+        return $tree;
+    };
+    $nodes = $damageIds($nodes);
+    foreach (['layout', 'region'] as $target) {
+        if ($target === 'layout') $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'content', 'about', 'detail', 'default');
+        else $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $nodes], 'regions', 'header');
+        $read = static fn(SiteRepository $site): array => $target === 'layout' ? $site->layout('about', 'detail') : $site->region('header');
+        $loaded = $read(new SiteRepository());
+        assert_same($loaded, $read(new SiteRepository()), 'Repairing element IDs must not change the revision on the next request.');
+        assert_same($loaded, LayoutSchema::normalize($loaded), 'Repaired IDs must stay unique and stable.');
+        $revision = \CometCMS\Localization\LocalizedValue::hash($loaded);
+        $site = new SiteRepository();
+        $saved = $target === 'layout'
+            ? $site->saveLayout('about', 'detail', [], [], 'saved', $revision)
+            : $site->saveRegion('header', [], [], 'saved', $revision);
+        assert_same([], $saved);
+        assert_throws(\CometCMS\Core\ConflictException::class, fn() => $target === 'layout'
+            ? $site->saveLayout('about', 'detail', $loaded, [], 'saved', $revision)
+            : $site->saveRegion('header', $loaded, [], 'saved', $revision));
+    }
+});
+
 test('default layouts are generated from the content type fields', function (): void {
     comet_site_test_setup();
     $site = new SiteRepository();

@@ -137,6 +137,10 @@
         </button>
       </div>
     </div>
+    <div v-if="recoveredDraft || layoutConflict || recoveryFailed" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+      <p>{{ t(recoveryFailed ? 'site.builder.recoveryFailed' : layoutConflict ? 'site.builder.saveConflict' : 'site.builder.draftRecovered') }}</p>
+      <button v-if="layoutConflict" type="button" class="btn-secondary btn-sm shrink-0" :disabled="saving || switching" @click="overwriteOpen = true">{{ t('site.builder.saveMyLayout') }}</button>
+    </div>
     <div v-for="scope in ['layout', 'theme'].filter((scope) => loadedRevisions[scope])" :key="scope" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
       <p v-if="!loadedRevisions[scope].revision">{{ t('site.builder.resetPending') }}</p>
       <p v-else>{{ t('site.history.loadedBanner', { scope: t(scope === 'theme' ? 'site.history.scope.design' : historyScopeKey), date: formatRevisionDate(loadedRevisions[scope].revision.created_at) }) }}</p>
@@ -298,6 +302,15 @@
 
     <BuilderGuide v-model="guideOpen" />
 
+    <ConfirmModal
+      v-model="overwriteOpen"
+      :title="t('site.builder.saveMyLayout')"
+      :message="t('site.builder.overwriteMessage')"
+      :confirm-label="t('site.builder.saveMyLayout')"
+      :loading="saving"
+      @confirm="overwriteLayout"
+    />
+
     <ComponentNameModal
       :model-value="builder.componentDialog.value !== null"
       :title="t('site.component.saveTitle')"
@@ -387,7 +400,8 @@ import BuilderOverview from "../components/site/builder/BuilderOverview.vue";
 import BuilderTemplateMenu from "../components/site/builder/BuilderTemplateMenu.vue";
 import ComponentNameModal from "../components/site/ComponentNameModal.vue";
 import LanguageTabs from "../components/LanguageTabs.vue";
-import { api } from "../api/index.js";
+import { api, getActiveWorkspace } from "../api/index.js";
+import { createBuilderRecovery } from "../composables/builderRecovery.js";
 import { createSiteBuilder } from "../composables/useSiteBuilder.js";
 import { useBuilderPanels } from "../composables/useBuilderPanels.js";
 import { useBuilderEntry } from "../composables/useBuilderEntry.js";
@@ -654,6 +668,83 @@ const entryFields = useBuilderEntry({
   contentApi: api.content,
   canUpdate: (type, entry) => canContent("content.update", type, entry),
 });
+
+const recovery = createBuilderRecovery({ workspace: getActiveWorkspace(), user: auth.user?.id || auth.user?.username });
+const layoutBaseline = ref([]);
+const recoveredDraft = ref(false);
+const recoveryFailed = ref(false);
+const layoutConflict = ref(false);
+const overwriteOpen = ref(false);
+let recoveryActive = false;
+
+function checkpointRecovery() {
+  if (!recoveryActive || loading.value || switching.value || loadError.value) return;
+  const layout = builder.isDirty.value || upgradeRequired.value ? {
+    nodes: builder.nodes.value, baseline: layoutBaseline.value, revision: layoutRevision.value,
+    pending: loadedRevisions.value.layout,
+  } : null;
+  if (!layout) layoutConflict.value = false;
+  if (!layout && !themeDirty.value && !templatesDirty.value && !entryFields.isDirty.value) {
+    recovery.remove(shown.value);
+    recoveredDraft.value = recoveryFailed.value = false;
+    return;
+  }
+  recoveryFailed.value = !recovery.write(shown.value, {
+    layout,
+    theme: themeDirty.value ? site.draft.theme : null,
+    templates: templatesDirty.value ? { draft: site.draft.templates, revision: site.data.templates_revision } : null,
+    entries: entryFields.recoveryDraft.value,
+    layoutConflict: layoutConflict.value,
+  });
+}
+
+async function restoreRecovery(current) {
+  const saved = recovery.read(shown.value);
+  if (!saved) return;
+  await site.load();
+  if (current !== loadSequence) return;
+  if (saved.layout && Array.isArray(saved.layout.nodes) && Array.isArray(saved.layout.baseline)) {
+    // Retain the original revision; recovering a draft must not silently overwrite newer work.
+    layoutConflict.value = saved.layoutConflict || saved.layout.revision !== layoutRevision.value;
+    layoutRevision.value = saved.layout.revision;
+    layoutBaseline.value = saved.layout.baseline;
+    builder.load(saved.layout.baseline);
+    builder.loadRevision(saved.layout.nodes);
+    loadedRevisions.value.layout = saved.layout.pending;
+  }
+  if (saved.theme) site.draft.theme = saved.theme;
+  if (saved.templates) {
+    site.draft.templates = saved.templates.draft;
+    site.data.templates_revision = saved.templates.revision;
+  }
+  entryFields.restoreDraft(saved.entries);
+  recoveryActive = true;
+  recoveredDraft.value = true;
+}
+
+// Once a save is attempted, later edits also update its recovery copy.
+watch(() => [builder.nodes.value, site.draft?.theme, site.draft?.templates, entryFields.recoveryDraft.value], checkpointRecovery, { deep: true });
+
+async function overwriteLayout() {
+  if (saving.value || switching.value || !layoutConflict.value) return;
+  saving.value = true;
+  try {
+    let response;
+    if (target.value === "page") response = await api.site.page(name.value, pageEntry.value, pageField.value);
+    else if (target.value === "region") response = await api.site.region(name.value);
+    else if (target.value === "component") response = await api.site.component(name.value);
+    else response = await api.site.layout(name.value, variant.value, sampleId.value, editedTemplate.value);
+    layoutRevision.value = response.data.revision;
+    overwriteOpen.value = false;
+  } catch (error) {
+    toast.error(error.message);
+    return;
+  } finally {
+    saving.value = false;
+  }
+  // A second concurrent change still returns a conflict: no revision check is bypassed.
+  await save();
+}
 
 const editingModal = computed(() => target.value === "region" && name.value === MODAL);
 
@@ -1087,7 +1178,10 @@ async function load(next = requested) {
     const data = res.data;
     const moved = !sameContext(next, shown.value);
     // Clear what belonged to the page that was left before the new one's state comes in.
-    if (moved) leftView();
+    if (moved) {
+      recovery.remove(shown.value);
+      leftView();
+    }
     shown.value = next;
     loadedRevisions.value.layout = null;
     layoutRevision.value = data.revision;
@@ -1144,6 +1238,9 @@ async function load(next = requested) {
     locale.value = locales.value.includes(route.query.locale) ? route.query.locale
       : locales.value.includes(editorLanguages.activeLocale.value) ? editorLanguages.activeLocale.value : data.default_locale ?? "";
     builder.load(data.nodes);
+    layoutBaseline.value = clone(builder.nodes.value);
+    layoutConflict.value = false;
+    await restoreRecovery(current);
   } catch (err) {
     if (current !== loadSequence) return;
     // A list page that is turned off does not exist: open the entry page instead.
@@ -1179,6 +1276,10 @@ async function save() {
   if (saving.value || switching.value || (!saveLayout && !saveTheme && !saveTemplates && !saveContent)) return;
   saving.value = true;
 
+  recoveryActive = true;
+  checkpointRecovery();
+  let saveStage = "content";
+
   try {
     if (saveContent) {
       const entries = await entryFields.save();
@@ -1193,6 +1294,7 @@ async function save() {
       }
     }
     if (saveLayout) {
+      saveStage = "layout";
       const nodes = builder.nodes.value;
       const pending = loadedRevisions.value.layout;
       const restoreDefault = pending?.customized === false && JSON.stringify(nodes) === pending.nodes;
@@ -1212,6 +1314,8 @@ async function save() {
         if (res.data.type) builder.type.value = res.data.type;
       }
       builder.markSaved(res.data.nodes);
+      layoutBaseline.value = clone(builder.nodes.value);
+      layoutConflict.value = false;
       layoutRevision.value = res.data.revision;
       upgradeRequired.value = false;
       loadedRevisions.value.layout = null;
@@ -1223,10 +1327,14 @@ async function save() {
       }
     }
     if (saveTheme) {
+      saveStage = "theme";
       await site.save({ parts: ["theme"] });
       loadedRevisions.value.theme = null;
     }
-    if (saveTemplates) await site.save({ parts: ["templates"] });
+    if (saveTemplates) {
+      saveStage = "templates";
+      await site.save({ parts: ["templates"] });
+    }
     if (!builder.isDirty.value) loadedRevisions.value.layout = null;
     if (!themeDirty.value) loadedRevisions.value.theme = null;
     historyVersion.value++;
@@ -1234,6 +1342,7 @@ async function save() {
       : target.value === "component" ? "site.component.saved" : target.value === "page" ? "site.page.saved" : "site.builder.saved";
     toast.success(t(message));
   } catch (err) {
+    if (saveStage === "layout" && err.status === 409) layoutConflict.value = true;
     if (err.entryId) {
       sampleId.value = err.entryId;
       locale.value = err.locale;
@@ -1241,6 +1350,7 @@ async function save() {
     }
     toast.error(err.message);
   } finally {
+    checkpointRecovery();
     if (saveContent) canvasRef.value?.refresh();
     saving.value = false;
   }
@@ -1396,6 +1506,8 @@ function switchView(view) {
  * open panels, the device and the language carry over.
  */
 function leftView() {
+  recoveryActive = false;
+  recoveredDraft.value = recoveryFailed.value = layoutConflict.value = overwriteOpen.value = false;
   builder.select(null);
   builder.closeContextMenu();
   builder.componentDialog.value = null;
@@ -1494,11 +1606,14 @@ onMounted(() => {
   // Swatches and token hints show the saved theme; refresh unless edits are pending.
   site.load({ force: !site.isDirty }).catch(() => {});
   window.addEventListener("keydown", onKeydown);
+  window.addEventListener("beforeunload", checkpointRecovery);
 });
 
 onBeforeUnmount(() => {
   clearTimeout(switchingTimer);
   window.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("beforeunload", checkpointRecovery);
+  recovery.remove(shown.value);
   // Design edits the user chose to leave behind must not resurface elsewhere.
   if (!isBuilderPath(router.currentRoute.value.path)) site.discardTheme();
 });

@@ -78,6 +78,18 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
 
   const isDirty = computed(() => Object.values(records.value).some((item) => Object.keys(item.drafts).some((language) => dirty(item, language))))
 
+  /** Preserve revisions and baselines so recovery still detects concurrent edits. */
+  const recoveryDraft = computed(() => Object.fromEntries(Object.entries(records.value)
+    .filter(([, item]) => Object.keys(item.drafts).some((language) => dirty(item, language)))))
+
+  function restoreDraft(saved) {
+    for (const [key, item] of Object.entries(clone(saved ?? {}))) {
+      if (item.collection !== type.value?.name || !item.entry || !item.drafts) continue
+      records.value[key] = { ...item, loading: false }
+    }
+    if (record.value?.entry) ensureDraft(record.value, activeLocale.value)
+  }
+
   function valueFor(name) {
     if (isUniversal(name) && activeLocale.value !== defaultLocale.value) {
       const sharedDraft = record.value?.drafts[defaultLocale.value]
@@ -211,5 +223,5 @@ export function useBuilderEntry({ type, entryId, locale, contentApi, canUpdate }
     draft.value.values[name] = formValue(resolveLocalized(record.value.entry.values?.[name], defaultLocale.value, defaultLocale.value), fields.value[name])
   }
 
-  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard, previewEntries }
+  return { defaultLocale, activeLocale, reset, translationState: (name) => localizedState(record.value?.entry.values?.[name], activeLocale.value, defaultLocale.value), fields, record, draft, readonly, isDirty, saving, fieldReadonly, valueFor, update, load, save, setRevision, discard, previewEntries, recoveryDraft, restoreDraft }
 }
