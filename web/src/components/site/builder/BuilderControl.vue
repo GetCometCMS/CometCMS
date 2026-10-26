@@ -413,6 +413,7 @@ const label = computed(() => {
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
   if (props.name === "text_color" && props.node.kind === "icon") return t("site.style.icon_color");
+  if (props.name === "collections" && props.node.kind === "collection" && props.node.props?.list_source === "types") return t("site.prop.listTypes");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
   if (props.name === "label" && props.node.kind === "theme_toggle") return t("site.prop.toggleLabel");
   if (props.name === "label" && props.node.kind === "modal_close") return t("site.prop.closeLabel");
@@ -528,7 +529,8 @@ const enumValue = computed(() =>
   props.def.type === "display" && !value.value ? (enumOptions.value[0]?.value ?? "") : value.value,
 );
 
-const collectionType = computed(() => builder.types.value.find((type) => type.name === props.node.props?.type) ?? null);
+// Lists of several types or of search hits have no single type whose fields they could sort or filter by.
+const collectionType = computed(() => (props.node.props?.list_source ?? "type") === "type" ? builder.types.value.find((type) => type.name === props.node.props?.type) ?? null : null);
 
 function fieldsOfCollection(filter = () => true) {
   const fields = Object.entries(collectionType.value?.fields ?? {})
@@ -602,9 +604,11 @@ const keyListOptions = computed(() => {
   if (props.def.type === "sort_fields") {
     options = collectionType.value ? sortFields(collectionType.value, t) : [];
   } else if (props.def.type === "content_types") {
-    options = pageTypes.map((type) => ({ value: type.name, label: type.label || type.name }));
+    // A list of several types needs no pages; a search does, so every hit opens one.
+    const listed = props.node.kind === "collection" && props.node.props?.list_source === "types" ? builder.types.value.filter((type) => type.visibility !== "private") : pageTypes;
+    options = listed.map((type) => ({ value: type.name, label: type.label || type.name }));
   } else {
-    const chosen = (props.node.kind === "collection" ? props.node.props?.search_collections : props.node.props?.collections) ?? [];
+    const chosen = props.node.props?.collections ?? [];
     const searched = chosen.length ? pageTypes.filter((type) => chosen.includes(type.name)) : pageTypes;
     const fields = new Map([["title", { value: "title", label: t("site.systemField.title"), types: searched.map((type) => type.label || type.name) }]]);
     for (const type of searched) {

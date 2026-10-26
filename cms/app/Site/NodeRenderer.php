@@ -1292,6 +1292,9 @@ final class NodeRenderer
         if ($props['list_source'] === 'search') {
             return $this->searchCollection($node, $state);
         }
+        if ($props['list_source'] === 'types') {
+            return $this->mixedCollection($node, $state);
+        }
         $type = $props['type'];
 
         if ($type === '' || !$this->ctx->isPublicType($type) || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
@@ -1347,6 +1350,57 @@ final class NodeRenderer
     }
 
     /**
+     * Entries of several types in one list, each as a card of its own type.
+     * Each type is asked for the entries up to the end of the page, which are
+     * then merged by the date field the list sorts by.
+     */
+    private function mixedCollection(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $types = array_values(array_filter($props['collections'], fn(string $type): bool => $this->ctx->isPublicType($type)));
+
+        if ($types === [] || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseTypes') . '>Choose public content types</div>') : '';
+        }
+
+        // Only dates mean the same in every type; another field sorts by publication.
+        $field = in_array($props['sort_field'], ['published_at', 'created_at', 'updated_at'], true) ? $props['sort_field'] : 'published_at';
+        $desc = $props['sort_order'] === 'desc';
+        $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
+        $offset = ($page - 1) * $props['limit'];
+        $current = $state['entry'] ?? null;
+
+        $items = [];
+        $total = 0;
+        foreach ($types as $type) {
+            $params = ['sort' => ($desc ? '-' : '') . $field, 'limit' => $offset + $props['limit']];
+            if ($props['exclude_current'] && is_array($current) && ($current['collection'] ?? '') === $type) {
+                $params['filter']['slug'] = ['ne' => (string) ($current['slug'] ?? $current['id'] ?? '')];
+            }
+            $result = $this->ctx->query($type, $params);
+            $total += $result['total'];
+            foreach ($result['data'] as $entry) {
+                $items[] = ['type' => $type, 'entry' => $entry, 'date' => (string) ($entry[$field] ?? '')];
+            }
+        }
+        usort($items, static fn(array $a, array $b): int => $desc ? $b['date'] <=> $a['date'] : $a['date'] <=> $b['date']);
+        $items = array_slice($items, $offset, $props['limit']);
+
+        if ($items === []) {
+            if ($props['empty_text'] !== '') return $this->element($node, '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>');
+            $labels = implode(', ', array_map(fn(string $type): string => (string) ($this->ctx->type($type)['label'] ?? $type), $types));
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => $labels]) . '>No published ' . Security::e($labels) . ' yet</div>') : '';
+        }
+
+        $html = $this->cardGrid('', array_column($items, 'entry'), $props['columns'], $state, $node['children'], array_column($items, 'type'));
+        if ($props['paginate'] && $total > $props['limit']) {
+            $html .= $this->pagination($page, (int) ceil($total / $props['limit']), $state);
+        }
+
+        return $this->element($node, $html);
+    }
+
+    /**
      * The hits of the query the search results page was opened with
      * (SiteContext::$searchQuery), best first, each hit as a card of its own
      * type. Without a query it shows nothing; a query without hits shows the
@@ -1368,13 +1422,13 @@ final class NodeRenderer
         }
         // The builder has no query; the newest entries stand in for hits, so the card can be designed.
         if ($query === '') {
-            $samples = (new SiteSearch($this->ctx))->samples($props['search_collections'], min($props['limit'], max(1, $props['columns']) * 2));
+            $samples = (new SiteSearch($this->ctx))->samples($props['collections'], min($props['limit'], max(1, $props['columns']) * 2));
             $note = '<div class="c-placeholder"' . $this->placeholder('searchResults') . '>Lists the hits of the submitted search</div>';
             return $this->element($node, $note . ($samples === [] ? '' : $this->cardGrid('', array_column($samples, 'entry'), $props['columns'], $state, $node['children'], array_column($samples, 'type'))));
         }
 
         $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
-        $result = (new SiteSearch($this->ctx))->page($query, $props['search_collections'], $props['search_fields'], $props['limit'], ($page - 1) * $props['limit']);
+        $result = (new SiteSearch($this->ctx))->page($query, $props['collections'], $props['search_fields'], $props['limit'], ($page - 1) * $props['limit']);
 
         if ($result['data'] === []) {
             $text = $props['empty_text'] !== '' ? $props['empty_text'] : Messages::get('no_results', $this->ctx->htmlLang());

@@ -459,10 +459,11 @@ final class LayoutSchema
             ],
             'divider' => [],
             'collection' => [
-                // 'search' lists the hits of the query the search results page was opened with.
-                'list_source' => ['type' => 'enum', 'options' => ['type', 'search'], 'default' => 'type'],
+                // 'types' lists the entries of several types together; 'search' the hits of the query
+                // the search results page was opened with. Both take their types from 'collections'.
+                'list_source' => ['type' => 'enum', 'options' => ['type', 'types', 'search'], 'default' => 'type'],
                 'type' => ['type' => 'content_type', 'default' => ''],
-                'search_collections' => ['type' => 'content_types', 'default' => []],
+                'collections' => ['type' => 'content_types', 'default' => []],
                 'search_fields' => ['type' => 'search_fields', 'default' => []],
                 'columns' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 3],
                 'limit' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 6],

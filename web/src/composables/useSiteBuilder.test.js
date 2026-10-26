@@ -1010,15 +1010,32 @@ describe('builder search result cards', () => {
     builder.settings.value = { routes: { posts: { enabled: true }, company: { enabled: true } } }
     const text = builder.make('text')
     const card = builder.make('column', {}, {}, [text])
-    builder.nodes.value = [{ id: 'list', kind: 'collection', props: { list_source: 'search', search_collections: [] }, style: {}, children: [card] }]
+    builder.nodes.value = [{ id: 'list', kind: 'collection', props: { list_source: 'search', collections: [] }, style: {}, children: [card] }]
 
     const context = builder.entryContext(text.id)
     expect(context.type.field_types).toEqual({ intro: ['Posts', 'Company'], image: ['Posts'], steps: ['Company'] })
     const fields = builder.typeFields(text.id).filter((field) => !field.system)
     expect(fields.map((field) => [field.key, field.shared])).toEqual([['intro', true], ['image', false], ['steps', false]])
 
-    builder.nodes.value[0].props.search_collections = ['company']
+    builder.nodes.value[0].props.collections = ['company']
     expect(builder.entryContext(text.id).type.name).toBe('company')
     expect(builder.typeFields(text.id).filter((field) => !field.system).every((field) => field.shared)).toBe(true)
+  })
+
+  it('treats lists of several types like search cards, without needing website pages', async () => {
+    const builder = await builderFixture()
+    builder.types.value = [
+      { name: 'posts', label: 'Posts', fields: { intro: { type: 'text' } } },
+      { name: 'quotes', label: 'Quotes', fields: { intro: { type: 'text' }, author: { type: 'text' } } },
+    ]
+    builder.settings.value = { routes: { posts: { enabled: true } } }
+    const text = builder.make('text')
+    const card = builder.make('column', {}, {}, [text])
+    builder.nodes.value = [{ id: 'list', kind: 'collection', props: { list_source: 'types', collections: [] }, style: {}, children: [card] }]
+
+    expect(builder.entryContext(text.id).type).toBe(null)
+    builder.nodes.value[0].props.collections = ['posts', 'quotes']
+    expect(builder.entryContext(text.id).type.field_types).toEqual({ intro: ['Posts', 'Quotes'], author: ['Quotes'] })
+    expect(builder.nodeSummary(builder.nodes.value[0])).toBe('Posts, Quotes')
   })
 })

@@ -220,9 +220,9 @@ test('the search results page lists the hits of its query with paging and an emp
 test('lists set to the search show nothing without a query and a placeholder in the builder', function (): void {
     $site = comet_site_test_setup();
     $ctx = comet_site_test_context($site);
-    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'search_collections' => ['blog', 'bad key!']])])], 'column')[0]['children'][0];
+    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'collections' => ['blog', 'bad key!']])])], 'column')[0]['children'][0];
     assert_same('search', $node['props']['list_source']);
-    assert_same(['blog'], $node['props']['search_collections']);
+    assert_same(['blog'], $node['props']['collections']);
 
     $ctx->searchQuery = 'hello';
     assert_same('', (new NodeRenderer($ctx))->render([$node]), 'Off the results page, a query shows nothing either.');
@@ -285,4 +285,22 @@ test('previews of the results page search for a word of the newest entry', funct
     $query = (new SiteSearch($ctx))->sampleQuery();
     assert_true(mb_strlen($query) >= SiteSearch::MIN_QUERY_LENGTH);
     assert_true((new SiteSearch($ctx))->page($query, [], [], 10, 0)['total'] > 0, 'The example query finds something.');
+});
+
+test('lists of several types show entries of each with their own cards and page through them all', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $list = static fn(array $props): array => LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'types'] + $props)])], 'column')[0]['children'][0];
+
+    $html = (new NodeRenderer($ctx))->render([$list(['collections' => ['authors', 'about', 'notes'], 'limit' => 10])]);
+    assert_same(2, substr_count($html, '<article class="c-card">'), 'Private types stay out.');
+    assert_true(str_contains($html, 'Ada') && str_contains($html, 'About us'));
+
+    $paged = (new NodeRenderer($ctx))->render([$list(['collections' => ['authors', 'about'], 'limit' => 1, 'paginate' => true, 'sort_field' => 'title'])]);
+    assert_same(1, substr_count($paged, '<article class="c-card">'));
+    assert_true(str_contains($paged, 'c-pagination'), 'The pages count the entries of every type.');
+
+    assert_same('', (new NodeRenderer($ctx))->render([$list([])]));
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$list([])]), 'Choose public content types'));
 });
