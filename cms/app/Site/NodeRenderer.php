@@ -1357,8 +1357,14 @@ final class NodeRenderer
         $props = $node['props'];
         $query = $this->ctx->searchQuery;
 
-        if ($query === '' || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('searchResults') . '>Lists the hits of the submitted search</div>') : '';
+        if (($state['depth'] ?? 0) > self::MAX_CARD_DEPTH || ($query === '' && !$this->annotating())) {
+            return '';
+        }
+        // The builder has no query; the newest entries stand in for hits, so the card can be designed.
+        if ($query === '') {
+            $samples = (new SiteSearch($this->ctx))->samples($props['search_collections'], min($props['limit'], max(1, $props['columns']) * 2));
+            $note = '<div class="c-placeholder"' . $this->placeholder('searchResults') . '>Lists the hits of the submitted search</div>';
+            return $this->element($node, $note . ($samples === [] ? '' : $this->cardGrid('', array_column($samples, 'entry'), $props['columns'], $state, $node['children'], array_column($samples, 'type'))));
         }
 
         $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;

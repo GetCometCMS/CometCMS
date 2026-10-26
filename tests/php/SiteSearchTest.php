@@ -242,3 +242,31 @@ test('search results pages are cached per query', function (): void {
     assert_same('HIT', $service->respondCached('/search', ['q' => 'hello'])['cache_status']);
     assert_same('MISS', $service->respondCached('/search', ['q' => 'about'])['cache_status']);
 });
+
+test('a search list card shows fields of every searched type and leaves missing ones empty', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $card = LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('field', ['field' => 'title']),
+        LayoutSchema::node('field', ['field' => 'intro']),
+    ]);
+    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'columns' => 1], [], [$card])])], 'column')[0]['children'][0];
+
+    $ctx->searchQuery = 'hello';
+    $html = (new NodeRenderer($ctx))->render([$node]);
+    assert_same(1, substr_count($html, '<article class="c-card">'));
+    assert_true(str_contains($html, 'Hello &lt;script&gt;'));
+
+    $ctx->searchQuery = 'build';
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'We build'), 'A field of the hit\'s own type shows.');
+
+    $ctx->searchQuery = '';
+    $ctx->annotate = true;
+    $builder = (new NodeRenderer($ctx))->render([$node]);
+    assert_true(str_contains($builder, 'Lists the hits of the submitted search'));
+    assert_true(substr_count($builder, '<article class="c-card">') >= 2, 'The builder shows the newest entries as sample hits.');
+
+    $searchCard = LayoutSchema::spec()['search_card'];
+    assert_same('column', $searchCard[0]['kind']);
+    assert_true(str_contains(json_encode($searchCard), '"title"'));
+});

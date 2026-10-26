@@ -621,6 +621,8 @@ final class LayoutSchema
             'max_node_name_length' => self::MAX_NODE_NAME_LENGTH,
             'regions' => self::REGIONS,
             'special_pages' => self::SPECIAL_PAGES,
+            // The card a list of search results starts its own from: only fields every entry has.
+            'search_card' => self::withNewIds(self::defaultCardTemplate([])),
             'link_types' => self::LINK_TYPES,
             'shapes' => Shapes::spec(),
             'devices' => array_keys(StyleVariants::DEVICES),

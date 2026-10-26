@@ -31,6 +31,7 @@
         <div v-for="field in shownFields" :key="field.key" class="flex gap-1">
           <button v-if="compatibleField(field.config, target)" type="button" class="min-w-0 flex-1 rounded px-2 py-1.5 text-left text-xs hover:bg-theme-50" :aria-pressed="chosen?.path.join('.') === [...path, field.key].join('.')" :class="chosen?.path.join('.') === [...path, field.key].join('.') ? 'bg-theme-50 text-theme-700' : 'text-slate-700'" @click="choose(field)">
             {{ field.label }} <span class="ml-1 text-[10px] text-slate-400">{{ field.config.type }}</span>
+            <span v-if="fieldTypes(field)" class="ml-1 text-[10px]" :class="fieldTypes(field).shared ? 'font-medium text-theme-700' : 'text-slate-400'">{{ fieldTypes(field).shared ? t('site.builder.sharedField') : fieldTypes(field).names }}</span>
           </button>
           <button v-if="canFollow(field.config)" type="button" class="flex flex-1 items-center justify-between rounded px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-theme-50" :aria-label="`${t('site.binding.follow')} ${field.label}`" @click="path = [...path, field.key]; search = ''">{{ field.label }} <Icon icon="mdi:chevron-right" class="h-4 w-4" /></button>
         </div>
@@ -96,6 +97,13 @@ const shownFields = computed(() => {
   const needle = search.value.toLowerCase()
   return fields.filter((field) => (compatibleField(field.config, props.target) || canFollow(field.config)) && `${field.label} ${field.key}`.toLowerCase().includes(needle))
 })
+/** In a search list's card: which searched types have the field, or that all of them do. */
+function fieldTypes(field) {
+  const schema = context.value.type
+  if (source.value !== 'current' || path.value.length || !schema?.field_types) return null
+  const names = schema.field_types[field.key]
+  return { shared: builder.sharedField(schema, field.key), names: names?.join(', ') ?? '' }
+}
 function chooseEntry(value) { missingUid.value = !value.uid; entry.value = value.uid || '' }
 function resetSource() { missingUid.value = false; path.value = []; collection.value = ''; entry.value = ''; chosen.value = null; search.value = '' }
 function choose(field) {

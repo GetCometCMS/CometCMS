@@ -248,9 +248,9 @@
         <p v-if="node.kind === 'site_content'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">{{ t('site.modal.contentHint') }}</p>
         <div v-if="node.kind === 'collection'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
-          <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
+          <p class="mt-1">{{ hasCard ? t(searchList ? "site.card.searchCustomHint" : "site.card.customHint") : t(searchList ? "site.card.searchStandardHint" : "site.card.standardHint") }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button v-if="!hasCard" type="button" class="btn-primary btn-sm" :disabled="!node.props.type || cardBusy" @click="customizeCard">
+            <button v-if="!hasCard" type="button" class="btn-primary btn-sm" :disabled="(!node.props.type && !searchList) || cardBusy" @click="customizeCard">
               <Icon icon="mdi:card-text-outline" class="mr-1 h-4 w-4" />{{ t("site.card.customize") }}
             </button>
             <template v-else>
@@ -488,6 +488,7 @@ async function renameArea(value) {
 
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
+const searchList = computed(() => node.value?.kind === "collection" && node.value.props?.list_source === "search");
 
 async function customizeCard() {
   cardBusy.value = true;

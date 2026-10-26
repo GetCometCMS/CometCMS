@@ -63,7 +63,9 @@
         wide
         :icon="fieldTypeIcon(field.type)"
         :label="field.label"
-        :meta="field.system ? t('site.builder.system') : field.type"
+        :meta="field.system ? t('site.builder.system') : field.types && !field.shared ? field.types.join(', ') : field.type"
+        :badge="field.types && field.shared ? t('site.builder.sharedField') : ''"
+        :hint="field.types && field.shared ? t('site.builder.sharedFieldHint') : ''"
         @add="builder.insert(fieldNode(field))"
         @drag="start($event, () => fieldNode(field))"
         @dragend="end"

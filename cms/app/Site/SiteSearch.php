@@ -112,6 +112,25 @@ final class SiteSearch
         ];
     }
 
+    /**
+     * The newest entries of the searched types, standing in for hits where
+     * there is no query yet, e.g. while the builder designs the results page.
+     *
+     * @return list<array{type: string, entry: array}>
+     */
+    public function samples(array $collections, int $limit): array
+    {
+        $samples = [];
+        foreach (array_keys($this->targets($collections)) as $type) {
+            foreach ($this->ctx->query($type, ['sort' => '-published_at', 'limit' => $limit])['data'] as $entry) {
+                $samples[] = ['type' => $type, 'entry' => $entry, 'date' => (string) ($entry['published_at'] ?? '')];
+            }
+        }
+        usort($samples, static fn(array $a, array $b): int => $b['date'] <=> $a['date']);
+
+        return array_map(static fn(array $sample): array => ['type' => $sample['type'], 'entry' => $sample['entry']], array_slice($samples, 0, max(1, $limit)));
+    }
+
     /** $query as matched: trimmed, limited, lower case; '' when too short to search for. */
     public static function normalizeQuery(mixed $query): string
     {
