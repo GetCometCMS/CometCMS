@@ -542,8 +542,16 @@ final class NodeRenderer
         $props = $node['props'];
         $preview = !empty($state['modal_preview']);
         $background = $this->background($node['style']);
-        $classes = ['c-modal', 'c-modal-' . $props['size'], 'c-modal-at-' . $props['placement'], 'c-modal-h-' . $props['height'], 'c-modal-backdrop-' . $props['backdrop'],
-            ...($preview ? ['c-modal-preview'] : []), ...$background['classes'], ...$this->styleClasses($node['style'])];
+        $classes = [
+            'c-modal',
+            'c-modal-' . $props['size'],
+            'c-modal-at-' . $props['placement'],
+            'c-modal-h-' . $props['height'],
+            'c-modal-backdrop-' . $props['backdrop'],
+            ...($preview ? ['c-modal-preview'] : []),
+            ...$background['classes'],
+            ...$this->styleClasses($node['style'])
+        ];
 
         return '<dialog' . $this->attributes($node, $classes, $background['style'])
             . ($preview ? ' open' : ' data-link-modal-dialog' . ($props['backdrop_close'] ? ' data-backdrop-close' : ''))
@@ -837,8 +845,8 @@ final class NodeRenderer
             : '';
         $lightbox = $props['lightbox']
             ? ' data-gallery-lightbox data-gallery-navigation="' . ($props['lightbox_navigation'] ? 'true' : 'false') . '"'
-                . ' data-gallery-label="' . Messages::get('gallery', $this->ctx->htmlLang()) . '" data-gallery-close="' . Messages::get('close', $this->ctx->htmlLang()) . '"'
-                . ' data-gallery-previous="' . Messages::get('previous_image', $this->ctx->htmlLang()) . '" data-gallery-next="' . Messages::get('next_image', $this->ctx->htmlLang()) . '"'
+            . ' data-gallery-label="' . Messages::get('gallery', $this->ctx->htmlLang()) . '" data-gallery-close="' . Messages::get('close', $this->ctx->htmlLang()) . '"'
+            . ' data-gallery-previous="' . Messages::get('previous_image', $this->ctx->htmlLang()) . '" data-gallery-next="' . Messages::get('next_image', $this->ctx->htmlLang()) . '"'
             : '';
         $html = '<div class="' . $layout . ' c-gallery c-cols-' . $columns . ' c-gap-' . $props['gap'] . '"' . $masonryStyle . $lightbox . '>' . $html . '</div>';
         if ($props['label'] && ($node['_gallery_label'] ?? '') !== '') {
@@ -963,7 +971,7 @@ final class NodeRenderer
         $size = (int) $props['size'];
         $svg = static fn(?array $icon, string $mode): string => $icon !== null
             ? '<svg class="c-theme-icon c-theme-icon-' . $mode . '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . $size . '" height="' . $size
-                . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
+            . '" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
             : '';
         $label = $props['label'] !== '' ? $props['label'] : Messages::get('dark_mode', $this->ctx->htmlLang());
         $text = $props['show_label'] ? '<span>' . Security::e($label) . '</span>' : '';
@@ -1015,12 +1023,13 @@ final class NodeRenderer
         $captcha = (new FormCaptcha($this->ctx->site))->markup($form, $this->ctx->htmlLang(), $this->ctx->preview);
         $button = '<button type="' . ($this->annotating() ? 'button' : 'submit') . '" class="c-button c-button-' . $props['button_variant'] . ' c-button-md' . ($props['button_full_width'] ? ' c-button-block' : '') . '">' . Security::e($submit) . '</button>';
 
-        return $this->element($node,
+        return $this->element(
+            $node,
             '<div id="' . Security::e($anchor) . '-sent" class="c-form-status c-form-sent" role="status">' . $this->paragraphs($success) . '</div>'
-            . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
-            . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8"' . ($hasMedia ? ' enctype="multipart/form-data"' : '') . '>'
-            . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot . $captcha
-            . '<div class="c-form-actions">' . $button . '</div></form>'
+                . '<div id="' . Security::e($anchor) . '-error" class="c-form-status c-form-failed" role="alert">' . $this->paragraphs($failure) . '</div>'
+                . '<form class="c-form' . ($props['labels'] === 'hidden' ? ' c-form-labels-hidden' : '') . '" method="post" action="' . Security::e($this->ctx->formAction($form['id'])) . '" accept-charset="UTF-8"' . ($hasMedia ? ' enctype="multipart/form-data"' : '') . '>'
+                . $hidden . '<div class="c-form-grid">' . $fields . '</div>' . $honeypot . $captcha
+                . '<div class="c-form-actions">' . $button . '</div></form>'
         );
     }
 
@@ -1269,20 +1278,22 @@ final class NodeRenderer
             }
         }
 
-        return $this->element($node, $warning
-            . '<' . $tag . ' class="' . $classes . '" role="search"' . $attributes . '>' . $form
-            . '<label for="' . Security::e($id) . '" class="c-visually-hidden">' . Security::e(Messages::get('search', $lang)) . '</label>'
-            . '<div class="c-search-field">' . $svg
-            . '<input type="search" id="' . Security::e($id) . '" class="c-search-input" placeholder="' . Security::e($placeholder) . '"'
-            . ($props['results_page'] ? ' name="q" value="' . Security::e($this->ctx->searchQuery) . '"' : '')
-            . ' autocomplete="off" spellcheck="false" enterkeyhint="search" maxlength="' . SiteSearch::MAX_QUERY_LENGTH . '"'
-            . ' role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' . Security::e($id) . '-results"'
-            // In the builder the field is part of the canvas, not something to type into.
-            . ($this->annotating() ? ' readonly tabindex="-1"' : '') . '>'
-            . '</div>'
-            . '<ul id="' . Security::e($id) . '-results" class="c-search-results" role="listbox" aria-label="' . Security::e(Messages::get('search_results_label', $lang)) . '" hidden></ul>'
-            . '<p class="c-search-status c-visually-hidden" role="status" aria-live="polite"></p>'
-            . '</' . $tag . '>'
+        return $this->element(
+            $node,
+            $warning
+                . '<' . $tag . ' class="' . $classes . '" role="search"' . $attributes . '>' . $form
+                . '<label for="' . Security::e($id) . '" class="c-visually-hidden">' . Security::e(Messages::get('search', $lang)) . '</label>'
+                . '<div class="c-search-field">' . $svg
+                . '<input type="search" id="' . Security::e($id) . '" class="c-search-input" placeholder="' . Security::e($placeholder) . '"'
+                . ($props['results_page'] ? ' name="q" value="' . Security::e($this->ctx->searchQuery) . '"' : '')
+                . ' autocomplete="off" spellcheck="false" enterkeyhint="search" maxlength="' . SiteSearch::MAX_QUERY_LENGTH . '"'
+                . ' role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' . Security::e($id) . '-results"'
+                // In the builder the field is part of the canvas, not something to type into.
+                . ($this->annotating() ? ' readonly tabindex="-1"' : '') . '>'
+                . '</div>'
+                . '<ul id="' . Security::e($id) . '-results" class="c-search-results" role="listbox" aria-label="' . Security::e(Messages::get('search_results_label', $lang)) . '" hidden></ul>'
+                . '<p class="c-search-status c-visually-hidden" role="status" aria-live="polite"></p>'
+                . '</' . $tag . '>'
         );
     }
 
@@ -1422,7 +1433,8 @@ final class NodeRenderer
         }
         // The builder has no query; the newest entries stand in for hits, so the card can be designed.
         if ($query === '') {
-            $samples = (new SiteSearch($this->ctx))->samples($props['collections'], min($props['limit'], max(1, $props['columns']) * 2));
+            // As many as the list shows, so the canvas looks like a full page of hits.
+            $samples = (new SiteSearch($this->ctx))->samples($props['collections'], $props['limit']);
             $note = '<div class="c-placeholder"' . $this->placeholder('searchResults') . '>Lists the hits of the submitted search</div>';
             return $this->element($node, $note . ($samples === [] ? '' : $this->cardGrid('', array_column($samples, 'entry'), $props['columns'], $state, $node['children'], array_column($samples, 'type'))));
         }
