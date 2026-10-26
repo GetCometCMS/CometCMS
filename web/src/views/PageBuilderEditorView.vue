@@ -754,6 +754,8 @@ const liveUrl = computed(() => {
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
+  // The search results page has an address of its own; other regions show on the homepage.
+  if (target.value === "region" && name.value === "search_results") return `${root}${prefix}/search`;
   if (target.value === "region") return root + prefix || homeUrl.value;
   if (variant.value === "index") {
     const home = settings?.homepage;

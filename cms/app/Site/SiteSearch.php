@@ -131,6 +131,26 @@ final class SiteSearch
         return array_map(static fn(array $sample): array => ['type' => $sample['type'], 'entry' => $sample['entry']], array_slice($samples, 0, max(1, $limit)));
     }
 
+    /**
+     * A query that finds something, for previews of the results page: of the
+     * words in the newest titles, the one with the most hits; '' without entries.
+     */
+    public function sampleQuery(): string
+    {
+        $best = '';
+        $most = 0;
+        foreach ($this->samples([], 10) as $sample) {
+            $title = (string) ($this->ctx->localize($sample['type'], $sample['entry'])['title'] ?? '');
+            preg_match_all('/[\p{L}\p{N}]{3,}/u', $title, $words);
+            foreach (array_slice(array_unique($words[0]), 0, 3) as $word) {
+                $hits = count($this->matches($word, [], []));
+                if ($hits > $most) [$best, $most] = [self::normalizeQuery($word), $hits];
+            }
+        }
+
+        return $best;
+    }
+
     /** $query as matched: trimmed, limited, lower case; '' when too short to search for. */
     public static function normalizeQuery(mixed $query): string
     {

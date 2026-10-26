@@ -270,3 +270,11 @@ test('a search list card shows fields of every searched type and leaves missing 
     assert_same('column', $searchCard[0]['kind']);
     assert_true(str_contains(json_encode($searchCard), '"title"'));
 });
+
+test('previews of the results page search for a word of the newest entry', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $query = (new SiteSearch($ctx))->sampleQuery();
+    assert_true(mb_strlen($query) >= SiteSearch::MIN_QUERY_LENGTH);
+    assert_true((new SiteSearch($ctx))->page($query, [], [], 10, 0)['total'] > 0, 'The example query finds something.');
+});

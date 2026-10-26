@@ -299,6 +299,8 @@ How the query travels:
 - Without a query (or with one shorter than two characters) the list shows nothing. A query without hits shows the list's **Text when empty**, or "No results found".
 - Each query and page is cached as its own page. Results pages are marked `noindex` and have no canonical URL.
 
+In the builder, **Preview** opens the results page with unsaved changes and an example query: a word from the newest titles that finds the most hits. Searching there stays in the preview. **View live** opens `/search`, which shows no hits until you search.
+
 Searching again on the results page only loads the same page with the new query. Nothing redirects on the server, so a search field on the results page cannot cause a redirect loop.
 
 ### Light/dark toggle
