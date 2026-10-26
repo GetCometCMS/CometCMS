@@ -821,6 +821,7 @@ final class SiteController extends BaseController
             $html = match ($region) {
                 'not_found' => $renderer->notFound($context->homeUrl()),
                 LayoutSchema::MAINTENANCE => $renderer->maintenance(),
+                LayoutSchema::SEARCH_RESULTS => $renderer->searchResults(),
                 default => $renderer->regionPreview($region),
             };
             $this->json(['data' => ['html' => $html]]);
@@ -1019,6 +1020,11 @@ final class SiteController extends BaseController
             return $renderer->componentPreview($component, $schema, $entry);
         }
         if ($target === 'region' && ($body['region'] ?? '') === LayoutSchema::MODAL) return $renderer->modalPreview();
+        // The results page needs a query to show anything; a word of the newest entry finds at least that one.
+        if ($target === 'region' && ($body['region'] ?? '') === LayoutSchema::SEARCH_RESULTS) {
+            $context->searchQuery = (new SiteSearch($context))->sampleQuery();
+            return $renderer->searchResults();
+        }
         return (new SiteService($context))->respond('/', [])['body'];
     }
 

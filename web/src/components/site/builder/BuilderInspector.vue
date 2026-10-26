@@ -248,9 +248,9 @@
         <p v-if="node.kind === 'site_content'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">{{ t('site.modal.contentHint') }}</p>
         <div v-if="node.kind === 'collection'" class="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-600 ring-1 ring-slate-200">
           <p class="font-medium text-slate-800">{{ hasCard ? t("site.card.custom") : t("site.card.standard") }}</p>
-          <p class="mt-1">{{ hasCard ? t("site.card.customHint") : t("site.card.standardHint") }}</p>
+          <p class="mt-1">{{ t(cardHint) }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button v-if="!hasCard" type="button" class="btn-primary btn-sm" :disabled="!node.props.type || cardBusy" @click="customizeCard">
+            <button v-if="!hasCard" type="button" class="btn-primary btn-sm" :disabled="!canCustomizeCard || cardBusy" @click="customizeCard">
               <Icon icon="mdi:card-text-outline" class="mr-1 h-4 w-4" />{{ t("site.card.customize") }}
             </button>
             <template v-else>
@@ -340,6 +340,8 @@ const props = defineProps({
   templatePart: { type: String, default: null },
   /** The layout's header or footer: `{ value, components, scope }`, or null where it can't be assigned. */
   frame: { type: Object, default: null },
+  /** Whether the search results page is edited: only there do lists have search results to show. */
+  searchPage: { type: Boolean, default: false },
 });
 defineEmits(["edit-template-part", "assign-template-part"]);
 
@@ -422,7 +424,12 @@ const helpHints = computed(() => {
   if (["heading", "text", "button"].includes(current.kind)) hints.push(t("site.builder.placeholderHint"));
   return hints.filter(Boolean);
 });
-const propSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {});
+const propSpec = computed(() => {
+  const spec = builder.spec.value?.kinds?.[node.value?.kind]?.props ?? {};
+  // Search results exist only on the search results page; a search list copied elsewhere keeps the choice so it can be switched back.
+  if (node.value?.kind !== "collection" || props.searchPage || node.value.props?.list_source === "search") return spec;
+  return { ...spec, list_source: { ...spec.list_source, options: spec.list_source.options.filter((option) => option !== "search") } };
+});
 const styleSpec = computed(() => builder.spec.value?.style ?? {});
 const isInstance = computed(() => node.value?.kind === COMPONENT);
 const component = computed(() => builder.componentOf(node.value));
@@ -488,6 +495,14 @@ async function renameArea(value) {
 
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
+const listSource = computed(() => (node.value?.kind === "collection" && node.value.props?.list_source) || "type");
+const cardHint = computed(() => {
+  const prefix = { search: "site.card.search", types: "site.card.mixed" }[listSource.value];
+  const suffix = hasCard.value ? "CustomHint" : "StandardHint";
+  return prefix ? prefix + suffix : `site.card.${hasCard.value ? "customHint" : "standardHint"}`;
+});
+// A search list without chosen types searches all of them; the other lists need their types first.
+const canCustomizeCard = computed(() => ({ search: true, types: (node.value?.props?.collections?.length ?? 0) > 0 })[listSource.value] ?? !!node.value?.props?.type);
 
 async function customizeCard() {
   cardBusy.value = true;
@@ -584,8 +599,15 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "collection") {
+    // Search results come from the query, not from one type, its sorting or visitor filters.
+    // Lists of several types sort by date and have no single type's fields to filter by.
+    const source = props.list_source ?? "type";
+    const hidden = {
+      search: ["type", "sort_field", "sort_order", "filter_field", "filter_value", "exclude_current", "filters", "sort_choices"],
+      types: ["type", "search_fields", "filter_field", "filter_value", "filters", "sort_choices"],
+    }[source] ?? ["collections", "search_fields"];
     // Visitor filters and sorting need the list's fields.
-    return keys.filter((key) => (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
+    return keys.filter((key) => !hidden.includes(key) && (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
   }
 
   if (["image", "gallery"].includes(current.kind)) {

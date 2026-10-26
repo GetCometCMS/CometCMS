@@ -145,6 +145,16 @@ function setup(root) {
       highlight(active < 0 ? (step > 0 ? 0 : count - 1) : (active + step + count) % count);
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      // With a results page, Enter opens it unless a hit is highlighted; searching there again
+      // only reloads the same page with the new query, so it never redirects in a loop.
+      if (data.searchPage && (list.hidden || active < 0)) {
+        const query = input.value.trim();
+        if (query.length < min) return;
+        const url = new URL(data.searchPage, document.baseURI);
+        url.searchParams.set('q', query);
+        window.location.assign(url.href);
+        return;
+      }
       // Enter opens the highlighted hit, or the best one.
       const link = !list.hidden && (options()[active] ?? options()[0])?.querySelector('a');
       link?.click();

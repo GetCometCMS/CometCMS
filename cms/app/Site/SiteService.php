@@ -29,12 +29,13 @@ final class SiteService
         $cache = ApiCache::fromConfig($this->ctx->site->workspace());
         $lists = ListFilters::fromQuery($query['c'] ?? null);
         $embed = ($query['embed'] ?? '') === '1';
+        $search = SiteSearch::normalizeQuery($query['q'] ?? null);
         // Only pagination, list filters and embedding change the output. Include every URL component
         // used by links and canonical URLs, even for subdirectory installs.
         // File edits also need to refresh the versioned stylesheet links.
         $key = $cache->key('site|' . json_encode([
             $this->ctx->origin, $this->ctx->basePath, $path, $this->ctx->site->stylesheetVersion(), GalleryLightbox::cspSource(), LinkModal::cspSource(), Tabs::cspSource(), SiteSearch::cspSource(), ThemeToggle::cspSource(), ListFilters::cspSource(), (new FormCaptcha($this->ctx->site))->cacheVersion(),
-        ]), http_build_query(array_filter(['page' => $page > 1 ? $page : null, 'c' => $lists ?: null, 'embed' => $embed ? 1 : null])));
+        ]), http_build_query(array_filter(['page' => $page > 1 ? $page : null, 'c' => $lists ?: null, 'embed' => $embed ? 1 : null, 'q' => $search !== '' ? $search : null])));
         $cached = $this->ctx->preview ? null : $cache->get($key);
 
         if ($cached !== null && isset($cached['status'], $cached['body'], $cached['content_type'])) {
@@ -42,7 +43,7 @@ final class SiteService
         }
 
         $startedAt = time();
-        $response = $this->respond($path, ['page' => $page, 'c' => $lists, 'embed' => $embed ? '1' : '']);
+        $response = $this->respond($path, ['page' => $page, 'c' => $lists, 'embed' => $embed ? '1' : '', 'q' => $search]);
 
         if ($response['cacheable']) {
             $cache->put($key, $response, $this->nextPublicationAt($startedAt));
@@ -147,6 +148,11 @@ final class SiteService
 
         if ($path === '/') {
             return $this->home($renderer, $page);
+        }
+
+        if ($path === SiteContext::SEARCH_PATH) {
+            $this->ctx->searchQuery = SiteSearch::normalizeQuery($query['q'] ?? null);
+            return $this->html($renderer->searchResults($page));
         }
 
         foreach ($this->ctx->site->types() as $name => $type) {

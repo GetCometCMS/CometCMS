@@ -177,6 +177,8 @@ Layouts saved before background images became a style keep their section images;
 
 An **Entry list** repeats one card for each entry. For a list look, set **Columns** to 1 and design the card as a row (for example, a title and date without an image); lists saved with the former **List** display open with one column. At first that is the content type's **standard card**, generated from its fields. Choose **Customize card** in the inspector to give the list a card of its own: the first card in the preview becomes editable and every other entry follows it. A card is a column, so it can have a background, border, corners, shadow and padding, and it can hold elements and column sets. Inside a card, **Entry of this card** (`current`) is the entry the card shows, and the **Add** panel offers that content type's fields. **Use standard card** goes back to the standard card.
 
+**Show → Entries of several content types** lists the entries of every type chosen in **Content types** together, newest first (or by another date field). The types need no website pages. Each entry shows its own type's standard card. A customized card works like a search results card (see [Search](#search)): it can show the fields of every listed type, and fields some types lack stay empty. Fixed and visitor filters and the visitor sort options need a single type, so they do not apply in this mode.
+
 To use the same card in several lists, right-click it and choose **Save as component…**, then place that component in another list. Related-entry fields shown as cards use the standard card of the related type. Card layouts from earlier versions keep showing as the standard card of their type.
 
 ### Reusable components
@@ -284,6 +286,24 @@ In the inspector:
 Hits are ranked by where the text matches: titles that start with it first, then titles with a word that starts with it, then other title and field matches, newest first within each group. Only published entries of public content types are found, in the page's language, and a hit carries nothing but its title, URL and content type, so search reveals nothing the website itself does not show.
 
 The dropdown needs JavaScript; without it, the field is shown but does nothing. Requests go to `/_site/search/{workspace}`, are cached by browsers for a minute, and are limited to 120 per visitor and minute (`site.search.rate_limit_per_minute` in the configuration).
+
+#### Search results page
+
+Turn on **Open the search results page on Enter** on a search element to send searches to a page of their own instead of only showing the dropdown. Enter then opens the results page unless a hit is highlighted with the arrow keys. The dropdown still shows hits while typing. The field is a normal form, so it also works without JavaScript.
+
+The results page is a built-in special page, like the 404 and maintenance pages. Open **Search results page** in the builder's page switcher to design it. By default it has a heading, a search field and an **Entry list** set to **Show → Current search results**. This mode is offered only on the search results page; an entry list elsewhere that is still set to it shows a warning in the builder and nothing on the site. It lists the hits ranked as described above, from all content types with website pages or the ones chosen in **Search in** / **Search fields**. Without a card of its own, each hit shows its type's standard card. **Customize card** gives the list its own card, starting with title and date. It can show the fields of every searched type: with one type in **Search in**, all of that type's fields; with several or none, the fields of all of them. Fields every searched type has are marked **All types** and listed first. Other fields show which types have them and stay empty on hits of other types. In the builder there is no query, so the newest entries stand in for hits while you design the card. **Number of entries**, **Columns** and **Show page numbers** work as for other lists; the content type, sorting and visitor filters do not apply in this mode.
+
+How the query travels:
+
+- The page answers at `/search` below the language prefix, e.g. `/search?q=garden` or `/de/search?q=garten&page=2`. The path is fixed and not translated. It takes precedence over an entry whose URL would also be `/search`.
+- `q` is the search text, trimmed and limited to 100 characters. `page` is the page number of lists with page numbers; their page links keep `q`.
+- The search runs in the page's language, so `/de/search` finds the German texts. The language switcher keeps the query.
+- Without a query (or with one shorter than two characters) the list shows nothing. A query without hits shows the list's **Text when empty**, or "No results found".
+- Each query and page is cached as its own page. Results pages are marked `noindex` and have no canonical URL.
+
+In the builder, **Preview** opens the results page with unsaved changes and an example query: a word from the newest titles that finds the most hits. Searching there stays in the preview. **View live** opens `/search`, which shows no hits until you search.
+
+Searching again on the results page only loads the same page with the new query. Nothing redirects on the server, so a search field on the results page cannot cause a redirect loop.
 
 ### Light/dark toggle
 

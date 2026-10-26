@@ -272,8 +272,36 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
    */
   function entryContext(id) {
     const collection = id ? templateCollection(nodes.value, id) : null
-    if (collection) return { type: types.value.find((item) => item.name === collection.props?.type) ?? null, currentAvailable: true, collection }
+    if (collection) return { type: ['search', 'types'].includes(collection.props?.list_source) ? mixedCardType(collection) : types.value.find((item) => item.name === collection.props?.type) ?? null, currentAvailable: true, collection }
     return { type: type.value, currentAvailable: currentAvailable.value, collection: null }
+  }
+
+  /**
+   * What the card of a list of several types can show: one type as it is,
+   * several as one type with all their fields. field_types names the types
+   * that have each field; an entry of another type leaves that field empty.
+   * A search list without chosen types searches every type with pages.
+   */
+  function mixedCardType(collection) {
+    const chosen = collection.props?.collections ?? []
+    const search = collection.props?.list_source === 'search'
+    const searched = search && !chosen.length ? pageTypes.value : (search ? pageTypes.value : types.value).filter((item) => chosen.includes(item.name))
+    if (!searched.length) return null
+    if (searched.length === 1) return searched[0]
+    const fields = {}
+    const fieldTypes = {}
+    for (const item of searched) {
+      for (const [key, config] of Object.entries(item.fields ?? {})) {
+        fields[key] ??= config
+        ;(fieldTypes[key] ??= []).push(resolveLocalized(item.label, locale.value || defaultLocale.value, defaultLocale.value) || item.name)
+      }
+    }
+    return { name: '', label: t(search ? 'site.builder.searchResultsType' : 'site.builder.mixedType'), fields, field_types: fieldTypes, type_count: searched.length }
+  }
+
+  /** Whether every type a card of several types shows has the field `key` (always, for one type). */
+  function sharedField(schema, key) {
+    return !schema?.field_types || (schema.field_types[key]?.length ?? schema.type_count) === schema.type_count
   }
 
   function typeFields(id = null) {
@@ -289,10 +317,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     for (const [key, config] of Object.entries(fields)) {
       // Page content is placed with its own element, not bound like a field.
       if (key === 'title' || key === 'slug' || key === slugField || !config || config.type === 'page') continue
-      list.push({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key, type: config.type ?? 'text', config })
+      list.push({ key, label: resolveLocalized(config.label, locale.value || defaultLocale.value, defaultLocale.value) || key, type: config.type ?? 'text', config, types: schema.field_types?.[key] ?? null, shared: sharedField(schema, key) })
     }
 
-    return list
+    // Fields every listed type has suit every card, so they come first.
+    return schema?.field_types ? list.sort((a, b) => Number(b.system || b.shared) - Number(a.system || a.shared)) : list
   }
 
   /** Page fields of the edited type: where each entry's own page content is stored. */
@@ -987,8 +1016,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   async function customizeCard(id) {
     if (translating.value) return false
     const node = findNode(nodes.value, id)
-    if (node?.kind !== 'collection' || !node.props?.type || node.children?.length || !templateApi.load) return null
-    const card = (await templateApi.load(node.props.type))?.nodes?.[0]
+    if (node?.kind !== 'collection' || node.children?.length) return null
+    const mixed = ['search', 'types'].includes(node.props?.list_source)
+    if (!mixed && (!node.props?.type || !templateApi.load)) return null
+    // Entries are of several types, so such a list starts from fields they all have.
+    const card = mixed ? spec.value?.search_card?.[0] : (await templateApi.load(node.props.type))?.nodes?.[0]
     if (!card) return null
     const copy = cloneWithNewIds(card)
     let placed = false
@@ -1166,6 +1198,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       case 'icon':
         return props.icon
       case 'collection':
+        if (props.list_source === 'search') return t('site.option.list_source.search')
+        if (props.list_source === 'types') return (props.collections ?? []).map((name) => types.value.find((item) => item.name === name)?.label ?? name).join(', ') || t('site.builder.noType')
         return types.value.find((item) => item.name === props.type)?.label ?? t('site.builder.noType')
       case 'menu':
         return menus.value.find((item) => item.name === props.menu)?.label ?? props.menu
@@ -1205,7 +1239,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   const api = {
-    nodes, spec, type, types, pageTypes, menus, forms, settings, selectedId, selected, hoverId, cssPicker, drag,
+    nodes, spec, type, types, pageTypes, sharedField, menus, forms, settings, selectedId, selected, hoverId, cssPicker, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,

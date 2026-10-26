@@ -83,7 +83,7 @@ const props = defineProps({
 
 const REGION_ICONS = { header: "mdi:page-layout-header", footer: "mdi:page-layout-footer" };
 const ENTRIES_PER_TYPE = 5;
-const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", maintenance: "mdi:tools", modal: "mdi:dock-window" };
+const SPECIAL_PAGE_ICONS = { not_found: "mdi:file-question-outline", maintenance: "mdi:tools", modal: "mdi:dock-window", search_results: "mdi:text-search" };
 
 const route = useRoute();
 const router = useRouter();

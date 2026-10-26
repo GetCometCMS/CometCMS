@@ -171,3 +171,136 @@ PHP]);
         comet_test_stop_process($server);
     }
 });
+
+test('site search pages through every match for the results page', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    for ($i = 1; $i <= 12; $i++) {
+        $content->save('about', ['title' => 'Item ' . $i, 'slug' => 'item-' . $i, 'status' => 'published'], comet_site_test_user());
+    }
+    $search = new SiteSearch(comet_site_test_context($site));
+
+    $first = $search->page('item', [], [], 5, 0);
+    assert_same(12, $first['total']);
+    assert_same(5, count($first['data']));
+    assert_same('about', $first['data'][0]['type']);
+    assert_same(2, count($search->page('item', [], [], 5, 10)['data']));
+    assert_same(['data' => [], 'total' => 0], $search->page('i', [], [], 5, 0));
+    assert_same('', SiteSearch::normalizeQuery(' x '));
+    assert_same('abc', SiteSearch::normalizeQuery(' abc '));
+    assert_same('', SiteSearch::normalizeQuery(['abc']));
+});
+
+test('the search results page lists the hits of its query with paging and an empty state', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    for ($i = 1; $i <= 12; $i++) {
+        $content->save('about', ['title' => 'Item ' . $i, 'slug' => 'item-' . $i, 'status' => 'published'], comet_site_test_user());
+    }
+    assert_true(in_array(LayoutSchema::SEARCH_RESULTS, LayoutSchema::SPECIAL_PAGES, true));
+
+    $response = comet_site_test_get('/search', ['q' => 'item']);
+    assert_same(200, $response['status']);
+    assert_same(10, substr_count($response['body'], '<article class="c-card">'));
+    assert_true(str_contains($response['body'], 'href="/search?q=item&amp;page=2"'));
+    assert_true(str_contains($response['body'], 'noindex'));
+    assert_true(str_contains($response['body'], '<form class="c-search'));
+    assert_true(str_contains($response['body'], 'action="/search" method="get"'));
+    assert_true(str_contains($response['body'], 'name="q" value="item"'));
+    assert_true(str_contains($response['body'], 'data-search-page="/search"'));
+
+    assert_same(2, substr_count(comet_site_test_get('/search', ['q' => 'item', 'page' => '2'])['body'], '<article class="c-card">'));
+    assert_true(str_contains(comet_site_test_get('/search', ['q' => 'nothing here'])['body'], 'No results found'));
+    $none = comet_site_test_get('/search');
+    assert_same(200, $none['status']);
+    assert_false(str_contains($none['body'], '<article class="c-card">'));
+    assert_false(str_contains($none['body'], '<p class="c-empty">'));
+});
+
+test('lists set to the search show nothing without a query and a placeholder in the builder', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'collections' => ['blog', 'bad key!']])])], 'column')[0]['children'][0];
+    assert_same('search', $node['props']['list_source']);
+    assert_same(['blog'], $node['props']['collections']);
+
+    $ctx->searchQuery = 'hello';
+    assert_same('', (new NodeRenderer($ctx))->render([$node]), 'Off the results page, a query shows nothing either.');
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'only show on the search results page'));
+    $ctx->annotate = false;
+    $ctx->searchPage = true;
+    $ctx->searchQuery = '';
+    assert_same('', (new NodeRenderer($ctx))->render([$node]));
+    $ctx->searchQuery = 'hello';
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'c-card'));
+    $ctx->searchQuery = '';
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'Lists the hits of the submitted search'));
+});
+
+test('search results pages are cached per query', function (): void {
+    comet_site_test_setup();
+    $service = new \CometCMS\Site\SiteService(comet_site_test_context());
+    $first = $service->respondCached('/search', ['q' => 'hello']);
+    assert_same('MISS', $first['cache_status']);
+    assert_true(str_contains($first['body'], 'name="q" value="hello"'), 'The query reaches the page.');
+    assert_true(str_contains($first['body'], '<article class="c-card">'));
+    assert_same('HIT', $service->respondCached('/search', ['q' => 'hello'])['cache_status']);
+    assert_same('MISS', $service->respondCached('/search', ['q' => 'about'])['cache_status']);
+});
+
+test('a search list card shows fields of every searched type and leaves missing ones empty', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $card = LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('field', ['field' => 'title']),
+        LayoutSchema::node('field', ['field' => 'intro']),
+    ]);
+    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'columns' => 1], [], [$card])])], 'column')[0]['children'][0];
+
+    $ctx->searchPage = true;
+    $ctx->searchQuery = 'hello';
+    $html = (new NodeRenderer($ctx))->render([$node]);
+    assert_same(1, substr_count($html, '<article class="c-card">'));
+    assert_true(str_contains($html, 'Hello &lt;script&gt;'));
+
+    $ctx->searchQuery = 'build';
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'We build'), 'A field of the hit\'s own type shows.');
+
+    $ctx->searchQuery = '';
+    $ctx->annotate = true;
+    $builder = (new NodeRenderer($ctx))->render([$node]);
+    assert_true(str_contains($builder, 'Lists the hits of the submitted search'));
+    assert_true(substr_count($builder, '<article class="c-card">') >= 2, 'The builder shows the newest entries as sample hits.');
+
+    $searchCard = LayoutSchema::spec()['search_card'];
+    assert_same('column', $searchCard[0]['kind']);
+    assert_true(str_contains(json_encode($searchCard), '"title"'));
+});
+
+test('previews of the results page search for a word of the newest entry', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $query = (new SiteSearch($ctx))->sampleQuery();
+    assert_true(mb_strlen($query) >= SiteSearch::MIN_QUERY_LENGTH);
+    assert_true((new SiteSearch($ctx))->page($query, [], [], 10, 0)['total'] > 0, 'The example query finds something.');
+});
+
+test('lists of several types show entries of each with their own cards and page through them all', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $list = static fn(array $props): array => LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'types'] + $props)])], 'column')[0]['children'][0];
+
+    $html = (new NodeRenderer($ctx))->render([$list(['collections' => ['authors', 'about', 'notes'], 'limit' => 10])]);
+    assert_same(2, substr_count($html, '<article class="c-card">'), 'Private types stay out.');
+    assert_true(str_contains($html, 'Ada') && str_contains($html, 'About us'));
+
+    $paged = (new NodeRenderer($ctx))->render([$list(['collections' => ['authors', 'about'], 'limit' => 1, 'paginate' => true, 'sort_field' => 'title'])]);
+    assert_same(1, substr_count($paged, '<article class="c-card">'));
+    assert_true(str_contains($paged, 'c-pagination'), 'The pages count the entries of every type.');
+
+    assert_same('', (new NodeRenderer($ctx))->render([$list([])]));
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$list([])]), 'Choose public content types'));
+});

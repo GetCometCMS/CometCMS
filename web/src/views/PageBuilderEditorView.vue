@@ -227,6 +227,7 @@
           v-else-if="panel.value === 'inspector'"
           :template-part="selectedTemplatePart"
           :frame="selectedFrame"
+          :search-page="target === 'region' && name === 'search_results'"
           @edit-template-part="editTemplatePart"
           @assign-template-part="assignTemplatePart"
         >
@@ -754,6 +755,8 @@ const liveUrl = computed(() => {
   const settings = builder.settings.value;
   const prefix = locale.value && locale.value !== settings?.default_locale ? `/${locale.value}` : '';
   const root = (homeUrl.value || '').replace(/\/$/, '');
+  // The search results page has an address of its own; other regions show on the homepage.
+  if (target.value === "region" && name.value === "search_results") return `${root}${prefix}/search`;
   if (target.value === "region") return root + prefix || homeUrl.value;
   if (variant.value === "index") {
     const home = settings?.homepage;
@@ -923,7 +926,7 @@ const subheading = computed(() => {
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
     return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
   }
-  if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : name.value === "maintenance" ? "site.builder.maintenanceSubtitle" : "site.builder.regionSubtitle");
+  if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : name.value === "maintenance" ? "site.builder.maintenanceSubtitle" : name.value === "search_results" ? "site.builder.searchResultsSubtitle" : "site.builder.regionSubtitle");
   return showsTemplates.value && frameLayout.value
     ? `${t(`site.variant.${variant.value}`)} · ${templateName(t, templateById(site.draft?.templates, frameLayout.value.type, frameLayout.value.variant, editedTemplate.value))}`
     : t(`site.variant.${variant.value}`);
@@ -993,7 +996,7 @@ const overview = computed(() => {
     return {
       title: heading.value,
       description: t(`site.region.${name.value}Hint`),
-      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline", maintenance: "mdi:tools", [MODAL]: "mdi:dock-window" }[name.value] ?? "mdi:page-layout-header",
+      icon: { footer: "mdi:page-layout-footer", not_found: "mdi:file-question-outline", maintenance: "mdi:tools", search_results: "mdi:text-search", [MODAL]: "mdi:dock-window" }[name.value] ?? "mdi:page-layout-header",
     };
   }
   const type = builder.type.value?.label ?? name.value;
