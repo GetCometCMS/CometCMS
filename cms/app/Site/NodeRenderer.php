@@ -1218,6 +1218,8 @@ final class NodeRenderer
      * A search field whose hits drop down below it. The search runs in
      * SiteController::search() and the bundled search script draws the hits,
      * so the page itself stays cacheable; the element only says what to search.
+     * Set to the results page, it is a GET form to /search?q=, which also
+     * works without JavaScript; there it shows the query it was opened with.
      */
     private function search(array $node): string
     {
@@ -1237,6 +1239,7 @@ final class NodeRenderer
             'search-locale' => $this->ctx->locale,
             'search-empty' => $empty,
             'search-count' => Messages::get('search_results', $lang),
+            'search-page' => $props['results_page'] ? $this->ctx->searchPageUrl() : '',
         ];
         $attributes = '';
         foreach (array_filter($data, static fn(string $value): bool => $value !== '') as $name => $value) {
@@ -1254,11 +1257,24 @@ final class NodeRenderer
             ? '<svg class="c-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>'
             : '';
 
+        // A results page form keeps the query of its address (a preview's workspace and path) in hidden fields.
+        $tag = $props['results_page'] ? 'form' : 'div';
+        $form = '';
+        if ($props['results_page']) {
+            $action = $this->ctx->searchPageUrl();
+            $attributes .= ' action="' . Security::e((string) strtok($action, '?')) . '" method="get"';
+            parse_str((string) parse_url($action, PHP_URL_QUERY), $hidden);
+            foreach ($hidden as $name => $value) {
+                if (is_string($value)) $form .= '<input type="hidden" name="' . Security::e((string) $name) . '" value="' . Security::e($value) . '">';
+            }
+        }
+
         return $this->element($node, $warning
-            . '<div class="' . $classes . '" role="search"' . $attributes . '>'
+            . '<' . $tag . ' class="' . $classes . '" role="search"' . $attributes . '>' . $form
             . '<label for="' . Security::e($id) . '" class="c-visually-hidden">' . Security::e(Messages::get('search', $lang)) . '</label>'
             . '<div class="c-search-field">' . $svg
             . '<input type="search" id="' . Security::e($id) . '" class="c-search-input" placeholder="' . Security::e($placeholder) . '"'
+            . ($props['results_page'] ? ' name="q" value="' . Security::e($this->ctx->searchQuery) . '"' : '')
             . ' autocomplete="off" spellcheck="false" enterkeyhint="search" maxlength="' . SiteSearch::MAX_QUERY_LENGTH . '"'
             . ' role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' . Security::e($id) . '-results"'
             // In the builder the field is part of the canvas, not something to type into.
@@ -1266,13 +1282,16 @@ final class NodeRenderer
             . '</div>'
             . '<ul id="' . Security::e($id) . '-results" class="c-search-results" role="listbox" aria-label="' . Security::e(Messages::get('search_results_label', $lang)) . '" hidden></ul>'
             . '<p class="c-search-status c-visually-hidden" role="status" aria-live="polite"></p>'
-            . '</div>'
+            . '</' . $tag . '>'
         );
     }
 
     private function collection(array $node, array $state): string
     {
         $props = $node['props'];
+        if ($props['list_source'] === 'search') {
+            return $this->searchCollection($node, $state);
+        }
         $type = $props['type'];
 
         if ($type === '' || !$this->ctx->isPublicType($type) || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
@@ -1328,17 +1347,50 @@ final class NodeRenderer
     }
 
     /**
+     * The hits of the query the search results page was opened with
+     * (SiteContext::$searchQuery), best first, each hit as a card of its own
+     * type. Without a query it shows nothing; a query without hits shows the
+     * empty text or the standard "no results".
+     */
+    private function searchCollection(array $node, array $state): string
+    {
+        $props = $node['props'];
+        $query = $this->ctx->searchQuery;
+
+        if ($query === '' || ($state['depth'] ?? 0) > self::MAX_CARD_DEPTH) {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('searchResults') . '>Lists the hits of the submitted search</div>') : '';
+        }
+
+        $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
+        $result = (new SiteSearch($this->ctx))->page($query, $props['search_collections'], $props['search_fields'], $props['limit'], ($page - 1) * $props['limit']);
+
+        if ($result['data'] === []) {
+            $text = $props['empty_text'] !== '' ? $props['empty_text'] : Messages::get('no_results', $this->ctx->htmlLang());
+            return $this->element($node, '<p class="c-empty">' . Security::e($text) . '</p>');
+        }
+
+        $html = $this->cardGrid('', array_column($result['data'], 'entry'), $props['columns'], $state, $node['children'], array_column($result['data'], 'type'));
+        if ($props['paginate'] && $result['total'] > $props['limit']) {
+            // Page links keep the query, which the page's own path leaves out.
+            $path = $this->ctx->searchPageUrl();
+            $path .= (str_contains($path, '?') ? '&' : '?') . http_build_query(['q' => $query]);
+            $html .= $this->pagination($page, (int) ceil($result['total'] / $props['limit']), ['path' => $path] + $state);
+        }
+
+        return $this->element($node, $html);
+    }
+
+    /**
      * Cards for $entries: the collection's own card ($template), or the
      * type's standard card. Only the first card of an own template carries
-     * builder annotations, so it is the one edited in place.
+     * builder annotations, so it is the one edited in place. $types gives
+     * entries of a mixed list their own types, by position.
      */
-    private function cardGrid(string $type, array $entries, int $columns, array $state, array $template = []): string
+    private function cardGrid(string $type, array $entries, int $columns, array $state, array $template = [], array $types = []): string
     {
         $editable = $template !== [];
-        $template = $editable ? $template : $this->ctx->cardTemplate($type);
         $items = '';
         $childState = [
-            'type' => $this->ctx->type($type),
             'depth' => ($state['depth'] ?? 0) + 1,
             'path' => $state['path'] ?? '',
             'components' => $state['components'] ?? [],
@@ -1346,8 +1398,10 @@ final class NodeRenderer
         ];
 
         foreach (array_values($entries) as $index => $entry) {
-            $entryState = ['entry' => $this->ctx->localize($type, $entry)] + $childState;
-            $inner = $editable && $index === 0 ? $this->render($template, $entryState) : $this->renderPlain($template, $entryState);
+            $entryType = (string) ($types[$index] ?? $type);
+            $entryState = ['entry' => $this->ctx->localize($entryType, $entry), 'type' => $this->ctx->type($entryType)] + $childState;
+            $card = $editable ? $template : $this->ctx->cardTemplate($entryType);
+            $inner = $editable && $index === 0 ? $this->render($card, $entryState) : $this->renderPlain($card, $entryState);
             $items .= '<article class="c-card">' . $inner . '</article>';
         }
 

@@ -285,6 +285,22 @@ Hits are ranked by where the text matches: titles that start with it first, then
 
 The dropdown needs JavaScript; without it, the field is shown but does nothing. Requests go to `/_site/search/{workspace}`, are cached by browsers for a minute, and are limited to 120 per visitor and minute (`site.search.rate_limit_per_minute` in the configuration).
 
+#### Search results page
+
+Turn on **Open the search results page on Enter** on a search element to send searches to a page of their own instead of only showing the dropdown. Enter then opens the results page unless a hit is highlighted with the arrow keys. The dropdown still shows hits while typing. The field is a normal form, so it also works without JavaScript.
+
+The results page is a built-in special page, like the 404 and maintenance pages. Open **Search results page** in the builder's page switcher to design it. By default it has a heading, a search field and an **Entry list** set to **Show → Current search results**. Any entry list can use this mode. It lists the hits ranked as described above, from all content types with website pages or the ones chosen in **Search in** / **Search fields**. Each hit uses its type's card, or the list's own card. **Number of entries**, **Columns** and **Show page numbers** work as for other lists; the content type, sorting and visitor filters do not apply in this mode.
+
+How the query travels:
+
+- The page answers at `/search` below the language prefix, e.g. `/search?q=garden` or `/de/search?q=garten&page=2`. The path is fixed and not translated. It takes precedence over an entry whose URL would also be `/search`.
+- `q` is the search text, trimmed and limited to 100 characters. `page` is the page number of lists with page numbers; their page links keep `q`.
+- The search runs in the page's language, so `/de/search` finds the German texts. The language switcher keeps the query.
+- Without a query (or with one shorter than two characters) the list shows nothing. A query without hits shows the list's **Text when empty**, or "No results found".
+- Each query and page is cached as its own page. Results pages are marked `noindex` and have no canonical URL.
+
+Searching again on the results page only loads the same page with the new query. Nothing redirects on the server, so a search field on the results page cannot cause a redirect loop.
+
 ### Light/dark toggle
 
 Add **Light/dark toggle** from **Add → Elements**, e.g. to the header, to let visitors switch between light and dark mode. It shows the icon of the mode that is on (**Light mode icon** and **Dark mode icon**); **Size**, **Style** (plain, outline or filled) and **Show text** change how it looks. The **Text** is shown next to the icons or, when hidden, read out by screen readers; empty, it is “Dark mode” in the page's language.

@@ -604,7 +604,7 @@ const keyListOptions = computed(() => {
   } else if (props.def.type === "content_types") {
     options = pageTypes.map((type) => ({ value: type.name, label: type.label || type.name }));
   } else {
-    const chosen = props.node.props?.collections ?? [];
+    const chosen = (props.node.kind === "collection" ? props.node.props?.search_collections : props.node.props?.collections) ?? [];
     const searched = chosen.length ? pageTypes.filter((type) => chosen.includes(type.name)) : pageTypes;
     const fields = new Map([["title", { value: "title", label: t("site.systemField.title"), types: searched.map((type) => type.label || type.name) }]]);
     for (const type of searched) {

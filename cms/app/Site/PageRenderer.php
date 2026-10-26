@@ -126,6 +126,32 @@ final class PageRenderer
         return $this->document($meta, $main, $state);
     }
 
+    /**
+     * The search results page: the search_results template, whose collections
+     * set to the search list the hits of SiteContext::$searchQuery.
+     */
+    public function searchResults(int $page = 1): string
+    {
+        $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->searchResults($page);
+        $query = $this->ctx->searchQuery;
+        $path = $this->ctx->searchPageUrl() . ($query !== '' ? '?' . http_build_query(['q' => $query]) : '');
+        $alternates = [];
+        foreach ($this->ctx->locales() as $locale) {
+            $alternates[$locale] = $this->ctx->searchPageUrl($locale) . ($query !== '' ? '?' . http_build_query(['q' => $query]) : '');
+        }
+        $state = $this->state(null, null, $path, $page, $alternates);
+        $title = Messages::get('search_results_title', $this->ctx->htmlLang());
+        $main = $this->nodes->render($this->ctx->region(LayoutSchema::SEARCH_RESULTS), $state);
+
+        return $this->document([
+            'title' => $this->pageTitle($query !== '' ? $title . ': ' . $query : $title),
+            'description' => '',
+            'canonical' => '',
+            'noindex' => true,
+            'body_class' => 'c-view-search',
+        ], $main, $state, true, $this->ctx->annotate);
+    }
+
     /** Shown for every public URL while maintenance mode is on; without header and footer. */
     public function maintenance(): string
     {

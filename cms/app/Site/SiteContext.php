@@ -41,6 +41,12 @@ final class SiteContext
     /** Visitor filters of entry lists, by list (see ListFilters::fromQuery). */
     public array $listParams = [];
 
+    /** Where the search results page answers; it takes precedence over entries with the same path. */
+    public const SEARCH_PATH = '/search';
+
+    /** The query the search results page was opened with ('' elsewhere; see SiteSearch::normalizeQuery). */
+    public string $searchQuery = '';
+
     /**
      * Pages opened in the link modal (?embed=1): only the page's main content,
      * without header, footer or modals of its own.
@@ -362,6 +368,12 @@ final class SiteContext
     public function absolute(string $url): string
     {
         return str_starts_with($url, '/') && !str_starts_with($url, '//') ? $this->origin . $url : $url;
+    }
+
+    /** The search results page, below the locale prefix like every page. */
+    public function searchPageUrl(?string $locale = null): string
+    {
+        return $this->path(self::SEARCH_PATH, $locale);
     }
 
     public function homeUrl(?string $locale = null): string

@@ -39,7 +39,7 @@ final class LayoutSchema
     public const FRAME_NONE = 'none';
 
     /** Special page templates edited and stored like regions. */
-    public const SPECIAL_PAGES = ['not_found', self::MAINTENANCE, self::MODAL];
+    public const SPECIAL_PAGES = ['not_found', self::MAINTENANCE, self::MODAL, self::SEARCH_RESULTS];
 
     /** Everything stored and edited as a region document. */
     public const REGION_DOCUMENTS = [...self::REGIONS, ...self::SPECIAL_PAGES];
@@ -70,6 +70,9 @@ final class LayoutSchema
 
     /** The page every public URL shows while the site's maintenance mode is on. */
     public const MAINTENANCE = 'maintenance';
+
+    /** The page search elements send their query to (/search?q=), when they are set to. */
+    public const SEARCH_RESULTS = 'search_results';
 
     /** Where the page a modal link opens appears, inside the modal template. */
     public const SITE_CONTENT = 'site_content';
@@ -456,7 +459,11 @@ final class LayoutSchema
             ],
             'divider' => [],
             'collection' => [
+                // 'search' lists the hits of the query the search results page was opened with.
+                'list_source' => ['type' => 'enum', 'options' => ['type', 'search'], 'default' => 'type'],
                 'type' => ['type' => 'content_type', 'default' => ''],
+                'search_collections' => ['type' => 'content_types', 'default' => []],
+                'search_fields' => ['type' => 'search_fields', 'default' => []],
                 'columns' => ['type' => 'int', 'min' => 1, 'max' => 6, 'default' => 3],
                 'limit' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 6],
                 'sort_field' => ['type' => 'sort_field', 'default' => 'published_at'],
@@ -505,6 +512,8 @@ final class LayoutSchema
                 'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg'], 'default' => 'md'],
                 'show_type' => ['type' => 'bool', 'default' => true],
                 'no_results_text' => ['type' => 'string', 'max' => 200, 'default' => ''],
+                // Enter opens the search results page instead of the best hit.
+                'results_page' => ['type' => 'bool', 'default' => false],
             ],
             'site_title' => [
                 'show_logo' => ['type' => 'bool', 'default' => true],
@@ -1133,6 +1142,19 @@ final class LayoutSchema
                             self::node('icon', ['icon' => 'mdi:tools', 'size' => 56], ['text_color' => 'primary']),
                             self::node('heading', ['text' => 'We\'ll be back soon', 'level' => 'h1']),
                             self::node('text', ['html' => '<p>This website is currently undergoing maintenance. Please check back shortly.</p>'], ['text_color' => 'muted', 'font_size' => 'lg']),
+                        ]),
+                    ]),
+                ]),
+            ];
+        }
+        if ($region === self::SEARCH_RESULTS) {
+            return [
+                self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
+                    self::node('row', [], [], [
+                        self::node('column', [], [], [
+                            self::node('heading', ['text' => 'Search results', 'level' => 'h1']),
+                            self::node('search', ['results_page' => true], ['margin_bottom' => 'xl']),
+                            self::node('collection', ['list_source' => 'search', 'columns' => 1, 'limit' => 10, 'paginate' => true]),
                         ]),
                     ]),
                 ]),

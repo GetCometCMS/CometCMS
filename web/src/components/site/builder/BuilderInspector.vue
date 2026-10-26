@@ -584,8 +584,13 @@ const visibleProps = computed(() => {
   }
 
   if (current.kind === "collection") {
+    // Search results come from the query, not from one type, its sorting or visitor filters.
+    const search = props.list_source === "search";
+    const hidden = search
+      ? ["type", "sort_field", "sort_order", "filter_field", "filter_value", "exclude_current", "filters", "sort_choices"]
+      : ["search_collections", "search_fields"];
     // Visitor filters and sorting need the list's fields.
-    return keys.filter((key) => (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
+    return keys.filter((key) => !hidden.includes(key) && (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
   }
 
   if (["image", "gallery"].includes(current.kind)) {

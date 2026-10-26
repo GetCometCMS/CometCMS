@@ -821,6 +821,7 @@ final class SiteController extends BaseController
             $html = match ($region) {
                 'not_found' => $renderer->notFound($context->homeUrl()),
                 LayoutSchema::MAINTENANCE => $renderer->maintenance(),
+                LayoutSchema::SEARCH_RESULTS => $renderer->searchResults(),
                 default => $renderer->regionPreview($region),
             };
             $this->json(['data' => ['html' => $html]]);

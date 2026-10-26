@@ -171,3 +171,74 @@ PHP]);
         comet_test_stop_process($server);
     }
 });
+
+test('site search pages through every match for the results page', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    for ($i = 1; $i <= 12; $i++) {
+        $content->save('about', ['title' => 'Item ' . $i, 'slug' => 'item-' . $i, 'status' => 'published'], comet_site_test_user());
+    }
+    $search = new SiteSearch(comet_site_test_context($site));
+
+    $first = $search->page('item', [], [], 5, 0);
+    assert_same(12, $first['total']);
+    assert_same(5, count($first['data']));
+    assert_same('about', $first['data'][0]['type']);
+    assert_same(2, count($search->page('item', [], [], 5, 10)['data']));
+    assert_same(['data' => [], 'total' => 0], $search->page('i', [], [], 5, 0));
+    assert_same('', SiteSearch::normalizeQuery(' x '));
+    assert_same('abc', SiteSearch::normalizeQuery(' abc '));
+    assert_same('', SiteSearch::normalizeQuery(['abc']));
+});
+
+test('the search results page lists the hits of its query with paging and an empty state', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    for ($i = 1; $i <= 12; $i++) {
+        $content->save('about', ['title' => 'Item ' . $i, 'slug' => 'item-' . $i, 'status' => 'published'], comet_site_test_user());
+    }
+    assert_true(in_array(LayoutSchema::SEARCH_RESULTS, LayoutSchema::SPECIAL_PAGES, true));
+
+    $response = comet_site_test_get('/search', ['q' => 'item']);
+    assert_same(200, $response['status']);
+    assert_same(10, substr_count($response['body'], '<article class="c-card">'));
+    assert_true(str_contains($response['body'], 'href="/search?q=item&amp;page=2"'));
+    assert_true(str_contains($response['body'], 'noindex'));
+    assert_true(str_contains($response['body'], '<form class="c-search'));
+    assert_true(str_contains($response['body'], 'action="/search" method="get"'));
+    assert_true(str_contains($response['body'], 'name="q" value="item"'));
+    assert_true(str_contains($response['body'], 'data-search-page="/search"'));
+
+    assert_same(2, substr_count(comet_site_test_get('/search', ['q' => 'item', 'page' => '2'])['body'], '<article class="c-card">'));
+    assert_true(str_contains(comet_site_test_get('/search', ['q' => 'nothing here'])['body'], 'No results found'));
+    $none = comet_site_test_get('/search');
+    assert_same(200, $none['status']);
+    assert_false(str_contains($none['body'], '<article class="c-card">'));
+    assert_false(str_contains($none['body'], '<p class="c-empty">'));
+});
+
+test('lists set to the search show nothing without a query and a placeholder in the builder', function (): void {
+    $site = comet_site_test_setup();
+    $ctx = comet_site_test_context($site);
+    $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'search_collections' => ['blog', 'bad key!']])])], 'column')[0]['children'][0];
+    assert_same('search', $node['props']['list_source']);
+    assert_same(['blog'], $node['props']['search_collections']);
+
+    assert_same('', (new NodeRenderer($ctx))->render([$node]));
+    $ctx->searchQuery = 'hello';
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'c-card'));
+    $ctx->searchQuery = '';
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'Lists the hits of the submitted search'));
+});
+
+test('search results pages are cached per query', function (): void {
+    comet_site_test_setup();
+    $service = new \CometCMS\Site\SiteService(comet_site_test_context());
+    $first = $service->respondCached('/search', ['q' => 'hello']);
+    assert_same('MISS', $first['cache_status']);
+    assert_true(str_contains($first['body'], 'name="q" value="hello"'), 'The query reaches the page.');
+    assert_true(str_contains($first['body'], '<article class="c-card">'));
+    assert_same('HIT', $service->respondCached('/search', ['q' => 'hello'])['cache_status']);
+    assert_same('MISS', $service->respondCached('/search', ['q' => 'about'])['cache_status']);
+});

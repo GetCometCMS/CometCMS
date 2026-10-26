@@ -22,6 +22,9 @@ final class SiteSearch
 
     public const MAX_QUERY_LENGTH = 100;
 
+    /** Hits per page of a collection on the search results page, at most. */
+    public const MAX_PAGE_SIZE = 100;
+
     /**
      * Field types whose text can be searched; select fields match their keys
      * and labels, page content the texts written into it.
@@ -77,25 +80,66 @@ final class SiteSearch
     }
 
     /**
-     * Entries matching $query, best first: titles that start with it, then
-     * titles with a word that starts with it, then any other match; newer
-     * entries first within each group.
+     * Entries matching $query, best first (see matches()), for the search
+     * element's dropdown.
      *
      * @return list<array{title: string, url: string, type: string}>
      */
     public function search(string $query, array $collections = [], array $fields = [], int $limit = self::MAX_RESULTS): array
     {
-        $query = self::lower(trim(Text::limit($query, self::MAX_QUERY_LENGTH)));
-        if (mb_strlen($query) < self::MIN_QUERY_LENGTH) {
+        $hits = [];
+        foreach (array_slice($this->matches($query, $collections, $fields), 0, max(1, min(self::MAX_RESULTS, $limit))) as $match) {
+            $hits[] = ['title' => (string) ($match['entry']['title'] ?? ''), 'url' => $match['url'], 'type' => $match['label']];
+        }
+
+        return $hits;
+    }
+
+    /**
+     * One page of matches for a collection on the search results page;
+     * entries as stored, to be localized where they are shown.
+     *
+     * @return array{data: list<array{type: string, entry: array}>, total: int}
+     */
+    public function page(string $query, array $collections, array $fields, int $limit, int $offset): array
+    {
+        $matches = $this->matches($query, $collections, $fields);
+        $slice = array_slice($matches, max(0, $offset), max(1, min(self::MAX_PAGE_SIZE, $limit)));
+
+        return [
+            'data' => array_map(static fn(array $match): array => ['type' => $match['type'], 'entry' => $match['raw']], $slice),
+            'total' => count($matches),
+        ];
+    }
+
+    /** $query as matched: trimmed, limited, lower case; '' when too short to search for. */
+    public static function normalizeQuery(mixed $query): string
+    {
+        $query = trim(Text::limit(is_string($query) ? $query : '', self::MAX_QUERY_LENGTH));
+
+        return mb_strlen($query) < self::MIN_QUERY_LENGTH ? '' : $query;
+    }
+
+    /**
+     * Every entry matching $query, best first: titles that start with it, then
+     * titles with a word that starts with it, then any other match; newer
+     * entries first within each group.
+     *
+     * @return list<array{type: string, label: string, entry: array, raw: array, url: string}>
+     */
+    private function matches(string $query, array $collections, array $fields): array
+    {
+        $query = self::lower(self::normalizeQuery($query));
+        if ($query === '') {
             return [];
         }
 
-        $hits = [];
+        $matches = [];
         foreach ($this->targets($collections, $fields) as $type => $searchable) {
             $label = (string) (($this->ctx->type($type)['label'] ?? '') ?: $type);
 
-            foreach ($this->ctx->query($type, [])['data'] as $entry) {
-                $entry = $this->ctx->localize($type, $entry);
+            foreach ($this->ctx->query($type, [])['data'] as $raw) {
+                $entry = $this->ctx->localize($type, $raw);
                 $rank = $this->rank($entry, $searchable, $query);
                 if ($rank === null) {
                     continue;
@@ -104,17 +148,13 @@ final class SiteSearch
                 if ($url === null) {
                     continue;
                 }
-                $hits[] = [
-                    'rank' => $rank,
-                    'date' => (string) ($entry['published_at'] ?? ''),
-                    'hit' => ['title' => (string) ($entry['title'] ?? ''), 'url' => $url, 'type' => $label],
-                ];
+                $matches[] = ['rank' => $rank, 'date' => (string) ($entry['published_at'] ?? ''), 'type' => $type, 'label' => $label, 'entry' => $entry, 'raw' => $raw, 'url' => $url];
             }
         }
 
-        usort($hits, static fn(array $a, array $b): int => [$a['rank'], $b['date']] <=> [$b['rank'], $a['date']]);
+        usort($matches, static fn(array $a, array $b): int => [$a['rank'], $b['date']] <=> [$b['rank'], $a['date']]);
 
-        return array_column(array_slice($hits, 0, max(1, min(self::MAX_RESULTS, $limit))), 'hit');
+        return $matches;
     }
 
     /** Whether entries of $type open as pages of their own. */
