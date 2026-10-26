@@ -345,11 +345,13 @@ defineEmits(["edit-template-part", "assign-template-part"]);
 
 /** A button's own colors sit with its style, though they are props. */
 const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color"];
+const ICON_SHAPE = ["shape", "shape_color", "shape_padding"];
 /** So do a section's shape dividers, one group per edge. */
 const dividerKeys = (edge) => [`divider_${edge}`, ...["color", "height", "flip", "invert"].map((option) => `divider_${edge}_${option}`)];
 
 const STYLE_GROUPS = [
   { key: "button", part: "props", keys: BUTTON_COLORS },
+  { key: "icon", part: "props", keys: ICON_SHAPE },
   { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "background_effect", "overlay"] },
   { key: "dividerTop", part: "props", keys: dividerKeys("top") },
@@ -383,7 +385,7 @@ const inspectorTabs = computed(() => [
   { value: "style", label: t("site.builder.style"), icon: "mdi:palette-swatch-outline" },
 ]);
 /** Only the most used groups start open. */
-const OPEN_STYLE_GROUPS = ["button", "spacing", "text"];
+const OPEN_STYLE_GROUPS = ["button", "icon", "spacing", "text"];
 const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
 
 const node = computed(() => builder.selected.value);
@@ -524,6 +526,7 @@ function styleVisible(key) {
 
 /** A divider's color, height and direction only apply once it has a shape. */
 function propVisible(key) {
+  if (node.value?.kind === "icon" && ["shape_color", "shape_padding"].includes(key)) return (node.value.props.shape ?? "none") !== "none";
   const edge = key.match(/^divider_(top|bottom)_/)?.[1];
   return !edge || (node.value?.props?.[`divider_${edge}`] ?? "none") !== "none";
 }
@@ -572,6 +575,8 @@ const visibleProps = computed(() => {
 
   // Each page content area owns its field; the inspector names it instead.
   if (current.kind === "page_content") return [];
+
+  if (current.kind === "icon") return keys.filter((key) => !ICON_SHAPE.includes(key));
 
   // Only a column component's instances have something of their own: their width.
   if (current.kind === COMPONENT) {

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace CometCMS\Mcp;
 
+use CometCMS\Auth\PermissionService;
+use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\ConflictException;
+use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\ValidationException;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Site\LayoutSchema;
+use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
 use CometCMS\Site\SmartValue;
 use CometCMS\Site\StyleVariants;
@@ -17,18 +21,28 @@ use CometCMS\Workspaces\WorkspaceContext;
 /** Shared-layout tools; transport and authorization belong to McpServer. */
 final class PageBuilderTools
 {
-    public const NAMES = ['get_builder_schema', 'get_layout', 'get_section', 'get_element', 'set_layout', 'update_section', 'update_element_props', 'list_templates', 'set_template_parts'];
+    public const NAMES = ['get_builder_schema', 'get_layout', 'get_section', 'get_element', 'set_layout', 'update_section', 'update_element', 'list_templates', 'set_template_parts'];
 
     public static function schemas(): array
     {
         $string = ['type' => 'string', 'minLength' => 1];
         $map = ['type' => 'object', 'additionalProperties' => true];
         $page = ['collection' => $string, 'variant' => ['type' => 'string', 'enum' => LayoutSchema::VARIANTS]];
-        $target = $page + ['template' => $string + ['description' => 'Template id from list_templates; each template has its own content area. Default: the default template.']];
+        $target = $page + [
+            'template' => $string + ['description' => 'Template id (list_templates); its content area is shared by its entries. Default: default.'],
+            'entry' => $string + ['description' => 'Entry id or slug: edit only this entry\'s own content instead of a template. Detail only.'],
+            'area' => $string + ['description' => 'With entry: Entry content area (page field key). Default: the first.'],
+        ];
         $revision = ['revision' => $string + ['description' => 'Required revision from the latest layout/section/element read. A stale revision fails with 409.']];
         $nodes = ['type' => 'array', 'maxItems' => LayoutSchema::MAX_NODES, 'items' => ['$ref' => '#/$defs/node']];
         $overrides = ['responsive' => $map + ['description' => '{tablet?, mobile?: {props?, style?}}: values that differ on smaller screens; mobile follows tablet. Replaces the whole map.'], 'states' => $map + ['description' => '{hover?, focus?: {props?, style?}}: values while hovered or focused. Replaces the whole map.']];
         $patch = self::object(['name' => ['type' => 'string'], 'props' => $map, 'style' => $map, ...$overrides, 'children' => $nodes]);
+        $patch['description'] = 'Object with any of name (string), props (object), style (object), responsive (object), states (object), children (node array). Example: {"style":{"padding_top":"lg"}}. Supply the object directly, not a JSON string or array.';
+        $patch['examples'] = [['style' => ['padding_top' => 'lg']]];
+        $read = [
+            'depth' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Child levels to include below each section root; 0 returns roots only. Omit for all descendants. Pruned nodes have child_count and children_truncated: true.'],
+            'mode' => ['type' => 'string', 'enum' => ['full', 'summary'], 'description' => 'full: nondefault props, styles and descendants. summary: IDs, kinds, names and stored styles only (including responsive/state styles). On get_layout, omitting both mode and depth keeps the section overview.'],
+        ];
         $definitions = ['node' => self::object([
             'id' => $string + ['pattern' => '^[A-Za-z0-9_-]+$'],
             'kind' => ['type' => 'string', 'enum' => array_keys(LayoutSchema::spec(true)['kinds'])],
@@ -36,19 +50,19 @@ final class PageBuilderTools
             'props' => $map, 'style' => $map, ...$overrides, 'children' => $nodes,
         ], ['kind'])];
         $contracts = [
-            'get_builder_schema' => ['Discover builder vocabulary', 'Read allowed kinds/children and limits, or pass kind for its props/style defaults and bindings. Start here before creating layouts.', ['kind' => $string], []],
-            'get_layout' => ['Read layout overview', 'Read ordered section IDs, kinds, counts and revision of a template\'s content area without a raw tree. It is shared by all entries that use the template.', $target, ['collection', 'variant']],
-            'get_section' => ['Read one section', 'Read one top-level section subtree and layout revision. Default props are omitted; use get_builder_schema(kind) for defaults.', $target + ['section_id' => $string], ['collection', 'variant', 'section_id']],
+            'get_builder_schema' => ['Discover builder vocabulary', 'Without kind: kinds, allowed children, every style key\'s values and limits; call this first. With kind (one or a list): props with defaults and the style keys each kind takes.', ['kind' => ['anyOf' => [$string, ['type' => 'array', 'items' => $string, 'minItems' => 1]]]], []],
+            'get_layout' => ['Read layout overview or scoped tree', 'Read ordered section IDs, kinds, counts and revision. Use section_ids to select top-level sections; depth or mode opts into a tree. Summary mode omits props. Reads always return the whole layout revision. Start here before reading or writing sections.', $target + $read + ['section_ids' => ['type' => 'array', 'items' => $string, 'minItems' => 1, 'uniqueItems' => true, 'description' => 'Only these top-level section IDs, returned in layout order. Unknown IDs fail with 404; call get_layout without selectors to discover IDs.']], ['collection', 'variant']],
+            'get_section' => ['Read one section', 'Read one top-level section subtree and whole layout revision. Limit child levels with depth or use mode: summary for IDs, kinds, names and styles without props. Default props are omitted in full mode; use get_builder_schema(kind) for defaults.', $target + ['section_id' => $string] + $read, ['collection', 'variant', 'section_id']],
             'get_element' => ['Read one element', 'Read a node by ID, its props/style and immediate child summaries, enclosing section and layout revision.', $target + ['element_id' => $string], ['collection', 'variant', 'element_id']],
-            'set_layout' => ['Replace layout', 'Replace all sections, including empty layouts. Requires revision. Changes affect published pages immediately. Discover valid props with get_builder_schema.', $target + $revision + ['sections' => $nodes], ['collection', 'variant', 'revision', 'sections']],
-            'update_section' => ['Patch one section', 'Merge supplied props/style keys and name into one top-level section; children explicitly replaces its subtree. Omitted keys and other sections are preserved. Requires revision; saves live.', $target + $revision + ['section_id' => $string, 'patch' => $patch], ['collection', 'variant', 'revision', 'section_id', 'patch']],
+            'set_layout' => ['Replace layout', 'Replace all sections, including empty layouts (with entry: an empty list resets the entry to its template\'s default content). Requires revision. Changes affect published pages immediately. Discover valid props with get_builder_schema.', $target + $revision + ['sections' => $nodes], ['collection', 'variant', 'revision', 'sections']],
+            'update_section' => ['Patch one section', 'Merge supplied props/style keys and name into one top-level section; children explicitly replaces its subtree. Omitted keys and other sections are preserved. Returns the section summary and new revision. Requires revision; saves live.', $target + $revision + ['section_id' => $string, 'patch' => $patch], ['collection', 'variant', 'revision', 'section_id', 'patch']],
             'list_templates' => ['List templates', 'Read the templates of a collection/variant in order (the first whose conditions match an entry is used; the last is the default) and the components that can be a header or footer. Each template has its own content area: pass its id as template to the layout tools.', $page, ['collection', 'variant']],
             'set_template_parts' => ['Assign template parts', 'Set the header and/or footer of one template (default: the default template): "default" (the site\'s own), "none" or a section component id. Omitted parts stay. Edit its content with the layout tools. Saves live.', $page + ['template' => $string, 'header' => $string, 'footer' => $string], ['collection', 'variant']],
-            'update_element_props' => ['Patch element properties', 'Merge props/style keys on any node by ID; preserve children. Object-valued properties (including localized maps) replace the whole property; responsive and states replace their whole maps. Requires revision; saves live.', $target + $revision + ['element_id' => $string, 'props' => $map, 'style' => $map, ...$overrides], ['collection', 'variant', 'revision', 'element_id', 'props']],
+            'update_element' => ['Patch one element', 'Merge props and/or style keys on any node by ID (supply at least one of props, style, responsive, states); children are preserved. Object-valued properties (including localized maps) replace the whole property; responsive and states replace their whole maps. Requires revision; saves live.', $target + $revision + ['element_id' => $string, 'props' => $map, 'style' => $map, ...$overrides], ['collection', 'variant', 'revision', 'element_id']],
         ];
         $result = [];
         foreach ($contracts as $name => [$title, $description, $properties, $required]) {
-            $write = in_array($name, ['set_layout', 'update_section', 'update_element_props', 'set_template_parts'], true);
+            $write = in_array($name, ['set_layout', 'update_section', 'update_element', 'set_template_parts'], true);
             $schema = self::object($properties, $required);
             if (in_array($name, ['set_layout', 'update_section'], true)) $schema['$defs'] = $definitions;
             $result[$name] = [
@@ -64,15 +78,12 @@ final class PageBuilderTools
         return ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false];
     }
 
-    public function __construct(private readonly WorkspaceContext $workspace, private readonly array $principal) {}
+    public function __construct(private readonly WorkspaceContext $workspace, private readonly array $principal, private readonly PermissionService $permissions = new PermissionService()) {}
 
     public function call(string $tool, array $args): array
     {
         $contract = self::schemas()[$tool]['inputSchema'];
-        $this->keys($args, array_keys($contract['properties']), 'arguments');
-        foreach ($contract['required'] as $key) {
-            if (!array_key_exists($key, $args)) $this->invalid($key, 'Required argument is missing.');
-        }
+        ToolArguments::validate($tool, $args, $contract);
         if ($tool === 'get_builder_schema') return ['data' => $this->vocabulary($args)];
 
         $collection = $this->identifier($args['collection'], 'collection');
@@ -101,15 +112,23 @@ final class PageBuilderTools
             }
             return ['data' => $this->templates($site, $collection, $variant) + ['effect' => 'Saved live for every page that uses this template.']];
         }
-        $area = $args['template'] ?? SiteRepository::DEFAULT_TEMPLATE;
-        if (!is_string($area) || !$site->hasTemplate($collection, $variant, $area)) $this->invalid('template', 'Unknown template. Call list_templates for template ids.');
-        $nodes = $site->layout($collection, $variant, $area);
+        $write = in_array($tool, ['set_layout', 'update_section', 'update_element'], true);
+        $scope = array_key_exists('entry', $args) ? $this->entryScope($site, $collection, $variant, $args, $write) : $this->templateScope($site, $collection, $variant, $args);
+        ['target' => $target, 'nodes' => $nodes] = $scope;
         $revision = LocalizedValue::hash($nodes);
-        $target = ['collection' => $collection, 'variant' => $variant, 'template' => $area];
-        if ($tool === 'get_layout') return ['data' => $this->overview($site, $target, $nodes)];
+        if ($tool === 'get_layout') {
+            $result = $this->overview($scope, $nodes);
+            if (isset($args['section_ids'])) {
+                foreach ($args['section_ids'] as $id) $this->sectionIndex($nodes, $this->identifier($id, 'section_ids'));
+                $nodes = array_values(array_filter($nodes, static fn(array $node): bool => in_array($node['id'], $args['section_ids'], true)));
+            }
+            $tree = isset($args['mode']) || isset($args['depth']);
+            $result['sections'] = array_map(fn(array $node): array => $tree ? $this->readNode($node, $args) + $this->sectionSummary($node) : $this->sectionSummary($node), $nodes);
+            return ['data' => $result];
+        }
         if ($tool === 'get_section') {
             $index = $this->sectionIndex($nodes, $this->identifier($args['section_id'], 'section_id'));
-            return ['data' => $target + ['revision' => $revision, 'section' => $this->compact($nodes[$index])]];
+            return ['data' => $target + ['revision' => $revision, 'section' => $this->readNode($nodes[$index], $args)]];
         }
         if ($tool === 'get_element') {
             [$node, $section] = $this->element($nodes, $this->identifier($args['element_id'], 'element_id'));
@@ -127,27 +146,122 @@ final class PageBuilderTools
         } else {
             $id = $this->identifier($args['element_id'], 'element_id');
             $this->element($nodes, $id); // Fail before mutation if the ID does not exist.
-            $candidate = $this->patchElement($nodes, $id, ['props' => $args['props']] + array_intersect_key($args, array_flip(['style', 'responsive', 'states'])));
+            $candidate = $this->patchElement($nodes, $id, array_intersect_key($args, array_flip(['props', 'style', 'responsive', 'states'])));
         }
         $seen = [];
         $count = 0;
-        $candidate = $this->prepare($candidate, 'sections', $seen, $count);
+        $areas = [];
+        $candidate = $this->prepare($candidate, 'sections', $seen, $count, ['parent' => 'root', 'page_content' => $scope['page_content'], 'rows' => 0, 'item' => false], $areas);
         try {
-            $normalized = LayoutSchema::normalize($candidate, $variant === 'detail');
+            $normalized = LayoutSchema::normalize($candidate, $scope['page_content']);
         } catch (ValidationException $e) {
             $this->invalid('sections', $e->getMessage() . ' Check localized values and workspace locales.');
         }
         $this->compareNodes($candidate, $normalized, 'sections');
         try {
-            $saved = $site->saveLayout($collection, $variant, $normalized, $this->principal, 'mcp.saved', $args['revision'], $area);
+            $scope = $scope['save']($normalized, $args['revision']);
         } catch (ConflictException) {
             $this->conflict();
         }
-        if ($tool === 'update_element_props') {
+        $saved = $scope['nodes'];
+        $target = $scope['target'];
+        if ($tool === 'update_element') {
             [$node, $section] = $this->element($saved, $args['element_id']);
-            return ['data' => $target + ['revision' => LocalizedValue::hash($saved), 'section_id' => $section, 'element' => $this->elementView($node), 'effect' => 'Saved live; shared by entries using this template.']];
+            return ['data' => $target + ['revision' => LocalizedValue::hash($saved), 'section_id' => $section, 'element' => $this->elementView($node), 'effect' => 'Saved live. ' . $scope['effect']]];
         }
-        return ['data' => $this->overview($site, $target, $saved)];
+        if ($tool === 'update_section') {
+            // The caller sent the subtree; a summary confirms it without repeating it or the other sections.
+            $section = $saved[$this->sectionIndex($saved, $args['section_id'])];
+            return ['data' => $target + ['revision' => LocalizedValue::hash($saved), 'section' => $this->sectionSummary($section), 'effect' => 'Saved live. ' . $scope['effect']]];
+        }
+        return ['data' => $this->overview($scope, $saved)];
+    }
+
+    /**
+     * A template's content area, shared by every entry that uses the
+     * template. Each scope's save returns the scope as it is after saving.
+     */
+    private function templateScope(SiteRepository $site, string $collection, string $variant, array $args): array
+    {
+        if (array_key_exists('area', $args)) $this->invalid('area', 'Use area together with entry, to pick which Entry content area of that entry to edit.');
+        $area = $args['template'] ?? SiteRepository::DEFAULT_TEMPLATE;
+        if (!is_string($area) || !$site->hasTemplate($collection, $variant, $area)) $this->invalid('template', 'Unknown template. Call list_templates for template ids.');
+        $nodes = $site->layout($collection, $variant, $area);
+        $places = array_keys(LayoutSchema::pagePlaces($nodes));
+
+        return [
+            'target' => ['collection' => $collection, 'variant' => $variant, 'template' => $area],
+            'nodes' => $nodes,
+            'page_content' => $variant === 'detail',
+            'effect' => 'Shared by entries that use this template; saves take effect on published pages immediately.',
+            'next' => $places === [] ? null : 'Entry content areas (' . implode(', ', $places) . ') are filled by each entry with its own content. To edit one entry\'s content, pass entry (id or slug) instead of template.',
+            'save' => function (array $nodes, string $revision) use ($site, $collection, $variant, $area, $args): array {
+                return ['nodes' => $site->saveLayout($collection, $variant, $nodes, $this->principal, 'mcp.saved', $revision, $area)] + $this->templateScope($site, $collection, $variant, $args);
+            },
+        ];
+    }
+
+    /**
+     * One entry's own content in an Entry content area that its template
+     * shows, as the admin entry builder opens it. Without content of its own
+     * the entry shows the area's default, so that is what is read and what
+     * the first write starts from.
+     */
+    private function entryScope(SiteRepository $site, string $collection, string $variant, array $args, bool $write): array
+    {
+        if ($variant !== 'detail') $this->invalid('variant', 'Entries have their own content only on detail pages. Use variant detail.');
+        if (array_key_exists('template', $args)) $this->invalid('template', 'Omit template with entry: an entry is edited in the template it is shown with.');
+        $content = ContentRepository::make($this->workspace);
+        $entry = $content->findByIdentifier($collection, $this->identifier($args['entry'], 'entry'));
+        if ($entry === null) {
+            throw new McpError('Entry not found.', 404, ['code' => 'not_found', 'entry' => $args['entry']], [], ['Use list_entries to find the entry id or slug.']);
+        }
+        $id = $content->stableId($entry);
+        $context = SiteContext::make($site);
+        $template = $context->template($collection, 'detail', $context->findEntry($collection, $id, true))['template'];
+        $fields = (new ContentTypeRepository($this->workspace))->find($collection)['fields'] ?? [];
+        $placed = array_filter(LayoutSchema::pagePlaces($site->layout($collection, 'detail', $template['id'])), static fn(string $key): bool => ($fields[$key]['type'] ?? '') === 'page', ARRAY_FILTER_USE_KEY);
+        if ($placed === []) {
+            throw new McpError('The template this entry uses has no Entry content area, so content of its own would not appear.', 409, ['code' => 'no_entry_content_area', 'template' => $template['id']], [], [
+                'Edit the shared template instead: call get_layout with template ' . $template['id'] . ' and without entry.',
+                'Or add a page_content node to that template first, to give its entries content of their own.',
+            ]);
+        }
+        $field = $args['area'] ?? array_key_first($placed);
+        if (!is_string($field) || !isset($placed[$field])) $this->invalid('area', 'The entry\'s template ' . $template['id'] . ' shows these Entry content areas: ' . implode(', ', array_keys($placed)) . '.');
+
+        $action = $write ? 'content.update' : 'content.read';
+        if (!$this->permissions->allows($this->principal, $action, ['type' => 'content', 'collection' => $collection, 'entry' => $entry, 'fields' => [$field], 'locale' => $content->locale(), 'principal' => $this->principal, 'workspace' => $this->workspace->slug()])) {
+            throw new McpError('Forbidden.', 403, ['code' => 'forbidden'], [permissionGrant($action, $this->workspace->slug(), 'content:' . $collection . ':' . $id, [$field])], [
+                'Editing an entry\'s content also needs ' . $action . ' on that entry. Update the token in Access Tokens.',
+            ]);
+        }
+        $customized = LayoutSchema::hasPageContent($entry[$field] ?? null);
+        $nodes = $customized ? LayoutSchema::pageNodes($entry[$field]) : self::copyIds($placed[$field]['children'] ?? [], $id . '|' . $field);
+
+        return [
+            'target' => ['collection' => $collection, 'variant' => 'detail', 'entry' => $id, 'area' => $field, 'template' => $template['id'], 'customized' => $customized],
+            'nodes' => $nodes,
+            'page_content' => false,
+            'effect' => $customized
+                ? 'Only this entry\'s page; saves take effect immediately. Writing an empty sections list resets it to the template\'s default content.'
+                : 'This entry has no content of its own yet and shows the template\'s default content (shown here). The first write gives it its own copy; only this entry\'s page changes.',
+            'next' => null,
+            'save' => function (array $nodes) use ($content, $entry, $field, $collection, $variant, $site, $args): array {
+                $content->savePage($collection, (string) $entry['id'], $field, $nodes, $this->principal, (string) ($entry['revision'] ?? ''));
+                return $this->entryScope($site, $collection, $variant, $args, true);
+            },
+        ];
+    }
+
+    /**
+     * A copy of a template's default content for an entry, with IDs derived
+     * from $seed so every read of the same default has the same IDs and
+     * revision.
+     */
+    private static function copyIds(array $nodes, string $seed): array
+    {
+        return array_map(static fn(array $node): array => ['id' => 'n' . substr(hash('sha256', $seed . '|' . $node['id']), 0, 10), 'children' => self::copyIds($node['children'] ?? [], $seed)] + $node, $nodes);
     }
 
     /** A page kind's templates in order and the components that can be a header or footer. */
@@ -164,31 +278,92 @@ final class PageBuilderTools
         ];
     }
 
+    /**
+     * The builder vocabulary in two steps, so nothing is sent twice: without
+     * kind the kinds, their children and every style key's values (keys that
+     * share values listed together); with one or more kinds their props and
+     * the names of the style keys they take.
+     */
     private function vocabulary(array $args): array
     {
         $spec = LayoutSchema::spec(true);
+        $usable = $this->usableKinds();
         if (array_key_exists('kind', $args)) {
-            $kind = $this->identifier($args['kind'], 'kind');
-            if (!isset($spec['kinds'][$kind])) $this->invalid('kind', 'Unknown kind. Call get_builder_schema without kind to list available kinds.');
-            $node = $spec['kinds'][$kind];
-            return ['kind' => $kind, 'props' => $node['props'], 'style' => array_intersect_key($spec['style'], array_flip($node['style'])), 'children' => $node['children'], 'responsive' => ['devices' => $spec['devices']] + $node['responsive'], 'states' => ['states' => $spec['states']] + $node['states'], 'bindings' => array_intersect_key($spec['bindings'], array_flip(['sources', 'date_formats'])), 'localized_values' => 'Use {type: localized, values: {locale: value}}. Patches replace the entire property, so preserve other locales.'];
+            $kinds = is_array($args['kind']) && array_is_list($args['kind']) && $args['kind'] !== [] ? $args['kind'] : [$args['kind']];
+            $result = [];
+            foreach ($kinds as $index => $kind) {
+                $kind = $this->identifier($kind, is_array($args['kind']) ? 'kind.' . $index : 'kind');
+                if (!in_array($kind, $usable, true)) $this->invalid('kind', 'Unknown kind. Call get_builder_schema without kind to list available kinds.');
+                $node = $spec['kinds'][$kind];
+                // Icon names are listed once, without kind.
+                $props = array_map(static fn(array $prop): array => $prop['type'] === 'icon' ? ['options' => in_array('', $prop['options'], true) ? 'icons, or "" for none' : 'icons'] + $prop : $prop, $node['props']);
+                $result[$kind] = ['props' => $props, 'style' => $node['style'], 'children' => $node['children'], 'responsive' => ['devices' => $spec['devices']] + $node['responsive'], 'states' => ['states' => $spec['states']] + $node['states']];
+            }
+            $shared = [
+                'bindings' => array_intersect_key($spec['bindings'], array_flip(['sources', 'date_formats'])),
+                'localized_values' => 'Use {type: localized, values: {locale: value}}. Patches replace the entire property, so preserve other locales.',
+                'style_values' => 'style lists the style keys a kind takes; get_builder_schema without kind lists their values and the icons.',
+            ];
+            return is_array($args['kind']) ? ['kinds' => $result] + $shared : ['kind' => array_key_first($result)] + $result[array_key_first($result)] + $shared;
         }
+        $children = [];
+        foreach ($usable as $kind) $children[$kind] = $spec['kinds'][$kind]['children'];
+        $styles = array_map(static fn(array $value): array => array_diff_key($value, ['localized' => true, 'binding' => true]), $spec['style']);
         return [
             'format_version' => $spec['format_version'], 'variants' => $spec['variants'], 'root' => $spec['root'],
-            'kinds' => array_map(static fn(array $kind): array => ['children' => $kind['children']], $spec['kinds']),
+            'children' => self::grouped($children),
+            'style' => self::grouped($styles),
+            'icons' => $this->icons($spec),
             'max_nodes' => LayoutSchema::MAX_NODES, 'max_row_depth' => $spec['max_row_depth'],
-            'next' => 'Call get_builder_schema with kind for props/styles, then get_layout for section IDs and revision. Layouts are shared and writes take effect immediately.',
+            'next' => 'Call get_builder_schema with kind (one or a list) for props and style keys, then get_layout for section IDs and revision. Writes take effect immediately.',
         ];
     }
 
-    private function overview(SiteRepository $site, array $target, array $nodes): array
+    /** The icon names icon props take. */
+    private function icons(array $spec): array
     {
-        return $target + [
+        foreach ($spec['kinds'] as $kind) foreach ($kind['props'] as $prop) if ($prop['type'] === 'icon') return array_values(array_filter($prop['options']));
+        return [];
+    }
+
+    /** Kinds a layout or an entry's content can hold: those reachable from the top level, and component instances. */
+    private function usableKinds(): array
+    {
+        $kinds = ['root' => true];
+        for ($queue = ['root']; $queue !== [];) {
+            foreach (LayoutSchema::childrenFor(array_shift($queue), true, false) as $child) {
+                if (isset($kinds[$child])) continue;
+                $kinds[$child] = true;
+                $queue[] = $child;
+            }
+        }
+        unset($kinds['root']);
+        return [...array_keys($kinds), LayoutSchema::COMPONENT];
+    }
+
+    /** $map with keys of equal values joined into one "a, b" key. */
+    private static function grouped(array $map): array
+    {
+        $groups = [];
+        foreach ($map as $key => $value) $groups[json_encode($value)][] = $key;
+        $result = [];
+        foreach ($groups as $value => $keys) $result[implode(', ', $keys)] = json_decode($value, true);
+        return $result;
+    }
+
+    private function overview(array $scope, array $nodes): array
+    {
+        return $scope['target'] + [
             'revision' => LocalizedValue::hash($nodes),
-            'sections' => array_map(fn(array $node): array => $this->summary($node) + ['node_count' => $this->countNodes([$node])], $nodes),
-            'effect' => 'Shared by entries that use this template; saves take effect on published pages immediately.',
-            'next' => 'Use get_section(section_id) for a subtree or get_element(element_id) for props. Include revision in every write.',
+            'sections' => array_map($this->sectionSummary(...), $nodes),
+            'effect' => $scope['effect'],
+            'next' => trim('Use get_section(section_id) for a subtree or get_element(element_id) for props. Include revision in every write. ' . ($scope['next'] ?? '')),
         ];
+    }
+
+    private function sectionSummary(array $node): array
+    {
+        return $this->summary($node) + ($node['kind'] === LayoutSchema::PAGE_CONTENT ? ['area' => (string) ($node['props']['field'] ?? '')] : []) + ['node_count' => $this->countNodes([$node])];
     }
 
     private function summary(array $node): array
@@ -203,15 +378,35 @@ final class PageBuilderTools
         return $count;
     }
 
-    private function compact(array $node): array
+    private function compact(array $node, bool $summary = false): array
     {
         $result = $this->summary($node);
         $defaults = array_map(static fn(array $spec): mixed => $spec['default'], LayoutSchema::propSpec($node['kind']));
         $props = array_filter($node['props'] ?? [], static fn(mixed $value, string $key): bool => $value !== ($defaults[$key] ?? null), ARRAY_FILTER_USE_BOTH);
-        if ($props !== []) $result['props'] = $props;
+        if (!$summary && $props !== []) $result['props'] = $props;
         if (($node['style'] ?? []) !== []) $result['style'] = $node['style'];
-        foreach (['responsive', 'states'] as $key) if (($node[$key] ?? []) !== []) $result[$key] = $node[$key];
-        if (($node['children'] ?? []) !== []) $result['children'] = array_map($this->compact(...), $node['children']);
+        foreach (['responsive', 'states'] as $key) {
+            if (!$summary && ($node[$key] ?? []) !== []) $result[$key] = $node[$key];
+            if ($summary) foreach ($node[$key] ?? [] as $variant => $values) {
+                if (($values['style'] ?? []) !== []) $result[$key][$variant]['style'] = $values['style'];
+            }
+        }
+        return $result;
+    }
+
+    private function readNode(array $node, array $args): array
+    {
+        $result = $this->compact($node, ($args['mode'] ?? 'full') === 'summary');
+        $children = $node['children'] ?? [];
+        if ($children !== []) {
+            if (($args['depth'] ?? null) === 0) {
+                $result['child_count'] = count($children);
+                $result['children_truncated'] = true;
+            } else {
+                if (isset($args['depth'])) $args['depth']--;
+                $result['children'] = array_map(fn(array $child): array => $this->readNode($child, $args), $children);
+            }
+        }
         return $result;
     }
 
@@ -225,7 +420,7 @@ final class PageBuilderTools
     private function sectionIndex(array $nodes, string $id): int
     {
         foreach ($nodes as $index => $node) if ($node['id'] === $id) return $index;
-        throw new McpError('Section ID not found at the layout root.', 404, ['code' => 'section_not_found', 'section_id' => $id], [], ['Call get_layout to list top-level section IDs. For nested nodes use get_element and update_element_props.']);
+        throw new McpError('Section ID not found at the layout root.', 404, ['code' => 'section_not_found', 'section_id' => $id], [], ['Call get_layout to list top-level section IDs. For nested nodes use get_element and update_element.']);
     }
 
     private function element(array $nodes, string $id): array
@@ -251,7 +446,7 @@ final class PageBuilderTools
     {
         $this->map($patch, 'patch');
         $this->keys($patch, $section ? ['name', 'props', 'style', 'responsive', 'states', 'children'] : ['props', 'style', 'responsive', 'states'], 'patch');
-        if ($patch === []) $this->invalid('patch', 'Supply props, style, responsive, states, name or children to change.');
+        if ($patch === []) $this->invalid($section ? 'patch' : 'props', 'Supply ' . ($section ? 'props, style, responsive, states, name or children' : 'props, style, responsive or states') . ' to change.');
         foreach (['props', 'style'] as $key) {
             if (array_key_exists($key, $patch)) {
                 $this->map($patch[$key], 'patch.' . $key);
@@ -271,8 +466,12 @@ final class PageBuilderTools
         return $nodes;
     }
 
-    /** Check shapes and supplied IDs before using the lenient editor normalizer. */
-    private function prepare(mixed $nodes, string $path, array &$seen, int &$count, int $depth = 0): array
+    /**
+     * Check shapes, supplied IDs and placement before using the lenient
+     * editor normalizer, which drops what it cannot place. $at describes
+     * where the nodes go, as LayoutSchema::normalize tracks it.
+     */
+    private function prepare(mixed $nodes, string $path, array &$seen, int &$count, array $at, array &$areas, int $depth = 0): array
     {
         if (!is_array($nodes) || !array_is_list($nodes)) $this->invalid($path, 'Expected an array of nodes. Use [] for an empty layout or children.');
         if ($depth > 32) $this->invalid($path, 'Tree is too deep. Reduce nested rows/templates.');
@@ -282,6 +481,7 @@ final class PageBuilderTools
             $this->map($node, $nodePath);
             $this->keys($node, ['id', 'kind', 'name', 'props', 'style', 'responsive', 'states', 'children'], $nodePath);
             if (!is_string($node['kind'] ?? null) || !in_array($node['kind'], [...LayoutSchema::STRUCTURE, ...LayoutSchema::ELEMENTS, 'tab', LayoutSchema::COMPONENT, LayoutSchema::PAGE_CONTENT], true)) $this->invalid($nodePath . '.kind', 'Unknown or missing kind.');
+            $this->placement($node, $nodePath, $at, $areas);
             if (!array_key_exists('id', $node)) $node['id'] = LayoutSchema::newId();
             $id = $this->identifier($node['id'], $nodePath . '.id');
             if (isset($seen[$id])) $this->invalid($nodePath . '.id', 'Duplicate node ID. Use a unique ID or omit IDs on new nodes.');
@@ -309,9 +509,57 @@ final class PageBuilderTools
                     foreach ($values as $part => $items) $this->map($items, $nodePath . '.' . $group . '.' . $variant . '.' . $part);
                 }
             }
-            $node['children'] = $this->prepare($node['children'] ?? [], $nodePath . '.children', $seen, $count, $depth + 1);
+            $kind = $node['kind'];
+            $node['children'] = $this->prepare($node['children'] ?? [], $nodePath . '.children', $seen, $count, [
+                // A repeater's item template may not contain another one.
+                'parent' => $kind === 'field' ? ($at['item'] ? '' : 'field') : $kind,
+                // Cards, item templates and an area's default content hold no Entry content area.
+                'page_content' => $at['page_content'] && !in_array($kind, ['field', 'collection', LayoutSchema::PAGE_CONTENT], true),
+                'rows' => $kind === LayoutSchema::PAGE_CONTENT ? 0 : $at['rows'] + ($kind === 'row' ? 1 : 0),
+                'item' => $at['item'] || $kind === 'field',
+            ], $areas, $depth + 1);
         }
         return $nodes;
+    }
+
+    /** Name the node the normalizer would drop for its placement, and how to place it instead. */
+    private function placement(array $node, string $path, array $at, array &$areas): void
+    {
+        $kind = $node['kind'];
+        $placed = LayoutSchema::placementKind($node);
+        if ($placed === '') $this->invalid($path . '.props.root', 'A component instance needs props.root: ' . implode(', ', LayoutSchema::STRUCTURE) . '.');
+        $allowed = LayoutSchema::childrenFor($at['parent'], $at['page_content'], false);
+        if (!in_array($placed, $allowed, true)) {
+            $where = $at['parent'] === 'root' ? 'at the top level' : ($at['parent'] === '' ? 'in an item template inside another item template' : 'inside a ' . $at['parent']);
+            $holds = $allowed === [] ? 'It holds no children.' : 'Allowed there: ' . implode(', ', $allowed) . '.';
+            $wrap = $this->wrapping($at['parent'], $placed);
+            $areaHint = $kind === LayoutSchema::PAGE_CONTENT ? ' Entry content areas exist only in detail templates, outside cards, item templates and other areas, never in an entry\'s own content.' : '';
+            $this->invalid($path, 'A ' . $placed . ' cannot be placed ' . $where . '. ' . $holds . ($wrap !== [] ? ' Wrap it in ' . implode(' > ', $wrap) . '.' : '') . $areaHint);
+        }
+        if ($placed === 'row' && $at['rows'] > LayoutSchema::MAX_ROW_DEPTH) {
+            $this->invalid($path, 'Rows nest at most ' . LayoutSchema::MAX_ROW_DEPTH . ' levels inside other rows. Flatten this row into its parent column.');
+        }
+        if ($kind === LayoutSchema::PAGE_CONTENT && is_string($node['props']['field'] ?? null) && $node['props']['field'] !== '') {
+            if (isset($areas[$node['props']['field']])) $this->invalid($path . '.props.field', 'Each Entry content area can be placed once per template.');
+            $areas[$node['props']['field']] = true;
+        }
+        if ($kind === 'collection' && is_array($node['children'] ?? null) && count($node['children']) > 1) {
+            $this->invalid($path . '.children', 'A collection holds a single card (one column) that repeats for each entry.');
+        }
+    }
+
+    /** The shortest chain of section/row/column wrappers that lets $parent hold $kind, e.g. [row, column]; empty if none. */
+    private function wrapping(string $parent, string $kind): array
+    {
+        $structure = static fn(string $of): array => array_values(array_intersect(LayoutSchema::allowedChildren($of), LayoutSchema::STRUCTURE));
+        $queue = array_map(static fn(string $child): array => [$child], $structure($parent));
+        while ($queue !== []) {
+            $chain = array_shift($queue);
+            if (count($chain) > 3) break;
+            if (in_array($kind, LayoutSchema::allowedChildren(end($chain)), true)) return $chain;
+            foreach ($structure(end($chain)) as $child) if (!in_array($child, $chain, true)) $queue[] = [...$chain, $child];
+        }
+        return [];
     }
 
     /** Reject malformed compound values before lenient normalizers can cast them. */
@@ -361,6 +609,7 @@ final class PageBuilderTools
         if (count($input) !== count($output)) $this->invalid($path, 'Invalid child placement, nesting limit, duplicate page placeholder or collection card count. Inspect allowed children with get_builder_schema.');
         $styles = LayoutSchema::styleSpec();
         foreach ($input as $index => $node) {
+            $props = LayoutSchema::propSpec($node['kind']);
             $actual = $output[$index];
             $nodePath = $path . '.' . $index;
             foreach (['id', 'kind', 'name'] as $key) {
@@ -368,12 +617,12 @@ final class PageBuilderTools
             }
             foreach ($node['props'] ?? [] as $key => $value) {
                 if (!array_key_exists($key, $actual['props'])) $this->invalid($nodePath . '.props.' . $key, 'Unknown property for ' . $node['kind'] . '.');
-                $this->compareValue($value, $actual['props'][$key], $nodePath . '.props.' . $key);
+                $this->compareValue($value, $actual['props'][$key], $nodePath . '.props.' . $key, $this->allowed($props[$key] ?? []));
             }
             $allowedStyle = array_flip(LayoutSchema::styleKeys($node['kind']));
             foreach ($node['style'] ?? [] as $key => $value) {
                 if (!isset($allowedStyle[$key])) $this->invalid($nodePath . '.style.' . $key, 'Unknown style for ' . $node['kind'] . '.');
-                $this->compareValue($value, $actual['style'][$key] ?? $styles[$key]['default'], $nodePath . '.style.' . $key);
+                $this->compareValue($value, $actual['style'][$key] ?? $styles[$key]['default'], $nodePath . '.style.' . $key, $this->allowed($styles[$key]));
             }
             foreach (['responsive', 'states'] as $group) {
                 if (array_key_exists($group, $node)) $this->compareValue($node[$group], $actual[$group] ?? [], $nodePath . '.' . $group);
@@ -382,17 +631,32 @@ final class PageBuilderTools
         }
     }
 
-    private function compareValue(mixed $input, mixed $output, string $path): void
+    private function compareValue(mixed $input, mixed $output, string $path, string $allowed = ''): void
     {
         if (is_array($input) && is_array($output)) {
-            if (array_is_list($input) && $input !== [] && count($input) !== count($output)) $this->invalid($path, 'Some supplied values would be discarded.');
+            if (array_is_list($input) && $input !== [] && count($input) !== count($output)) $this->invalid($path, trim('Some supplied values would be discarded. ' . $allowed));
             foreach ($input as $key => $value) {
                 if (!array_key_exists($key, $output)) $this->invalid($path . '.' . $key, 'Unknown or invalid value would be discarded.');
-                $this->compareValue($value, $output[$key], $path . '.' . $key);
+                $this->compareValue($value, $output[$key], $path . '.' . $key, $allowed);
             }
             return;
         }
-        if ($input !== $output) $this->invalid($path, 'Value would be sanitized, clamped or replaced by a default. Use the allowed type/value from get_builder_schema(kind).');
+        if ($input !== $output) $this->invalid($path, 'Value would be sanitized, clamped or replaced by a default. ' . ($allowed !== '' ? $allowed : 'Use the allowed type/value from get_builder_schema(kind).'));
+    }
+
+    /** What a prop/style spec accepts, for value errors. */
+    private function allowed(array $spec): string
+    {
+        return match ($spec['type'] ?? '') {
+            'icon' => 'Use a name from icons in get_builder_schema without kind.',
+            'enum', 'set' => 'Use ' . (($spec['type'] === 'set') ? 'a list of: ' : 'one of: ') . implode(', ', array_map(static fn(string $option): string => $option === '' ? '"" (default)' : $option, $spec['options'])) . '.',
+            'color' => 'Use one of: ' . implode(', ', array_filter($spec['options'])) . ', or "" (default).',
+            'int' => 'Use an integer from ' . $spec['min'] . ' to ' . $spec['max'] . '.',
+            'string' => 'Use plain text of at most ' . ($spec['max'] ?? 200) . ' characters, without line breaks.',
+            'html' => 'Use HTML with only these tags: ' . implode(', ', array_keys(HtmlSanitizer::ALLOWED_TAGS)) . '; no style or event attributes (span/div take class).',
+            'raw_html' => 'Use HTML source of at most ' . $spec['max'] . ' characters. Markup and embedded style blocks are preserved.',
+            default => '',
+        };
     }
 
     private function map(mixed $value, string $path): void
@@ -418,6 +682,6 @@ final class PageBuilderTools
 
     private function conflict(): never
     {
-        throw new McpError('Layout changed since it was read. No changes were saved.', 409, ['code' => 'conflict'], [], ['Read get_layout or get_section again, reconcile your changes, then retry with the new revision. Do not blindly replay a stale full replacement.']);
+        throw new McpError('Content changed since it was read. No changes were saved.', 409, ['code' => 'conflict'], [], ['Read get_layout or get_section again, reconcile your changes, then retry with the new revision. Do not blindly replay a stale full replacement.']);
     }
 }

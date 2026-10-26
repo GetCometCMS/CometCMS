@@ -8,7 +8,7 @@
         <BuilderOverrideStatus v-if="variants" :node="node" :group="group" :name="name" />
         <slot name="status" />
       </div>
-      <span v-if="hint" :title="hint" class="min-w-0 truncate text-[10px] text-slate-400">{{ hint }}</span>
+      <span v-if="hint" :id="`${inputId}-hint`" :title="hint" class="min-w-0 truncate text-[10px] text-slate-400">{{ hint }}</span>
     </div>
 
     <SmartValueEditor v-if="def.binding" :model-value="value" :node="node" :target="def.binding" :label="label" @update:model-value="emitValue">
@@ -230,6 +230,20 @@
       @input="emitValue($event.target.value)"
     />
 
+    <textarea
+      v-else-if="def.type === 'raw_html'"
+      :id="inputId"
+      :value="value ?? ''"
+      :maxlength="def.max"
+      rows="14"
+      spellcheck="false"
+      autocapitalize="off"
+      autocorrect="off"
+      class="form-textarea w-full resize-y rounded-lg border-slate-300 font-mono text-xs leading-relaxed"
+      :aria-describedby="`${inputId}-hint`"
+      @input="emitValue($event.target.value)"
+    ></textarea>
+
     <div v-else-if="def.type === 'html'" class="site-builder-richtext">
       <FieldInput :name="inputId" :config="{ type: 'html' }" :model-value="value" @update:model-value="emitValue" />
     </div>
@@ -393,10 +407,12 @@ const siteTheme = computed(() => site.draft?.theme ?? site.data?.theme ?? null);
 const customClasses = computed(() => themeCssClasses(siteTheme.value?.custom_css ?? ""));
 const isHoverAnimation = computed(() => props.group === "style" && props.name === "animation" && builder.styleState.value === "hover");
 const label = computed(() => {
+  if (props.def.type === "raw_html") return t("site.prop.htmlSource");
   if (props.node.kind === "accordion" && props.name === "items") return t("site.accordion.entries");
   if (isHoverAnimation.value) return t("site.style.hover_effect");
   if (props.name === "span" && builder.isStacked(props.node)) return t("site.prop.spanStacked");
   if (props.name === "text_color" && props.node.kind === "divider") return t("site.style.divider_color");
+  if (props.name === "text_color" && props.node.kind === "icon") return t("site.style.icon_color");
   if (props.name === "label" && props.node.kind === "icon") return t("site.prop.iconLabel");
   if (props.name === "label" && props.node.kind === "theme_toggle") return t("site.prop.toggleLabel");
   if (props.name === "label" && props.node.kind === "modal_close") return t("site.prop.closeLabel");
@@ -407,6 +423,7 @@ const label = computed(() => {
 });
 
 const hint = computed(() => {
+  if (props.def.type === "raw_html") return t("site.builder.htmlHint");
   if (props.node.kind === "video" && ["media", "poster", "video_url", "autoplay", "controls", "start_time", "fullscreen"].includes(props.name)) return t(`site.video.${props.name}Hint`);
   if (props.name === "class") return t("site.builder.classHint");
   if (props.node.kind === "theme_toggle" && props.name === "label" && !value.value) return t("site.themeToggle.labelHint");

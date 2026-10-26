@@ -65,6 +65,7 @@ The builder shows a live preview rendered by the same code as the real site. Lay
 | Field display | Specialized values such as downloads, repeaters, related cards, badges, or meters. |
 | Heading      | Static text, field references, or a mixture of both.                           |
 | Text         | Rich text.                                                                    |
+| HTML block   | Custom HTML source, including embedded `<style>` blocks.                       |
 | Image        | An image from the media library or a bound media field.                        |
 | Video        | A media library video, YouTube, Vimeo or an external MP4/WebM/OGV file, with responsive aspect ratio and playback controls. |
 | Gallery      | Selected media in a custom order, or media from a bound entry field, in a responsive grid with crop, spacing, and caption controls. |
@@ -98,6 +99,21 @@ Drag elements from **Add** onto the preview or into the **Outline**, or click th
 Give elements descriptive names to find your way around larger layouts. In the **Outline**, double-click an element's label or click its pencil button to rename it. Press <kbd>Enter</kbd> or click away to apply, or <kbd>Esc</kbd> to cancel. Clear the name to restore its automatic label. Names are saved with the layout and support undo/redo; they also appear in the inspector and canvas selection without changing the website's content.
 
 If a field is renamed or removed, elements bound to it render nothing and the builder marks them.
+
+### HTML blocks
+
+Add **HTML block** from **Add → Elements** and enter your markup in **HTML source**. The builder preview and published page render the source as entered, including `<style>` blocks, custom attributes, and inline styles. Use unique class names in your CSS to keep it specific to the block; embedded styles follow the normal page-wide CSS rules.
+
+```html
+<style>
+  .custom-promo { padding: 2rem; background: #f0f4ff; }
+  .custom-promo h2 { color: #3344aa; }
+</style>
+<section class="custom-promo">
+  <h2>A custom promotion</h2>
+  <p>Markup and styling in one block.</p>
+</section>
+```
 
 ### Videos
 
@@ -401,7 +417,7 @@ The default workspace's website answers on the server's own address. To serve an
 - Pages, 404 responses, the sitemap and robots.txt use the workspace's public API cache (`cache.enabled` and `cache.ttl`, 300 seconds by default). Content, schema, media and website configuration changes clear that workspace's cache. A scheduled publication shortens the cache lifetime so it becomes visible as soon as it is due.
 - Cache entries are separate for each workspace, origin, installation prefix, path and page number. Unrelated query parameters do not create extra entries. Draft and builder previews bypass the public cache.
 - Public pages set no cookies and support `ETag` revalidation; the stylesheet is versioned and cached for a year.
-- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery, link modal, Tabs, Search and theme toggle scripts when needed, allowed by their content hashes. All content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields.
+- Pages are sent with a `Content-Security-Policy` that blocks scripts except for the exact bundled gallery, link modal, Tabs, Search and theme toggle scripts when needed, allowed by their content hashes. Content is escaped, and rich text and Markdown pass the same HTML allow-list as HTML fields. HTML blocks preserve builder-authored source, including embedded CSS; the page's script policy still applies.
 - Layouts are data: every value is checked against a fixed vocabulary before it reaches the page.
 
 Website settings are included in backups as the **Website** part.

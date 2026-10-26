@@ -15,6 +15,7 @@ use CometCMS\Core\Security;
 use CometCMS\Core\ValidationException;
 use CometCMS\Logging\Logger;
 use CometCMS\Media\MediaRepository;
+use CometCMS\Site\LayoutSchema;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
@@ -173,6 +174,11 @@ final class McpServer
             if ($this->principal === [] && !$this->toolSchemas()[$name]['annotations']['readOnlyHint']) {
                 throw new McpError('A bearer token is required for write tools.', 401, ['code' => 'unauthorized'], $this->requiredPermissionsForTool($name, $args));
             }
+            if (in_array($name, PageBuilderTools::NAMES, true)) $this->requirePermission($name, $args);
+            ToolArguments::validate($name, array_key_exists('arguments', $params) ? $params['arguments'] : [], [
+                'type' => 'object', 'additionalProperties' => true,
+                'description' => 'Pass arguments as an object of named tool inputs. Use tools/list for this tool\'s inputSchema; do not pass a JSON string or a list.',
+            ]);
             $callback = $this->toolCallbacks()[$name];
             return $this->textResult($callback($args), false, in_array($name, PageBuilderTools::NAMES, true));
         } catch (McpError $e) {
@@ -216,7 +222,7 @@ final class McpServer
         foreach (PageBuilderTools::NAMES as $name) {
             $builder[$name] = function (array $args) use ($name): array {
                 $this->requirePermission($name, $args);
-                return (new PageBuilderTools($this->workspace, $this->principal))->call($name, $args);
+                return (new PageBuilderTools($this->workspace, $this->principal, $this->permissions))->call($name, $args);
             };
         }
         return $builder + [
@@ -381,6 +387,7 @@ final class McpServer
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
         $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
+        $this->rejectPageFields($collection, $entry);
         $this->requirePermission('create_entry', ['collection' => $collection, 'entry_payload' => $entry, 'locale' => $entry['locale']]);
         $this->requirePublishPermission($collection, null, $entry);
 
@@ -396,6 +403,7 @@ final class McpServer
         $entry = is_array($args['entry'] ?? null) ? $args['entry'] : [];
         $entry['locale'] = $this->content->locale((string) ($entry['locale'] ?? ''));
         $this->requireCollection($collection, 'Content collection not found.');
+        $this->rejectPageFields($collection, $entry);
         $existing = $this->content->findByIdentifier($collection, $identifier, true, $entry['locale']);
 
         if ($existing === null) {
@@ -550,7 +558,7 @@ final class McpServer
             'list_entries' => ['title' => 'List content entries', 'description' => 'Fetch one paginated page of entries.', 'inputSchema' => $this->schema(['collection' => $string, 'q' => $optionalString, 'sort' => $optionalString, 'include' => $optionalString, 'locale' => $optionalString, 'filters' => $object] + $pagination, ['collection']), 'annotations' => $this->toolAnnotations(true)],
             'get_entry' => ['title' => 'Get content entry', 'description' => 'Fetch one entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'include' => $optionalString, 'locale' => $optionalString], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(true)],
             'create_entry' => ['title' => 'Create content entry', 'description' => 'Create a content entry.', 'inputSchema' => $this->schema(['collection' => $string, 'entry' => $object], ['collection', 'entry']), 'annotations' => $this->toolAnnotations(false, false, false)],
-            'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry']), 'annotations' => $this->toolAnnotations(false, true, true)],
+            'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug. Page content (Entry content areas) is edited with the page-builder tools and entry.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier']), 'annotations' => $this->toolAnnotations(false, true, true)],
             'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination), 'annotations' => $this->toolAnnotations(true)],
             'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string, 'locale' => $optionalString], ['filename']), 'annotations' => $this->toolAnnotations(true)],
@@ -758,8 +766,28 @@ final class McpServer
         ], static fn(mixed $value): bool => $value !== null);
     }
 
+    /**
+     * Page content is edited only through the page-builder tools, which
+     * check revisions and reject nodes the schema would drop.
+     */
+    private function rejectPageFields(string $collection, array $entry): void
+    {
+        $fields = $this->types->find($collection)['fields'] ?? [];
+        $keys = array_keys($entry + (is_array($entry['values'] ?? null) ? $entry['values'] : []));
+        $pages = array_values(array_filter($keys, static fn(mixed $key): bool => ($fields[$key]['type'] ?? '') === 'page'));
+        if ($pages === []) return;
+
+        throw new McpError('Entry content areas cannot be written with entry tools: ' . implode(', ', $pages) . '.', 422, ['code' => 'page_field', 'fields' => $pages], [], [
+            'Remove these keys and use the page-builder tools with entry (id or slug) and area, e.g. get_layout(collection, variant: detail, entry, area), then set_layout or update_section with its revision.',
+        ]);
+    }
+
     private function publicValue(mixed $value, array $config, bool $admin, string $locale = ''): mixed
     {
+        if (($config['type'] ?? '') === 'page') {
+            return ['own_content' => LayoutSchema::hasPageContent($value), 'section_count' => count(LayoutSchema::pageNodes($value)), 'edit_with' => 'Page-builder tools with entry and area (get_layout first).'];
+        }
+
         if (($config['type'] ?? '') === 'media') {
             if (!is_array($value)) {
                 return [];

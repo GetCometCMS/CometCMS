@@ -14,7 +14,25 @@
       <div v-if="modelValue.type === 'linear'">
         <label :for="`${id}-angle`" class="mb-1 block text-xs text-slate-600">{{ t('site.gradient.angle') }}</label>
         <div class="flex items-center gap-2">
-          <input type="range" min="0" max="360" :value="modelValue.angle" :aria-label="t('site.gradient.angle')" class="min-w-0 flex-1 accent-theme-600" @input="setAngle($event.target.value)" />
+          <div
+            role="slider" tabindex="0" :aria-label="t('site.gradient.angle')"
+            aria-valuemin="0" aria-valuemax="360" :aria-valuenow="modelValue.angle"
+            :aria-valuetext="`${modelValue.angle}°`"
+            class="angle-dial relative h-16 w-16 shrink-0 touch-none select-none rounded-full border border-slate-300 bg-white text-theme-600 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-theme-600 focus-visible:ring-offset-2"
+            @pointerdown="startDrag" @pointermove="drag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="dragging = false"
+            @keydown="onAngleKeydown"
+          >
+            <svg viewBox="0 0 64 64" class="h-full w-full" aria-hidden="true">
+              <path d="M32 5v5 M59 32h-5 M32 59v-5 M5 32h5" class="stroke-slate-400" stroke-width="1.5" />
+              <circle cx="32" cy="32" r="22" fill="none" class="stroke-slate-200" />
+              <g :transform="`rotate(${modelValue.angle || 0} 32 32)`">
+                <path d="M32 47V14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path d="m27 20 5-7 5 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="32" cy="12" r="3" fill="currentColor" />
+              </g>
+              <circle cx="32" cy="32" r="3" fill="currentColor" />
+            </svg>
+          </div>
           <input :id="`${id}-angle`" type="number" min="0" max="360" :value="modelValue.angle" class="form-input w-20 rounded-lg border-slate-300 py-1.5 text-xs" @change="setAngle($event.target.value)" />
           <span class="text-xs text-slate-500">°</span>
         </div>
@@ -24,7 +42,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import ThemeColorPicker from "./ThemeColorPicker.vue";
 import { useI18n } from "../../../i18n/index.js";
 
@@ -35,6 +53,45 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue"]);
 const { t } = useI18n();
+const dragging = ref(false);
+
+function angleAtPointer(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX - bounds.left - bounds.width / 2;
+  const y = event.clientY - bounds.top - bounds.height / 2;
+  if (Math.hypot(x, y) < 3) return;
+  setAngle(Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360));
+}
+
+function startDrag(event) {
+  if (event.button !== 0 || !event.isPrimary) return;
+  event.preventDefault();
+  event.currentTarget.focus();
+  event.currentTarget.setPointerCapture(event.pointerId);
+  dragging.value = true;
+  angleAtPointer(event);
+}
+
+function drag(event) {
+  if (dragging.value) angleAtPointer(event);
+}
+
+function endDrag(event) {
+  dragging.value = false;
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+}
+
+function onAngleKeydown(event) {
+  const step = event.shiftKey ? 10 : 1;
+  const changes = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: 10, PageDown: -10 };
+  if (event.key === 'Home' || event.key === 'End') {
+    event.preventDefault();
+    setAngle(event.key === 'Home' ? 0 : 360);
+  } else if (Object.hasOwn(changes, event.key)) {
+    event.preventDefault();
+    setAngle(((Number(props.modelValue.angle) || 0) + changes[event.key] + 360) % 360);
+  }
+}
 const preview = computed(() => {
   const color = (key, fallback) => props.options.find((option) => option.value === props.modelValue[key])?.swatch
     ?? props.options.find((option) => option.value === fallback)?.swatch ?? '#cccccc';

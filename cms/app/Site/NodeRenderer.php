@@ -188,6 +188,7 @@ final class NodeRenderer
             'field' => $this->field($node, $state),
             'heading' => $this->heading($node, $state),
             'text' => $this->text($node, $state),
+            'html' => $this->html($node),
             'image' => $this->image($node, $state),
             'video' => $this->video($node),
             'gallery' => $this->gallery($node, $state),
@@ -625,6 +626,16 @@ final class NodeRenderer
         return $this->element($node, '<div' . $this->textGradientAttributes($node, 'c-prose') . '>' . $html . '</div>');
     }
 
+    private function html(array $node): string
+    {
+        $html = $node['props']['html'];
+        if (trim($html) === '') {
+            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('addHtml') . '>Add custom HTML</div>') : '';
+        }
+
+        return $this->element($node, $html);
+    }
+
     private function tabs(array $node, array $state): string
     {
         $tabs = $node['children'];
@@ -686,6 +697,11 @@ final class NodeRenderer
         $accessibility = $label !== '' ? ' role="img" aria-label="' . Security::e($label) . '"' : ' aria-hidden="true"';
         $html = '<svg class="c-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="' . (int) $props['size']
             . '" height="' . (int) $props['size'] . '" fill="currentColor" focusable="false"' . $accessibility . '>' . $icon['body'] . '</svg>';
+        if (($props['shape'] ?? 'none') !== 'none') {
+            $padding = (int) $props['shape_padding'];
+            $html = '<span class="c-icon-shape c-icon-shape-' . Security::e($props['shape']) . '" style="width:' . ((int) $props['size'] + 2 * $padding)
+                . 'px;padding:' . $padding . 'px;background-color:var(--c-' . Security::e($props['shape_color']) . ')">' . $html . '</span>';
+        }
         if ($link !== null) $html = $this->anchor($link, $html, 'c-icon-link');
 
         return $this->element($node, $html);

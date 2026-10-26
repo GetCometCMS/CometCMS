@@ -336,7 +336,7 @@ test('the preview admin bar names the template of the page, why it applies and l
     $menu = (new DOMXPath($document))->query('//details[contains(@class,"c-admin-templates")]')->item(0);
     assert_true($menu !== null, 'The bar has a template menu.');
     $text = preg_replace('/\s+/', ' ', $menu->textContent);
-    foreach (['Template: Tips', 'Its conditions match: category = tips', 'No header', 'ContentTips', 'Promo footer', 'Edit template'] as $expected) {
+    foreach (['Layout: Tips', 'Its conditions match: category = tips', 'No header', 'ContentTips', 'Promo footer', 'Edit layout'] as $expected) {
         assert_true(str_contains($text, $expected), $expected . ' in ' . $text);
     }
     $links = array_map(static fn(DOMElement $link): string => $link->getAttribute('href'), iterator_to_array((new DOMXPath($document))->query('.//a', $menu)));

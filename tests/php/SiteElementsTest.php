@@ -188,6 +188,46 @@ test('icon validation restricts identifiers to bundled assets and clamps size', 
     assert_same('', $nodes[1]['props']['link']['url']);
 });
 
+test('icon shapes retain independent colors and padding with accessible links', function (): void {
+    comet_site_test_setup();
+    $renderer = new NodeRenderer(comet_site_test_context());
+    foreach (['none', 'circle', 'square', 'squircle'] as $shape) {
+        $nodes = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [
+            LayoutSchema::node('icon', [
+                'shape' => $shape, 'shape_color' => 'primary', 'shape_padding' => 24, 'size' => 48,
+                'label' => 'Visit home', 'link' => ['type' => 'home'],
+            ], ['text_color' => 'inverse', 'align' => 'right']),
+        ])], 'column');
+        $node = $nodes[0]['children'][0];
+        assert_same($shape, $node['props']['shape']);
+        $html = $renderer->render([$node]);
+        assert_true(str_contains($html, 'c-fg-inverse c-ta-right'));
+        assert_true(str_contains($html, 'class="c-icon-link"'));
+        assert_true(str_contains($html, 'aria-label="Visit home"'));
+        if ($shape === 'none') {
+            assert_false(str_contains($html, 'c-icon-shape'));
+        } else {
+            assert_true(str_contains($html, 'c-icon-shape-' . $shape));
+            assert_true(str_contains($html, 'width:96px;padding:24px;background-color:var(--c-primary)'));
+            assert_matches('/<a[^>]*><span class="c-icon-shape[^>]*><svg.*<\/svg><\/span><\/a>/', $html);
+        }
+    }
+});
+
+test('icon shape validation defaults old blocks and rejects invalid styling', function (): void {
+    $nodes = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('icon'),
+        LayoutSchema::node('icon', ['shape' => '<script>', 'shape_color' => 'red);color:red', 'shape_padding' => 999]),
+        LayoutSchema::node('icon', ['shape' => 'squircle', 'shape_color' => 'custom-brand', 'shape_padding' => -10]),
+    ])], 'column')[0]['children'];
+    assert_same('none', $nodes[0]['props']['shape']);
+    assert_same('none', $nodes[1]['props']['shape']);
+    assert_same('surface', $nodes[1]['props']['shape_color']);
+    assert_same(120, $nodes[1]['props']['shape_padding']);
+    assert_same('custom-brand', $nodes[2]['props']['shape_color']);
+    assert_same(0, $nodes[2]['props']['shape_padding']);
+});
+
 test('section minimum heights survive saving and render viewport presets including existing values', function (): void {
     comet_site_test_setup();
     $renderer = new NodeRenderer(comet_site_test_context());

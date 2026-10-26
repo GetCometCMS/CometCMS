@@ -16,7 +16,7 @@ use DOMNode;
 final class HtmlSanitizer
 {
     /** @var array<string, list<string>> */
-    private const ALLOWED_TAGS = [
+    public const ALLOWED_TAGS = [
         'a' => ['href', 'title', 'target', 'rel'],
         'blockquote' => [],
         'br' => [],

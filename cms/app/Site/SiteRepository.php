@@ -1683,7 +1683,7 @@ final class SiteRepository
             'snapshot' => $snapshot,
         ], ...[...$path, $id]);
 
-        $max = (int) comet_config('site.max_revisions', 50);
+        $max = (int) comet_config('site.max_revisions', 55);
         if ($max < 0) {
             return;
         }

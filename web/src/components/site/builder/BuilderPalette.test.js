@@ -16,7 +16,7 @@ vi.mock('@iconify/vue', () => ({ Icon: {
 async function renderPanel() {
   const app = createSSRApp({ setup() {
     const builder = createSiteBuilder({ t })
-    builder.spec.value = { elements: ['text', 'accordion', 'icon', 'component'], kinds: {} }
+    builder.spec.value = { elements: ['text', 'html', 'accordion', 'icon', 'component'], kinds: {} }
     builder.components.value = [
       { id: 'shared', name: 'Shared promo', icon: 'mdi:star-outline', root: 'section', type: '' },
       { id: 'typed', name: 'Article teaser', root: 'row', type: 'posts' },
@@ -54,6 +54,8 @@ describe('components in the Add panel', () => {
     expect(html).not.toContain('Rename:')
     expect(html).not.toContain('Delete:')
     expect(html).toContain('Text')
+    expect(html).toContain('HTML block')
+    expect(html).toContain('data-icon="mdi:code-tags"')
     expect(html).toContain('Accordion')
     expect(html).toContain('Icons')
   })

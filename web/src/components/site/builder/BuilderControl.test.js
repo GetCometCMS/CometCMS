@@ -19,6 +19,23 @@ async function renderControl(name, def, value, overrides = {}) {
   return renderToString(app)
 }
 
+describe('builder HTML source control', () => {
+  it('edits markup as escaped source without inserting it into the admin page', async () => {
+    const source = '<style>.promo { color: red; }</style>\n</textarea><section class="promo">Hello</section>'
+    const html = await renderControl('html', { type: 'raw_html', max: 50000, default: '' }, source, {
+      node: { id: 'html1', kind: 'html', props: { html: source }, style: {} },
+    })
+    expect(html).toContain('<textarea id="builder-html1-props-html"')
+    expect(html).toContain('HTML source')
+    expect(html).toContain('maxlength="50000"')
+    expect(html).toContain('spellcheck="false"')
+    expect(html).toContain('&lt;style&gt;.promo { color: red; }&lt;/style&gt;\n&lt;/textarea&gt;')
+    expect(html).not.toContain('<style>')
+    expect(html).not.toContain('<section')
+    expect(html).not.toContain('tiptap')
+  })
+})
+
 describe('builder icon controls', () => {
   it('uses the existing picker with a label and a locally available selected icon', async () => {
     const html = await renderControl('icon', { type: 'icon', default: 'mdi:star-outline', options: SITE_ICONS }, 'mdi:heart-outline')
@@ -36,6 +53,14 @@ describe('builder icon controls', () => {
     const label = await renderControl('label', { type: 'string', max: 120, default: '' }, '')
     expect(label).toContain('Accessible label')
     expect(label).not.toContain('Show field label')
+  })
+
+  it('offers labeled background shapes and names the foreground color for icons', async () => {
+    const shape = await renderControl('shape', { type: 'enum', options: ['none', 'circle', 'square', 'squircle'], default: 'none' }, 'circle')
+    for (const label of ['Background shape', 'None', 'Circle', 'Square', 'Squircle']) expect(shape).toContain(label)
+    expect(shape).toContain('aria-checked="true" aria-label="Circle"')
+    const color = await renderControl('text_color', { type: 'color', options: ['', 'primary', 'inverse'], default: '' }, 'primary', { group: 'style' })
+    expect(color).toContain('Icon color')
   })
 })
 

@@ -26,6 +26,10 @@ describe('gradient controls', () => {
     expect(html).toContain('for="gradient-to"')
     expect(html).toContain('Brand')
     expect(html).toContain('id="gradient-angle" type="number" min="0" max="360" value="45"')
+    expect(html).toContain('role="slider" tabindex="0"')
+    expect(html).toContain('aria-valuenow="45"')
+    expect(html).toContain('rotate(45 32 32)')
+    expect(html).not.toContain('type="range"')
   })
 
   it('hides the angle for radial gradients and previews deleted colors using built-in fallbacks', async () => {

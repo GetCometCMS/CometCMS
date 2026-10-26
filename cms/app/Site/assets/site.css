@@ -39,9 +39,10 @@ a:where(:hover) { color: var(--link-hover-color, var(--link-color, var(--c-prima
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: var(--heading-weight);
-  line-height: 1.2;
+  line-height: var(--heading-line-height, 1.2);
   margin: 0 0 0.5em;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--heading-letter-spacing, -0.01em);
+  text-transform: var(--heading-transform, none);
 }
 h1 { font-size: var(--fs-4xl); }
 h2 { font-size: var(--fs-3xl); }
@@ -210,17 +211,26 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────── */
 .c-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
-.c-gap-none, .c-gallery.c-gap-none { gap: 0; }
-.c-gap-xs, .c-gallery.c-gap-xs { gap: var(--space-xs); }
-.c-gap-sm, .c-gallery.c-gap-sm { gap: var(--space-sm); }
-.c-gap-md, .c-gallery.c-gap-md { gap: var(--space-md) calc(var(--space-md) * 1.5); }
-.c-gap-lg, .c-gallery.c-gap-lg { gap: var(--space-lg); }
-.c-gap-xl, .c-gallery.c-gap-xl { gap: var(--space-xl); }
+/* --c-gap-x repeats the column gap so distributed rows can size their columns. */
+.c-gap-none, .c-gallery.c-gap-none { gap: 0; --c-gap-x: 0px; }
+.c-gap-xs, .c-gallery.c-gap-xs { gap: var(--space-xs); --c-gap-x: var(--space-xs); }
+.c-gap-sm, .c-gallery.c-gap-sm { gap: var(--space-sm); --c-gap-x: var(--space-sm); }
+.c-gap-md, .c-gallery.c-gap-md { gap: var(--space-md) calc(var(--space-md) * 1.5); --c-gap-x: calc(var(--space-md) * 1.5); }
+.c-gap-lg, .c-gallery.c-gap-lg { gap: var(--space-lg); --c-gap-x: var(--space-lg); }
+.c-gap-xl, .c-gallery.c-gap-xl { gap: var(--space-xl); --c-gap-x: var(--space-xl); }
 .c-items-stretch { align-items: stretch; }
 .c-items-start { align-items: start; }
 .c-items-center { align-items: center; }
 .c-items-end { align-items: end; }
+/* A 12-track grid leaves no free space to distribute, so distributed rows wrap
+   as flex lines whose columns keep the width of their span in the grid. */
+.c-row:is(.c-justify-center, .c-justify-end, .c-justify-between) { display: flex; flex-wrap: wrap; }
+.c-row:is(.c-justify-center, .c-justify-end, .c-justify-between) > .c-col {
+  flex: 0 0 calc((100% - 11 * var(--c-gap-x, 0px)) / 12 * var(--c-span, 12) + (var(--c-span, 12) - 1) * var(--c-gap-x, 0px));
+}
 .c-justify-center { justify-content: center; }
+.c-justify-end { justify-content: flex-end; }
+.c-justify-between { justify-content: space-between; }
 .c-row > .c-col { min-width: 0; }
 .c-self-start { align-self: start; }
 .c-self-center { align-self: center; }
@@ -248,7 +258,6 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-col-4 { grid-column: span 4; --c-span: 4; } .c-col-5 { grid-column: span 5; --c-span: 5; } .c-col-6 { grid-column: span 6; --c-span: 6; }
 .c-col-7 { grid-column: span 7; --c-span: 7; } .c-col-8 { grid-column: span 8; --c-span: 8; } .c-col-9 { grid-column: span 9; --c-span: 9; }
 .c-col-10 { grid-column: span 10; --c-span: 10; } .c-col-11 { grid-column: span 11; --c-span: 11; } .c-col-12 { grid-column: span 12; --c-span: 12; }
-.c-justify-between > .c-col:last-child:not(:first-child) { justify-self: stretch; }
 @media (max-width: 767px) {
   .c-reverse-mobile > .c-col { order: var(--c-column-order, 0); }
 }
@@ -312,7 +321,15 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-field-label { font-size: var(--fs-sm); font-weight: 600; color: var(--c-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25em; }
 .c-muted { color: var(--c-muted); }
 .c-icon { display: inline-block; vertical-align: middle; max-width: 100%; height: auto; }
-.c-icon-link { display: inline-block; color: inherit; }
+.c-icon-link { display: inline-block; max-width: 100%; color: inherit; }
+.c-icon-shape { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; max-width: 100%; aspect-ratio: 1; vertical-align: middle; }
+.c-icon-shape > .c-icon { display: block; min-width: 0; }
+.c-icon-shape-circle { border-radius: 50%; }
+.c-icon-shape-square { border-radius: 0; }
+.c-icon-shape-squircle { border-radius: 25%; }
+@supports (corner-shape: squircle) {
+  .c-icon-shape-squircle { border-radius: 50%; corner-shape: squircle; }
+}
 .c-accordion-group { display: flex; flex-direction: column; gap: var(--space-sm); }
 .c-accordion { border: 1px solid var(--c-border); border-radius: var(--radius-box); overflow: hidden; }
 .c-accordion-title { position: relative; padding: var(--space-md); padding-right: calc(var(--space-md) * 2 + 1em); font-weight: 600; cursor: pointer; list-style: none; }
@@ -357,8 +374,11 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-ratio.c-fit-contain > img { object-fit: contain; }
 .c-ratio-1-1 { aspect-ratio: 1 / 1; } .c-ratio-4-3 { aspect-ratio: 4 / 3; } .c-ratio-3-2 { aspect-ratio: 3 / 2; }
 .c-ratio-16-9 { aspect-ratio: 16 / 9; } .c-ratio-21-9 { aspect-ratio: 21 / 9; } .c-ratio-3-4 { aspect-ratio: 3 / 4; }
-.c-el-image img, .c-field-media img { border-radius: var(--radius-box); }
+.c-el-image { border-radius: var(--radius-box); }
+.c-field-media img { border-radius: var(--radius-box); }
 .c-card .c-field-media img, .c-card .c-ratio { border-radius: 0; }
+/* Keep the image, crop background and optional wrappers on the element's radius. */
+.c-el-image :is(.c-figure, .c-image-link, .c-ratio, img) { border-radius: inherit; }
 .c-figure { margin: 0; }
 .c-figure figcaption { margin-top: 0.5em; font-size: var(--fs-sm); color: var(--c-muted); }
 .c-image-link { display: block; }

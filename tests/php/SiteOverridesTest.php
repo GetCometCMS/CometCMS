@@ -91,7 +91,7 @@ test('the stylesheet derives device and state classes from its utilities', funct
 test('mcp builder reads and writes device and state overrides', function (): void {
     [$token, $layout] = comet_test_builder_setup();
     $target = ['collection' => 'pages', 'variant' => 'detail'];
-    [, $updated] = comet_test_mcp_tool($token, 'update_element_props', $target + [
+    [, $updated] = comet_test_mcp_tool($token, 'update_element', $target + [
         'revision' => $layout['revision'], 'element_id' => 'heading', 'props' => [],
         'responsive' => ['mobile' => ['style' => ['font_size' => 'xl']]], 'states' => ['hover' => ['style' => ['text_color' => 'accent']]],
     ]);
@@ -99,7 +99,7 @@ test('mcp builder reads and writes device and state overrides', function (): voi
     assert_same(['hover' => ['style' => ['text_color' => 'accent']]], $updated['data']['element']['states']);
 
     // Values the schema would drop are refused rather than lost.
-    [$response] = comet_test_mcp_tool($token, 'update_element_props', $target + [
+    [$response] = comet_test_mcp_tool($token, 'update_element', $target + [
         'revision' => $updated['data']['revision'], 'element_id' => 'heading', 'props' => [], 'responsive' => ['mobile' => ['style' => ['animation' => 'fade']]],
     ]);
     assert_true($response['result']['isError']);

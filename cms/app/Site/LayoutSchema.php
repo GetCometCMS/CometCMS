@@ -84,6 +84,7 @@ final class LayoutSchema
         'field',
         'heading',
         'text',
+        'html',
         'image',
         'video',
         'gallery',
@@ -103,7 +104,7 @@ final class LayoutSchema
     ];
 
     /** Elements allowed inside a repeater field's item template. */
-    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'image', 'video', 'gallery', 'button', 'accordion', 'icon', 'spacer', 'divider'];
+    public const ITEM_ELEMENTS = ['field', 'heading', 'text', 'html', 'image', 'video', 'gallery', 'button', 'accordion', 'icon', 'spacer', 'divider'];
 
     public const SYSTEM_FIELDS = ['title', 'published_at', 'created_at', 'updated_at'];
 
@@ -182,7 +183,7 @@ final class LayoutSchema
     ];
 
     public const LOCALIZED_PROPS = [
-        'heading' => ['text', 'link'], 'text' => ['html'],
+        'heading' => ['text', 'link'], 'text' => ['html'], 'html' => ['html'],
         'video' => ['media', 'poster', 'video_url', 'title'],
         'image' => ['media', 'link', 'alt', 'caption'], 'gallery' => ['media', 'link'],
         'button' => ['label', 'link'], 'accordion' => ['items'],
@@ -367,6 +368,10 @@ final class LayoutSchema
             'text' => [
                 'html' => ['type' => 'html', 'default' => '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>'],
             ],
+            // Builder-authored source, including embedded styles, is kept verbatim.
+            'html' => [
+                'html' => ['type' => 'raw_html', 'max' => 50000, 'default' => ''],
+            ],
             'image' => [
                 'alt' => ['type' => 'string', 'max' => 1000, 'default' => ''],
                 'caption' => ['type' => 'string', 'max' => 2000, 'default' => ''],
@@ -440,6 +445,9 @@ final class LayoutSchema
             'icon' => [
                 'icon' => ['type' => 'icon', 'options' => Icons::names(), 'default' => 'mdi:star-outline'],
                 'size' => ['type' => 'int', 'min' => 12, 'max' => 240, 'unit' => 'px', 'default' => 48],
+                'shape' => ['type' => 'enum', 'options' => ['none', 'circle', 'square', 'squircle'], 'default' => 'none'],
+                'shape_color' => ['type' => 'color', 'options' => Theme::COLOR_KEYS, 'default' => 'surface'],
+                'shape_padding' => ['type' => 'int', 'min' => 0, 'max' => 120, 'unit' => 'px', 'default' => 16],
                 'label' => ['type' => 'string', 'max' => 120, 'default' => ''],
                 'link' => ['type' => 'link', 'default' => ['type' => 'none']],
             ],
@@ -656,7 +664,8 @@ final class LayoutSchema
     }
 
     /** Kinds a node may contain, with the page content place and modal elements where the document offers them. */
-    private static function childrenFor(string $parent, bool $pageContent, bool $inModal): array
+    /** The kinds $parent may hold; $pageContent allows Entry content areas, $inModal the modal elements. */
+    public static function childrenFor(string $parent, bool $pageContent, bool $inModal): array
     {
         $children = self::allowedChildren($parent);
         if ($pageContent && in_array($parent, ['root', 'column', 'tab'], true)) {
@@ -730,6 +739,8 @@ final class LayoutSchema
                 foreach (['text', 'html', 'label', 'title', 'alt', 'caption'] as $key) {
                     $value = $props[$key] ?? null;
                     if (is_string($value) && $value !== '' && in_array($key, self::LOCALIZED_PROPS[$node['kind'] ?? ''] ?? [], true)) {
+                        // Search indexes visible words, excluding embedded CSS and scripts.
+                        if (($node['kind'] ?? '') === 'html') $value = HtmlSanitizer::sanitize($value);
                         $parts[] = $key === 'html' ? html_entity_decode(strip_tags(str_replace(['</p>', '<br>'], ' ', $value)), ENT_QUOTES | ENT_HTML5, 'UTF-8') : $value;
                     }
                 }
@@ -1482,6 +1493,7 @@ final class LayoutSchema
             'font' => in_array($value, ['', 'body', 'heading'], true) || FontRegistry::validId($value) ? $value : $default,
             'string' => is_scalar($value) ? trim(Text::limit(str_replace(["\r", "\n"], ' ', (string) $value), $spec['max'] ?? 200)) : $default,
             'html' => is_scalar($value) ? HtmlSanitizer::sanitize(Text::limit((string) $value, 50000)) : $default,
+            'raw_html' => is_string($value) ? Text::limit($value, $spec['max']) : $default,
             'media' => is_scalar($value) && preg_match('/^[^\/\\\\\0]{1,255}$/', basename((string) $value)) ? basename((string) $value) : '',
             'media_list' => self::normalizeMediaList($value),
             'link' => self::normalizeLink($value),

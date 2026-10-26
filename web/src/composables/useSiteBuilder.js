@@ -8,6 +8,7 @@ import {
   MODAL,
   PAGE_CONTENT,
   SITE_CONTENT,
+  allowedChildren,
   ancestors,
   applyColumnPreset,
   clone,
@@ -24,6 +25,7 @@ import {
   isInsideTemplate,
   isStructure,
   locate,
+  placementKind,
   removeNode,
   resolveDrop,
   sectionPreset,
@@ -620,16 +622,21 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     })
   }
 
-  /** Insert a new node near `targetId` (default: the selection), or at the end. */
-  function insert(node, targetId = selectedId.value) {
-    if (translating.value) return false
+  /** Resolve insertion near a target, including the active tab and locked root. */
+  function insertion(node, targetId) {
     // Without a selection, a locked root takes the node in.
     let current = targetId ? findNode(nodes.value, targetId) : rootKind.value ? nodes.value[0] ?? null : null
     if (current?.kind === 'tabs' && node.kind !== 'tab' && current.children.length) {
       current = current.children[Math.min(current.children.length, Math.max(1, current.props.initial_tab || 1)) - 1]
     }
     const inside = isDropContainer(current)
-    const result = resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
+    return resolveDrop(spec.value, nodes.value, node, current ? current.id : null, inside ? 'inside' : 'after', dropOptions)
+  }
+
+  /** Insert a new node near `targetId` (default: the selection), or at the end. */
+  function insert(node, targetId = selectedId.value) {
+    if (translating.value) return false
+    const result = insertion(node, targetId)
     if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
     selectedId.value = node.id
@@ -770,15 +777,36 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   /** Paste the copied node after `id` (or inside it when it is a container). */
   function paste(id = selectedId.value) {
+    if (translating.value) return false
     sharedClipboard.refresh()
     if (!clipboard.value) return false
-    const node = cloneWithNewIds(clipboard.value)
-    // A copy from another page type shows none of this type's page fields; it gets one of its own once placed.
-    const fields = new Set(pageFields().map((field) => field.key))
-    walk([node], (item) => {
-      if (item.kind === PAGE_CONTENT && !fields.has(item.props?.field)) item.props = { ...item.props, field: '' }
+    const copy = cloneWithNewIds(clipboard.value)
+    if (walk([copy], (item) => item.kind !== PAGE_CONTENT)) return insert(copy, id)
+    // Copy the design, not the entry's field association. Also handles saved clipboard copies.
+    const unwrap = (items) => items.flatMap((item) => {
+      item.children = unwrap(item.children ?? [])
+      return item.kind === PAGE_CONTENT ? item.children : [item]
     })
-    return insert(node, id)
+    const copies = unwrap([copy])
+    if (!copies.length) return false
+    // Unwrapping must not leave sections inside columns (which a save would discard).
+    if (copies.some((node) => !walk([node], (item) => item.children.every((child) =>
+      allowedChildren(spec.value, item.kind).includes(placementKind(child)))))) return false
+
+    const first = insertion(copies[0], id)
+    if (!placeable(first)) return false
+    const parent = first.parentId ? findNode(nodes.value, first.parentId) : null
+    const results = [first]
+    for (const node of copies.slice(1)) {
+      const result = resolveDrop(spec.value, nodes.value, node, parent?.id ?? null, 'inside', dropOptions)
+      if (!result || result.parentId !== first.parentId || !placeable(result)) return false
+      results.push(result)
+    }
+    mutate((tree) => {
+      for (const [offset, result] of results.entries()) insertNode(tree, first.parentId, first.index + offset, result.node)
+    })
+    selectedId.value = copies[0].id
+    return true
   }
 
   /** Apply the copied style, keeping only what the target kind supports. */

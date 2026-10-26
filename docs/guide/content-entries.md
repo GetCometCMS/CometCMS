@@ -27,7 +27,7 @@ Language tabs above the form let you switch between translations. Missing transl
 
 ## Entry history
 
-Every time you save an entry, a revision snapshot is stored. CometCMS keeps up to `content.max_revisions` snapshots per entry, which defaults to `50` in `config/config.php`. Set it to `0` to disable revision history, or a negative value to keep revisions indefinitely.
+Every time you save an entry, a revision snapshot is stored. CometCMS keeps up to `content.max_revisions` snapshots per entry, which defaults to `55` in `config/config.php`. Set it to `0` to disable revision history, or a negative value to keep revisions indefinitely.
 
 Open the **Entry history** side panel to:
 

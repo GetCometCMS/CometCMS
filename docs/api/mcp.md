@@ -108,30 +108,47 @@ bearer tokens with `site.manage` on `workspace:{workspace}:site:*`; direct calls
 also enforce this permission. Headless tokens do not receive builder schemas.
 There is no second MCP connection to configure.
 
-These tools edit **content areas** and **templates** of a collection, by
-`collection` and `variant` (`detail` or `index`). A template puts pages together
-from a header, a content area and a footer; the first template whose conditions
-match an entry is used and the last one (`default`) applies to everything else.
-Layout tools take an optional `content` area id and default to the area the
-default template shows. Changes affect every entry whose template shows that
-area and take effect on published pages immediately. They do not create a separate design
-draft. Entry-specific page fields use the existing entry tools. Editing the
-header/footer themselves, reusable component definitions, theme and menus are
-outside this tool group; choosing which header and footer a layout shows is not.
+These tools edit **content areas** of a collection's templates, by
+`collection` and `variant` (`detail` or `index`), and one entry's **own
+content**. A template puts pages together from a header, its own content area
+and a footer; the first template whose conditions match an entry is used and
+the last one (`default`) applies to everything else.
+
+- **Template scope** (optional `template`, default `default`): the template's
+  content area. Changes affect every entry that uses the template.
+- **Entry scope** (`entry` = id or slug, optional `area`; detail only, without
+  `template`): the content one entry shows in an Entry content area
+  (`page_content` node) of the template it uses. `area` is the page field key
+  and defaults to the first area that template shows. An entry without content
+  of its own reads as the area's default content (with stable IDs) and the
+  first write gives it its own copy. Writing `sections: []` resets it to the
+  default. Results name `entry`, `area`, `template` and `customized`. Reads need
+  `content.read` and writes `content.update` on the entry, besides
+  `site.manage`. If the entry's template has no Entry content area, the call
+  fails with `409 no_entry_content_area`.
+
+Saves take effect on published pages immediately; there is no separate design
+draft. `get_layout` on a template lists `page_content` sections with their
+`area`, so an agent knows where to switch to the entry scope. The entry tools
+(`create_entry`, `update_entry`) refuse page fields (`422 page_field`) and
+`get_entry` shows them only as a summary. Editing the header/footer
+themselves, reusable component definitions, theme and menus are outside this
+tool group; choosing which header and footer a template shows is not.
 
 | Tool | Required inputs | Result |
 | --- | --- | --- |
-| `get_builder_schema` | none; optional `kind` | Kinds/children and limits, or props/styles/defaults/bindings for one kind. |
-| `get_layout` | `collection`, `variant`; optional `content` | Ordered section summaries, node counts, revision, the content area and the templates that show it (`used_by_templates`). |
-| `get_section` | target + `section_id` | One subtree with default props omitted, and revision. |
+| `get_builder_schema` | none; optional `kind` (one or a list) | Without kind: kinds and their children, every style key's values (keys with equal values listed together), icon names and limits. With kind: props with defaults, the names of the style keys it takes, responsive/state keys and bindings. |
+| `get_layout` | target; optional `section_ids`, `depth`, `mode` | Ordered section summaries by default; opt into scoped full or summary trees. Always includes the whole layout revision. |
+| `get_section` | target + `section_id`; optional `depth`, `mode` | One subtree with default props omitted, or a bounded/summary tree, and whole layout revision. |
 | `get_element` | target + `element_id` | One node's props/style, immediate child summaries, section ID and revision. |
-| `set_layout` | target + `revision`, `sections` | Replace entire layout; returns compact overview and new revision. |
-| `update_section` | target + `revision`, `section_id`, `patch` | Patch `name`, `props`, `style`, or replace `children`; returns overview and revision. |
-| `update_element_props` | target + `revision`, `element_id`, `props`; optional `style` | Merge property/style keys; returns node and revision. |
-| `list_templates` | `collection`, `variant` | Templates in order, content areas and the components that can be a header or footer. |
-| `set_template_parts` | `collection`, `variant`; optional `template` (default `default`), `header`, `content`, `footer` | Header/footer: `default`, `none` or a section component id; content: a content area id. Returns the templates. |
+| `set_layout` | target + `revision`, `sections` | Replace all sections; returns compact overview and new revision. |
+| `update_section` | target + `revision`, `section_id`, `patch` | Patch `name`, `props`, `style`, or replace `children`; returns the section summary and revision. |
+| `update_element` | target + `revision`, `element_id`, at least one of `props`, `style`, `responsive`, `states` | Merge property/style keys; returns node and revision. |
+| `list_templates` | `collection`, `variant` | Templates in order and the components that can be a header or footer. |
+| `set_template_parts` | `collection`, `variant`; optional `template` (default `default`), `header`, `footer` | `default`, `none` or a section component id. Returns the templates. |
 
-Here `target` means `collection`, `variant` and optionally `content`. A section is any top-level node,
+Here `target` means `collection`, `variant` and optionally `template`, or
+`entry` and `area`. A section is any top-level node,
 including a `page_content` placeholder or a section component reference.
 Patches preserve omitted keys, descendants and other sections. Supplying
 `children: []` removes children. Object-valued props (including localized maps)
@@ -140,11 +157,56 @@ Reset a prop/style by supplying its schema default. Nodes use
 `{id?, kind, name?, props?, style?, children?}`; IDs are generated when omitted.
 Use `get_builder_schema(kind)` for valid properties and child placement.
 
+For smaller reads:
+
+- `section_ids: ["hero", "footer"]` on `get_layout` selects top-level sections
+  in layout order. Unknown IDs return a guiding `404`; an empty or duplicate
+  selector is invalid. With no `mode` or `depth`, the result stays an overview.
+- `depth` on `get_layout` or `get_section` limits the number of child levels
+  below each section root. `0` includes roots only, `1` includes their immediate
+  children. Omit it for all descendants. Nodes whose children were omitted
+  include `child_count` and `children_truncated: true`; leaf nodes do not.
+- `mode: "summary"` returns IDs, kinds, optional names and stored style values,
+  including responsive/state styles, without props or content. It can be
+  combined with `depth` and `section_ids`. `mode: "full"` includes nondefault
+  props and all override values. On `get_layout`, supplying either `mode` or
+  `depth` opts into a tree; `get_section` defaults to a full subtree.
+
+These controls work for template and entry content. Every read retains the
+**whole layout revision**, including sections outside a selector or depth limit.
+Partial and summary trees are inspection results; read full content before
+using it in a `children` or `set_layout` replacement. For a single known node,
+`get_element` already returns only that node and immediate child summaries.
+
+```json
+{"name":"get_layout","arguments":{"collection":"pages","variant":"detail","section_ids":["hero"],"mode":"summary","depth":2}}
+```
+
 All writes **require** a revision from a read. Stale edits return `409` with
 instructions to reread, reconcile, and retry; the revision check and save share
-the repository file lock. Invalid edits return `422` with the failing path and
-schema discovery guidance, without saving a repaired/truncated layout. Builder
-success responses provide `structuredContent` plus compact JSON text.
+the repository file lock. Invalid edits return `422` with the failing path,
+what is allowed there and how to fix it (for a misplaced node, the kinds its
+parent holds and the wrappers to add, e.g. "Wrap it in row > column"; for a
+value, the allowed values), without saving a repaired/truncated layout. The revision
+covers the edited nodes only; for an entry, saving its other fields does not
+change it. Builder success responses provide `structuredContent` plus compact
+JSON text.
+
+Builder argument validation follows the same guiding `422` contract before
+layout reads or mutations: missing inputs, wrong types, unknown keys and invalid
+schema constraints identify `error.details.tool`, `path`, `expected` (the local
+schema), and `received_type`. When available, `example` gives a valid shape.
+Messages describe allowed keys and types; recovery points to `tools/list` and
+`get_builder_schema`. For example, a string in `update_section.patch` is rejected
+with the expected object members (`name`, `props`, `style`, `responsive`, `states`,
+`children`) and `{"style":{"padding_top":"lg"}}` as an example. A malformed
+`arguments` envelope also returns a guiding `422` for every tool. These are MCP
+tool results (`isError: true`, HTTP 200), like other tool execution errors.
+
+MCP hosts may reject arguments against the advertised `inputSchema` before
+sending a request. That host controls its own error formatting; CometCMS supplies
+schema descriptions and patch examples for clients to show, but cannot attach a
+server error to a call the host never sends.
 
 Example workflow (substitute the revisions returned by each call):
 
@@ -157,7 +219,7 @@ Example workflow (substitute the revisions returned by each call):
 ```
 
 ```json
-{"name":"update_element_props","arguments":{"collection":"pages","variant":"detail","revision":"<set_layout revision>","element_id":"title","props":{"text":"Hello world"}}}
+{"name":"update_element","arguments":{"collection":"pages","variant":"detail","revision":"<set_layout revision>","element_id":"title","props":{"text":"Hello world"}}}
 ```
 
 See the [design decision and full contract](../design/mcp-page-builder.md) for
@@ -312,6 +374,8 @@ Create a content entry.
 
 The `entry` object should contain the field values defined in the content type schema. To publish immediately, include `"status": "published"` (requires the `content.publish` permission grant).
 
+Page content fields (Entry content areas) are refused with `422 page_field`; edit them with the page-builder tools and `entry`.
+
 ---
 
 ### `update_entry`
@@ -319,7 +383,9 @@ The `entry` object should contain the field values defined in the content type s
 Update a content entry by its stable ID or slug.
 
 | Parameter    | Type   | Required |
-| ------------ | ------ | -------- |
+| Page content fields are refused here too; use the page-builder tools with `entry`.
+
+------------ | ------ | -------- |
 | `collection` | string | ✅       |
 | `identifier` | string | ✅       |
 | `entry`      | object | ✅       |

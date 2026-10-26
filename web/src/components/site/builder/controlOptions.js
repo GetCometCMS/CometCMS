@@ -19,6 +19,7 @@ const ICONS = {
   'props.orientation': { horizontal: 'mdi:dots-horizontal', vertical: 'mdi:dots-vertical' },
   'props.sort_order': { desc: 'mdi:sort-descending', asc: 'mdi:sort-ascending' },
   'props.fit': { cover: 'mdi:crop', contain: 'mdi:fit-to-screen-outline' },
+  'props.shape': { none: DEFAULT_ICON, circle: 'mdi:circle-outline', square: 'mdi:square-outline', squircle: 'mdi:square-rounded-outline' },
   'style.animation': {
     none: DEFAULT_ICON,
     fade: 'mdi:circle-opacity',

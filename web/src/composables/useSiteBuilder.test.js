@@ -695,23 +695,75 @@ describe('builder page content', () => {
     expect(builder.isDropContainer(place)).toBe(true)
   })
 
-  it('pastes copies from other builders and gives page content from another page type a field of its own', async () => {
+  it('pastes saved entry content as ordered sections with one undo step and no new fields', async () => {
     const items = new Map()
     const clipboardStorage = { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, value), removeItem: (key) => items.delete(key) }
     const source = await pageFixture({ clipboardStorage })
-    const place = source.make('page_content')
+    const sections = ['First', 'Second'].map((html) => source.make('section', { width: 'full' }, { background: 'accent' }, [
+      source.make('row', {}, {}, [source.make('column', {}, {}, [source.make('text', { html })])]),
+    ]))
+    sections[0].name = 'Hero'
+    sections[0].responsive = { mobile: { style: { padding_top: 'sm' } } }
+    sections[0].states = { hover: { style: { background: 'muted' } } }
+    const place = source.make('page_content', {}, {}, sections)
     expect(source.insert(place, null)).toBe(true)
     await Promise.resolve()
     source.copy(place.id)
 
-    const target = await pageFixture({ fields: { layout: { type: 'page', label: 'Layout' } }, clipboardStorage })
+    const created = []
+    const target = await pageFixture({ fields: {}, clipboardStorage, fieldApi: { can: () => true, create: async (field) => { created.push(field); return null } } })
+    target.spec.value.root = ['section']
+    target.spec.value.kinds.column.children = ['text']
+    const before = JSON.parse(JSON.stringify(target.nodes.value))
     expect(target.clipboard.value.kind).toBe('page_content')
     expect(target.paste(null)).toBe(true)
     await Promise.resolve()
     const pasted = target.selected.value
-    expect(pasted.id).not.toBe(place.id)
-    expect(pasted.props.field).toBe('layout')
+    expect(target.nodes.value.map((node) => node.kind)).toEqual(['section', 'section', 'section'])
+    expect(target.nodes.value.slice(1).map((node) => node.children[0].children[0].children[0].props.html)).toEqual(['First', 'Second'])
+    expect(pasted).toMatchObject({ kind: 'section', props: sections[0].props, style: sections[0].style, name: 'Hero', responsive: sections[0].responsive, states: sections[0].states })
+    expect(pasted.id).not.toBe(sections[0].id)
+    expect(pasted.children[0].children[0].children[0].id).not.toBe(sections[0].children[0].children[0].children[0].id)
+    expect(target.pageFields()).toEqual([])
+    expect(created).toEqual([])
+    expect(target.clipboard.value).toEqual(source.clipboard.value)
     expect(target.styleClipboard.value).toEqual({})
+    expect(findNode(source.nodes.value, place.id).kind).toBe('page_content')
+    const after = JSON.parse(JSON.stringify(target.nodes.value))
+    target.undo()
+    expect(target.nodes.value).toEqual(before)
+    target.redo()
+    expect(target.nodes.value).toEqual(after)
+  })
+
+  it('pastes entry content into an existing entry area without duplicating its field', async () => {
+    const builder = await pageFixture()
+    const place = builder.make('page_content', { field: 'design' }, {}, [builder.nodes.value[0]])
+    builder.load([place])
+    builder.copy(place.id)
+    expect(builder.paste(place.id)).toBe(true)
+    expect(builder.nodes.value).toHaveLength(1)
+    expect(builder.nodes.value[0].children.map((node) => node.kind)).toEqual(['section', 'section'])
+    expect(builder.pageFields().map((field) => field.key)).toEqual(['design'])
+    builder.undo()
+    expect(builder.nodes.value[0].children).toHaveLength(1)
+  })
+
+  it('does not change the page for empty areas or branches that would create invalid nested sections', async () => {
+    const builder = await pageFixture()
+    const section = builder.nodes.value[0]
+    section.children[0].children[0].children.push(builder.make('page_content', { field: 'design' }))
+    const place = section.children[0].children[0].children[0]
+    const before = JSON.parse(JSON.stringify(builder.nodes.value))
+    builder.copy(place.id)
+    expect(builder.paste(null)).toBe(false)
+    expect(builder.nodes.value).toEqual(before)
+    place.children.push(builder.make('section', {}, {}, [builder.make('row', {}, {}, [builder.make('column')])]))
+    builder.copy(section.id)
+    const nested = JSON.parse(JSON.stringify(builder.nodes.value))
+    expect(builder.paste(null)).toBe(false)
+    expect(builder.nodes.value).toEqual(nested)
+    expect(builder.canUndo.value).toBe(false)
   })
 
   it('wraps an element dropped into page content in a section', async () => {

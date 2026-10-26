@@ -756,6 +756,17 @@ test('theme normalizes values and keeps custom css inside its style element', fu
     assert_true(str_contains($css, 'body{color:red}'));
 });
 
+test('shared heading settings normalize and become root variables', function (): void {
+    $theme = Theme::normalize(['heading_line_height' => 9, 'heading_letter_spacing' => '0.05', 'heading_transform' => 'blink']);
+
+    assert_same(2.2, $theme['heading_line_height']);
+    assert_same(0.05, $theme['heading_letter_spacing']);
+    assert_same('', $theme['heading_transform']);
+
+    $css = Theme::stylesheet(['heading_line_height' => 1.1, 'heading_transform' => 'uppercase']);
+    assert_true(str_contains($css, '--heading-line-height:1.1;--heading-letter-spacing:-0.01em;--heading-transform:uppercase;'));
+});
+
 test('heading levels normalize their overrides and only customized levels get rules', function (): void {
     $theme = Theme::normalize(['headings' => [
         'h1' => ['font' => 'comic', 'size' => '999', 'weight' => 450, 'line_height' => 5, 'letter_spacing' => -1, 'transform' => 'blink'],

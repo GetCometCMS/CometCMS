@@ -33,11 +33,11 @@ return [
     'content' => [
         'default_collection' => '',
         'default_limit' => 20,
-        'max_revisions' => 50,
+        'max_revisions' => 55,
     ],
     'content_types' => [],
     'site' => [
-        'max_revisions' => 50,
+        'max_revisions' => 55,
         'forms' => [
             // Per-file and total attachment budget for public website forms.
             'max_upload_bytes' => 10 * 1024 * 1024,

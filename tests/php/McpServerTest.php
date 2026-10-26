@@ -48,6 +48,20 @@ function comet_test_mcp_token(array $permissions): string
     return (new ApiTokenRepository())->create('MCP test', '', $permissions);
 }
 
+test('mcp rejects malformed argument envelopes with guiding 422 errors', function (): void {
+    foreach ([null, 'serialized JSON', ['a list']] as $arguments) {
+        [$response, $status] = comet_test_mcp_request(null, 'tools/call', ['name' => 'comet_health', 'arguments' => $arguments]);
+        assert_same(200, $status);
+        assert_true($response['result']['isError']);
+        $error = json_decode($response['result']['content'][0]['text'], true)['error'];
+        assert_same(422, $error['status']);
+        assert_same('arguments', $error['details']['path']);
+        assert_same('object', $error['details']['expected']['type']);
+        assert_true(str_contains($error['message'], 'object of named tool inputs'));
+        assert_true(str_contains($error['recovery'][0], 'tools/list'));
+    }
+});
+
 test('anonymous mcp initializes and advertises only read tools', function (): void {
     foreach ([null, '', '   '] as $token) {
         [$response, $status] = comet_test_mcp_request($token, 'initialize');

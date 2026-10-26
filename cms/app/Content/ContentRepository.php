@@ -852,7 +852,7 @@ final class ContentRepository
 
     private function pruneRevisions(string $collection, string $id): void
     {
-        $maxRevisions = (int) comet_config('content.max_revisions', 50);
+        $maxRevisions = (int) comet_config('content.max_revisions', 55);
 
         if ($maxRevisions < 0) {
             return;

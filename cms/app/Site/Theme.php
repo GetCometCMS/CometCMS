@@ -107,6 +107,9 @@ final class Theme
             'line_height' => 1.65,
             'type_scale' => '1.25',
             'heading_weight' => 700,
+            'heading_line_height' => 1.2,
+            'heading_letter_spacing' => -0.01,
+            'heading_transform' => '',
             // Per-level overrides; '' and null inherit the values above.
             'headings' => array_fill_keys(array_keys(self::HEADING_LEVELS), self::headingDefaults()),
             'radius' => 'md',
@@ -148,6 +151,9 @@ final class Theme
             'line_height' => round(self::clampFloat($theme['line_height'] ?? null, 1.1, 2.2, $defaults['line_height']), 2),
             'type_scale' => self::oneOf(isset($theme['type_scale']) ? (string) $theme['type_scale'] : null, self::TYPE_SCALES, $defaults['type_scale']),
             'heading_weight' => self::clampInt($theme['heading_weight'] ?? null, 300, 900, $defaults['heading_weight'], 100),
+            'heading_line_height' => round(self::clampFloat($theme['heading_line_height'] ?? null, 0.8, 2.2, $defaults['heading_line_height']), 2),
+            'heading_letter_spacing' => round(self::clampFloat($theme['heading_letter_spacing'] ?? null, -0.1, 0.5, $defaults['heading_letter_spacing']), 3),
+            'heading_transform' => self::oneOf($theme['heading_transform'] ?? null, self::TEXT_TRANSFORMS, $defaults['heading_transform']),
             'headings' => self::headings($theme['headings'] ?? []),
             'radius' => self::oneOf($theme['radius'] ?? null, self::RADII, $defaults['radius']),
             'radii' => self::radii($theme, $defaults['radii']),
@@ -182,6 +188,9 @@ final class Theme
             '--font-size' => $theme['base_size'] . 'px',
             '--line-height' => (string) $theme['line_height'],
             '--heading-weight' => (string) $theme['heading_weight'],
+            '--heading-line-height' => self::number($theme['heading_line_height']),
+            '--heading-letter-spacing' => self::number($theme['heading_letter_spacing']) . 'em',
+            '--heading-transform' => $theme['heading_transform'] !== '' ? $theme['heading_transform'] : 'none',
             '--radius' => $radius,
             // Surfaces (images, cards, sections) never become pills: "round"
             // only rounds buttons and other small controls fully.

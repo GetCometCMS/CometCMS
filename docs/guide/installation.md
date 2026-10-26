@@ -86,7 +86,8 @@ Navigate to `https://yourdomain.com/admin`. The first-run setup screen will appe
 
 `config/config.php` lets you adjust:
 - `app.timezone` — default `UTC`
-- `content.max_revisions` — revision snapshots kept per entry, default `50`
+- `content.max_revisions` — revision snapshots kept per entry, default `55`
+- `site.max_revisions` — revision snapshots kept per website layout, region, component or theme, default `55`
 - `cache.ttl` — API cache TTL in seconds
 - `security.login_throttle` — brute-force protection limits
 - `updates.repository_url` — GitHub repository used by the admin update page
