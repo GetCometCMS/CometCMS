@@ -340,6 +340,8 @@ const props = defineProps({
   templatePart: { type: String, default: null },
   /** The layout's header or footer: `{ value, components, scope }`, or null where it can't be assigned. */
   frame: { type: Object, default: null },
+  /** Whether the search results page is edited: only there do lists have search results to show. */
+  searchPage: { type: Boolean, default: false },
 });
 defineEmits(["edit-template-part", "assign-template-part"]);
 
@@ -489,6 +491,7 @@ async function renameArea(value) {
 const hasCard = computed(() => node.value?.kind === "collection" && (node.value.children?.length ?? 0) > 0);
 const cardBusy = ref(false);
 const searchList = computed(() => node.value?.kind === "collection" && node.value.props?.list_source === "search");
+const editsSearchPage = computed(() => props.searchPage);
 
 async function customizeCard() {
   cardBusy.value = true;
@@ -590,6 +593,8 @@ const visibleProps = computed(() => {
     const hidden = search
       ? ["type", "sort_field", "sort_order", "filter_field", "filter_value", "exclude_current", "filters", "sort_choices"]
       : ["search_collections", "search_fields"];
+    // Elsewhere there is no query; a search list copied there keeps the choice so it can be switched back.
+    if (!search && !editsSearchPage.value) hidden.push("list_source");
     // Visitor filters and sorting need the list's fields.
     return keys.filter((key) => !hidden.includes(key) && (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
   }

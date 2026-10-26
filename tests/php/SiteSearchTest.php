@@ -224,6 +224,13 @@ test('lists set to the search show nothing without a query and a placeholder in 
     assert_same('search', $node['props']['list_source']);
     assert_same(['blog'], $node['props']['search_collections']);
 
+    $ctx->searchQuery = 'hello';
+    assert_same('', (new NodeRenderer($ctx))->render([$node]), 'Off the results page, a query shows nothing either.');
+    $ctx->annotate = true;
+    assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'only show on the search results page'));
+    $ctx->annotate = false;
+    $ctx->searchPage = true;
+    $ctx->searchQuery = '';
     assert_same('', (new NodeRenderer($ctx))->render([$node]));
     $ctx->searchQuery = 'hello';
     assert_true(str_contains((new NodeRenderer($ctx))->render([$node]), 'c-card'));
@@ -252,6 +259,7 @@ test('a search list card shows fields of every searched type and leaves missing 
     ]);
     $node = LayoutSchema::normalizeComponent([LayoutSchema::node('column', [], [], [LayoutSchema::node('collection', ['list_source' => 'search', 'columns' => 1], [], [$card])])], 'column')[0]['children'][0];
 
+    $ctx->searchPage = true;
     $ctx->searchQuery = 'hello';
     $html = (new NodeRenderer($ctx))->render([$node]);
     assert_same(1, substr_count($html, '<article class="c-card">'));

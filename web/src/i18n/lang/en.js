@@ -2082,6 +2082,7 @@ const messages = {
     'site.placeholder.menuEmpty': 'Menu “{name}” has no items',
     'site.placeholder.searchNothing': 'Nothing to search: choose content types with website pages and fields they have',
     'site.placeholder.searchResults': 'Lists the hits of the submitted search. The newest entries stand in for them here.',
+    'site.placeholder.searchResultsElsewhere': 'Search results only show on the search results page. Choose “Entries of a content type” here.',
     'site.placeholder.chooseType': 'Choose a public content type',
     'site.placeholder.noEntries': 'No published {type} yet',
     'site.placeholder.chooseField': 'Choose a field',

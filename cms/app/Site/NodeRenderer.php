@@ -1360,6 +1360,12 @@ final class NodeRenderer
         if (($state['depth'] ?? 0) > self::MAX_CARD_DEPTH || ($query === '' && !$this->annotating())) {
             return '';
         }
+        // Only the search results page has a query; anywhere else the list stays empty.
+        if (!$this->ctx->searchPage) {
+            return $this->annotating()
+                ? $this->element($node, '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('searchResultsElsewhere') . '>Search results only show on the search results page</div>')
+                : '';
+        }
         // The builder has no query; the newest entries stand in for hits, so the card can be designed.
         if ($query === '') {
             $samples = (new SiteSearch($this->ctx))->samples($props['search_collections'], min($props['limit'], max(1, $props['columns']) * 2));

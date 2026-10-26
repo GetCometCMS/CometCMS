@@ -227,6 +227,7 @@
           v-else-if="panel.value === 'inspector'"
           :template-part="selectedTemplatePart"
           :frame="selectedFrame"
+          :search-page="target === 'region' && name === 'search_results'"
           @edit-template-part="editTemplatePart"
           @assign-template-part="assignTemplatePart"
         >

@@ -2087,6 +2087,7 @@ const messages = {
   'site.placeholder.menuEmpty': 'Das Menü „{name}“ hat keine Einträge',
   'site.placeholder.searchNothing': 'Nichts zu durchsuchen: Wähle Inhaltstypen mit Website-Seiten und deren Felder',
   'site.placeholder.searchResults': 'Zeigt die Treffer der abgeschickten Suche. Hier stehen die neuesten Einträge stellvertretend.',
+    'site.placeholder.searchResultsElsewhere': 'Suchergebnisse erscheinen nur auf der Suchergebnisseite. Wähle hier „Einträge eines Inhaltstyps“.',
   'site.placeholder.chooseType': 'Öffentlichen Inhaltstyp auswählen',
   'site.placeholder.noEntries': 'Noch keine veröffentlichten Einträge in {type}',
   'site.placeholder.chooseField': 'Feld auswählen',

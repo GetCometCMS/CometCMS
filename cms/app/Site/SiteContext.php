@@ -47,6 +47,9 @@ final class SiteContext
     /** The query the search results page was opened with ('' elsewhere; see SiteSearch::normalizeQuery). */
     public string $searchQuery = '';
 
+    /** Whether the search results page is rendered: the only page whose lists can show search results. */
+    public bool $searchPage = false;
+
     /**
      * Pages opened in the link modal (?embed=1): only the page's main content,
      * without header, footer or modals of its own.

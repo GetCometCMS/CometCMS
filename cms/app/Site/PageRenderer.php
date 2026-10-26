@@ -133,6 +133,7 @@ final class PageRenderer
     public function searchResults(int $page = 1): string
     {
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->searchResults($page);
+        $this->ctx->searchPage = true;
         $query = $this->ctx->searchQuery;
         $path = $this->ctx->searchPageUrl() . ($query !== '' ? '?' . http_build_query(['q' => $query]) : '');
         $alternates = [];
