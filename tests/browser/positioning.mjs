@@ -69,7 +69,10 @@ session_id('position-browser-session'); session_start(); $_SESSION['user_id'] = 
   close(before.x + before.width, viewport.width - 20 * viewport.unit, 'Fixed right pin and horizontal offset');
   close(before.y + before.height, viewport.height - 30 * viewport.unit, 'Fixed bottom pin and vertical offset');
   close(columnBefore.width, viewport.width / 4, 'A fixed column keeps its desktop span relative to the viewport');
-  close(await page.locator('.test-nested').evaluate((el) => el.getBoundingClientRect().width), await column.evaluate((el) => el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight)), 'Nested columns respond to the floating column width');
+  close(await page.locator('.test-nested').evaluate((el) => el.getBoundingClientRect().width), await page.locator('.test-nested').evaluate((el) => {
+    const row = el.parentElement, style = getComputedStyle(row);
+    return row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  }), 'Nested columns fit the row inside the floating column, including its padding');
   await page.evaluate(() => scrollTo(0, 400));
   await page.waitForFunction(() => scrollY === 400);
   close((await fixed.boundingBox()).y, before.y, 'Fixed stays in the viewport while scrolling');
@@ -97,7 +100,10 @@ session_id('position-browser-session'); session_start(); $_SESSION['user_id'] = 
   assert.equal(await fixed.evaluate((el) => getComputedStyle(el).translate), 'none');
   assert.equal(await device.evaluate((el) => getComputedStyle(el).position), 'absolute');
   assert.equal(await column.evaluate((el) => getComputedStyle(el).position), 'static');
-  close(await column.evaluate((el) => el.getBoundingClientRect().width), await column.evaluate((el) => el.parentElement.getBoundingClientRect().width), 'Flow columns return to normal full-width mobile grid sizing');
+  close(await column.evaluate((el) => el.getBoundingClientRect().width), await column.evaluate((el) => {
+    const row = el.parentElement, style = getComputedStyle(row);
+    return row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  }), 'Flow columns fill the mobile row within its padding');
 
   if (process.argv.includes('--builder')) {
     await page.setViewportSize({ width: 1600, height: 1000 });

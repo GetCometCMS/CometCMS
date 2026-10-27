@@ -220,6 +220,10 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-gap-md, .c-gallery.c-gap-md { gap: var(--space-md) calc(var(--space-md) * 1.5); --c-gap-x: calc(var(--space-md) * 1.5); }
 .c-gap-lg, .c-gallery.c-gap-lg { gap: var(--space-lg); --c-gap-x: var(--space-lg); }
 .c-gap-xl, .c-gallery.c-gap-xl { gap: var(--space-xl); --c-gap-x: var(--space-xl); }
+/* Eleven gutters must fit even when every column spans the whole row.
+   Keep a track's share available and use the same gap for distributed rows.
+   Outrank gap utilities, including the generated device overrides. */
+.c-row[class] { --c-row-gap-x: min(var(--c-gap-x, 0px), calc(100% / 12)); column-gap: var(--c-row-gap-x); }
 .c-items-stretch { align-items: stretch; }
 .c-items-start { align-items: start; }
 .c-items-center { align-items: center; }
@@ -228,7 +232,7 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
    as flex lines whose columns keep the width of their span in the grid. */
 .c-row:is(.c-justify-center, .c-justify-end, .c-justify-between) { display: flex; flex-wrap: wrap; }
 .c-row:is(.c-justify-center, .c-justify-end, .c-justify-between) > .c-col {
-  flex: 0 0 calc((100% - 11 * var(--c-gap-x, 0px)) / 12 * var(--c-span, 12) + (var(--c-span, 12) - 1) * var(--c-gap-x, 0px));
+  flex: 0 0 calc((100% + var(--c-row-gap-x)) * var(--c-span, 12) / 12 - var(--c-row-gap-x));
 }
 .c-justify-center { justify-content: center; }
 .c-justify-end { justify-content: flex-end; }

@@ -1011,6 +1011,23 @@ function contentWidth(el) {
   return el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
 }
 
+/** Computed percentage gaps remain expressions; resolve them against the row's content box. */
+function columnGap(row) {
+  const value = doc.defaultView.getComputedStyle(row).columnGap;
+  if (value === "normal") return 0;
+  if (/^[\d.]+px$/.test(value)) return parseFloat(value);
+  const box = doc.createElement("div");
+  const measure = doc.createElement("div");
+  box.style.cssText = `all:initial;position:fixed;left:0;top:0;height:0;visibility:hidden;pointer-events:none;width:${contentWidth(row)}px`;
+  measure.style.cssText = "all:initial;display:block;height:0";
+  measure.style.width = value;
+  box.append(measure);
+  doc.body.append(box);
+  const gap = measure.getBoundingClientRect().width;
+  box.remove();
+  return gap;
+}
+
 /**
  * The device whose span a column shows: by the screen width, or for a nested
  * row by the row's own width (see the grid in site.css).
@@ -1045,7 +1062,7 @@ function onResizeStart(event) {
 
   const { el, side } = resizeEdge;
   const row = el.parentElement;
-  const gap = parseFloat(doc.defaultView.getComputedStyle(row).columnGap) || 0;
+  const gap = columnGap(row);
   const positioned = ["absolute", "fixed"].includes(doc.defaultView.getComputedStyle(el).position);
   // Positioned columns use a fraction of the pin area; grid columns include the row's gap.
   const unit = positioned ? positioningBox(el).width / 12 : (contentWidth(row) + gap) / 12;
