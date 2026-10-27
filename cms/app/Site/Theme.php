@@ -120,9 +120,9 @@ final class Theme
             'grid_padding' => 'md',
             'column_padding' => 'md',
             // Tablet and phone versions; '' keeps the next larger screen's value.
-            'section_padding_tablet' => 'xs',
-            'grid_padding_tablet' => 'xs',
-            'column_padding_tablet' => 'xs',
+            'section_padding_tablet' => 'sm',
+            'grid_padding_tablet' => 'sm',
+            'column_padding_tablet' => 'sm',
             'section_padding_mobile' => '',
             'grid_padding_mobile' => '',
             'column_padding_mobile' => '',
