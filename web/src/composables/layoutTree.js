@@ -16,6 +16,9 @@ export const ROOT = 'root'
 /** Structure kind that directly wraps a node of the given kind. */
 const WRAPPER = { section: null, row: 'section', column: 'row' }
 
+/** Fresh preset sections: dropped where no section fits, only their row is placed (see resolveDrop()). */
+const ADAPTIVE_SECTIONS = new WeakSet()
+
 export function newId() {
   const bytes = new Uint8Array(5)
   globalThis.crypto.getRandomValues(bytes)
@@ -258,8 +261,10 @@ export function resolveDrop(spec, nodes, node, targetId, position, options = {})
         ? { parentId: parent.id, index, node }
         : null
     }
-    if (insideTemplate && !(spec?.item_elements ?? []).includes(placementKind(node))) return null
-    const placed = wrapFor(spec, parent ? parent.kind : ROOT, node)
+    // A preset section dropped into a column (or any non-section spot) becomes just its row of columns.
+    const candidate = ADAPTIVE_SECTIONS.has(node) && !allowedChildren(spec, parent ? parent.kind : ROOT).includes('section') ? node.children[0] : node
+    if (insideTemplate && !(spec?.item_elements ?? []).includes(placementKind(candidate))) return null
+    const placed = wrapFor(spec, parent ? parent.kind : ROOT, candidate)
     if (placed && parent && placementKind(placed) === 'row' && rowDepth(nodes, parent.id) > (spec?.max_row_depth ?? 0)) return null
     return placed ? { parentId: parent ? parent.id : null, index, node: placed } : null
   }
@@ -357,7 +362,9 @@ export function presetSpan(span, count) {
 /** Section > row > columns preset with the given column spans (desktop). */
 export function sectionPreset(spec, spans) {
   const columns = spans.map((span) => createNode(spec, 'column', { span: presetSpan(span, spans.length) }))
-  return createNode(spec, 'section', {}, { padding_top: 'xl', padding_bottom: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
+  const section = createNode(spec, 'section', {}, { padding_top: 'xl', padding_bottom: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
+  ADAPTIVE_SECTIONS.add(section)
+  return section
 }
 
 /**

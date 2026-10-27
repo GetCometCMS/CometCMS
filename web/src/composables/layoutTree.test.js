@@ -147,6 +147,19 @@ describe('layout tree', () => {
     expect(effectiveSpan({ mobile: 12, tablet: 0, desktop: 4 }, 'tablet')).toBe(12)
   })
 
+  it('drops a preset section into a column as just its row', () => {
+    const column = createNode(spec, 'column')
+    const nodes = [createNode(spec, 'section', {}, {}, [createNode(spec, 'row', {}, {}, [column])])]
+    const preset = sectionPreset(spec, [6, 6])
+    const nesting = { ...spec, max_row_depth: 1, kinds: { ...spec.kinds, column: { ...spec.kinds.column, children: [...ELEMENTS, 'row'] } } }
+    const nested = resolveDrop(nesting, nodes, preset, column.id, 'inside')
+    expect(nested).toMatchObject({ parentId: column.id, node: { kind: 'row' } })
+    expect(nested.node.children).toHaveLength(2)
+    expect(resolveDrop(spec, nodes, sectionPreset(spec, [6, 6]), null, 'after')).toMatchObject({ parentId: null, node: { kind: 'section' } })
+    // Existing sections are never unwrapped.
+    expect(resolveDrop(spec, nodes, createNode(spec, 'section'), column.id, 'inside')).toMatchObject({ parentId: null })
+  })
+
   it('rearranges columns without losing content', () => {
     const nodes = layout()
     const row = findNode(nodes, 'r1')

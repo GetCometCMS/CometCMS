@@ -635,9 +635,15 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const result = insertion(node, targetId)
     if (!placeable(result)) return false
     mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
-    selectedId.value = node.id
-    placed(node)
+    selectNew(node, result.node)
     return true
+  }
+
+  /** Select a new node, or what was placed of it when a preset section went in as just its row. */
+  function selectNew(node, inserted) {
+    const target = findNode([inserted], node.id) ? node : inserted
+    selectedId.value = target.id
+    placed(target)
   }
 
   /** Give newly placed page content elements their fields (see assignPageField()). */
@@ -659,8 +665,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       const result = resolveDrop(spec.value, nodes.value, node, targetId, position, dropOptions)
       if (!placeable(result)) return false
       mutate((tree) => insertNode(tree, result.parentId, result.index, result.node))
-      selectedId.value = node.id
-      placed(node)
+      selectNew(node, result.node)
       return true
     }
 
