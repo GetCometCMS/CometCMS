@@ -277,16 +277,16 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
   .c-d-col-7 { grid-column: span 7; --c-span: 7; } .c-d-col-8 { grid-column: span 8; --c-span: 8; } .c-d-col-9 { grid-column: span 9; --c-span: 9; }
   .c-d-col-10 { grid-column: span 10; --c-span: 10; } .c-d-col-11 { grid-column: span 11; --c-span: 11; } .c-d-col-12 { grid-column: span 12; --c-span: 12; }
 }
-/* Rows inside a column: their columns switch by the row's own width. */
+/* Rows inside a column: their columns switch by the row's own width, at lower widths than the screen (see spanDeviceOf() in BuilderCanvas.vue). */
 .c-row-nested { container-type: inline-size; }
 .c-flow-row > .c-row-nested { flex: 1 1 100%; }
-@container (min-width: 768px) {
+@container (min-width: 480px) {
   .c-ct-col-1 { grid-column: span 1; --c-span: 1; } .c-ct-col-2 { grid-column: span 2; --c-span: 2; } .c-ct-col-3 { grid-column: span 3; --c-span: 3; }
   .c-ct-col-4 { grid-column: span 4; --c-span: 4; } .c-ct-col-5 { grid-column: span 5; --c-span: 5; } .c-ct-col-6 { grid-column: span 6; --c-span: 6; }
   .c-ct-col-7 { grid-column: span 7; --c-span: 7; } .c-ct-col-8 { grid-column: span 8; --c-span: 8; } .c-ct-col-9 { grid-column: span 9; --c-span: 9; }
   .c-ct-col-10 { grid-column: span 10; --c-span: 10; } .c-ct-col-11 { grid-column: span 11; --c-span: 11; } .c-ct-col-12 { grid-column: span 12; --c-span: 12; }
 }
-@container (min-width: 1024px) {
+@container (min-width: 640px) {
   .c-cd-col-1 { grid-column: span 1; --c-span: 1; } .c-cd-col-2 { grid-column: span 2; --c-span: 2; } .c-cd-col-3 { grid-column: span 3; --c-span: 3; }
   .c-cd-col-4 { grid-column: span 4; --c-span: 4; } .c-cd-col-5 { grid-column: span 5; --c-span: 5; } .c-cd-col-6 { grid-column: span 6; --c-span: 6; }
   .c-cd-col-7 { grid-column: span 7; --c-span: 7; } .c-cd-col-8 { grid-column: span 8; --c-span: 8; } .c-cd-col-9 { grid-column: span 9; --c-span: 9; }

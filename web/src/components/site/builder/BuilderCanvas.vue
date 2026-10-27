@@ -674,6 +674,7 @@ function paintCssTarget() {
 
 function applySelection(scroll) {
   if (!doc) return;
+  measureNestedRow();
   doc.querySelectorAll("[data-builder-selected]").forEach((el) => el.removeAttribute("data-builder-selected"));
   const el = element(builder.selectedId.value);
 
@@ -1015,8 +1016,25 @@ function contentWidth(el) {
  * row by the row's own width (see the grid in site.css).
  */
 function spanDeviceOf(row) {
-  const width = row.classList.contains("c-row-nested") ? contentWidth(row) : doc.defaultView.innerWidth;
+  if (row.classList.contains("c-row-nested")) return nestedDevice(contentWidth(row));
+  const width = doc.defaultView.innerWidth;
   return width >= 1024 ? "desktop" : width >= 768 ? "tablet" : "mobile";
+}
+
+function nestedDevice(width) {
+  return width >= 640 ? "desktop" : width >= 480 ? "tablet" : "mobile";
+}
+
+/** Report the selected row's own width when it is nested, for the inspector's hint. */
+function measureNestedRow() {
+  const row = builder.columnRowFor(builder.selected.value);
+  const el = row ? element(row.id) : null;
+  if (!el?.classList.contains("c-row-nested")) {
+    builder.nestedRow.value = null;
+    return;
+  }
+  const width = Math.round(contentWidth(el));
+  builder.nestedRow.value = { id: row.id, width, device: nestedDevice(width) };
 }
 
 function onResizeStart(event) {

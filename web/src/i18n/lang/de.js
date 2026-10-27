@@ -1996,6 +1996,8 @@ const messages = {
   'site.builder.columnLayout': 'Spalten',
   'site.builder.sideBySide': 'Nebeneinander',
   'site.builder.stacked': 'Untereinander',
+  'site.builder.nestedRowHint': 'In einer Spalte richtet sich dieses Raster nach seiner eigenen Breite (gerade {width}px): nebeneinander ab 480px, Desktop-Breiten ab 640px.',
+  'site.builder.nestedRowStacked': 'Es ist schmaler, darum stehen die Spalten hier untereinander.',
   'site.builder.columnLayoutHint': 'Auf Smartphones stehen Spalten immer untereinander. Inhalte entfernter Spalten wandern in die letzte Spalte.',
   'site.builder.spanOf': '{span} von 12',
   'site.builder.moveHint': 'Ziehen zum Verschieben · Umschalt hält eine Richtung',

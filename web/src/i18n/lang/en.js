@@ -1991,6 +1991,8 @@ const messages = {
     'site.builder.columnLayout': 'Columns',
     'site.builder.sideBySide': 'Side by side',
     'site.builder.stacked': 'Stacked',
+    'site.builder.nestedRowHint': 'Inside a column, this grid adapts to its own width (now {width}px): side by side from 480px, desktop spans from 640px.',
+    'site.builder.nestedRowStacked': 'It is narrower than that, so its columns are stacked here.',
     'site.builder.columnLayoutHint': 'Columns always stack on phones. Content of removed columns moves into the last column.',
     'site.builder.spanOf': '{span} of 12',
     'site.builder.moveHint': 'Drag to move · Shift keeps one direction',

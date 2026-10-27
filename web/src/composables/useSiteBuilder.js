@@ -108,6 +108,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const hoverId = ref(null)
   /** One-shot CSS canvas picker: { rootId, className, onPick }. */
   const cssPicker = shallowRef(null)
+  /** Measured by the canvas: { id, width, device } of the selected row when it sits in a column (it switches by its own width). */
+  const nestedRow = shallowRef(null)
   /** Previewed device; on tablet and mobile, edits of options that allow it only apply there (node.responsive). */
   const device = ref('desktop')
   /** Edited state: normal, or hover/focus values of the options that allow them (node.states). */
@@ -1211,7 +1213,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   const api = {
-    nodes, spec, type, types, pageTypes, sharedField, menus, forms, settings, selectedId, selected, hoverId, cssPicker, drag,
+    nodes, spec, type, types, pageTypes, sharedField, menus, forms, settings, selectedId, selected, hoverId, cssPicker, nestedRow, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,
