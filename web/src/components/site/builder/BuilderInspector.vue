@@ -349,7 +349,7 @@ defineEmits(["edit-template-part", "assign-template-part"]);
 const BUTTON_COLORS = ["button_color", "button_text_color", "button_border_color"];
 const ICON_SHAPE = ["shape", "shape_color", "shape_padding"];
 /** So do a section's shape dividers, one group per edge. */
-const dividerKeys = (edge) => [`divider_${edge}`, ...["color", "height", "flip", "invert"].map((option) => `divider_${edge}_${option}`)];
+const dividerKeys = (edge) => [`divider_${edge}`, ...["color", "height", "width", "flip", "invert"].map((option) => `divider_${edge}_${option}`)];
 
 const STYLE_GROUPS = [
   { key: "button", part: "props", keys: BUTTON_COLORS },

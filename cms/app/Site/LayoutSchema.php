@@ -167,7 +167,7 @@ final class LayoutSchema
 
     /** Props a tablet or mobile override may change, per kind. */
     public const RESPONSIVE_PROPS = [
-        'section' => ['vertical_align', 'divider_top_height', 'divider_bottom_height'],
+        'section' => ['vertical_align', 'divider_top_height', 'divider_top_width', 'divider_bottom_height', 'divider_bottom_width'],
         'row' => ['gap', 'align'],
         'column' => ['vertical_align', 'spacing', 'content_justify', 'content_align'],
         'button' => ['size', 'full_width'],
@@ -537,13 +537,14 @@ final class LayoutSchema
         };
     }
 
-    /** A section's divider along one edge; flip mirrors it sideways, invert fills the other side of its line. */
+    /** A section's divider along one edge; width stretches or squashes it sideways, flip mirrors it, invert fills the other side of its line. */
     private static function dividerProps(string $edge): array
     {
         return [
             'divider_' . $edge => ['type' => 'enum', 'options' => Shapes::dividers(), 'default' => 'none', 'picker' => 'divider', 'edge' => $edge],
             'divider_' . $edge . '_color' => ['type' => 'color', 'options' => Theme::COLOR_KEYS, 'default' => 'background'],
             'divider_' . $edge . '_height' => ['type' => 'int', 'min' => 10, 'max' => 500, 'slider_max' => 300, 'unit' => 'px', 'default' => 80],
+            'divider_' . $edge . '_width' => ['type' => 'int', 'min' => 20, 'max' => 400, 'unit' => '%', 'default' => 100],
             'divider_' . $edge . '_flip' => ['type' => 'bool', 'default' => false],
             'divider_' . $edge . '_invert' => ['type' => 'bool', 'default' => false],
         ];

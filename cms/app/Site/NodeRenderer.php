@@ -326,7 +326,11 @@ final class NodeRenderer
         return '<section' . $this->attributes($node, [...$classes, ...$background['classes'], ...$this->styleClasses($node['style'])], $background['style']) . '>' . $background['layer'] . $dividers . $container . '</section>';
     }
 
-    /** A section's shape along one edge, behind its content; its height may differ per device. */
+    /**
+     * A section's shape along one edge, behind its content; its height and width may differ per device.
+     * A shape with a width of its own is drawn as a mask instead, so it can be stretched and squashed:
+     * one copy centred and scaled to that share of the section's width, repeated sideways.
+     */
     private function divider(array $node, string $edge): string
     {
         $props = $node['props'];
@@ -337,13 +341,23 @@ final class NodeRenderer
         }
 
         $classes = ['c-shape', 'c-shape-' . $edge, 'c-fg-' . $props[$prefix . '_color']];
-        $heights = ['--c-shape-h:' . (int) $props[$prefix . '_height']];
-        foreach (['tablet' => '--c-t-shape-h', 'mobile' => '--c-m-shape-h'] as $device => $variable) {
-            $height = $node['responsive'][$device]['props'][$prefix . '_height'] ?? null;
-            if (is_int($height)) $heights[] = $variable . ':' . $height;
+        $sizes = ['--c-shape-h:' . (int) $props[$prefix . '_height']];
+        $width = (int) ($props[$prefix . '_width'] ?? 100);
+        if ($width !== 100) $sizes[] = '--c-shape-w:' . $width;
+        foreach (['tablet' => '--c-t-shape-', 'mobile' => '--c-m-shape-'] as $device => $variable) {
+            foreach (['height' => 'h', 'width' => 'w'] as $option => $suffix) {
+                $size = $node['responsive'][$device]['props'][$prefix . '_' . $option] ?? null;
+                if (is_int($size)) $sizes[] = $variable . $suffix . ':' . $size;
+            }
         }
 
-        return '<div class="' . Security::e(implode(' ', $classes)) . '" style="' . implode(';', $heights) . '" aria-hidden="true">' . $svg . '</div>';
+        if (preg_grep('/^--c-(?:[tm]-)?shape-w:/', $sizes) !== []) {
+            $classes[] = 'c-shape-tiled';
+            $sizes[] = '--c-shape-mask:url(data:image/svg+xml,' . rawurlencode(str_replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ', $svg)) . ')';
+            $svg = '';
+        }
+
+        return '<div class="' . Security::e(implode(' ', $classes)) . '" style="' . implode(';', $sizes) . '" aria-hidden="true">' . $svg . '</div>';
     }
 
     private function row(array $node, array $state): string
