@@ -68,11 +68,39 @@ try {
   const design = page.locator('#design');
   await design.getByRole('button', { name: 'Sizes & spacing', exact: true }).click();
   for (const kind of ['section', 'grid', 'column']) {
-    const group = design.getByRole('radiogroup', { name: `Default ${kind} padding` });
-    assert.equal(await group.getByRole('radio', { name: 'M', exact: true }).getAttribute('aria-checked'), 'true');
-    await group.getByRole('radio', { name: { section: 'L', grid: '0', column: 'S' }[kind], exact: true }).click();
+    const picker = design.getByRole('combobox', { name: `Default ${kind} padding: M · ${defaults.space.md}px`, exact: true });
+    await picker.click();
+    const list = page.getByRole('listbox', { name: `Default ${kind} padding`, exact: true });
+    assert.equal(await list.getByRole('option', { name: `M ${defaults.space.md} px`, exact: true }).getAttribute('aria-selected'), 'true');
+    await list.getByRole('option', { name: { section: `L ${defaults.space.lg} px`, grid: '0 0 px', column: `S ${defaults.space.sm} px` }[kind], exact: true }).click();
+    assert.equal(await picker.count(), 0);
   }
   assert.deepEqual(await page.evaluate(() => [window.designTheme.section_padding, window.designTheme.grid_padding, window.designTheme.column_padding]), ['lg', 'none', 'sm']);
+  // Each smaller device can override or inherit its padding, including an explicit zero.
+  await page.evaluate(() => { window.designTheme.section_padding_tablet = ''; });
+  await design.getByRole('button', { name: 'Tablet', exact: true }).click();
+  const tabletSection = design.getByRole('combobox', { name: /^Default section padding:/ });
+  assert.equal(await tabletSection.textContent(), '=');
+  await tabletSection.press('ArrowDown');
+  await tabletSection.press('End');
+  await tabletSection.press('Enter');
+  assert.equal(await page.evaluate(() => window.designTheme.section_padding_tablet), '2xl');
+  assert.equal(await tabletSection.evaluate(el => el === document.activeElement), true);
+  await design.getByRole('button', { name: 'Mobile', exact: true }).click();
+  const mobileSection = design.getByRole('combobox', { name: /^Default section padding:/ });
+  await mobileSection.click();
+  await page.getByRole('option', { name: '0 0 px', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.designTheme.section_padding_mobile), 'none');
+  await mobileSection.click();
+  await page.getByRole('option', { name: 'Same as tablet', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.designTheme.section_padding_mobile), '');
+  await mobileSection.click();
+  await mobileSection.press('Escape');
+  assert.equal(await page.getByRole('listbox').count(), 0);
+  await mobileSection.click();
+  await design.getByRole('button', { name: 'Desktop', exact: true }).click();
+  assert.equal(await page.getByRole('listbox').count(), 0);
+  assert.equal(await page.evaluate(() => window.designTheme.section_padding), 'lg');
   const motion = page.locator('#motion');
   const shadows = page.locator('#shadows');
   await motion.getByRole('button', { name: /Normal/ }).waitFor();
@@ -134,9 +162,9 @@ try {
     await page.screenshot({ path: process.env.DESIGN_SCREENSHOT.replace('.png', '-dark.png'), fullPage: true, animations: 'disabled' });
   }
   await page.evaluate(() => { window.setDesignLocale('de'); document.documentElement.dataset.theme = 'dark'; });
-  await design.getByRole('radiogroup', { name: 'Standard-Innenabstand für Abschnitte' }).waitFor();
-  await design.getByRole('radiogroup', { name: 'Standard-Innenabstand für Raster' }).waitFor();
-  await design.getByRole('radiogroup', { name: 'Standard-Innenabstand für Spalten' }).waitFor();
+  await design.getByRole('combobox', { name: /^Standard-Innenabstand für Abschnitte:/ }).waitFor();
+  await design.getByRole('combobox', { name: /^Standard-Innenabstand für Raster:/ }).waitFor();
+  await design.getByRole('combobox', { name: /^Standard-Innenabstand für Spalten:/ }).waitFor();
   await page.setViewportSize({ width: 360, height: 1000 });
   await motion.getByRole('button', { name: /Schnell/ }).click();
   await motion.getByRole('spinbutton', { name: 'Dauer: Schnell' }).waitFor();
