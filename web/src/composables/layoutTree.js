@@ -362,7 +362,7 @@ export function presetSpan(span, count) {
 /** Section > row > columns preset with the given column spans (desktop). */
 export function sectionPreset(spec, spans) {
   const columns = spans.map((span) => createNode(spec, 'column', { span: presetSpan(span, spans.length) }))
-  const section = createNode(spec, 'section', {}, { padding_top: 'xl', padding_bottom: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
+  const section = createNode(spec, 'section', {}, {}, [createNode(spec, 'row', {}, {}, columns)])
   ADAPTIVE_SECTIONS.add(section)
   return section
 }

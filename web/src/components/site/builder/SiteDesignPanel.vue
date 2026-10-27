@@ -147,6 +147,14 @@
       <BuilderGroup v-model:open="expanded.layout" icon="mdi:view-quilt-outline" :title="t('site.theme.layout')" content-class="mt-2 space-y-4 px-1">
         <RangeRow v-model="theme.container_width" :label="t('site.theme.containerWidth')" :min="720" :max="1920" :step="20" unit="px" />
         <RangeRow v-model="theme.narrow_width" :label="t('site.theme.narrowWidth')" :min="480" :max="1200" :step="20" unit="px" />
+        <div v-for="kind in ['section', 'grid', 'column']" :key="kind">
+          <span :id="`design-${kind}-padding-label`" class="form-label">{{ t(`site.theme.${kind}Padding`) }}</span>
+          <SegmentedControl
+            v-model="theme[`${kind}_padding`]"
+            :aria-labelledby="`design-${kind}-padding-label`"
+            :options="['none', ...SPACE_TOKENS].map((value) => ({ value, label: value === 'none' ? '0' : TOKEN_LABELS[value] }))"
+          />
+        </div>
       </BuilderGroup>
 
       <BuilderGroup v-model:open="expanded.spacing" icon="mdi:arrow-expand-horizontal" :title="t('site.theme.spacingScale')" content-class="mt-2 space-y-4 px-1">

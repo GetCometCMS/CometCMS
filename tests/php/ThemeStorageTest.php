@@ -3,6 +3,33 @@
 declare(strict_types=1);
 
 use CometCMS\Site\SiteRepository;
+use CometCMS\Site\Theme;
+
+test('default structure padding validates, persists and follows the spacing scale', function (): void {
+    $site = comet_site_test_setup();
+    foreach ([Theme::defaults(), Theme::normalize([]), Theme::normalize(['section_padding' => 'bad', 'grid_padding' => [], 'column_padding' => '24px'])] as $theme) {
+        assert_same('md', $theme['section_padding']);
+        assert_same('md', $theme['grid_padding']);
+        assert_same('md', $theme['column_padding']);
+    }
+
+    foreach (['none', ...Theme::SPACE_TOKENS] as $token) {
+        $saved = $site->saveTheme(['section_padding' => $token, 'grid_padding' => $token, 'column_padding' => $token]);
+        assert_same($token, $saved['section_padding']);
+        assert_same($token, (new SiteRepository())->theme()['grid_padding']);
+        assert_same($token, (new SiteRepository())->theme()['column_padding']);
+        $padding = $token === 'none' ? '0px' : 'var(--space-' . $token . ')';
+        assert_true(str_contains(Theme::stylesheet($saved), '--column-padding:' . $padding . ';'));
+    }
+    $saved = $site->saveTheme(['section_padding' => 'lg', 'grid_padding' => 'none', 'column_padding' => 'sm', 'space' => ['lg' => 48]]);
+    $preset = $site->createThemePreset('Padding', $saved);
+    assert_same('lg', $preset['theme']['section_padding']);
+    assert_same('none', $preset['theme']['grid_padding']);
+    assert_same('sm', $preset['theme']['column_padding']);
+    $css = Theme::stylesheet($saved);
+    assert_true(str_contains($css, '--section-padding:var(--space-lg);--grid-padding:0px;'));
+    assert_true(str_contains($css, '--space-lg:3rem;'));
+});
 
 test('components get readable ids that stay when they are renamed', function (): void {
     $site = comet_site_test_setup();

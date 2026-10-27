@@ -140,6 +140,7 @@ describe('layout tree', () => {
 
   it('builds column presets and resolves responsive spans', () => {
     const preset = sectionPreset(spec, [4, 8])
+    expect(preset.style).toEqual({}) // New sections inherit the global padding.
     const spans = preset.children[0].children.map((column) => column.props.span)
     expect(spans).toEqual([{ mobile: 12, tablet: 4, desktop: 0 }, { mobile: 12, tablet: 8, desktop: 0 }])
     expect(sectionPreset(spec, [4, 4, 4]).children[0].children[0].props.span).toEqual({ mobile: 12, tablet: 6, desktop: 4 })

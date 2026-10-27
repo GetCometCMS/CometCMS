@@ -64,6 +64,8 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 
 /* ── Sections & containers ────────────────────────────────────────────── */
 .c-section { position: relative; background-size: cover; background-position: center; }
+/* Local defaults on each box prevent a parent's padding variables from leaking into nested grids. */
+.c-section { --c-pt: var(--section-padding, var(--space-md)); --c-pr: var(--section-padding, var(--space-md)); --c-pb: var(--section-padding, var(--space-md)); --c-pl: var(--section-padding, var(--space-md)); padding: var(--c-pt) var(--c-pr) var(--c-pb) var(--c-pl); }
 .c-container { width: 100%; margin: 0 auto; padding-left: var(--gutter); padding-right: var(--gutter); }
 .c-container-contained { max-width: calc(var(--container) + 2 * var(--gutter)); }
 .c-container-narrow { max-width: calc(var(--narrow) + 2 * var(--gutter)); }
@@ -194,8 +196,6 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-overlay-dark { color: #fff; }
 .c-overlay-light::before { background: rgb(255 255 255 / 0.65); }
 .c-overlay-light { color: #0f172a; }
-/* Low specificity, so a tablet or mobile padding still wins. */
-.c-region :where(.c-section) { --c-pt: var(--space-sm); --c-pb: var(--space-sm); padding-top: var(--c-pt); padding-bottom: var(--c-pb); }
 
 /* Background images (sections, columns and elements) and focal points */
 .c-bg-size-cover { background-size: cover; }
@@ -212,6 +212,7 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────── */
 .c-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.c-row { --c-pt: var(--grid-padding, var(--space-md)); --c-pr: var(--grid-padding, var(--space-md)); --c-pb: var(--grid-padding, var(--space-md)); --c-pl: var(--grid-padding, var(--space-md)); padding: var(--c-pt) var(--c-pr) var(--c-pb) var(--c-pl); }
 /* --c-gap-x repeats the column gap so distributed rows can size their columns. */
 .c-gap-none, .c-gallery.c-gap-none { gap: 0; --c-gap-x: 0px; }
 .c-gap-xs, .c-gallery.c-gap-xs { gap: var(--space-xs); --c-gap-x: var(--space-xs); }
@@ -233,6 +234,7 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-justify-end { justify-content: flex-end; }
 .c-justify-between { justify-content: space-between; }
 .c-row > .c-col { min-width: 0; }
+.c-col { --c-pt: var(--column-padding, var(--space-md)); --c-pr: var(--column-padding, var(--space-md)); --c-pb: var(--column-padding, var(--space-md)); --c-pl: var(--column-padding, var(--space-md)); padding: var(--c-pt) var(--c-pr) var(--c-pb) var(--c-pl); }
 .c-self-start { align-self: start; }
 .c-self-center { align-self: center; }
 .c-self-end { align-self: end; }
