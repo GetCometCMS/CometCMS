@@ -31,6 +31,20 @@ test('default structure padding validates, persists and follows the spacing scal
     assert_true(str_contains($css, '--space-lg:3rem;'));
 });
 
+test('default structure padding has tablet and phone values', function (): void {
+    $site = comet_site_test_setup();
+    $theme = Theme::normalize(['section_padding_mobile' => 'bad', 'grid_padding_tablet' => 'huge']);
+    assert_same('xs', $theme['section_padding_mobile']);
+    assert_same('', $theme['grid_padding_tablet']);
+
+    $saved = $site->saveTheme(['section_padding' => 'lg', 'section_padding_tablet' => 'md', 'grid_padding_mobile' => 'none', 'column_padding_mobile' => '']);
+    assert_same('md', (new SiteRepository())->theme()['section_padding_tablet']);
+    assert_same('', $saved['column_padding_mobile']);
+    $css = Theme::stylesheet($saved);
+    assert_true(str_contains($css, '@media (max-width: 1023px){:root{--section-padding:var(--space-md);}}'));
+    assert_true(str_contains($css, '@media (max-width: 767px){:root{--section-padding:var(--space-xs);--grid-padding:0px;}}'));
+});
+
 test('components get readable ids that stay when they are renamed', function (): void {
     $site = comet_site_test_setup();
     $section = [['kind' => 'section', 'children' => [['kind' => 'row']]]];

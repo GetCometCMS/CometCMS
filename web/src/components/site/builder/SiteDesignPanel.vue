@@ -147,12 +147,16 @@
       <BuilderGroup v-model:open="expanded.layout" icon="mdi:view-quilt-outline" :title="t('site.theme.layout')" content-class="mt-2 space-y-4 px-1">
         <RangeRow v-model="theme.container_width" :label="t('site.theme.containerWidth')" :min="720" :max="1920" :step="20" unit="px" />
         <RangeRow v-model="theme.narrow_width" :label="t('site.theme.narrowWidth')" :min="480" :max="1200" :step="20" unit="px" />
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs text-slate-500">{{ t("site.theme.paddingDevice") }}</span>
+          <DeviceToggle v-model="paddingDevice" />
+        </div>
         <div v-for="kind in ['section', 'grid', 'column']" :key="kind">
           <span :id="`design-${kind}-padding-label`" class="form-label">{{ t(`site.theme.${kind}Padding`) }}</span>
           <SegmentedControl
-            v-model="theme[`${kind}_padding`]"
+            v-model="theme[`${kind}_padding${paddingDevice === 'desktop' ? '' : `_${paddingDevice}`}`]"
             :aria-labelledby="`design-${kind}-padding-label`"
-            :options="['none', ...SPACE_TOKENS].map((value) => ({ value, label: value === 'none' ? '0' : TOKEN_LABELS[value] }))"
+            :options="paddingOptions"
           />
         </div>
       </BuilderGroup>
@@ -244,6 +248,7 @@ import ConfirmModal from "../../ConfirmModal.vue";
 import LoadingSpinner from "../../LoadingSpinner.vue";
 import RangeRow from "../RangeRow.vue";
 import SegmentedControl from "../SegmentedControl.vue";
+import DeviceToggle from "../DeviceToggle.vue";
 import ThemeHeadingsSettings from "../ThemeHeadingsSettings.vue";
 import TokenInput from "../TokenInput.vue";
 import FontPicker from "../FontPicker.vue";
@@ -331,6 +336,12 @@ const { t } = useI18n();
 const theme = computed(() => site.draft?.theme ?? null);
 const savedPresets = computed(() => site.data?.theme_presets ?? []);
 const saveOpen = ref(false);
+/** Which screen size the default padding controls edit; tablet and mobile may inherit the larger one. */
+const paddingDevice = ref("desktop");
+const paddingOptions = computed(() => [
+  ...(paddingDevice.value === "desktop" ? [] : [{ value: "", label: "=", title: t(`site.theme.paddingInherit.${paddingDevice.value}`) }]),
+  ...["none", ...SPACE_TOKENS].map((value) => ({ value, label: value === "none" ? "0" : TOKEN_LABELS[value] })),
+]);
 const deleteTarget = ref(null);
 const busy = ref(false);
 const expanded = ref({ presets: false, colors: false, typography: false, headings: false, links: false, layout: false, spacing: false, corners: false, shadows: false, motion: false });
