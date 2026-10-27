@@ -1870,6 +1870,8 @@ const messages = {
   'site.builder.save': 'Speichern',
   'site.builder.saveTemplate': 'Layout speichern',
   'site.builder.savePage': 'Seite speichern',
+  'site.scope.sharedLayout': 'Gemeinsames Layout',
+  'site.scope.entryContent': 'Eintragsinhalt',
   'site.scope.templateText': 'Änderungen gelten für alle Einträge von {type}, die es nutzen.',
   'site.scope.templateWithPages': 'Änderungen gelten für alle Einträge von {type}, die es nutzen. In Eintragsinhalt-Bereichen bearbeitest du den Standardinhalt; Einträge mit eigener Gestaltung behalten ihre.',
   'site.scope.pageDefault': 'Zeigt noch den Standardinhalt des Layouts. Eine gespeicherte Änderung gibt ihm eine eigene Gestaltung; andere Einträge bleiben, wie sie sind.',

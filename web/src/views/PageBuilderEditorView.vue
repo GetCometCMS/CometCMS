@@ -1,63 +1,65 @@
 <template>
   <div class="builder-shell flex h-screen flex-col bg-slate-100">
     <!-- Top bar -->
-    <header class="builder-topbar relative flex h-12 shrink-0 items-center gap-2 border-b px-2">
+    <header class="builder-topbar relative flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-2 py-1.5 lg:flex-nowrap">
       <router-link :to="exitTo" class="topbar-action" :title="t('site.builder.back')">
         <Icon icon="mdi:arrow-left" class="h-[18px] w-[18px]" />
         <span class="sr-only">{{ t("site.builder.back") }}</span>
       </router-link>
       <span class="topbar-divider" aria-hidden="true"></span>
 
-      <div class="min-w-32 max-w-64 pl-1">
-        <BuilderPageSwitcher :heading="heading" :target="target" :name="name" />
-        <p class="topbar-muted truncate text-[11px] leading-tight">{{ subheading }}</p>
-      </div>
-
-      <!--
-        What the canvas changes, as the two sides of one switch: the template, shared by every
-        entry that uses it, or only the entry's own page content. The template side's menu opens
-        other templates; the entry side's menu picks the entry the canvas shows, also while that
-        entry cannot be designed on its own (the side then says why).
-      -->
-      <nav v-if="templateMenu" class="topbar-variants hidden min-w-0 items-center rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.variants')">
-        <BuilderTemplateMenu
-          v-bind="templateMenu"
-          :active="target === 'layout'"
-          :disabled="saving || loading"
-          @navigate="target === 'page' && goToView(templateView)"
-          @open="openTemplate"
-          @new="templateDialogOpen = true"
-        />
-        <BuilderEntrySwitcher
-          v-if="entrySide"
-          class="scope-page"
-          icon="mdi:file-document-edit-outline"
-          :label="entrySide.label"
-          :title="entrySide.title"
-          :unavailable="entrySide.unavailable"
-          :active="target === 'page'"
-          :model-value="target === 'page' ? pageEntryId : sampleId"
-          :entries="samples"
-          :disabled="saving || loading"
-          @navigate="goToView(pageView)"
-          @update:model-value="selectEntry"
-        />
+      <nav class="builder-breadcrumbs min-w-0 flex-1 pl-1" :aria-label="t('app.breadcrumbs')">
+        <ol class="flex min-w-0 items-center gap-1 sm:gap-2">
+          <li class="min-w-20 max-w-48">
+            <BuilderPageSwitcher :heading="target === 'page' ? builder.type.value?.label ?? name : heading" :target="target" :name="name" />
+            <p class="topbar-muted truncate text-[11px] leading-tight pl-1">{{ subheading }}</p>
+          </li>
+          <!-- The active crumb is the editing scope; its descendants retain the preview context. -->
+          <li v-if="templateMenu" class="flex min-w-0 items-center gap-1 sm:gap-2">
+            <Icon icon="mdi:chevron-right" class="breadcrumb-separator h-4 w-4 shrink-0" aria-hidden="true" />
+            <BuilderTemplateMenu
+              v-bind="templateMenu"
+              :active="target === 'layout'"
+              :disabled="saving || loading"
+              @navigate="target === 'page' && goToView(templateView)"
+              @open="openTemplate"
+              @new="templateDialogOpen = true"
+            />
+          </li>
+          <li v-if="templateMenu && entrySide" class="flex min-w-0 items-center gap-1 sm:gap-2">
+            <Icon icon="mdi:chevron-right" class="breadcrumb-separator h-4 w-4 shrink-0" aria-hidden="true" />
+            <BuilderEntrySwitcher
+              class="scope-page"
+              icon="mdi:file-document-edit-outline"
+              :label="entryTitle"
+              :title="entrySide.title"
+              :unavailable="entrySide.unavailable"
+              :active="target === 'page'"
+              :model-value="target === 'page' ? pageEntryId : sampleId"
+              :entries="samples"
+              :disabled="saving || loading"
+              @navigate="goToView(pageView)"
+              @update:model-value="selectEntry"
+            />
+          </li>
+          <!-- A component of a content type only previews an entry. -->
+          <li v-else-if="!templateMenu && showsSamples && samples.length" class="flex min-w-0 items-center gap-1 sm:gap-2">
+            <Icon icon="mdi:chevron-right" class="breadcrumb-separator h-4 w-4 shrink-0" aria-hidden="true" />
+            <BuilderEntrySwitcher
+              icon="mdi:eye-outline"
+              :title="t('site.builder.sampleEntry')"
+              :label="samples.find((entry) => entry.id === sampleId)?.title || sampleId"
+              :model-value="sampleId"
+              :entries="samples"
+              :navigable="false"
+              :disabled="saving || loading"
+              @update:model-value="selectEntry"
+            />
+          </li>
+        </ol>
       </nav>
-      <!-- A component of a content type only previews an entry. -->
-      <nav v-else-if="showsSamples && samples.length" class="topbar-variants hidden min-w-0 rounded-lg p-0.5 md:flex" :aria-label="t('site.builder.sampleEntry')">
-        <BuilderEntrySwitcher
-          icon="mdi:eye-outline"
-          :title="t('site.builder.sampleEntry')"
-          :label="samples.find((entry) => entry.id === sampleId)?.title || sampleId"
-          :model-value="sampleId"
-          :entries="samples"
-          :navigable="false"
-          :disabled="saving || loading"
-          @update:model-value="selectEntry"
-        />
-      </nav>
 
-      <div class="ml-auto flex min-w-0 items-center gap-1.5">
+      <div class="builder-toolbar ml-auto flex shrink-0 items-center gap-1.5">
         <div v-if="locales.length > 1" class="topbar-group hidden md:flex">
           <!-- The language also sets the mode: other languages only translate texts. -->
           <div class="flex items-center gap-2 px-1.5">
@@ -119,7 +121,7 @@
     <!-- What saving changes: every entry the template shows, or this entry only. -->
     <div v-if="scopeBar" role="note" class="scope-bar flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5 text-xs" :class="`is-${scopeBar.kind}`">
       <Icon :icon="scopeBar.icon" class="scope-accent h-4 w-4 shrink-0" aria-hidden="true" />
-      <p class="min-w-0 flex-1">
+      <p class="min-w-0 flex-1 basis-64">
         <strong class="scope-accent font-semibold">{{ scopeBar.title }}</strong> · {{ scopeBar.text }}
         <span v-if="scopeBar.note" class="block opacity-80">{{ scopeBar.note }}</span>
       </p>
@@ -882,7 +884,7 @@ const entryTitle = computed(() => {
 });
 
 /**
- * The entry side of the scope switch, on detail pages with entries. When the
+ * The entry breadcrumb, on detail pages with entries. When the
  * entry cannot be designed on its own here, it stays visible and says why.
  */
 const entrySide = computed(() => {
@@ -892,7 +894,7 @@ const entrySide = computed(() => {
   const unavailable = pageView.value ? ""
     : live && live !== editedTemplate.value ? t("site.scope.entryOtherTemplate", { title: entryTitle.value, template: named(live) })
     : t("site.scope.entryNoArea", { template: named(editedTemplate.value) });
-  return { label: t("site.scope.entry", { title: entryTitle.value }), title: t("site.view.pageHint", { title: entryTitle.value }), unavailable };
+  return { title: t("site.view.pageHint", { title: entryTitle.value }), unavailable };
 });
 const currentView = computed(() => (target.value === "page" ? "page" : variant.value));
 /** The shared template around the entry: without a template asked for, the builder opens the entry's. */
@@ -929,12 +931,10 @@ const subheading = computed(() => {
   if (target.value === "page") {
     const fields = builder.pageFields();
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
-    return `${builder.type.value?.label ?? name.value}${area} · ${t(pageCustomized.value ? "site.page.own" : "site.page.default")}`;
+    return `${t("site.variant.detail")}${area}`;
   }
   if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : name.value === "maintenance" ? "site.builder.maintenanceSubtitle" : name.value === "search_results" ? "site.builder.searchResultsSubtitle" : "site.builder.regionSubtitle");
-  return showsTemplates.value && frameLayout.value
-    ? `${t(`site.variant.${variant.value}`)} · ${templateName(t, templateById(site.draft?.templates, frameLayout.value.type, frameLayout.value.variant, editedTemplate.value))}`
-    : t(`site.variant.${variant.value}`);
+  return t(`site.variant.${variant.value}`);
 });
 
 const saveLabel = computed(() => {
@@ -950,7 +950,7 @@ const scopeBar = computed(() => {
     return {
       kind: "page",
       icon: "mdi:file-document-edit-outline",
-      title: t("site.scope.entry", { title: pageTitle.value || pageEntry.value }),
+      title: t("site.scope.entryContent"),
       text: t(own ? "site.scope.pageOwn" : "site.scope.pageDefault"),
       actions: [
         { key: "template", icon: "mdi:arrow-left", label: t("site.scope.toTemplate"), run: () => goToView(templateView.value) },
@@ -965,7 +965,7 @@ const scopeBar = computed(() => {
   return {
     kind: "template",
     icon: "mdi:page-layout-header-footer",
-    title: t("site.templates.shown", { name: templateName(t, templateById(site.draft?.templates, name.value, variant.value, editedTemplate.value)) }),
+    title: t("site.scope.sharedLayout"),
     text: t(builder.placedPageFields().length ? "site.scope.templateWithPages" : "site.scope.templateText", { type: builder.type.value?.label ?? name.value }),
     note: entrySide.value?.unavailable ?? "",
     actions: pageView.value
@@ -1093,7 +1093,7 @@ async function createTemplate(newName) {
 /** Template controls only show once the page kind has more than its default template. */
 const showsTemplates = computed(() => !!frameLayout.value && usesTemplates(site.draft?.templates, frameLayout.value.type, frameLayout.value.variant));
 
-/** The template side of the top bar's scope switch, for layouts and entry pages. */
+/** The layout breadcrumb's menu, for layouts and entry pages. */
 const templateMenu = computed(() => {
   const layout = frameLayout.value;
   if (!layout) return null;
@@ -1650,29 +1650,62 @@ onBeforeUnmount(() => {
 .topbar-muted {
   color: rgb(var(--builder-toolbar-text) / 0.8);
 }
-.topbar-variants,
 .builder-topbar :deep(.topbar-devices) {
   background: rgb(0 0 0 / 0.12);
 }
-.topbar-variants .topbar-view,
 .builder-topbar :deep(.topbar-devices button) {
   background: transparent;
   color: rgb(var(--builder-toolbar-text) / 0.8);
 }
-.topbar-variants .topbar-view:hover,
 .builder-topbar :deep(.topbar-devices button:hover) {
   background: var(--builder-toolbar-hover);
   color: rgb(var(--builder-toolbar-text));
 }
-.topbar-variants .topbar-view[aria-pressed="true"],
 .builder-topbar :deep(.topbar-devices button[aria-pressed="true"]) {
   background: var(--builder-toolbar-selected);
   color: var(--builder-toolbar-selected-text);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
 }
 /* The entry's own content keeps the teal of its area on the canvas. */
-.topbar-variants .scope-page.is-active {
+.builder-breadcrumbs :deep(.scope-page.is-active) {
   color: #17657a;
+}
+.breadcrumb-separator {
+  color: rgb(var(--builder-toolbar-text) / 0.45);
+}
+@media (max-width: 1023px) {
+  .builder-breadcrumbs {
+    flex-basis: calc(100% - 5rem);
+  }
+  .builder-toolbar {
+    justify-content: flex-end;
+    width: 100%;
+  }
+}
+@media (max-width: 639px) {
+  .builder-toolbar {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .builder-toolbar .topbar-divider {
+    display: none;
+  }
+  .builder-toolbar :deep(.topbar-devices button) {
+    padding: 0.25rem;
+  }
+  .builder-toolbar :deep(.btn) {
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
+  /* Anchor menus to the header so every breadcrumb's menu fits the viewport. */
+  .builder-breadcrumbs :deep(:is(.page-switcher, .template-switcher, .entry-switcher)) {
+    position: static;
+  }
+  .builder-breadcrumbs :deep(.builder-switcher-menu) {
+    left: 0.5rem;
+    width: calc(100% - 1rem);
+    max-width: 20rem;
+  }
 }
 .scope-bar {
   --scope-accent: rgb(var(--color-theme-700));

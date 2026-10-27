@@ -1865,6 +1865,8 @@ const messages = {
     'site.builder.save': 'Save',
     'site.builder.saveTemplate': 'Save layout',
     'site.builder.savePage': 'Save page',
+    'site.scope.sharedLayout': 'Shared layout',
+    'site.scope.entryContent': 'Entry content',
     'site.scope.templateText': 'Changes apply to every {type} entry that uses it.',
     'site.scope.templateWithPages': 'Changes apply to every {type} entry that uses it. Inside Entry content areas you edit the default content; entries with their own design keep theirs.',
     'site.scope.pageDefault': 'It still shows the layout\'s default content. Saving a change gives it its own design; other entries stay as they are.',

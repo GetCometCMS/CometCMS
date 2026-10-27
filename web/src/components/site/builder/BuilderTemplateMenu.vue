@@ -4,13 +4,14 @@
       type="button"
       class="template-primary flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors"
       :aria-pressed="active"
+      :aria-current="active ? 'page' : undefined"
       :title="shownTitle"
       :disabled="disabled"
       @click="emit('navigate')"
       @keydown.down.prevent="openMenu()"
     >
       <Icon icon="mdi:page-layout-header-footer" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span class="truncate">{{ t("site.templates.shown", { name: shownName }) }}</span>
+      <span class="truncate">{{ shownName }}</span>
     </button>
     <button
       ref="triggerRef"
@@ -32,7 +33,7 @@
     <div
       v-if="open"
       :id="menuId"
-      class="absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm text-slate-700 shadow-lg"
+      class="builder-switcher-menu absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm text-slate-700 shadow-lg"
       @keydown="onMenuKeydown"
     >
       <div class="border-b border-slate-100 px-3 py-2">
@@ -183,7 +184,7 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onOutsidePoint
 </script>
 
 <style scoped>
-/* Like BuilderEntrySwitcher, its other half. */
+/* Shared styling with the entry breadcrumb. */
 .template-switcher {
   color: rgb(var(--builder-toolbar-text) / 0.8);
 }

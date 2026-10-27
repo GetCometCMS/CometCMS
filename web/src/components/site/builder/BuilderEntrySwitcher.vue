@@ -5,6 +5,7 @@
       class="entry-primary flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-l-md px-2.5 py-1 text-xs font-medium transition-colors"
       :class="{ 'rounded-r-md': !entries.length }"
       :aria-pressed="navigable ? active : undefined"
+      :aria-current="active && navigable ? 'page' : undefined"
       :aria-haspopup="!navigable ? 'menu' : undefined"
       :aria-expanded="!navigable ? open : undefined"
       :aria-controls="!navigable && open ? menuId : undefined"
@@ -39,7 +40,7 @@
       v-if="open"
       :id="menuId"
       tabindex="-1"
-      class="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm text-slate-700 shadow-lg"
+      class="builder-switcher-menu absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm text-slate-700 shadow-lg"
       @keydown="onMenuKeydown"
     >
       <div v-if="showFilter" class="border-b border-slate-100 p-2">

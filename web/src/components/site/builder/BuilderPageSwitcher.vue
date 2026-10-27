@@ -1,9 +1,9 @@
 <template>
-  <div ref="rootRef" class="relative min-w-0" @focusout="onFocusout">
+  <div ref="rootRef" class="page-switcher relative min-w-0" @focusout="onFocusout">
     <button
       ref="triggerRef"
       type="button"
-      class="page-switcher-trigger -mx-1 flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
+      class="page-switcher-trigger flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
       :title="t('site.builder.switchPage')"
       aria-haspopup="menu"
       :aria-expanded="open"
@@ -20,7 +20,7 @@
       v-if="open"
       :id="menuId"
       tabindex="-1"
-      class="absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
+      class="builder-switcher-menu absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-lg focus:outline-none border border-slate-200 bg-white text-sm shadow-lg"
       @keydown="onMenuKeydown"
     >
       <div class="border-b border-slate-100 p-2">
