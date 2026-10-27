@@ -61,11 +61,16 @@
           role="menuitemradio"
           tabindex="-1"
           :aria-checked="entry.id === modelValue"
-          class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-          :class="entry.id === modelValue ? 'font-medium text-theme-700' : 'text-slate-700'"
+          class="entry-menu-item flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+          :class="[
+            entry.id === modelValue ? 'font-medium text-theme-700' : 'text-slate-700',
+            { 'uses-template': templateId && entry.template === templateId },
+          ]"
+          :title="templateId && entry.template === templateId ? t('site.builder.entryUsesTemplate') : undefined"
           @click="select(entry)"
         >
           <span class="min-w-0 flex-1 truncate">{{ entry.title || entry.id }}</span>
+          <span v-if="templateId && entry.template === templateId" class="sr-only">{{ t('site.builder.entryUsesTemplate') }}</span>
           <span v-if="entry.status !== 'published'" class="shrink-0 text-[11px] text-slate-500">{{ t(`status.${entry.status}`) }}</span>
           <Icon v-if="entry.id === modelValue" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
         </button>
@@ -86,6 +91,7 @@ const props = defineProps({
   icon: { type: String, default: "mdi:file-document-edit-outline" },
   modelValue: { type: String, default: "" },
   entries: { type: Array, default: () => [] },
+  templateId: { type: String, default: "" },
   active: { type: Boolean, default: false },
   navigable: { type: Boolean, default: true },
   disabled: { type: Boolean, default: false },
@@ -182,6 +188,14 @@ watch(() => props.disabled, (disabled) => { if (disabled) close(); });
 </script>
 
 <style scoped>
+.entry-menu-item.uses-template {
+  background: rgb(var(--color-theme-50));
+  box-shadow: inset 2px 0 0 rgb(var(--color-theme-400));
+}
+.entry-menu-item.uses-template:hover,
+.entry-menu-item.uses-template:focus {
+  background: rgb(var(--color-theme-100));
+}
 .entry-switcher {
   color: rgb(var(--builder-toolbar-text) / 0.8);
 }

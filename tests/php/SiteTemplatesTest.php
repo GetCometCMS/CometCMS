@@ -333,6 +333,25 @@ PHP;
     assert_same(['default', 'News'], $open('?entry=news'), 'An entry asked for opens its own template.');
 });
 
+test('builder entry samples name their resolved template for default, conditions and manual picks', function (): void {
+    $seed = <<<'PHP'
+(new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'blog', 'fields' => ['category' => ['type' => 'text']]]);
+$site = new \CometCMS\Site\SiteRepository();
+$site->createTemplate('blog', 'detail', 'Tips', '', ['conditions' => [['field' => 'category', 'op' => 'equals', 'value' => 'tips']]]);
+$content = \CometCMS\Content\ContentRepository::make();
+$content->save('blog', ['title' => 'Default entry', 'category' => 'news'], ['id' => 'admin']);
+$content->save('blog', ['title' => 'Matching entry', 'category' => 'tips'], ['id' => 'admin']);
+$content->save('blog', ['title' => 'Assigned entry', 'category' => 'news', 'page_template' => 'tips'], ['id' => 'admin']);
+PHP;
+    [$status, $body] = comet_admin_request('admin', $seed, 'GET', '/admin/api/site/layouts/blog/detail?template=tips',
+        '(new \CometCMS\Controllers\Admin\SiteController(new \CometCMS\Core\Http()))->layout("blog", "detail");');
+    assert_same(200, $status);
+    $templates = array_column($body['data']['samples'], 'template', 'title');
+    assert_same('default', $templates['Default entry'], 'Previewing another template does not change an entry\'s assignment.');
+    assert_same('tips', $templates['Matching entry'], 'Automatic conditions resolve through the website\'s template rules.');
+    assert_same('tips', $templates['Assigned entry'], 'An explicit assignment applies even when the conditions do not match.');
+});
+
 test('the entry builder only opens content areas the entry\'s template shows, and names that template up front', function (): void {
     $seed = <<<'PHP'
 (new \CometCMS\Content\ContentTypeRepository())->save(['name' => 'blog', 'fields' => [

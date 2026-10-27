@@ -3,7 +3,7 @@
     <button
       ref="triggerRef"
       type="button"
-      class="page-switcher-trigger flex max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
+      class="page-switcher-trigger flex w-max max-w-full items-center gap-1 rounded-md px-1 text-left transition-colors"
       :title="t('site.builder.switchPage')"
       aria-haspopup="menu"
       :aria-expanded="open"

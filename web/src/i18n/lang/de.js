@@ -1892,6 +1892,7 @@ const messages = {
   'site.builder.overwriteMessage': 'Das gespeicherte Layout durch deine Version ersetzen? Dabei können anderswo gespeicherte Änderungen überschrieben werden. Die vorherige Version bleibt im Verlauf erhalten.',
   'site.builder.switchPage': 'Seite wechseln',
   'site.builder.switchEntry': 'Eintrag wechseln',
+  'site.builder.entryUsesTemplate': 'Verwendet das geöffnete Layout',
   'site.builder.filterEntries': 'Einträge filtern…',
   'site.builder.noEntries': 'Keine passenden Einträge.',
   'site.builder.pages': 'Seiten',

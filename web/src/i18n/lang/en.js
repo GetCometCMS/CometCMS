@@ -1887,6 +1887,7 @@ const messages = {
     'site.builder.overwriteMessage': 'Replace the saved layout with your version? This can overwrite changes saved elsewhere. The previous version will remain in history.',
     'site.builder.switchPage': 'Switch page',
     'site.builder.switchEntry': 'Switch entry',
+    'site.builder.entryUsesTemplate': 'Uses the open layout',
     'site.builder.filterEntries': 'Filter entries…',
     'site.builder.noEntries': 'No matching entries.',
     'site.builder.pages': 'Pages',

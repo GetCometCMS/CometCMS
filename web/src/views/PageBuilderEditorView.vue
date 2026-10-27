@@ -10,7 +10,7 @@
 
       <nav class="builder-breadcrumbs min-w-0 flex-1 pl-1" :aria-label="t('app.breadcrumbs')">
         <ol class="flex min-w-0 items-center gap-1 sm:gap-2">
-          <li class="min-w-20 max-w-48">
+          <li class="breadcrumb-root w-max min-w-20 max-w-xs shrink-0">
             <BuilderPageSwitcher :heading="target === 'page' ? builder.type.value?.label ?? name : heading" :target="target" :name="name" />
             <p class="topbar-muted truncate text-[11px] leading-tight pl-1">{{ subheading }}</p>
           </li>
@@ -37,6 +37,7 @@
               :active="target === 'page'"
               :model-value="target === 'page' ? pageEntryId : sampleId"
               :entries="samples"
+              :template-id="target === 'layout' ? editedTemplate : liveTemplate"
               :disabled="saving || loading"
               @navigate="goToView(pageView)"
               @update:model-value="selectEntry"
@@ -1673,6 +1674,12 @@ onBeforeUnmount(() => {
 .breadcrumb-separator {
   color: rgb(var(--builder-toolbar-text) / 0.45);
 }
+@media (min-width: 640px) {
+  .builder-breadcrumbs :deep(.scope-page .builder-switcher-menu) {
+    left: auto;
+    right: 0;
+  }
+}
 @media (max-width: 1023px) {
   .builder-breadcrumbs {
     flex-basis: calc(100% - 5rem);
@@ -1683,6 +1690,13 @@ onBeforeUnmount(() => {
   }
 }
 @media (max-width: 639px) {
+  .breadcrumb-root {
+    max-width: 25vw;
+  }
+  .builder-breadcrumbs :deep(:is(.template-primary, .entry-primary)) {
+    gap: 0.25rem;
+    padding-inline: 0.375rem;
+  }
   .builder-toolbar {
     flex-wrap: wrap;
     gap: 0.25rem;

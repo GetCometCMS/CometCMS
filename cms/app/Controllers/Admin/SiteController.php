@@ -1186,10 +1186,13 @@ final class SiteController extends BaseController
             }
         }
 
+        $context = $this->context();
+
         return array_map(static fn(array $entry): array => [
             'id' => $content->stableId($entry),
             'title' => self::entryLabel($entry),
             'status' => (string) ($entry['status'] ?? 'draft'),
+            'template' => $context->template($type, 'detail', $entry)['template']['id'],
         ], $entries);
     }
 
