@@ -842,7 +842,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (kind === 'tabs' && children.length === 0) {
       children = [1, 2].map((index) => make('tab', { title: t('site.tabs.tabTitle', { number: index }) }))
     }
-    return createNode(spec.value, kind, props, style, children)
+    const node = createNode(spec.value, kind, props, style, children)
+    if (kind === 'row' && children.length === 0) {
+      applyColumnPreset(spec.value, node, [12])
+    }
+    return node
   }
 
   // ─── Components ────────────────────────────────────────────────────────
