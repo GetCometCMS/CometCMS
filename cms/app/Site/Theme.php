@@ -120,12 +120,12 @@ final class Theme
             'grid_padding' => 'md',
             'column_padding' => 'md',
             // Tablet and phone versions; '' keeps the next larger screen's value.
-            'section_padding_tablet' => '',
-            'grid_padding_tablet' => '',
-            'column_padding_tablet' => '',
-            'section_padding_mobile' => 'xs',
-            'grid_padding_mobile' => 'xs',
-            'column_padding_mobile' => 'xs',
+            'section_padding_tablet' => 'xs',
+            'grid_padding_tablet' => 'xs',
+            'column_padding_tablet' => 'xs',
+            'section_padding_mobile' => '',
+            'grid_padding_mobile' => '',
+            'column_padding_mobile' => '',
             'space' => ['xs' => 4, 'sm' => 8, 'md' => 16, 'lg' => 32, 'xl' => 56, '2xl' => 96],
             // Text links; an empty hover color keeps the link color. Thickness 0 is the font's own.
             'links' => ['color' => 'primary', 'hover_color' => '', 'decoration' => 'underline', 'thickness' => 0, 'offset' => 0.18],
