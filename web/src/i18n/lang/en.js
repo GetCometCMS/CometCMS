@@ -2344,8 +2344,6 @@ const messages = {
     'site.style.margin_top': 'Margin top',
     'site.style.margin_right': 'Margin right',
     'site.style.margin_left': 'Margin left',
-    'site.style.padding_y': 'Padding top & bottom',
-    'site.style.padding_x': 'Padding left & right',
     'site.style.margin_bottom': 'Margin bottom',
     'site.style.background': 'Background color',
     'site.style.background_image': 'Background image',

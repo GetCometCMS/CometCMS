@@ -96,7 +96,7 @@ final class PageRenderer
         $title = $de ? 'Diese Vorschau ist nicht mehr verfügbar' : 'This preview is no longer available';
         $message = $de ? 'Öffne eine neue Vorschau im Editor, um deine aktuellen Änderungen zu sehen.' : 'Open a new preview from the editor to see your current changes.';
         return $this->document(['title' => $title, 'noindex' => true],
-            '<section class="c-section c-py-2xl"><div class="c-container c-container-narrow"><h1>' . Security::e($title) . '</h1><p>' . Security::e($message) . '</p></div></section>',
+            '<section class="c-section c-pt-2xl c-pb-2xl"><div class="c-container c-container-narrow"><h1>' . Security::e($title) . '</h1><p>' . Security::e($message) . '</p></div></section>',
             $this->state(null, null, $this->ctx->homeUrl(), 1, []));
     }
 
@@ -117,7 +117,7 @@ final class PageRenderer
         if ($custom !== null) {
             return $this->document($meta, $this->nodes->render($custom, $state), $state, true, $this->ctx->annotate);
         }
-        $main = '<section class="c-section c-section-narrow c-py-2xl"><div class="c-container c-container-narrow">'
+        $main = '<section class="c-section c-section-narrow c-pt-2xl c-pb-2xl"><div class="c-container c-container-narrow">'
             . '<div class="c-el"><h1 class="c-heading">' . Security::e($title) . '</h1></div>'
             . '<div class="c-el"><p>' . Security::e(Messages::get('not_found_message', $this->ctx->htmlLang())) . '</p></div>'
             . '<div class="c-el"><a class="c-button c-button-primary c-button-md" href="' . Security::e($this->ctx->homeUrl()) . '">' . Security::e($this->homeLabel()) . '</a></div>'
@@ -237,7 +237,7 @@ final class PageRenderer
         if ($region === LayoutSchema::MODAL) return $this->modalPreview();
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->regionPreview($region);
         $state = $this->state(null, null, $this->ctx->homeUrl(), 1, []);
-        $main = '<section class="c-section c-section-contained c-py-2xl"><div class="c-container c-container-contained">'
+        $main = '<section class="c-section c-section-contained c-pt-2xl c-pb-2xl"><div class="c-container c-container-contained">'
             . '<div class="c-preview-main" data-placeholder="regionMain">Page content</div></div></section>';
 
         return $this->document(['title' => $this->ctx->siteTitle(), 'noindex' => true, 'body_class' => 'c-view-region-preview'], $main, $state, true, false, $region);
@@ -280,7 +280,7 @@ final class PageRenderer
             $html = '<div class="c-row c-gap-md c-items-stretch c-justify-start">' . $html . '</div>';
         }
         if ($component['root'] !== 'section') {
-            $html = '<section class="c-section c-section-contained c-py-xl"><div class="c-container c-container-contained">' . $html . '</div></section>';
+            $html = '<section class="c-section c-section-contained c-pt-xl c-pb-xl"><div class="c-container c-container-contained">' . $html . '</div></section>';
         }
 
         return $this->document([

@@ -342,7 +342,7 @@
                 <Icon icon="mdi:alert-outline" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <div class="space-y-1">
                   <p>{{ t("contentEdit.websiteUrlConflict") }}</p>
-                  <router-link v-if="siteLinks.can_manage" to="/page-builder/overview" class="inline-block font-medium underline hover:no-underline">{{ t("contentEdit.websiteUrlDomains") }}</router-link>
+                  <router-link v-if="siteLinks.can_manage" to="/website/general" class="inline-block font-medium underline hover:no-underline">{{ t("contentEdit.websiteUrlDomains") }}</router-link>
                   <p v-else>{{ t("contentEdit.websiteUrlAskAdmin") }}</p>
                 </div>
               </div>

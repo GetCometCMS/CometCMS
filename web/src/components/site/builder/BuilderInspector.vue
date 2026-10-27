@@ -354,7 +354,7 @@ const dividerKeys = (edge) => [`divider_${edge}`, ...["color", "height", "flip",
 const STYLE_GROUPS = [
   { key: "button", part: "props", keys: BUTTON_COLORS },
   { key: "icon", part: "props", keys: ICON_SHAPE },
-  { key: "spacing", keys: ["padding_y", "padding_x", "padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
+  { key: "spacing", keys: ["padding_top", "padding_right", "padding_bottom", "padding_left", "margin_top", "margin_right", "margin_bottom", "margin_left"] },
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "background_effect", "overlay"] },
   { key: "dividerTop", part: "props", keys: dividerKeys("top") },
   { key: "dividerBottom", part: "props", keys: dividerKeys("bottom") },

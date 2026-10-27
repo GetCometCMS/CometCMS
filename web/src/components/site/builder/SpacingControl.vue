@@ -112,10 +112,7 @@ const controls = computed(() => ["margin", "padding"].flatMap((group) =>
   ["top", "right", "bottom", "left"].flatMap((side) => {
     const key = `${group}_${side}`;
     if (!props.keys.includes(key) || !props.spec[key]) return [];
-    const pair = group === "padding" ? `padding_${['top', 'bottom'].includes(side) ? 'y' : 'x'}` : null;
-    // Older pages keep their paired padding; a side overrides only that edge.
-    const inherited = pair ? props.node.style?.[pair] : '';
-    const value = (props.valueFor ? props.valueFor(key) : props.node.style?.[key]) || inherited || '';
+    const value = (props.valueFor ? props.valueFor(key) : props.node.style?.[key]) || '';
     return [{ key, group, side, value, own: props.overridden(key), options: props.spec[key].options ?? [], label: t(`site.style.${key}`) }];
   }),
 ));

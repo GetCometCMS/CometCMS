@@ -677,8 +677,10 @@ const recoveryFailed = ref(false);
 const layoutConflict = ref(false);
 const overwriteOpen = ref(false);
 let recoveryActive = false;
+let recoveryTimer = null;
 
 function checkpointRecovery() {
+  clearTimeout(recoveryTimer);
   if (!recoveryActive || loading.value || switching.value || loadError.value) return;
   const layout = builder.isDirty.value || upgradeRequired.value ? {
     nodes: builder.nodes.value, baseline: layoutBaseline.value, revision: layoutRevision.value,
@@ -724,7 +726,10 @@ async function restoreRecovery(current) {
 }
 
 // Once a save is attempted, later edits also update its recovery copy.
-watch(() => [builder.nodes.value, site.draft?.theme, site.draft?.templates, entryFields.recoveryDraft.value], checkpointRecovery, { deep: true });
+watch(() => [builder.nodes.value, site.draft?.theme, site.draft?.templates, entryFields.recoveryDraft.value], () => {
+  clearTimeout(recoveryTimer);
+  if (recoveryActive) recoveryTimer = setTimeout(checkpointRecovery, 200);
+}, { deep: true });
 
 async function overwriteLayout() {
   if (saving.value || switching.value || !layoutConflict.value) return;
@@ -1509,6 +1514,7 @@ function switchView(view) {
  * open panels, the device and the language carry over.
  */
 function leftView() {
+  clearTimeout(recoveryTimer);
   recoveryActive = false;
   recoveredDraft.value = recoveryFailed.value = layoutConflict.value = overwriteOpen.value = false;
   builder.select(null);
@@ -1613,6 +1619,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(recoveryTimer);
   clearTimeout(switchingTimer);
   window.removeEventListener("keydown", onKeydown);
   window.removeEventListener("beforeunload", checkpointRecovery);

@@ -215,7 +215,7 @@ test('mcp builder section patches preserve siblings and support explicit childre
     $before = (new SiteRepository())->layout('pages', 'detail');
     [, $updated] = comet_test_mcp_tool($token, 'update_section', [
         'collection' => 'pages', 'variant' => 'detail', 'revision' => $layout['revision'], 'section_id' => 'hero',
-        'patch' => ['name' => 'Hero', 'props' => ['width' => 'full'], 'style' => ['padding_y' => 'xl']],
+        'patch' => ['name' => 'Hero', 'props' => ['width' => 'full'], 'style' => ['padding_top' => 'xl', 'padding_bottom' => 'xl']],
     ]);
     $saved = (new SiteRepository())->layout('pages', 'detail');
     assert_same($before[1], $saved[1]);
@@ -335,7 +335,6 @@ test('mcp builder missing targets and revisions guide the next action', function
     }
     assert_same($layout, comet_test_builder_layout($token));
 });
-
 
 test('mcp builder preserves localized props and bindings during partial edits and resets style defaults', function (): void {
     (new \CometCMS\Localization\LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);

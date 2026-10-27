@@ -81,30 +81,30 @@ describe('builder copy and paste', () => {
 })
 
 describe('builder spacing', () => {
-  it('splits paired padding in one undo step and resets individual edges to the default', async () => {
+  it('edits individual padding edges in one undo step and resets to the default', async () => {
     const builder = await builderFixture()
     const section = builder.nodes.value[0]
-    section.style = { padding_y: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' }
+    section.style = { padding_top: 'lg', padding_bottom: 'lg', padding_left: 'md', padding_right: 'xs', background: 'accent' }
     builder.load(builder.nodes.value)
     builder.updateValue(section.id, 'style', 'padding_top', 'sm')
-    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_x: 'md', padding_right: 'xs', background: 'accent' })
+    expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_left: 'md', padding_right: 'xs', background: 'accent' })
     builder.undo()
     expect(builder.nodes.value[0].style).toEqual(section.style)
     builder.redo()
     builder.updateValue(section.id, 'style', 'padding_left', '')
     expect(builder.nodes.value[0].style).toEqual({ padding_top: 'sm', padding_bottom: 'lg', padding_right: 'xs', background: 'accent' })
     builder.undo()
-    expect(builder.nodes.value[0].style.padding_x).toBe('md')
+    expect(builder.nodes.value[0].style.padding_left).toBe('md')
     builder.updateValue(section.id, 'style', 'margin_bottom', 'none')
     expect(builder.nodes.value[0].style.margin_bottom).toBe('none')
     builder.updateValue(section.id, 'style', 'margin_bottom', '')
     expect(builder.nodes.value[0].style).not.toHaveProperty('margin_bottom')
   })
 
-  it('sets linked sides in one step and drops paired padding instead of leaving it behind defaults', async () => {
+  it('sets linked sides in one undo step', async () => {
     const builder = await builderFixture()
     const section = builder.nodes.value[0]
-    section.style = { padding_y: 'lg', padding_x: 'md', background: 'accent' }
+    section.style = { padding_top: 'lg', padding_bottom: 'lg', padding_left: 'md', padding_right: 'md', background: 'accent' }
     builder.load(builder.nodes.value)
     builder.editValues(section.id, 'style', { padding_top: '', padding_right: '', padding_bottom: '', padding_left: '' })
     expect(builder.nodes.value[0].style).toEqual({ background: 'accent' })
@@ -938,24 +938,6 @@ describe('independent hover animations', () => {
     expect(node().states).toBeUndefined()
   })
 
-  it('migrates nested legacy hover effects on load and revision restore without mutating input', async () => {
-    const builder = await builderFixture()
-    const legacy = builder.make('heading', {}, { animation: 'zoom-in', animation_trigger: 'hover', animation_duration: 'fast', animation_delay: 2 })
-    const tree = [builder.make('section', {}, {}, [legacy])]
-    builder.load(tree)
-    expect(tree[0].children[0].style.animation_trigger).toBe('hover')
-    expect(builder.nodes.value[0].children[0]).toMatchObject({ style: {}, states: { hover: { style: { animation: 'zoom-in', animation_duration: 'fast', animation_delay: 2 } } } })
-    expect(builder.isDirty.value).toBe(false)
-    legacy.states = { hover: { style: { animation: 'blur' } } }
-    builder.loadRevision(tree)
-    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'blur' })
-    builder.undo()
-    expect(builder.nodes.value[0].children[0].states.hover.style.animation).toBe('zoom-in')
-    legacy.states.hover.style.animation = 'none'
-    builder.markSaved(tree)
-    expect(builder.nodes.value[0].children[0].states.hover.style).toEqual({ animation: 'none' })
-    expect(builder.nodes.value[0].children[0].style).toEqual({})
-  })
 })
 
 

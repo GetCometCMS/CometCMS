@@ -39,26 +39,7 @@ import {
 
 const KEY = Symbol('site-builder')
 const HISTORY_LIMIT = 100
-
 const HOVER_ANIMATION_KEYS = ['animation', 'animation_duration', 'animation_delay']
-
-/** Upgrade legacy hover triggers on entry to the editor, including restored revisions. */
-function migrateHoverAnimations(tree) {
-  const result = clone(tree ?? [])
-  walk(result, (node) => {
-    if (node.style?.animation_trigger !== 'hover') return
-    if (node.states?.hover?.style?.animation === undefined) {
-      node.states ??= {}
-      node.states.hover ??= {}
-      node.states.hover.style ??= {}
-      for (const key of HOVER_ANIMATION_KEYS) {
-        if (node.style[key] !== undefined) node.states.hover.style[key] ??= node.style[key]
-      }
-    }
-    for (const key of [...HOVER_ANIMATION_KEYS, 'animation_trigger']) delete node.style[key]
-  })
-  return result
-}
 
 /** The content of each element that can become a field of its own: the prop and the type of field it becomes. */
 const CONTENT_PROPS = {
@@ -95,6 +76,7 @@ const MAX_FALLBACK = 2000
  */
 export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fieldApi = {}, linked = null, clipboardStorage }) {
   const nodes = ref([])
+  const serializedNodes = computed(() => JSON.stringify(nodes.value))
   const spec = ref(null)
   const type = ref(null)
   const types = ref([])
@@ -146,13 +128,13 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   let linkedSnapshot = readLinked()
 
   const selected = computed(() => (selectedId.value ? findNode(nodes.value, selectedId.value) : null))
-  const isDirty = computed(() => JSON.stringify(nodes.value) !== savedSnapshot.value)
+  const isDirty = computed(() => serializedNodes.value !== savedSnapshot.value)
   const canUndo = computed(() => past.value.length > 0)
   const canRedo = computed(() => future.value.length > 0)
 
   function load(tree) {
-    nodes.value = migrateHoverAnimations(tree)
-    savedSnapshot.value = JSON.stringify(nodes.value)
+    nodes.value = clone(tree ?? [])
+    savedSnapshot.value = serializedNodes.value
     past.value = []
     future.value = []
     linkedSnapshot = readLinked()
@@ -160,13 +142,13 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function loadRevision(tree) {
-    mutate(() => { nodes.value = migrateHoverAnimations(tree) })
+    mutate(() => { nodes.value = clone(tree ?? []) })
     keepSelection()
   }
 
   function markSaved(tree) {
-    nodes.value = migrateHoverAnimations(tree)
-    savedSnapshot.value = JSON.stringify(nodes.value)
+    nodes.value = clone(tree ?? [])
+    savedSnapshot.value = serializedNodes.value
     if (selectedId.value && !findNode(nodes.value, selectedId.value)) selectedId.value = null
   }
 
@@ -207,7 +189,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       }
       return kept
     }
-    const current = JSON.stringify(nodes.value)
+    const current = serializedNodes.value
     past.value = keepChanges(past.value, current)
     future.value = keepChanges(future.value, current)
     lastCoalesce = ''
@@ -216,7 +198,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function record(coalesce, linkedState) {
     const now = Date.now()
     if (!coalesce || coalesce !== lastCoalesce || now - lastChange > 1000) {
-      past.value.push({ nodes: JSON.stringify(nodes.value), linked: linkedState })
+      past.value.push({ nodes: serializedNodes.value, linked: linkedState })
       if (past.value.length > HISTORY_LIMIT) past.value.shift()
       future.value = []
     }
@@ -229,7 +211,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function currentStep() {
-    return { nodes: JSON.stringify(nodes.value), linked: linkedSnapshot }
+    return { nodes: serializedNodes.value, linked: linkedSnapshot }
   }
 
   function restore(step) {
@@ -507,25 +489,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
       if (translating.value && !def?.localized) return
       const next = def?.localized ? setLocalized(node[group]?.[key], locale.value || defaultLocale.value, value, defaultLocale.value) : value
       node[group] = { ...(node[group] ?? {}), [key]: next }
-      if (group === 'style') splitPairedPadding(node, key)
       // Like the server, style keeps only values that differ from their default.
       if (group === 'style' && isDefaultStyle(key, value)) {
         delete node.style[key]
       }
     }, { coalesce: `${id}:${group}:${key}` })
-  }
-
-  /** Split legacy paired padding on the first edge edit, keeping its opposite. */
-  function splitPairedPadding(node, key) {
-    if (!/^padding_(top|right|bottom|left)$/.test(key)) return
-    const vertical = ['padding_top', 'padding_bottom'].includes(key)
-    const pair = vertical ? 'padding_y' : 'padding_x'
-    if (!node.style[pair]) return
-    for (const side of vertical ? ['top', 'bottom'] : ['left', 'right']) {
-      const edge = `padding_${side}`
-      if (edge !== key && !node.style[edge]) node.style[edge] = node.style[pair]
-    }
-    delete node.style[pair]
   }
 
   // ─── Device and state overrides ──────────────────────────────────────
@@ -597,7 +565,6 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
           continue
         }
         node[group] = { ...(node[group] ?? {}), [key]: value }
-        if (group === 'style') splitPairedPadding(node, key)
         if (group === 'style' && isDefaultStyle(key, value)) delete node.style[key]
       }
     })
@@ -700,7 +667,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const node = findNode(nodes.value, current.id)
     if (!node || isLockedRoot(node.id) || targetId === current.id || (targetId && contains(node, targetId))) return false
 
-    const before = JSON.stringify(nodes.value)
+    const before = serializedNodes.value
     let moved = false
     mutate((tree) => {
       removeNode(tree, current.id)

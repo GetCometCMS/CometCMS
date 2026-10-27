@@ -127,8 +127,8 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
   }
   /* Margin makes up for the padding, so the page does not shift (and jump back to the top) while scrolling. */
   .c-site .c-section.c-scroll-compact {
-    padding-top: min(var(--c-pt, var(--c-py, 0px)), var(--space-xs)) !important; padding-bottom: min(var(--c-pb, var(--c-py, 0px)), var(--space-xs)) !important;
-    margin-bottom: calc(var(--c-mb, 0px) + max(0px, var(--c-pt, var(--c-py, 0px)) - var(--space-xs)) + max(0px, var(--c-pb, var(--c-py, 0px)) - var(--space-xs)));
+    padding-top: min(var(--c-pt, 0px), var(--space-xs)) !important; padding-bottom: min(var(--c-pb, 0px), var(--space-xs)) !important;
+    margin-bottom: calc(var(--c-mb, 0px) + max(0px, var(--c-pt, 0px) - var(--space-xs)) + max(0px, var(--c-pb, 0px) - var(--space-xs)));
   }
   .c-scroll-compact .c-logo { max-height: 2.1em; }
 }
@@ -194,7 +194,7 @@ html:has(.c-sticky, .c-overlap) { container-type: scroll-state; }
 .c-overlay-light::before { background: rgb(255 255 255 / 0.65); }
 .c-overlay-light { color: #0f172a; }
 /* Low specificity, so a tablet or mobile padding still wins. */
-.c-region :where(.c-section:not(.c-py-none):not([class*="c-py-"])) { --c-py: var(--space-sm); padding-top: var(--c-pt, var(--space-sm)); padding-bottom: var(--c-pb, var(--space-sm)); }
+.c-region :where(.c-section) { --c-pt: var(--space-sm); --c-pb: var(--space-sm); padding-top: var(--c-pt); padding-bottom: var(--c-pb); }
 
 /* Background images (sections, columns and elements) and focal points */
 .c-bg-size-cover { background-size: cover; }
@@ -863,21 +863,6 @@ html:has(.c-menu-fullscreen > .c-menu-toggle:checked, .c-menu-drawer > .c-menu-t
 .c-item { min-width: 0; }
 
 /* ── Style tokens ─────────────────────────────────────────────────────── */
-.c-py-none { --c-py: 0px; padding-top: 0; padding-bottom: 0; }
-/* --c-py lets a compact sticky section know how much padding it gives up. */
-.c-py-xs { --c-py: var(--space-xs); padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
-.c-py-sm { --c-py: var(--space-sm); padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
-.c-py-md { --c-py: var(--space-md); padding-top: var(--space-md); padding-bottom: var(--space-md); }
-.c-py-lg { --c-py: var(--space-lg); padding-top: var(--space-lg); padding-bottom: var(--space-lg); }
-.c-py-xl { --c-py: var(--space-xl); padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
-.c-py-2xl { --c-py: var(--space-2xl); padding-top: var(--space-2xl); padding-bottom: var(--space-2xl); }
-.c-px-none { padding-left: 0; padding-right: 0; }
-.c-px-xs { padding-left: var(--space-xs); padding-right: var(--space-xs); }
-.c-px-sm { padding-left: var(--space-sm); padding-right: var(--space-sm); }
-.c-px-md { padding-left: var(--space-md); padding-right: var(--space-md); }
-.c-px-lg { padding-left: var(--space-lg); padding-right: var(--space-lg); }
-.c-px-xl { padding-left: var(--space-xl); padding-right: var(--space-xl); }
-/* Individual edges override legacy paired padding. */
 .c-pt-none { --c-pt: 0px; padding-top: var(--c-pt); }
 .c-pt-xs { --c-pt: var(--space-xs); padding-top: var(--c-pt); }
 .c-pt-sm { --c-pt: var(--space-sm); padding-top: var(--c-pt); }

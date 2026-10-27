@@ -45,8 +45,6 @@ final class NodeRenderer
 
     /** Utility class of each style value, without its `c-` (see styleClasses). */
     private const STYLE_TOKENS = [
-        'padding_y' => 'py-',
-        'padding_x' => 'px-',
         'padding_top' => 'pt-',
         'padding_right' => 'pr-',
         'padding_bottom' => 'pb-',
@@ -135,8 +133,6 @@ final class NodeRenderer
 
     private function node(array $node, array $state, ?int $order = null): string
     {
-        $node = LayoutSchema::migrateHoverAnimation($node);
-        if (($node['kind'] ?? '') === 'accordion') $node['props'] = LayoutSchema::migrateAccordionProps($node['props'] ?? []);
         foreach ($node['props'] ?? [] as $key => $value) if (LocalizedValue::is($value)) $node['_localized'][$key] = true;
         $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
@@ -1915,7 +1911,6 @@ final class NodeRenderer
     /** @return array{href: string, new_tab: bool, open_modal: bool}|null */
     private function resolveLink(array|bool $link, array $state): ?array
     {
-        if (is_bool($link)) $link = LayoutSchema::normalizeLink($link);
         $href = match ($link['type'] ?? 'none') {
             'url' => $this->siteUrl((string) ($link['url'] ?? '')),
             // Bound destinations, resolved by boundLink() before rendering.

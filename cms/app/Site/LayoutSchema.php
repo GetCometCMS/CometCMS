@@ -146,7 +146,7 @@ final class LayoutSchema
 
     private const SPACE = ['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'];
 
-    private const SPACING_KEYS = ['padding_y', 'padding_x', 'padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left'];
+    private const SPACING_KEYS = ['padding_top', 'padding_right', 'padding_bottom', 'padding_left', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left'];
 
     private const LINK_TYPES = ['none', 'url', 'current', 'entry', 'index', 'home', 'anchor'];
 
@@ -201,8 +201,6 @@ final class LayoutSchema
     public static function styleSpec(): array
     {
         return [
-            'padding_y' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
-            'padding_x' => ['type' => 'enum', 'options' => ['', 'none', 'xs', 'sm', 'md', 'lg', 'xl'], 'default' => ''],
             'margin_bottom' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'padding_top' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
             'padding_right' => ['type' => 'enum', 'options' => ['', ...self::SPACE], 'default' => ''],
@@ -868,22 +866,6 @@ final class LayoutSchema
 
         foreach ($nodes as &$node) {
             $values = $overrides[$node['id'] ?? ''] ?? [];
-            if (($node['kind'] ?? '') === 'accordion' && in_array('items', $node['editable'] ?? [], true) && !array_key_exists('items', $values)) {
-                $legacy = array_intersect_key($values, array_flip(['title', 'html']));
-                if ($legacy !== []) {
-                    $items = $node['props']['items'] ?? [];
-                    $merge = static function (array $entries) use ($legacy): array {
-                        if ($entries !== []) $entries[0] = array_replace($entries[0], $legacy);
-                        return $entries;
-                    };
-                    if (LocalizedValue::is($items)) {
-                        $items['values'] = array_map($merge, $items['values']);
-                    } else {
-                        $items = $merge($items);
-                    }
-                    $values['items'] = $items;
-                }
-            }
             $own = array_intersect_key($values, array_flip($node['editable'] ?? []));
             if ($own !== [] && ($node['kind'] ?? '') !== self::COMPONENT) {
                 $node['props'] = self::normalizeProps((string) $node['kind'], array_replace($node['props'] ?? [], $own));
@@ -907,18 +889,10 @@ final class LayoutSchema
 
     public static function node(string $kind, array $props = [], array $style = [], array $children = []): array
     {
-        if ($kind === 'field' && isset($props['field'])) {
-            $props['source'] = SmartValue::reference((string) $props['field']);
-            unset($props['field']);
-        }
-        if ($kind === 'accordion') $props = self::migrateAccordionProps($props);
         $defaults = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {
             $defaults[$key] = $spec['default'];
-            if ($key === 'link' && $spec['type'] === 'link' && is_bool($props[$key] ?? null)) {
-                $props[$key] = self::normalizeLink($props[$key]);
-            }
         }
 
         return [
@@ -981,7 +955,7 @@ final class LayoutSchema
 
         if ($variant === 'index') {
             return [
-                self::node('section', ['width' => 'contained'], ['padding_y' => 'xl'], [
+                self::node('section', ['width' => 'contained'], ['padding_top' => 'xl', 'padding_bottom' => 'xl'], [
                     self::node('row', [], [], [
                         self::node('column', [], [], [
                             self::node('heading', ['text' => (string) ($type['label'] ?? $type['name'] ?? ''), 'level' => 'h1']),
@@ -1005,22 +979,22 @@ final class LayoutSchema
             if ($media !== null) {
                 $top[] = self::node('row', ['gap' => 'none'], [], [
                     self::node('column', [], [], [
-                        self::node('field', ['field' => $media, 'display' => 'image', 'ratio' => '16:9', 'link' => true], ['margin_bottom' => 'none']),
+                        self::node('field', ['source' => SmartValue::reference($media), 'display' => 'image', 'ratio' => '16:9', 'link' => ['type' => 'current']], ['margin_bottom' => 'none']),
                     ]),
                 ]);
             }
 
             $body = [
-                self::node('field', ['field' => 'title', 'tag' => 'h3', 'link' => true], ['margin_bottom' => 'xs', 'font_size' => 'xl']),
-                self::node('field', ['field' => 'published_at', 'display' => 'date'], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'sm']),
+                self::node('field', ['source' => SmartValue::reference('title'), 'tag' => 'h3', 'link' => ['type' => 'current']], ['margin_bottom' => 'xs', 'font_size' => 'xl']),
+                self::node('field', ['source' => SmartValue::reference('published_at'), 'display' => 'date'], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'sm']),
             ];
 
             if ($excerpt !== null) {
-                $body[] = self::node('field', ['field' => $excerpt, 'display' => 'excerpt', 'truncate' => 28], ['margin_bottom' => 'none']);
+                $body[] = self::node('field', ['source' => SmartValue::reference($excerpt), 'display' => 'excerpt', 'truncate' => 28], ['margin_bottom' => 'none']);
             }
 
             $top[] = self::node('row', ['gap' => 'none'], [], [
-                self::node('column', [], ['padding_y' => 'md', 'padding_x' => 'md'], $body),
+                self::node('column', [], ['padding_top' => 'md', 'padding_bottom' => 'md', 'padding_left' => 'md', 'padding_right' => 'md'], $body),
             ]);
 
             return [
@@ -1029,8 +1003,8 @@ final class LayoutSchema
         }
 
         $elements = [
-            self::node('field', ['field' => 'title', 'tag' => 'h1']),
-            self::node('field', ['field' => 'published_at', 'display' => 'date', 'date_format' => 'long'], ['text_color' => 'muted', 'margin_bottom' => 'lg']),
+            self::node('field', ['source' => SmartValue::reference('title'), 'tag' => 'h1']),
+            self::node('field', ['source' => SmartValue::reference('published_at'), 'display' => 'date', 'date_format' => 'long'], ['text_color' => 'muted', 'margin_bottom' => 'lg']),
         ];
 
         foreach ($fields as $name => $config) {
@@ -1044,7 +1018,7 @@ final class LayoutSchema
                 continue;
             }
 
-            $props = ['field' => $name, 'display' => self::defaultDisplay($fieldType)];
+            $props = ['source' => SmartValue::reference($name), 'display' => self::defaultDisplay($fieldType)];
             if ($fieldType === 'media') {
                 $props += ['ratio' => '16:9'];
             }
@@ -1060,7 +1034,7 @@ final class LayoutSchema
                 foreach (is_array($config['subfields'] ?? null) ? $config['subfields'] : [] as $subfield) {
                     $key = is_array($subfield) ? (string) ($subfield['key'] ?? '') : '';
                     if ($key !== '' && ($subfield['type'] ?? '') !== 'json') {
-                        $subProps = ['field' => $key, 'display' => self::defaultDisplay((string) ($subfield['type'] ?? 'text'))];
+                        $subProps = ['source' => SmartValue::reference($key), 'display' => self::defaultDisplay((string) ($subfield['type'] ?? 'text'))];
                         // The first text subfield reads as the item's heading.
                         if ($children === [] && ($subfield['type'] ?? 'text') === 'text') {
                             $subProps['tag'] = 'h4';
@@ -1074,7 +1048,7 @@ final class LayoutSchema
         }
 
         return [
-            self::node('section', ['width' => 'narrow'], ['padding_y' => 'xl'], [
+            self::node('section', ['width' => 'narrow'], ['padding_top' => 'xl', 'padding_bottom' => 'xl'], [
                 self::node('row', [], [], [self::node('column', [], [], $elements)]),
             ]),
         ];
@@ -1138,7 +1112,7 @@ final class LayoutSchema
         }
         if ($region === self::MAINTENANCE) {
             return [
-                self::node('section', ['width' => 'narrow', 'min_height' => 'screen', 'vertical_align' => 'center'], ['padding_y' => '2xl', 'background' => 'surface', 'align' => 'center'], [
+                self::node('section', ['width' => 'narrow', 'min_height' => 'screen', 'vertical_align' => 'center'], ['padding_top' => '2xl', 'padding_bottom' => '2xl', 'background' => 'surface', 'align' => 'center'], [
                     self::node('row', [], [], [
                         self::node('column', [], ['align' => 'center'], [
                             self::node('site_title', ['show_logo' => true, 'show_name' => true], ['margin_bottom' => 'xl']),
@@ -1152,7 +1126,7 @@ final class LayoutSchema
         }
         if ($region === self::SEARCH_RESULTS) {
             return [
-                self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
+                self::node('section', ['width' => 'narrow'], ['padding_top' => '2xl', 'padding_bottom' => '2xl'], [
                     self::node('row', [], [], [
                         self::node('column', [], [], [
                             self::node('heading', ['text' => 'Search results', 'level' => 'h1']),
@@ -1165,7 +1139,7 @@ final class LayoutSchema
         }
         if ($region === 'not_found') {
             return [
-                self::node('section', ['width' => 'narrow'], ['padding_y' => '2xl'], [
+                self::node('section', ['width' => 'narrow'], ['padding_top' => '2xl', 'padding_bottom' => '2xl'], [
                     self::node('row', [], [], [
                         self::node('column', [], [], [
                             self::node('heading', ['text' => 'Page not found', 'level' => 'h1']),
@@ -1179,7 +1153,7 @@ final class LayoutSchema
 
         if ($region === 'header') {
             return [
-                self::node('section', ['width' => 'contained'], ['padding_y' => 'sm', 'border' => ['bottom'], 'background' => 'background'], [
+                self::node('section', ['width' => 'contained'], ['padding_top' => 'sm', 'padding_bottom' => 'sm', 'border' => ['bottom'], 'background' => 'background'], [
                     self::node('row', ['align' => 'center', 'justify' => 'between'], [], [
                         self::node('column', ['span' => ['mobile' => 8, 'tablet' => 4, 'desktop' => 0]], [], [
                             self::node('site_title', [], ['margin_bottom' => 'none']),
@@ -1193,7 +1167,7 @@ final class LayoutSchema
         }
 
         return [
-            self::node('section', ['width' => 'contained'], ['padding_y' => 'lg', 'background' => 'surface', 'border' => ['top']], [
+            self::node('section', ['width' => 'contained'], ['padding_top' => 'lg', 'padding_bottom' => 'lg', 'background' => 'surface', 'border' => ['top']], [
                 self::node('row', ['align' => 'center'], [], [
                     self::node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 0]], [], [
                         self::node('text', ['html' => ['type' => 'template', 'parts' => ['<p>© ', SmartValue::reference('year', 'site'), ' ', SmartValue::reference('title', 'site'), '</p>']]], ['text_color' => 'muted', 'font_size' => 'sm', 'margin_bottom' => 'none']),
@@ -1208,8 +1182,6 @@ final class LayoutSchema
 
     public static function normalizeLink(mixed $link): array
     {
-        // Older fields and galleries stored only a "link to current entry" toggle.
-        if (is_bool($link)) $link = ['type' => $link ? 'current' : 'none'];
         $link = is_array($link) ? $link : [];
         if (($link['type'] ?? '') === 'dynamic') {
             return ['type' => 'dynamic', 'value' => SmartValue::normalize($link['value'] ?? null, 'link'), 'new_tab' => (bool) ($link['new_tab'] ?? false)];
@@ -1270,14 +1242,6 @@ final class LayoutSchema
                 continue;
             }
 
-            // Promote saved gallery displays while preserving identity and styling.
-            if (($node['kind'] ?? '') === 'field' && ($node['props']['display'] ?? '') === 'gallery') {
-                $node = self::galleryFromField($node);
-            }
-            // Entry lists used to offer a plain list; it became cards in a single column.
-            if (($node['kind'] ?? '') === 'collection' && ($node['props']['display'] ?? '') === 'list') {
-                $node['props']['columns'] = 1;
-            }
             $kind = (string) ($node['kind'] ?? '');
             $placed = self::placementKind($node);
             if ($placed === '' || !in_array($placed, $allowed, true) || ($placed === 'row' && $rows > self::MAX_ROW_DEPTH)) {
@@ -1323,7 +1287,6 @@ final class LayoutSchema
                 $children = array_slice($children, 0, 1);
             }
 
-            $node = self::migrateHoverAnimation($node);
             $props = is_array($node['props'] ?? null) ? $node['props'] : [];
             $style = is_array($node['style'] ?? null) ? $node['style'] : [];
 
@@ -1348,7 +1311,6 @@ final class LayoutSchema
             }
             // Inside a component: props each placement may set (see applyOverrides()).
             $editableKeys = self::keyList($node['editable'] ?? null);
-            if ($kind === 'accordion') $editableKeys = array_values(array_unique(array_map(static fn(string $key): string => in_array($key, ['title', 'html'], true) ? 'items' : $key, $editableKeys)));
             $editable = $kind === self::COMPONENT ? [] : array_values(array_intersect($editableKeys, array_keys(self::propSpec($kind))));
             if ($editable !== []) {
                 $entry['editable'] = $editable;
@@ -1365,7 +1327,6 @@ final class LayoutSchema
 
     private static function normalizeProps(string $kind, array $props): array
     {
-        if ($kind === 'accordion') $props = self::migrateAccordionProps($props);
         $normalized = [];
 
         foreach (self::propSpec($kind) as $key => $spec) {
@@ -1424,27 +1385,6 @@ final class LayoutSchema
         }
 
         return $normalized;
-    }
-
-    /** Upgrade the former single hover animation without rewriting stored layouts. */
-    public static function migrateHoverAnimation(array $node): array
-    {
-        if (($node['style']['animation_trigger'] ?? '') !== 'hover') return $node;
-        $states = is_array($node['states'] ?? null) ? $node['states'] : [];
-        $hover = is_array($states['hover'] ?? null) ? $states['hover'] : [];
-        $style = is_array($hover['style'] ?? null) ? $hover['style'] : [];
-        if (!array_key_exists('animation', $style)) {
-            $node['states'] = $states;
-            $node['states']['hover'] = $hover;
-            $node['states']['hover']['style'] = $style;
-            foreach (self::HOVER_ANIMATION_KEYS as $key) {
-                if (array_key_exists($key, $node['style'])) {
-                    $node['states']['hover']['style'][$key] ??= $node['style'][$key];
-                }
-            }
-        }
-        foreach (self::ANIMATION_KEYS as $key) unset($node['style'][$key]);
-        return $node;
     }
 
     /**
@@ -1534,15 +1474,6 @@ final class LayoutSchema
         };
     }
 
-    /** Preserve single-entry layouts, including localized content and bindings. */
-    public static function migrateAccordionProps(array $props): array
-    {
-        if (!array_key_exists('items', $props) && array_intersect(['title', 'html', 'open'], array_keys($props))) {
-            $props['items'] = [array_intersect_key($props, array_flip(['title', 'html', 'open'])) + self::propSpec('accordion')['items']['default'][0]];
-        }
-        unset($props['title'], $props['html'], $props['open']);
-        return $props;
-    }
 
     private static function normalizeAccordionItems(mixed $value): array
     {

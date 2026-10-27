@@ -36,7 +36,7 @@ $free['id'] = 'free-heading';
 $responsive = $node('heading', ['text' => 'Device heading'], ['class' => 'test-device']);
 $responsive['responsive'] = ['tablet' => ['style' => ['position' => 'fixed', 'pin' => 'center', 'offset_x' => 0, 'offset_y' => 0]], 'mobile' => ['style' => ['position' => 'absolute', 'pin' => 'top-left']]];
 $section = fn($children) => $node('section', ['min_height' => 'screen'], [], [$node('row', [], [], [$node('column', [], [], $children)])]);
-$floating = $node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 3]], ['position' => 'fixed', 'pin' => 'top-right', 'offset_x' => -20, 'offset_y' => 160, 'background' => 'surface', 'padding_x' => 'sm', 'padding_y' => 'sm', 'class' => 'test-column'], [
+$floating = $node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 3]], ['position' => 'fixed', 'pin' => 'top-right', 'offset_x' => -20, 'offset_y' => 160, 'background' => 'surface', 'padding_left' => 'sm', 'padding_right' => 'sm', 'padding_top' => 'sm', 'padding_bottom' => 'sm', 'class' => 'test-column'], [
     $node('heading', ['text' => 'Floating group']),
     $node('row', [], [], [$node('column', ['span' => ['mobile' => 12, 'tablet' => 6, 'desktop' => 6]], ['class' => 'test-nested'], [$node('text', ['html' => '<p>Nested content</p>'])])]),
 ]);
@@ -168,7 +168,7 @@ session_id('position-browser-session'); session_start(); $_SESSION['user_id'] = 
       await page.locator('.topbar-devices').getByRole('button', { name: 'Desktop', exact: true }).click();
       const [saved] = await Promise.all([
         page.waitForResponse((response) => response.url().includes('/api/site/layouts/posts/detail') && response.request().method() === 'PUT'),
-        page.getByRole('button', { name: 'Save template', exact: true }).click(),
+        page.getByRole('button', { name: 'Save layout', exact: true }).click(),
       ]);
       assert.equal(saved.status(), 200);
       await page.reload();

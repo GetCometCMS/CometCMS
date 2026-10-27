@@ -2349,8 +2349,6 @@ const messages = {
   'site.style.margin_top': 'Außenabstand oben',
   'site.style.margin_right': 'Außenabstand rechts',
   'site.style.margin_left': 'Außenabstand links',
-  'site.style.padding_y': 'Innenabstand oben & unten',
-  'site.style.padding_x': 'Innenabstand links & rechts',
   'site.style.margin_bottom': 'Außenabstand unten',
   'site.style.background': 'Hintergrundfarbe',
   'site.style.background_image': 'Hintergrundbild',

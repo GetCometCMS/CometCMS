@@ -83,16 +83,6 @@ export function withOverrides(node, overrides) {
   if (!overrides) return copy
   walk([copy], (item) => {
     const values = clone(overrides[item.id] ?? {})
-    if (item.kind === 'accordion' && item.editable?.includes('items') && values.items === undefined) {
-      const legacy = Object.fromEntries(Object.entries(values).filter(([key]) => ['title', 'html'].includes(key)))
-      if (Object.keys(legacy).length) {
-        const merge = (entries) => entries.map((entry, index) => index === 0 ? { ...entry, ...legacy } : entry)
-        const entries = item.props.items ?? []
-        values.items = entries.type === 'localized'
-          ? { ...entries, values: Object.fromEntries(Object.entries(entries.values).map(([locale, list]) => [locale, merge(list)])) }
-          : merge(entries)
-      }
-    }
     for (const key of item.kind === COMPONENT ? [] : item.editable ?? []) {
       if (values[key] !== undefined) item.props = { ...item.props, [key]: clone(values[key]) }
     }
@@ -367,7 +357,7 @@ export function presetSpan(span, count) {
 /** Section > row > columns preset with the given column spans (desktop). */
 export function sectionPreset(spec, spans) {
   const columns = spans.map((span) => createNode(spec, 'column', { span: presetSpan(span, spans.length) }))
-  return createNode(spec, 'section', {}, { padding_y: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
+  return createNode(spec, 'section', {}, { padding_top: 'xl', padding_bottom: 'xl' }, [createNode(spec, 'row', {}, {}, columns)])
 }
 
 /**

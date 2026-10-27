@@ -33,35 +33,6 @@ test('every page kind starts with the default template around its generated cont
     assert_null((new JsonStore($site->workspace()->path('site') . '/theme'))->read('templates', 'blog', 'detail'));
 });
 
-test('layouts and header and footer assignments migrate into content areas and templates unchanged', function (): void {
-    $site = comet_site_test_setup();
-    $component = $site->createComponent('Promo footer', [comet_template_test_section('Promo footer here', 'f')]);
-    $site->saveLayout('blog', 'detail', [comet_template_test_section('Migrated layout')]);
-    $site->saveLayout('blog', 'detail', [comet_template_test_section('Migrated layout, second version')]);
-    $site->saveTemplates(['blog' => ['detail' => [SiteRepository::defaultTemplate(['header' => 'none', 'footer' => $component['id']])]]]);
-    $before = comet_site_test_get('/blog/hello')['body'];
-    $history = $site->layoutRevisions('blog', 'detail');
-
-    // Put everything back where workspaces kept it before templates.
-    $theme = comet_test_workspace_path() . '/site/theme';
-    $revisions = comet_test_workspace_path() . '/revisions/site';
-    mkdir($theme . '/layouts/blog', 0775, true);
-    rename($theme . '/content/blog/detail/default.json', $theme . '/layouts/blog/detail.json');
-    mkdir($revisions . '/layouts/blog', 0775, true);
-    rename($revisions . '/content/blog/detail/default', $revisions . '/layouts/blog/detail');
-    file_put_contents($theme . '/layouts/blog/card.json', '{"format_version":3,"nodes":[]}');
-    (new JsonStore($theme))->write(['frames' => ['blog' => ['detail' => ['header' => 'none', 'footer' => $component['id']]]]], 'frames');
-    (new JsonStore($theme))->delete('templates', 'blog', 'detail');
-
-    $migrated = new SiteRepository();
-    assert_same($before, comet_site_test_get('/blog/hello')['body'], 'The page renders byte for byte as before.');
-    assert_same($history, $migrated->layoutRevisions('blog', 'detail'), 'The history moves along.');
-    assert_same('none', $migrated->templates('blog', 'detail')[0]['header']);
-    assert_false(is_dir($theme . '/layouts'));
-    assert_false(is_dir($revisions . '/layouts'));
-    assert_false(is_file($theme . '/frames.json'));
-});
-
 test('the first template whose conditions match an entry assembles its page', function (): void {
     $site = comet_site_test_setup();
     $tips = $site->createTemplate('blog', 'detail', 'Tips', '', ['header' => 'none', 'conditions' => [['field' => 'category', 'op' => 'equals', 'value' => 'tips']]]);
@@ -116,8 +87,8 @@ test('templates resolve by entry pick, conditions, order and default', function 
 test('saving templates rejects unknown parts and conditions that do not fit', function (): void {
     $site = comet_site_test_setup();
     $column = $site->createComponent('Column', [['id' => 'c', 'kind' => 'column', 'children' => []]]);
-    $about = $site->createComponent('About header', [comet_component_test_section([LayoutSchema::node('field', ['field' => 'intro'])])], 'about');
-    $blog = $site->createComponent('Blog header', [comet_component_test_section([LayoutSchema::node('field', ['field' => 'category'])], 'b')], 'blog');
+    $about = $site->createComponent('About header', [comet_component_test_section([LayoutSchema::node('field', ['source' => \CometCMS\Site\SmartValue::reference('intro')])])], 'about');
+    $blog = $site->createComponent('Blog header', [comet_component_test_section([LayoutSchema::node('field', ['source' => \CometCMS\Site\SmartValue::reference('category')])], 'b')], 'blog');
     $default = SiteRepository::defaultTemplate();
 
     foreach ([
@@ -223,36 +194,6 @@ test('each template owns its content area: a copy when created, deleted with the
     assert_throws(\InvalidArgumentException::class, fn() => $site->saveLayout('blog', 'detail', [], [], 'saved', null, 'compact'));
     // An unknown template renders the default one's content.
     assert_same($site->layout('blog', 'detail'), $site->layout('blog', 'detail', 'compact'));
-});
-
-test('templates that shared named content areas each get their own', function (): void {
-    $site = comet_site_test_setup();
-    $theme = new JsonStore($site->workspace()->path('site') . '/theme');
-    $site->saveLayout('blog', 'detail', [comet_template_test_section('Default content')]);
-    // How workspaces stored areas and templates before.
-    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'id' => 'long-read', 'name' => 'Long read', 'nodes' => [comet_template_test_section('Long read content')]], 'content', 'blog', 'detail', 'long-read');
-    $theme->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'id' => 'unused', 'name' => 'Unused', 'nodes' => []], 'content', 'blog', 'detail', 'unused');
-    $revisions = comet_test_workspace_path() . '/revisions/site/content/blog/detail';
-    mkdir($revisions . '/long-read', 0775, true);
-    file_put_contents($revisions . '/long-read/r1.json', '{}');
-    $theme->write(['templates' => [
-        comet_template_test('tips', ['content' => 'long-read', 'header' => 'none'], [['field' => 'category', 'op' => 'equals', 'value' => 'tips']]),
-        comet_template_test('news', ['content' => 'long-read']),
-        comet_template_test('plain', ['content' => 'default']),
-        SiteRepository::defaultTemplate() + ['content' => 'default'],
-    ]], 'templates', 'blog', 'detail');
-
-    $site = new SiteRepository();
-    assert_same(['tips', 'news', 'plain', 'default'], array_column($site->templates('blog', 'detail'), 'id'));
-    assert_false(array_key_exists('content', $site->templates('blog', 'detail')[0]));
-    foreach (['tips' => 'Long read content', 'news' => 'Long read content', 'plain' => 'Default content', 'default' => 'Default content'] as $template => $text) {
-        assert_true(str_contains(json_encode($site->layout('blog', 'detail', $template)), $text), $template);
-    }
-    assert_true(is_file($revisions . '/tips/r1.json'), 'The first template takes the history along.');
-    assert_null($theme->read('content', 'blog', 'detail', 'long-read'));
-    assert_null($theme->read('content', 'blog', 'detail', 'unused'));
-    assert_false(is_dir($revisions . '/long-read'));
-    assert_true(str_contains(comet_site_test_get('/blog/hello')['body'], 'Long read content'));
 });
 
 test('deleting a component or content type cleans up the templates that used it', function (): void {

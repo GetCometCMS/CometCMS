@@ -20,7 +20,6 @@ use CometCMS\Workspaces\WorkspaceRepository;
  *
  *   settings.json               homepage, URL patterns, SEO defaults
  *   menus.json                  navigation menus
- *   forms/{id}.json             website forms (see FormRepository)
  *   theme/                      the design, kept apart so it can live in git:
  *     theme.json                theme settings
  *     style.css                 custom CSS, loaded after the generated theme
@@ -71,12 +70,6 @@ final class SiteRepository
         $this->store = new JsonStore($this->workspace->path('site'));
         $this->themeStore = new JsonStore($this->workspace->path('site') . '/theme');
         $this->revisions = new JsonStore($this->workspace->path('revisions') . '/site');
-        if (is_dir($this->themeStore->path('layouts')) || is_file($this->themeStore->path('frames') . '.json')) {
-            $this->migrateLayouts();
-        }
-        if ($this->sharesContentAreas()) {
-            $this->migrateContentAreas();
-        }
     }
 
     public function workspace(): WorkspaceContext
@@ -909,119 +902,8 @@ final class SiteRepository
         }
     }
 
-    /**
-     * Workspaces from before templates kept one layout per page kind and its
-     * header and footer apart (layouts/{type}/{variant}.json, frames.json).
-     * Each layout becomes that page kind's default content area, keeping its
-     * history, and its header and footer go to the default template.
-     */
-    private function migrateLayouts(): void
-    {
-        $this->themeStore->synchronized(function (): void {
-            $layouts = $this->themeStore->path('layouts');
-            $revisions = $this->revisions->path('layouts');
-            foreach (is_dir($layouts) ? (glob($layouts . '/*', GLOB_ONLYDIR) ?: []) : [] as $typeDirectory) {
-                $type = basename($typeDirectory);
-                foreach (LayoutSchema::VARIANTS as $variant) {
-                    $stored = $this->themeStore->read('layouts', $type, $variant);
-                    if ($stored !== null && $this->themeStore->read('content', $type, $variant, self::DEFAULT_TEMPLATE) === null) {
-                        $this->themeStore->write($stored, 'content', $type, $variant, self::DEFAULT_TEMPLATE);
-                    }
-                }
-            }
-            foreach (is_dir($revisions) ? (glob($revisions . '/*/*', GLOB_ONLYDIR) ?: []) : [] as $variantDirectory) {
-                $type = basename(dirname($variantDirectory));
-                $target = $this->revisions->path('content', $type, basename($variantDirectory), self::DEFAULT_TEMPLATE);
-                if (!is_dir($target)) {
-                    @mkdir(dirname($target), 0775, true);
-                    rename($variantDirectory, $target);
-                }
-            }
-            // What is left, such as retired per-type cards, is no longer used.
-            self::removeDirectory($revisions);
-            self::removeDirectory($layouts);
 
-            $frames = $this->themeStore->read('frames')['frames'] ?? null;
-            foreach (is_array($frames) ? $frames : [] as $type => $variants) {
-                foreach (is_array($variants) ? $variants : [] as $variant => $regions) {
-                    $type = (string) $type;
-                    $variant = (string) $variant;
-                    if (!is_array($regions) || LayoutSchema::key($type) !== $type || !in_array($variant, LayoutSchema::VARIANTS, true)
-                        || $this->themeStore->read('templates', $type, $variant) !== null) continue;
-                    $parts = array_filter(array_intersect_key($regions, array_flip(LayoutSchema::REGIONS)), static fn(mixed $value): bool => is_string($value) && LayoutSchema::key($value) === $value);
-                    if ($parts !== []) $this->themeStore->write(['templates' => [self::defaultTemplate($parts)]], 'templates', $type, $variant);
-                }
-            }
-            $this->themeStore->delete('frames');
-        }, 'templates');
-    }
 
-    /** Stored templates from before each template owned its content area still name the one they show. */
-    private function sharesContentAreas(): bool
-    {
-        foreach (glob($this->themeStore->path('templates') . '/*/*.json') ?: [] as $file) {
-            $list = json_decode((string) file_get_contents($file), true)['templates'] ?? null;
-            foreach (is_array($list) ? $list : [] as $template) {
-                if (is_array($template) && array_key_exists('content', $template)) return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Templates used to pick their content from shared, named content areas.
-     * Now each template owns one, stored under its id: an area moves (with its
-     * history) to the first template that showed it, the others get a copy,
-     * and areas no template showed are removed.
-     */
-    private function migrateContentAreas(): void
-    {
-        $this->themeStore->synchronized(function (): void {
-            foreach (glob($this->themeStore->path('templates') . '/*/*.json') ?: [] as $file) {
-                $type = basename(dirname($file));
-                $variant = basename($file, '.json');
-                $list = $this->themeStore->read('templates', $type, $variant)['templates'] ?? null;
-                if (LayoutSchema::key($type) !== $type || !in_array($variant, LayoutSchema::VARIANTS, true) || !is_array($list)) continue;
-
-                $shows = [];
-                foreach ($list as $template) {
-                    $id = is_array($template) ? LayoutSchema::key($template['id'] ?? '') : '';
-                    if ($id === '' || isset($shows[$id])) continue;
-                    $area = is_string($template['content'] ?? null) && LayoutSchema::key($template['content']) === $template['content'] ? $template['content'] : self::DEFAULT_TEMPLATE;
-                    $shows[$id] = $area;
-                }
-                $stored = [];
-                foreach (glob($this->themeStore->path('content', $type, $variant) . '/*.json') ?: [] as $areaFile) {
-                    $stored[basename($areaFile, '.json')] = $this->themeStore->read('content', $type, $variant, basename($areaFile, '.json'));
-                }
-                $moved = [];
-                foreach ($shows as $id => $area) {
-                    if ($area === $id) continue;
-                    $content = $stored[$area] ?? null;
-                    if (($content['format_version'] ?? null) === LayoutSchema::FORMAT_VERSION) {
-                        $this->themeStore->write(['format_version' => LayoutSchema::FORMAT_VERSION, 'nodes' => $content['nodes'] ?? []], 'content', $type, $variant, $id);
-                    } else {
-                        $this->themeStore->delete('content', $type, $variant, $id);
-                    }
-                    // The first template showing an area takes its history along.
-                    $from = $this->revisions->path('content', $type, $variant, $area);
-                    $to = $this->revisions->path('content', $type, $variant, $id);
-                    if (!isset($moved[$area]) && !isset($shows[$area]) && is_dir($from) && !is_dir($to)) {
-                        @mkdir(dirname($to), 0775, true);
-                        rename($from, $to);
-                        $moved[$area] = true;
-                    }
-                }
-                foreach (array_keys($stored) as $area) {
-                    if (isset($shows[$area]) || $area === self::DEFAULT_TEMPLATE) continue;
-                    $this->themeStore->delete('content', $type, $variant, (string) $area);
-                    self::removeDirectory($this->revisions->path('content', $type, $variant, (string) $area));
-                }
-                $this->writeTemplates($type, $variant, array_map(static fn(mixed $template): mixed => is_array($template) ? array_diff_key($template, ['content' => true]) : $template, $list));
-            }
-        }, 'templates');
-    }
 
     // ─── Components ──────────────────────────────────────────────────────────
 

@@ -245,12 +245,11 @@ describe('layout tree', () => {
   })
 })
 
-
-it('preserves legacy accordion component overrides after entry migration', () => {
+it('applies accordion item overrides without mutating the component', () => {
   const node = { id: 'accordion', kind: 'accordion', editable: ['items'], props: { items: [{ title: 'Base question', html: '<p>Answer</p>', open: false }] }, children: [] }
-  const legacy = withOverrides(node, { accordion: { title: 'Instance question' } })
-  expect(legacy.props.items).toEqual([{ title: 'Instance question', html: '<p>Answer</p>', open: false }])
+  const instance = withOverrides(node, { accordion: { items: [{ title: 'Instance question', html: '<p>Answer</p>', open: false }] } })
+  expect(instance.props.items).toEqual([{ title: 'Instance question', html: '<p>Answer</p>', open: false }])
   expect(node.props.items[0].title).toBe('Base question')
-  const current = withOverrides(node, { accordion: { title: 'Ignored legacy title', items: [] } })
+  const current = withOverrides(node, { accordion: { items: [] } })
   expect(current.props.items).toEqual([])
 })

@@ -321,7 +321,7 @@ test('component previews and overrides reach nested instances, and saving clears
     $html = $renderer->layoutPreview((new ContentTypeRepository())->find('blog'), 'detail', null);
     assert_true(str_contains($html, 'Unsaved inner'));
     $preview = $renderer->componentPreview($edited, null, null);
-    assert_true(str_contains($preview, '<section class="c-section c-section-contained c-py-xl">'), 'Rows are previewed inside a section.');
+    assert_true(str_contains($preview, '<section class="c-section c-section-contained c-pt-xl c-pb-xl">'), 'Rows are previewed inside a section.');
     assert_true(str_contains($preview, 'data-node="' . $edited['nodes'][0]['id'] . '"'), 'The edited component is annotated.');
 
     $cache = ApiCache::fromConfig();
