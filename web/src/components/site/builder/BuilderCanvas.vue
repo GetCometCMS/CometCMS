@@ -148,6 +148,27 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
   cursor:default;
 }
 
+/* Positioned sections can paint over their content area's inset outline.
+   Repeat it above the content without adding space or intercepting clicks.
+   Inherit the outline so hover and selection keep their normal appearance. */
+:where([data-kind="page_content"], [data-kind="site_content"], .c-view-page-edit .c-page-content[data-drop-root]){
+  position:relative;
+}
+
+[data-kind="page_content"]::after,
+[data-kind="site_content"]::after,
+.c-view-page-edit .c-page-content[data-drop-root]::after,
+.c-view-page-edit [data-page-area]::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:2147483646;
+  pointer-events:none;
+  outline:inherit;
+  outline-offset:inherit;
+  border-radius:inherit;
+}
+
 .c-view-page-edit [data-page-area]::after{
   content:attr(data-page-area-label);
   position:absolute;
