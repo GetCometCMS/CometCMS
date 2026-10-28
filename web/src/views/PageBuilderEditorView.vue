@@ -15,7 +15,7 @@
             <p
               class="topbar-muted flex items-center gap-1 truncate text-[11px] leading-tight pl-1"
               :class="{ 'cursor-help': scopeBar }"
-              :title="scopeBar?.text"
+              v-tooltip="scopeBar && { title: scopeBar.title, text: scopeBar.text }"
               :tabindex="scopeBar ? 0 : undefined"
               :aria-label="scopeBar ? `${subheading}. ${scopeBar.text}` : undefined"
             >
@@ -190,23 +190,18 @@
           <button
             type="button"
             class="rail-action group"
-            :class="{ 'is-active': panelWindows[panel.value]?.open, 'is-tooltip-off': clickedRailPanel === panel.value }"
+            :class="{ 'is-active': panelWindows[panel.value]?.open }"
             :aria-pressed="panelWindows[panel.value]?.open ?? false"
             :aria-label="panel.label"
+            v-tooltip="{ title: panel.label, text: t('site.builder.panelWindowHint'), placement: 'right' }"
             @pointerdown="panelLayout.startMove($event, panel.value, true)"
-            @click="clickedRailPanel = panel.value; panelLayout.toggle(panel.value)"
-            @pointerleave="clickedRailPanel = null"
+            @click="panelLayout.toggle(panel.value)"
           >
             <Icon :icon="panel.icon" class="h-5 w-5" />
             <span
               v-if="panel.dirty"
               class="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white"
             ></span>
-            <!-- Instant label: the rail is icon-only to leave room for the canvas. -->
-            <span class="rail-tooltip" role="tooltip" aria-hidden="true">
-              <span class="font-semibold">{{ panel.label }}</span>
-              <span class="block text-[10px] font-normal text-ink-300">{{ t('site.builder.panelWindowHint') }}</span>
-            </span>
           </button>
 
           <!-- Separator before design settings -->
@@ -428,6 +423,7 @@ import { useToastStore } from "../stores/toast.js";
 import { resolveLocalized } from "../composables/localizedValues.js";
 import { useLanguages } from "../composables/useLanguages.js";
 import { useI18n } from "../i18n/index.js";
+import { vTooltip } from "../directives/tooltip.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -560,8 +556,6 @@ const panels = computed(() => [
   { value: "css", label: t("site.theme.customCss"), icon: "mdi:language-css3", dirty: cssDirty.value },
   { value: "history", label: t("site.history.title"), icon: "mdi:history" },
 ]);
-/** The rail button just clicked hides its tooltip until the pointer leaves, so it doesn't cover the panel. */
-const clickedRailPanel = ref(null);
 const visiblePanels = computed(() => panels.value.filter((panel) => panelWindows.value[panel.value].open));
 function panelLabel(value) {
   return panels.value.find((panel) => panel.value === value)?.label ?? value;
@@ -1852,38 +1846,5 @@ onBeforeUnmount(() => {
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: rgb(var(--color-theme-600));
-}
-.rail-tooltip {
-  pointer-events: none;
-  position: absolute;
-  left: calc(100% + 0.625rem);
-  top: 50%;
-  z-index: 10;
-  width: max-content;
-  max-width: 14rem;
-  transform: translate(-4px, -50%);
-  border-radius: 0.5rem;
-  background: rgb(15 23 42);
-  padding: 0.375rem 0.625rem;
-  text-align: left;
-  font-size: 0.75rem;
-  line-height: 1.1rem;
-  color: #fff;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 0.2);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 120ms, transform 120ms, visibility 120ms;
-}
-.rail-action:hover .rail-tooltip,
-.rail-action:focus-visible .rail-tooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(0, -50%);
-  transition-delay: 500ms;
-}
-.rail-action.is-tooltip-off .rail-tooltip {
-  opacity: 0;
-  visibility: hidden;
-  transition-delay: 0ms;
 }
 </style>
