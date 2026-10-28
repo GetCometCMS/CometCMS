@@ -188,41 +188,6 @@
 
         <p class="mb-4 text-xs text-slate-500">{{ t("contentTypeEdit.fieldsHint") }}</p>
 
-        <!-- Content areas belong to the detail templates; they are listed and deleted, not edited, here. -->
-        <div v-if="areaFields.length" class="mb-4 rounded-lg bg-slate-50 text-xs text-slate-600 ring-1 ring-inset ring-slate-200">
-          <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-            <div class="min-w-0">
-              <p class="font-medium text-slate-800">{{ t("contentTypeEdit.areasTitle") }}</p>
-              <p>{{ t("contentTypeEdit.areasHint") }}</p>
-            </div>
-            <RouterLink :to="`/page-builder/builder/layout/${form.name}/detail`" class="btn-secondary btn-sm shrink-0">
-              {{ t("contentTypeEdit.editAreas") }}
-            </RouterLink>
-          </div>
-          <ul class="divide-y divide-slate-200 border-t border-slate-200">
-            <li v-for="area in areaRows" :key="area.key" class="flex items-center justify-between gap-2 px-3 py-1.5">
-              <div class="min-w-0">
-                <span class="font-medium text-slate-700">{{ areaLabel(area) }}</span>
-                <span class="ml-1.5 font-mono text-[11px] text-slate-400">{{ area.key }}</span>
-                <span v-if="area.templates" class="ml-2 text-slate-500">
-                  {{ area.templates.length ? t("contentTypeEdit.areaPlaced", { count: area.templates.length }) : t("contentTypeEdit.areaUnplaced") }}
-                  · {{ t("site.page.areaEntries", { count: area.entries }) }}
-                </span>
-              </div>
-              <button
-                v-if="canDeleteAreas"
-                type="button"
-                class="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                :title="t('contentTypeEdit.deleteArea')"
-                :aria-label="t('contentTypeEdit.deleteArea')"
-                @click="areaToDelete = area"
-              >
-                <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
-              </button>
-            </li>
-          </ul>
-        </div>
-
         <FieldBuilder
           ref="fieldBuilder"
           v-model="customFields"
@@ -231,6 +196,44 @@
           :field-errors="customFieldErrors"
         />
       </div>
+
+      <!-- Content areas are managed in layouts, separately from custom fields. -->
+      <section v-if="areaFields.length" aria-labelledby="content-areas-title" class="card p-6">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="content-areas-title" class="card-title flex items-center gap-2">
+              <Icon icon="lucide:panels-top-left" class="h-4 w-4 text-slate-500" />
+              {{ t("contentTypeEdit.areasTitle") }}
+            </h2>
+            <p class="mt-2 text-xs text-slate-500">{{ t("contentTypeEdit.areasHint") }}</p>
+          </div>
+          <RouterLink :to="`/page-builder/builder/layout/${form.name}/detail`" class="btn-secondary btn-sm shrink-0">
+            {{ t("contentTypeEdit.editAreas") }}
+          </RouterLink>
+        </div>
+        <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600">
+          <li v-for="area in areaRows" :key="area.key" class="flex items-center justify-between gap-2 px-3 py-3">
+            <div class="min-w-0">
+              <span class="font-medium text-slate-700">{{ areaLabel(area) }}</span>
+              <span class="ml-1.5 font-mono text-[11px] text-slate-400">{{ area.key }}</span>
+              <span v-if="area.templates" class="ml-2 text-slate-500">
+                {{ area.templates.length ? t("contentTypeEdit.areaPlaced", { count: area.templates.length }) : t("contentTypeEdit.areaUnplaced") }}
+                · {{ t("site.page.areaEntries", { count: area.entries }) }}
+              </span>
+            </div>
+            <button
+              v-if="canDeleteAreas"
+              type="button"
+              class="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              :title="t('contentTypeEdit.deleteArea')"
+              :aria-label="t('contentTypeEdit.deleteArea')"
+              @click="areaToDelete = area"
+            >
+              <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
+            </button>
+          </li>
+        </ul>
+      </section>
 
       <TypeSubmissionSettings
         v-if="form.allow_submissions"
