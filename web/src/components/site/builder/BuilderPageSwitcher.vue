@@ -126,7 +126,7 @@ import { Icon } from "@iconify/vue";
 import { componentIcon } from "./kindIcons.js";
 import { api } from "../../../api/index.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
-import { FRAME_DEFAULT, frameLabel, templateList, templateName, usesTemplates } from "../../../composables/templates.js";
+import { DEFAULT_TEMPLATE, FRAME_DEFAULT, frameLabel, templateList, templateName, usesTemplates } from "../../../composables/templates.js";
 import { hasListPage } from "../../../composables/siteLinks.js";
 import { useSiteStore } from "../../../stores/site.js";
 import { useI18n } from "../../../i18n/index.js";
@@ -272,10 +272,16 @@ function entryItem(type, entry) {
   };
 }
 
-/** Only templates with a placed content area offer entry design links. The open canvas includes unsaved changes. */
+/**
+ * Only templates with a placed content area offer entry design links. The
+ * open template answers from the canvas, unsaved changes included, so
+ * removing its area hides the links before it is saved.
+ */
 function hasEntryAreas(type) {
-  if (props.target === "layout" && props.name === type.name && route.params.variant === "detail" && builder.placedPageFields().length) return true;
-  return (typeAreas.value[type.name] ?? []).some((area) => area.templates.length);
+  const editing = props.target === "layout" && props.name === type.name && route.params.variant === "detail";
+  if (editing && builder.placedPageFields().length) return true;
+  const open = editing ? (typeof route.query.template === "string" && route.query.template) || DEFAULT_TEMPLATE : null;
+  return (typeAreas.value[type.name] ?? []).some((area) => area.templates.some((id) => id !== open));
 }
 
 async function loadAreas() {
