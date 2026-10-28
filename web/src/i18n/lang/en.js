@@ -1938,6 +1938,7 @@ const messages = {
     'site.builder.searchResultsType': 'Search results',
     'site.builder.mixedType': 'Several types',
     'site.builder.anyType': 'All types',
+    'site.builder.unavailableChoices': 'No longer available',
     'site.card.searchStandardHint': 'Each hit uses the standard card of its content type. Customize the card to design the hits of this list; it can show the fields of every searched type.',
     'site.card.searchCustomHint': 'This list shows every hit with its own card. Fields marked "All types" show on every hit; others stay empty for hits of types without them.',
     'site.card.mixedStandardHint': 'Each entry uses the standard card of its content type. Customize the card to design all entries of this list alike; it can show the fields of every listed type.',

@@ -1943,6 +1943,7 @@ const messages = {
   'site.builder.searchResultsType': 'Suchergebnisse',
   'site.builder.mixedType': 'Mehrere Typen',
   'site.builder.anyType': 'Alle Typen',
+  'site.builder.unavailableChoices': 'Nicht mehr verfügbar',
   'site.card.searchStandardHint': 'Jeder Treffer verwendet das Standard-Eintragslayout seines Inhaltstyps. Passe es an, um die Treffer dieser Liste zu gestalten; es kann die Felder aller durchsuchten Typen zeigen.',
   'site.card.searchCustomHint': 'Diese Liste zeigt jeden Treffer mit ihrem eigenen Eintragslayout. Felder mit „Alle Typen“ erscheinen bei jedem Treffer, andere bleiben bei Typen ohne dieses Feld leer.',
   'site.card.mixedStandardHint': 'Jeder Eintrag nutzt die Standardkarte seines Inhaltstyps. Passe die Karte an, um alle Einträge dieser Liste gleich zu gestalten; sie kann die Felder aller gelisteten Typen zeigen.',

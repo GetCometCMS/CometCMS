@@ -1230,7 +1230,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   const api = {
-    nodes, spec, type, types, pageTypes, sharedField, menus, forms, settings, selectedId, selected, hoverId, cssPicker, nestedRow, drag,
+    nodes, spec, type, types, pageTypes, sharedField, combinedType, menus, forms, settings, selectedId, selected, hoverId, cssPicker, nestedRow, drag,
     isDirty, canUndo, canRedo, savedSnapshot,
     load, loadRevision, markSaved, mutate, linkedChanged, rebaseLinked, undo, redo, select, selectParent,
     currentAvailable, locale, translating, defaultLocale, valueFor, translationState, resetTranslation, hasSyntaxErrors,

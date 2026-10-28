@@ -1378,7 +1378,8 @@ final class NodeRenderer
     /**
      * Entries of several types in one list, each as a card of its own type.
      * Each type is asked for the entries up to the end of the page, which are
-     * then merged by the date field the list sorts by.
+     * then merged by the field the list sorts by. Visitor filters use the
+     * fields of all the types; a type without a filtered field has no match.
      */
     private function mixedCollection(array $node, array $state): string
     {
@@ -1389,9 +1390,14 @@ final class NodeRenderer
             return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('chooseTypes') . '>Choose public content types</div>') : '';
         }
 
-        // Only dates mean the same in every type; another field sorts by publication.
-        $field = in_array($props['sort_field'], ['published_at', 'created_at', 'updated_at'], true) ? $props['sort_field'] : 'published_at';
-        $desc = $props['sort_order'] === 'desc';
+        $schemas = array_combine($types, array_map(fn(string $type): array => $this->ctx->type($type) ?? [], $types));
+        $filters = new ListFilters($this->ctx, $node, ListFilters::combinedSchema($schemas));
+        $sort = $filters->sort();
+        // Only dates mean the same in every type, so the list's own order uses one; a visitor may choose another field.
+        $field = $sort !== null ? ltrim($sort, '-') : (in_array($props['sort_field'], ListFilters::DATE_FIELDS, true) ? $props['sort_field'] : 'published_at');
+        $desc = $sort !== null ? str_starts_with($sort, '-') : $props['sort_order'] === 'desc';
+        $conditions = $filters->conditions();
+        $everywhere = array_flip(['title', ...ListFilters::DATE_FIELDS]);
         $page = $props['paginate'] ? max(1, (int) ($state['page'] ?? 1)) : 1;
         $offset = ($page - 1) * $props['limit'];
         $current = $state['entry'] ?? null;
@@ -1399,28 +1405,46 @@ final class NodeRenderer
         $items = [];
         $total = 0;
         foreach ($types as $type) {
-            $params = ['sort' => ($desc ? '-' : '') . $field, 'limit' => $offset + $props['limit']];
+            $fields = $schemas[$type]['fields'] ?? [];
+            if (array_diff_key($conditions, $fields, $everywhere) !== []) continue;
+            $sortable = isset($fields[$field]) || isset($everywhere[$field]);
+            $params = ['sort' => ($desc ? '-' : '') . ($sortable ? $field : 'published_at'), 'limit' => $offset + $props['limit']];
+            if ($conditions !== []) $params['filter'] = $conditions;
             if ($props['exclude_current'] && is_array($current) && ($current['collection'] ?? '') === $type) {
                 $params['filter']['slug'] = ['ne' => (string) ($current['slug'] ?? $current['id'] ?? '')];
             }
             $result = $this->ctx->query($type, $params);
             $total += $result['total'];
             foreach ($result['data'] as $entry) {
-                $items[] = ['type' => $type, 'entry' => $entry, 'date' => (string) ($entry[$field] ?? '')];
+                $items[] = ['type' => $type, 'entry' => $entry, 'value' => $sortable ? ($entry[$field] ?? null) : null];
             }
         }
-        usort($items, static fn(array $a, array $b): int => $desc ? $b['date'] <=> $a['date'] : $a['date'] <=> $b['date']);
+        // Entries without the field come last either way.
+        usort($items, static function (array $a, array $b) use ($desc): int {
+            if (SmartValue::empty($a['value']) || SmartValue::empty($b['value'])) return SmartValue::empty($a['value']) <=> SmartValue::empty($b['value']);
+            $order = is_numeric($a['value']) && is_numeric($b['value']) ? (float) $a['value'] <=> (float) $b['value']
+                : strnatcasecmp(is_scalar($a['value']) ? (string) $a['value'] : '', is_scalar($b['value']) ? (string) $b['value'] : '');
+            return $desc ? -$order : $order;
+        });
         $items = array_slice($items, $offset, $props['limit']);
+        $bar = $filters->html((string) ($state['path'] ?? ''));
 
         if ($items === []) {
-            if ($props['empty_text'] !== '') return $this->element($node, '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>');
-            $labels = implode(', ', array_map(fn(string $type): string => (string) ($this->ctx->type($type)['label'] ?? $type), $types));
-            return $this->annotating() ? $this->element($node, '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => $labels]) . '>No published ' . Security::e($labels) . ' yet</div>') : '';
+            $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';
+            if ($empty === '' && $filters->chosen() !== []) {
+                $empty = '<p class="c-empty">' . Security::e(Messages::get('no_results', $this->ctx->htmlLang())) . '</p>';
+            }
+            if ($empty === '' && $this->annotating()) {
+                $labels = implode(', ', array_map(fn(string $type): string => (string) ($schemas[$type]['label'] ?? $type), $types));
+                $empty = '<div class="c-placeholder"' . $this->placeholder('noEntries', ['type' => $labels]) . '>No published ' . Security::e($labels) . ' yet</div>';
+            }
+
+            return $empty === '' && $bar === '' ? '' : $this->element($node, $bar . $empty);
         }
 
-        $html = $this->cardGrid('', array_column($items, 'entry'), $props['columns'], $state, $node['children'], array_column($items, 'type'));
+        $html = $bar . $this->cardGrid('', array_column($items, 'entry'), $props['columns'], $state, $node['children'], array_column($items, 'type'));
         if ($props['paginate'] && $total > $props['limit']) {
-            $html .= $this->pagination($page, (int) ceil($total / $props['limit']), $state);
+            $html .= $this->pagination($page, (int) ceil($total / $props['limit']), ['path' => $filters->url((string) ($state['path'] ?? ''), $filters->chosen())] + $state);
         }
 
         return $this->element($node, $html);

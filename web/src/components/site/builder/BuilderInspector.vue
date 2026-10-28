@@ -606,14 +606,15 @@ const visibleProps = computed(() => {
 
   if (current.kind === "collection") {
     // Search results come from the query, not from one type, its sorting or visitor filters.
-    // Lists of several types sort by date and have no single type's fields to filter by.
+    // Lists of several types sort by date on their own; visitors filter and sort by the fields of all of them.
     const source = props.list_source ?? "type";
     const hidden = {
       search: ["type", "sort_field", "sort_order", "filter_field", "filter_value", "exclude_current", "filters", "sort_choices"],
-      types: ["type", "search_fields", "filter_field", "filter_value", "filters", "sort_choices"],
+      types: ["type", "search_fields", "filter_field", "filter_value"],
     }[source] ?? ["collections", "search_fields"];
     // Visitor filters and sorting need the list's fields.
-    return keys.filter((key) => !hidden.includes(key) && (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || props.type));
+    const hasFields = source === "types" ? !!props.collections?.length : !!props.type;
+    return keys.filter((key) => !hidden.includes(key) && (key !== "filter_value" || props.filter_field) && (!["filters", "sort_choices"].includes(key) || hasFields));
   }
 
   if (["image", "gallery"].includes(current.kind)) {
