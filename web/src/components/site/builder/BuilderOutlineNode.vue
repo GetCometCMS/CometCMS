@@ -20,6 +20,22 @@
       @drop.prevent.stop="onDrop"
       @contextmenu.prevent="builder.openContextMenu(node.id, $event.clientX, $event.clientY)"
     >
+      <span
+        v-for="(continues, level) in ancestorGuides"
+        v-show="level > 0 && continues"
+        :key="level"
+        aria-hidden="true"
+        class="outline-guide outline-guide-continuation"
+        :class="{ 'outline-guide-selected': isSelected }"
+        :style="{ left: `${level * 14}px` }"
+      ></span>
+      <span
+        v-if="depth > 0"
+        aria-hidden="true"
+        class="outline-guide outline-guide-branch"
+        :class="{ 'outline-guide-last': last, 'outline-guide-selected': isSelected }"
+        :style="{ left: `${depth * 14}px` }"
+      ></span>
       <span v-if="dropPosition === 'before'" class="pointer-events-none absolute inset-x-0 -top-px h-0.5 rounded bg-theme-500"></span>
       <span v-if="dropPosition === 'after'" class="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded bg-theme-500"></span>
 
@@ -77,6 +93,7 @@
         :key="child.id"
         :node="child"
         :depth="depth + 1"
+        :ancestor-guides="[...ancestorGuides, !last]"
         :first="index === 0"
         :last="index === node.children.length - 1"
       />
@@ -96,6 +113,7 @@ import { useI18n } from "../../../i18n/index.js";
 const props = defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
+  ancestorGuides: { type: Array, default: () => [] },
   first: { type: Boolean, default: false },
   last: { type: Boolean, default: false },
 });
@@ -211,6 +229,38 @@ function onDrop() {
 </script>
 
 <style scoped>
+.outline-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid rgb(var(--color-slate-300));
+  opacity: var(--outline-guide-opacity, 0);
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .outline-guide {
+    transition: none;
+  }
+}
+.outline-guide-selected {
+  border-color: rgb(255 255 255 / 0.4);
+}
+.outline-guide-branch::after {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: 0;
+  width: 6px;
+  border-top: 1px solid rgb(var(--color-slate-300));
+}
+.outline-guide-selected::after {
+  border-color: rgb(255 255 255 / 0.4);
+}
+.outline-guide-last {
+  bottom: auto;
+  height: 16px;
+}
 .outline-accent-entry {
   --outline-accent: 33 127 152;
 }
