@@ -1885,6 +1885,7 @@ const messages = {
     'site.builder.recoveryFailed': 'A recovery copy could not be stored in this browser. Keep this tab open until your changes are saved.',
     'site.builder.saveConflict': 'The saved layout changed. Your edits are still here. You can explicitly replace the saved layout with your version.',
     'site.builder.saveMyLayout': 'Save my layout',
+    'site.builder.discardRecovered': 'Discard changes',
     'site.builder.overwriteMessage': 'Replace the saved layout with your version? This can overwrite changes saved elsewhere. The previous version will remain in history.',
     'site.builder.switchPage': 'Switch page',
     'site.builder.switchEntry': 'Switch entry',

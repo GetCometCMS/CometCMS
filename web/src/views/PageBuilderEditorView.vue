@@ -12,7 +12,16 @@
         <ol class="flex min-w-0 items-center gap-1 sm:gap-2">
           <li class="breadcrumb-root w-max min-w-20 max-w-xs shrink-0">
             <BuilderPageSwitcher :heading="target === 'page' ? builder.type.value?.label ?? name : heading" :target="target" :name="name" />
-            <p class="topbar-muted truncate text-[11px] leading-tight pl-1">{{ subheading }}</p>
+            <p
+              class="topbar-muted flex items-center gap-1 truncate text-[11px] leading-tight pl-1"
+              :class="{ 'cursor-help': scopeBar }"
+              :title="scopeBar?.text"
+              :tabindex="scopeBar ? 0 : undefined"
+              :aria-label="scopeBar ? `${subheading}. ${scopeBar.text}` : undefined"
+            >
+              <Icon v-if="scopeBar" :icon="scopeBar.icon" class="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span class="truncate">{{ subheading }}</span>
+            </p>
           </li>
           <!-- The active crumb is the editing scope; its descendants retain the preview context. -->
           <li v-if="templateMenu" class="flex min-w-0 items-center gap-1 sm:gap-2">
@@ -119,19 +128,16 @@
       <div v-if="switchingSlow" class="builder-progress pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden" role="progressbar" :aria-label="t('site.builder.switching')"></div>
     </header>
 
-    <!-- What saving changes: every entry the template shows, or this entry only. -->
-    <div v-if="scopeBar" role="note" class="scope-bar flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5 text-xs" :class="`is-${scopeBar.kind}`">
-      <Icon :icon="scopeBar.icon" class="scope-accent h-4 w-4 shrink-0" aria-hidden="true" />
-      <p class="min-w-0 flex-1 basis-64">
-        <strong class="scope-accent font-semibold">{{ scopeBar.title }}</strong> · {{ scopeBar.text }}
-        <span v-if="scopeBar.note" class="block opacity-80">{{ scopeBar.note }}</span>
-      </p>
+    <!-- The scope itself is the subtitle's hint; only what keeps an entry from being designed here takes a row. -->
+    <div v-if="scopeBar?.note" role="note" class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
+      <Icon icon="mdi:information-outline" class="h-4 w-4 shrink-0" aria-hidden="true" />
+      <p class="min-w-0 flex-1 basis-64">{{ scopeBar.note }}</p>
       <div class="flex items-center gap-3">
         <button
           v-for="action in scopeBar.actions"
           :key="action.key"
           type="button"
-          class="scope-action inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline disabled:opacity-50"
+          class="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline disabled:opacity-50"
           :disabled="saving || switching"
           @click="action.run()"
         >
@@ -142,7 +148,10 @@
     </div>
     <div v-if="recoveredDraft || layoutConflict || recoveryFailed" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
       <p>{{ t(recoveryFailed ? 'site.builder.recoveryFailed' : layoutConflict ? 'site.builder.saveConflict' : 'site.builder.draftRecovered') }}</p>
-      <button v-if="layoutConflict" type="button" class="btn-secondary btn-sm shrink-0" :disabled="saving || switching" @click="overwriteOpen = true">{{ t('site.builder.saveMyLayout') }}</button>
+      <div class="flex shrink-0 items-center gap-2">
+        <button v-if="recoveredDraft || layoutConflict" type="button" class="btn-secondary btn-sm" :disabled="saving || switching" @click="discardRecovery">{{ t('site.builder.discardRecovered') }}</button>
+        <button v-if="layoutConflict" type="button" class="btn-secondary btn-sm" :disabled="saving || switching" @click="overwriteOpen = true">{{ t('site.builder.saveMyLayout') }}</button>
+      </div>
     </div>
     <div v-for="scope in ['layout', 'theme'].filter((scope) => loadedRevisions[scope])" :key="scope" role="status" class="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
       <p v-if="!loadedRevisions[scope].revision">{{ t('site.builder.resetPending') }}</p>
@@ -734,6 +743,15 @@ watch(() => [builder.nodes.value, site.draft?.theme, site.draft?.templates, entr
   if (recoveryActive) recoveryTimer = setTimeout(checkpointRecovery, 200);
 }, { deep: true });
 
+/** Drop a recovered draft and show the saved state again, without saving anything. */
+async function discardRecovery() {
+  if (saving.value || switching.value) return;
+  recovery.remove(shown.value);
+  leftView();
+  await site.load({ force: true });
+  await load(shown.value);
+}
+
 async function overwriteLayout() {
   if (saving.value || switching.value || !layoutConflict.value) return;
   saving.value = true;
@@ -931,9 +949,11 @@ const subheading = computed(() => {
   }
   if (target.value === "page") {
     const fields = builder.pageFields();
+    // The crumbs already name the type, layout and entry: the subtitle says what saving changes.
     const area = fields.length > 1 ? ` · ${fields.find((field) => field.key === pageField.value)?.label ?? pageField.value}` : "";
-    return `${t("site.variant.detail")}${area}`;
+    return `${t("site.scope.entryContent")}${area}`;
   }
+  if (target.value === "layout" && variant.value === "detail") return t("site.scope.sharedLayout");
   if (target.value === "region") return t(editingModal.value ? "site.builder.modalSubtitle" : name.value === "not_found" ? "site.builder.notFoundSubtitle" : name.value === "maintenance" ? "site.builder.maintenanceSubtitle" : name.value === "search_results" ? "site.builder.searchResultsSubtitle" : "site.builder.regionSubtitle");
   return t(`site.variant.${variant.value}`);
 });
@@ -1720,28 +1740,6 @@ onBeforeUnmount(() => {
     width: calc(100% - 1rem);
     max-width: 20rem;
   }
-}
-.scope-bar {
-  --scope-accent: rgb(var(--color-theme-700));
-  background: rgb(var(--color-slate-50));
-  border-bottom: 1px solid rgb(var(--color-slate-200));
-  box-shadow: inset 3px 0 0 var(--scope-accent);
-  color: rgb(var(--color-slate-700));
-}
-.scope-bar.is-page {
-  --scope-accent: #17657a;
-  background: rgb(33 127 152 / 0.08);
-}
-:root[data-theme="dark"] .scope-bar {
-  --scope-accent: rgb(var(--color-theme-300));
-}
-:root[data-theme="dark"] .scope-bar.is-page {
-  --scope-accent: #6cc3d8;
-  background: rgb(33 127 152 / 0.16);
-}
-.scope-accent,
-.scope-action {
-  color: var(--scope-accent);
 }
 .builder-topbar :deep(.topbar-languages [data-tab-value]) {
   background: transparent;
