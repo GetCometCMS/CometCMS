@@ -41,7 +41,7 @@ describe('builder icon controls', () => {
     const html = await renderControl('icon', { type: 'icon', default: 'mdi:star-outline', options: SITE_ICONS }, 'mdi:heart-outline')
     expect(html).toContain('<button id="builder-icon1-props-icon"')
     expect(html).toContain('for="builder-icon1-props-icon"')
-    expect(html).toContain('mdi:heart-outline')
+    expect(html).toContain('>Heart Outline</span>')
     expect(html).not.toContain('<select')
     expect(getIcon('mdi:heart-outline')?.body).toContain('<path')
   })
