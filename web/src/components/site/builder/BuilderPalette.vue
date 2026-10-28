@@ -106,6 +106,7 @@ import { fieldGroups, fieldShortcut } from "../../../composables/smartValues.js"
 import { MODAL, ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
+import { startPaletteDrag, endPaletteDrag } from "../../../composables/builderPaletteDrag.js";
 import { useI18n } from "../../../i18n/index.js";
 
 const PRESETS = [[12], [6, 6], [4, 4, 4], [3, 3, 3, 3], [4, 8], [8, 4]];
@@ -198,15 +199,10 @@ function fieldNode(field) {
 }
 
 function start(event, factory) {
-  builder.drag.value = { source: "palette", create: factory };
-  event.dataTransfer.effectAllowed = "copy";
-  event.dataTransfer.setData("text/plain", "cometcms-node");
+  startPaletteDrag(builder, event, factory);
 }
 
 function end() {
-  // A drop inside the canvas clears this itself; this covers cancelled drags.
-  setTimeout(() => {
-    builder.drag.value = null;
-  }, 0);
+  endPaletteDrag(builder);
 }
 </script>

@@ -2604,6 +2604,7 @@ const messages = {
   'site.builder.entryFields': 'Custom Fields',
   'site.builder.entryFieldsHint': 'Bearbeite die Inhalte dieses Eintrags. Speichere, um deine Änderungen zu übernehmen und die Vorschau zu aktualisieren.',
   'site.builder.entryFieldsRetry': 'Erneut versuchen',
+  'site.builder.entryFieldDragHint': 'Auf die Seite ziehen, um dieses Feld anzuzeigen',
   'site.builder.changesSaved': 'Änderungen gespeichert.',
   'site.builder.viewLive': 'Live-Seite ansehen',
   'site.builder.liveConflict': 'Die Website dieses Arbeitsbereichs hat noch keine eigene Adresse, ihre Live-Seite würde daher einen anderen Arbeitsbereich öffnen. Füge in den Website-Einstellungen eine Domain hinzu. Die Vorschau funktioniert weiterhin.',

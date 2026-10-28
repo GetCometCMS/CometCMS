@@ -941,8 +941,8 @@ const heading = computed(() => {
 const subheading = computed(() => {
   if (target.value === "component") {
     const kind = t("site.component.instanceOf", { kind: builder.kindLabel(component.value?.root ?? "section") });
-    const type = builder.type.value ? ` · ${builder.type.value.label ?? builder.type.value.name}` : "";
-    return `${kind}${type} · ${t("site.component.usedIn", { count: usages.value.length })}`;
+    // Components fit every type; the entry switcher beside it shows which one the preview uses.
+    return `${kind} · ${t("site.component.usedIn", { count: usages.value.length })}`;
   }
   if (target.value === "page") {
     const fields = builder.pageFields();

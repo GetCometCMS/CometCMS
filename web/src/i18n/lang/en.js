@@ -2599,6 +2599,7 @@ const messages = {
     'site.builder.entryFields': 'Custom Fields',
     'site.builder.entryFieldsHint': 'Edit this entry’s content. Save to apply your changes and update the preview.',
     'site.builder.entryFieldsRetry': 'Try again',
+    'site.builder.entryFieldDragHint': 'Drag onto the page to display this field',
     'site.builder.changesSaved': 'Changes saved.',
     'site.builder.viewLive': 'View live page',
     'site.builder.liveConflict': 'This workspace\'s website has no address of its own yet, so its live page would open another workspace. Add a domain in the website settings. Preview still works.',
