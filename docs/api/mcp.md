@@ -156,6 +156,13 @@ replace the whole property: read them first to preserve other values/locales.
 Reset a prop/style by supplying its schema default. Nodes use
 `{id?, kind, name?, props?, style?, children?}`; IDs are generated when omitted.
 Use `get_builder_schema(kind)` for valid properties and child placement.
+The style key `visible_if` shows a node only when conditions on entry fields
+hold: `{"match": "all"|"any", "conditions": [{"field": {"type": "reference",
+"source": "current", "path": ["featured"]}, "op": "equals", "value": true}]}`.
+`op` is one of `equals`, `not_equals`, `contains`, `empty` or `not_empty`, and
+`empty`/`not_empty` take no value. References take no filters. A field that
+cannot be read counts as empty. Nodes whose conditions fail are left out of the
+page. `[]` removes the conditions.
 
 For smaller reads:
 

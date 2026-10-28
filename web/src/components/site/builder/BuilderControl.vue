@@ -304,6 +304,8 @@
       </button>
     </div>
 
+    <ConditionsControl v-else-if="def.type === 'conditions'" :id="inputId" :label="label" :node="node" :model-value="value" @update:model-value="emitValue" />
+
     <ListFiltersControl v-else-if="def.type === 'list_filters'" :id="inputId" :label="label" :model-value="listValue" :type="collectionType" @update:model-value="emitValue" />
 
     <!-- Content types and fields a search looks through; none checked means all of them. -->
@@ -341,6 +343,7 @@ import { computed } from "vue";
 import AccordionItemsControl from "./AccordionItemsControl.vue";
 import SmartValueEditor from "./SmartValueEditor.vue";
 import ListFiltersControl from "./ListFiltersControl.vue";
+import ConditionsControl from "./ConditionsControl.vue";
 import { sortFields } from "./listFilters.js";
 import BuilderTranslationStatus from "./BuilderTranslationStatus.vue";
 import BuilderOverrideStatus from "./BuilderOverrideStatus.vue";

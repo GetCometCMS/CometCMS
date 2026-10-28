@@ -118,6 +118,26 @@ export function conditionFields(type, t = (key) => key === 'site.templates.entry
 
 export const needsValue = (op) => !['empty', 'not_empty'].includes(op)
 
+/** Fixed choices for a condition's value on a field: a select field's options, or yes/no. */
+export function conditionValueOptions(config, t) {
+  if (config?.type === 'boolean') return [{ value: 'true', label: t('site.templates.true') }, { value: 'false', label: t('site.templates.false') }]
+  if (config?.type === 'select') return selectOptions(config.options)
+  return null
+}
+
+/** A typed condition value from an input's text. */
+export function parseConditionValue(config, value) {
+  if (config?.type === 'boolean') return value === 'true'
+  if (['number', 'range'].includes(config?.type) && value !== '' && Number.isFinite(Number(value))) return Number(value)
+  return value
+}
+
+/** The value a new condition on a field starts with: its first fixed choice, or nothing. */
+export function initialConditionValue(config, t) {
+  const first = conditionValueOptions(config, t)?.[0]
+  return first ? parseConditionValue(config, first.value) : ''
+}
+
 /** A condition in words, e.g. "Category = Tips". */
 export function conditionLabel(t, condition, type, entries = []) {
   if (condition.field === 'uid') {

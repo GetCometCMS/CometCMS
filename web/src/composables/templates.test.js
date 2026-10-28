@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_TEMPLATE, FRAME_NONE, conditionFields, conditionLabel, conditionOps, defaultTemplate, frameComponents,
+  DEFAULT_TEMPLATE, FRAME_NONE, conditionFields, conditionLabel, conditionOps, conditionValueOptions, defaultTemplate, frameComponents,
+  initialConditionValue, parseConditionValue,
   frameLabel, reasonLabel, templateById, templateList, usesTemplates, withTemplate, withTemplateMoved, withoutTemplate,
 } from './templates.js'
 
@@ -40,6 +41,20 @@ describe('templates', () => {
     expect(conditionOps('repeater')).toEqual([])
     expect(conditionOps('entry')).toEqual(['equals'])
     expect(conditionFields({ fields: { title: { type: 'text', label: 'Title' }, steps: { type: 'repeater' } } }).map((field) => field.key)).toEqual(['uid', 'title', 'slug'])
+  })
+
+  it('types condition values by their field', () => {
+    const select = { type: 'select', options: { news: 'News', tips: 'Tips' } }
+    expect(conditionValueOptions({ type: 'boolean' }, t).map((option) => option.value)).toEqual(['true', 'false'])
+    expect(conditionValueOptions(select, t).map((option) => option.value)).toEqual(['news', 'tips'])
+    expect(conditionValueOptions({ type: 'text' }, t)).toBeNull()
+    expect(conditionValueOptions(null, t)).toBeNull()
+    expect(parseConditionValue({ type: 'boolean' }, 'false')).toBe(false)
+    expect(parseConditionValue({ type: 'number' }, '4.5')).toBe(4.5)
+    expect(parseConditionValue({ type: 'number' }, 'x')).toBe('x')
+    expect(initialConditionValue({ type: 'boolean' }, t)).toBe(true)
+    expect(initialConditionValue(select, t)).toBe('news')
+    expect(initialConditionValue({ type: 'text' }, t)).toBe('')
   })
 
   it('resolves localized condition field labels and falls back to field keys', () => {

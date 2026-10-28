@@ -46,7 +46,7 @@
         </label>
         <label class="block text-xs text-slate-600">{{ t('site.binding.truncate') }}<input v-model.number="truncate" type="number" min="0" max="500" class="form-input mt-1 w-full rounded-lg border-slate-300 text-xs" /></label>
       </template>
-      <label class="block text-xs text-slate-600">{{ t('site.binding.fallback') }}<input v-model="fallback" type="text" maxlength="2000" class="form-input mt-1 w-full rounded-lg border-slate-300 text-xs" /></label>
+      <label v-if="target !== 'condition'" class="block text-xs text-slate-600">{{ t('site.binding.fallback') }}<input v-model="fallback" type="text" maxlength="2000" class="form-input mt-1 w-full rounded-lg border-slate-300 text-xs" /></label>
       <button type="button" class="btn-primary btn-sm w-full" @click="apply">{{ t('site.binding.insert') }}</button>
     </template>
   </div>
@@ -111,7 +111,7 @@ function choose(field) {
 }
 function apply() {
   const filters = []
-  if (fallback.value) filters.push({ name: 'fallback', value: fallback.value })
+  if (fallback.value && props.target !== 'condition') filters.push({ name: 'fallback', value: fallback.value })
   if (['text', 'html'].includes(props.target)) {
     if (dateFormat.value) filters.push({ name: 'date', value: dateFormat.value })
     if (truncate.value > 0) filters.push({ name: 'truncate', value: Math.min(500, Math.max(1, Math.round(truncate.value))) })

@@ -220,6 +220,30 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
   .c-builder .c-hide-desktop::after{display:block}
 }
 
+/* Conditions not met for the previewed entry: kept selectable, but greyed out and labelled. */
+:where(.c-builder .c-condition-off){
+  position:relative;
+}
+
+.c-builder .c-condition-off{
+  filter:grayscale(1) opacity(.5);
+}
+
+.c-builder .c-condition-off::after{
+  content:attr(data-condition-label);
+  position:absolute;
+  inset:0;
+  z-index:1000;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  pointer-events:none;
+  padding:2px 4px;
+  font:600 max(10px,calc(10px * var(--cometcms-ui-scale,1)))/1.4 system-ui,sans-serif;
+  color:#5b21b6;
+  background:repeating-linear-gradient(-45deg,rgba(139,92,246,.25) 0 10px,transparent 10px 20px);
+}
+
 /* Hover and selection */
 [data-builder-hover]{
   outline:max(2px,calc(2px * var(--cometcms-ui-scale,1))) dashed var(--builder-color)!important;
@@ -620,6 +644,7 @@ function prepare(document) {
   doc.querySelectorAll('[data-drop-root], [data-kind="tab"]').forEach((element) => {
     element.setAttribute("data-empty-label", t("site.builder.dropHere"));
   });
+  doc.querySelectorAll(".c-condition-off").forEach((element) => element.setAttribute("data-condition-label", t("site.condition.notMet")));
   doc.querySelectorAll("[data-page-area]").forEach((element) => {
     const label = builder.pageFields().find((field) => field.key === element.dataset.pageArea)?.label;
     element.setAttribute("data-page-area-label", label ? t("site.page.editArea", { label }) : t("site.page.areaWithoutField"));

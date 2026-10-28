@@ -276,7 +276,7 @@
           :key="group.key"
           v-model:open="expandedStyleGroups[group.key]"
           heading-tag="h4"
-          :title="t(`site.styleGroup.${group.key}`)"
+          :title="groupTitle(group)"
           content-class="mt-3 space-y-3"
         >
           <SpacingControl
@@ -362,6 +362,7 @@ const STYLE_GROUPS = [
   { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },
+  { key: "conditions", keys: ["visible_if"] },
   { key: "advanced", keys: ["hide_on", "anchor", "class"] },
 ];
 
@@ -391,6 +392,11 @@ const OPEN_STYLE_GROUPS = ["button", "icon", "spacing", "text"];
 const expandedStyleGroups = ref(Object.fromEntries(STYLE_GROUPS.map(({ key }) => [key, OPEN_STYLE_GROUPS.includes(key)])));
 
 const node = computed(() => builder.selected.value);
+/** A closed Conditional group still tells that the element has conditions. */
+function groupTitle(group) {
+  const count = group.key === "conditions" ? node.value?.style?.visible_if?.conditions?.length ?? 0 : 0;
+  return count ? `${t(`site.styleGroup.${group.key}`)} (${count})` : t(`site.styleGroup.${group.key}`);
+}
 const kindSpec = computed(() => builder.spec.value?.kinds?.[node.value?.kind] ?? {});
 /** Hover and focus edit only their own values, so each element starts in its normal state. */
 const hasStates = computed(() => !isInstance.value && ["props", "style"].some((part) => (kindSpec.value.states?.[part]?.length || kindSpec.value.states?.variants?.hover?.[part]?.length)));

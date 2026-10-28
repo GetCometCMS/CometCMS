@@ -569,28 +569,32 @@ final class SiteRepository
                     || !is_string($entry['uid'] ?? null) || !in_array($entry['uid'], $condition['value'], true)) return false;
                 continue;
             }
-            $value = $entry[$condition['field']] ?? null;
-            $empty = $value === null || $value === '' || $value === [];
-            $expected = $condition['value'];
-            $same = static function (mixed $actual) use ($expected): bool {
-                if (is_bool($actual) || is_bool($expected)) return (bool) $actual === filter_var($expected, FILTER_VALIDATE_BOOLEAN);
-                if (is_numeric($actual) && is_numeric($expected)) return (float) $actual === (float) $expected;
-                return is_scalar($actual) && (string) $actual === (string) $expected;
-            };
-            $holds = match ($condition['op']) {
-                'empty' => $empty,
-                'not_empty' => !$empty,
-                'equals' => is_array($value) ? array_filter($value, $same) !== [] : $same($value),
-                'not_equals' => is_array($value) ? array_filter($value, $same) === [] : !$same($value),
-                'contains' => is_array($value)
-                    ? array_filter($value, $same) !== []
-                    : is_scalar($value) && (string) $expected !== '' && mb_stripos(strip_tags((string) $value), (string) $expected) !== false,
-                default => false,
-            };
-            if (!$holds) return false;
+            if (!self::conditionHolds($condition['op'], $entry[$condition['field']] ?? null, $condition['value'])) return false;
         }
 
         return true;
+    }
+
+    /** Whether a field value passes one comparison (shared by template and element conditions). */
+    public static function conditionHolds(string $op, mixed $value, mixed $expected): bool
+    {
+        $empty = $value === null || $value === '' || $value === [];
+        $same = static function (mixed $actual) use ($expected): bool {
+            if (is_bool($actual) || is_bool($expected)) return (bool) $actual === filter_var($expected, FILTER_VALIDATE_BOOLEAN);
+            if (is_numeric($actual) && is_numeric($expected)) return (float) $actual === (float) $expected;
+            return is_scalar($actual) && (string) $actual === (string) $expected;
+        };
+
+        return match ($op) {
+            'empty' => $empty,
+            'not_empty' => !$empty,
+            'equals' => is_array($value) ? array_filter($value, $same) !== [] : $same($value),
+            'not_equals' => is_array($value) ? array_filter($value, $same) === [] : !$same($value),
+            'contains' => is_array($value)
+                ? array_filter($value, $same) !== []
+                : is_scalar($value) && (string) $expected !== '' && mb_stripos(strip_tags((string) $value), (string) $expected) !== false,
+            default => false,
+        };
     }
 
     private function writeTemplates(string $type, string $variant, array $list): void

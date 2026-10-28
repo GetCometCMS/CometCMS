@@ -253,6 +253,8 @@ final class LayoutSchema
             'z_index' => ['type' => 'enum', 'options' => ['', 'behind', '1', '2', '3', '4', '5'], 'default' => ''],
             'opacity' => ['type' => 'enum', 'options' => ['', '0', '10', '25', '50', '75', '90'], 'default' => ''],
             'hide_on' => ['type' => 'set', 'options' => ['mobile', 'tablet', 'desktop'], 'default' => []],
+            // Show only when entry fields match; see ElementConditions.
+            'visible_if' => ['type' => 'conditions', 'default' => [], 'description' => 'Show the element only when conditions on bound fields hold: {match: "all"|"any", conditions: [{field: <reference>, op: "equals"|"not_equals"|"contains"|"empty"|"not_empty", value: <scalar>}]}. A field that cannot be read counts as empty. Elements whose conditions fail are left out of the page.'],
             'class' => ['type' => 'class', 'default' => ''],
             'anchor' => ['type' => 'key', 'default' => ''],
         ];
@@ -262,13 +264,13 @@ final class LayoutSchema
     public static function styleKeys(string $kind): array
     {
         return match ($kind) {
-            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
-            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on'],
+            'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on', 'visible_if'],
+            'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on', 'visible_if'],
             self::COMPONENT, self::PAGE_CONTENT => [],
             self::MODAL => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
             self::SITE_CONTENT => [...self::SPACING_KEYS, 'background', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
-            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::POSITION_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on'],
-            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on'],
+            'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::POSITION_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on', 'visible_if'],
+            default => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', ...($kind === 'button' ? [] : ['link_color']), 'align', 'font_size', 'font_weight', 'font_family', ...(in_array($kind, ['text', 'heading'], true) ? ['text_gradient', 'text_shadow'] : []), 'radius', 'shadow', ...self::BORDER_KEYS, 'max_width', ...self::POSITION_KEYS, 'z_index', 'opacity', ...self::ANIMATION_KEYS, 'class', 'anchor', 'hide_on', 'visible_if'],
         };
     }
 
@@ -1471,6 +1473,7 @@ final class LayoutSchema
             'content_types', 'search_fields' => self::keyList($value),
             'sort_fields' => array_slice(self::keyList($value), 0, ListFilters::MAX_SORTS),
             'list_filters' => ListFilters::normalize($value),
+            'conditions' => ElementConditions::normalize($value),
             default => $default,
         };
     }

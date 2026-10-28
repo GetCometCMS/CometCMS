@@ -1,4 +1,6 @@
 // The wire format shared with Site/SmartValue.php. No expression evaluation.
+import { conditionOps } from './templates.js'
+
 export const DATE_FORMATS = ['date', 'long', 'datetime', 'time']
 const KEY = '[A-Za-z0-9_-]+'
 const PATH = `(${KEY}(?:\\.${KEY})*)`
@@ -119,6 +121,8 @@ export function referenceConfig(ref, { type, types = [], itemFields = [] }) {
 export function compatibleField(config, target) {
   if (!config || typeof config.type !== 'string') return false
   if (target === 'value') return true
+  // Element conditions (style visible_if) compare a field with a value.
+  if (target === 'condition') return conditionOps(config.type).length > 0
   if (target === 'media') return config.type === 'media' && !config.multiple
   if (target === 'media_list') return config.type === 'media'
   if (target === 'link') return ['text', 'textarea', 'slug', 'url'].includes(config.type) && !config.multiple

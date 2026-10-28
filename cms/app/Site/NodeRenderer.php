@@ -136,6 +136,11 @@ final class NodeRenderer
         foreach ($node['props'] ?? [] as $key => $value) if (LocalizedValue::is($value)) $node['_localized'][$key] = true;
         $node['props'] = LocalizedValue::tree($node['props'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
         $node['style'] = LocalizedValue::tree($node['style'] ?? [], $this->ctx->htmlLang(), $this->ctx->defaultLocale());
+        // An element whose conditions fail is left out; the builder keeps it, marked, so it stays selectable.
+        if (($node['style']['visible_if'] ?? []) !== [] && !ElementConditions::matches($node['style']['visible_if'], $this->smart, $state)) {
+            if (!$this->annotating()) return '';
+            $node['style']['_condition_off'] = true;
+        }
         $warnings = false;
         foreach (SmartValue::PROPERTIES[$node['kind'] ?? ''] ?? [] as $key => $target) {
             $binding = $node['props'][$key] ?? null;
@@ -2244,6 +2249,9 @@ final class NodeRenderer
 
         foreach ((array) ($style['hide_on'] ?? []) as $device) {
             $classes[] = 'c-hide-' . $device;
+        }
+        if (!empty($style['_condition_off'])) {
+            $classes[] = 'c-condition-off';
         }
 
         if (($style['class'] ?? '') !== '') {

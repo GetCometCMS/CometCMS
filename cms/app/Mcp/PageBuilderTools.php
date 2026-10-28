@@ -11,6 +11,7 @@ use CometCMS\Core\ConflictException;
 use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\ValidationException;
 use CometCMS\Localization\LocalizedValue;
+use CometCMS\Site\ElementConditions;
 use CometCMS\Site\LayoutSchema;
 use CometCMS\Site\SiteContext;
 use CometCMS\Site\SiteRepository;
@@ -586,6 +587,19 @@ final class PageBuilderTools
             }
             return;
         }
+        if ($type === 'conditions') {
+            if ($value === []) return;
+            $this->map($value, $path);
+            if (array_key_exists('match', $value) && !in_array($value['match'], ['all', 'any'], true)) $this->invalid($path . '.match', 'Use all or any.');
+            if (!is_array($value['conditions'] ?? null) || !array_is_list($value['conditions'])) $this->invalid($path . '.conditions', 'Expected an array of {field, op, value?} objects.');
+            foreach ($value['conditions'] as $index => $condition) {
+                $this->map($condition, $path . '.conditions.' . $index);
+                $this->map($condition['field'] ?? null, $path . '.conditions.' . $index . '.field');
+                if (!in_array($condition['op'] ?? null, ElementConditions::OPS, true)) $this->invalid($path . '.conditions.' . $index . '.op', 'Use one of: ' . implode(', ', ElementConditions::OPS) . '.');
+                if (isset($condition['value']) && !is_scalar($condition['value'])) $this->invalid($path . '.conditions.' . $index . '.value', 'Expected a string, number or boolean.');
+            }
+            return;
+        }
         if (in_array($type, ['link', 'gradient', 'spans'], true)) {
             $this->map($value, $path);
             if ($type === 'link') {
@@ -654,6 +668,7 @@ final class PageBuilderTools
             'int' => 'Use an integer from ' . $spec['min'] . ' to ' . $spec['max'] . '.',
             'string' => 'Use plain text of at most ' . ($spec['max'] ?? 200) . ' characters, without line breaks.',
             'html' => 'Use HTML with only these tags: ' . implode(', ', array_keys(HtmlSanitizer::ALLOWED_TAGS)) . '; no style or event attributes (span/div take class).',
+            'conditions' => 'Use {match: "all"|"any", conditions: [{field: {type: "reference", source, path}, op, value}]}; references take no filters, and empty/not_empty take no value.',
             'raw_html' => 'Use HTML source of at most ' . $spec['max'] . ' characters. Markup and embedded style blocks are preserved.',
             default => '',
         };

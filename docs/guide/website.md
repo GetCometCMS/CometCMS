@@ -151,6 +151,12 @@ Switch the top bar's device to **Tablet** or **Mobile** to change how a page loo
 
 Elements whose look can react to the visitor have **Normal**, **Hover** and **Focus** at the top of the **Style** tab. Hover applies while the pointer is over the element; focus while it, or a link in it, has keyboard focus. These states can change the background, text, link and border colors, box shadow and text shadow; a button can also change its own **Button color**, **Label color** and **Border color**. **Default** keeps the normal value. While a state is selected, the preview shows it on the selected element.
 
+### Conditional elements
+
+Under **Conditional** on the **Style** tab, an element, column, row or section can be shown only for some entries. Each condition picks a field, a comparison (**is**, **is not**, **contains**, **is empty**, **is filled in**) and a value. With two or more conditions, choose whether **all** must match or **any** is enough. Two examples: a second heading that appears only when its field is filled in, or a badge in a list card that appears only when the entry's *Featured* switch is on.
+
+Conditions read the entry being shown. In a list, that is each card's own entry; inside a repeater, it is the row. Fields can follow a relation (for example the author's role). Where there is no entry, such as in the header or on a list page, a field counts as empty. When the conditions don't hold, the element is left out of the page entirely. In the builder it stays visible but greyed out under violet stripes, so you can still select it. The preview checks conditions against the entry chosen in the top bar. Elements without conditions are always shown.
+
 ### Button icons
 
 A button can show an icon from the bundled set before or after its label. Choose it under **Icon** in the content inspector, then set **Icon position** and **Icon spacing**. The icon takes the label's size and color. Remove it with the × beside the picker.
