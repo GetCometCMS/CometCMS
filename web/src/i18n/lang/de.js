@@ -1905,6 +1905,7 @@ const messages = {
   'site.builder.filterPages': 'Seiten und Einträge suchen…',
   'site.builder.noPages': 'Keine passenden Seiten oder Einträge.',
   'site.builder.entries': 'Einträge',
+  'site.builder.browseEntries': 'Einträge in {type}',
   'site.builder.searchingEntries': 'Einträge werden gesucht…',
   'site.builder.designSettings': 'Website-Design',
   'site.builder.designSettingsHint': 'Farben, Schriften und Abstände für die gesamte Website',

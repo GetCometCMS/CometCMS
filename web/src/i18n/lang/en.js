@@ -1900,6 +1900,7 @@ const messages = {
     'site.builder.filterPages': 'Search pages and entries…',
     'site.builder.noPages': 'No matching pages or entries.',
     'site.builder.entries': 'Entries',
+    'site.builder.browseEntries': 'Entries in {type}',
     'site.builder.searchingEntries': 'Searching entries…',
     'site.builder.designSettings': 'Website design',
     'site.builder.designSettingsHint': 'Colors, fonts and spacing for the entire website',
