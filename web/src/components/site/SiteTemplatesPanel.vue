@@ -148,7 +148,7 @@
                 </li>
               </ul>
               <p v-if="loading" class="px-3 py-2 text-xs text-slate-500">{{ t("common.loading") }}</p>
-              <p v-else-if="!frameComponents(components, selectedType).length" class="px-3 py-2 text-xs text-slate-500">{{ t("site.frame.noComponents") }}</p>
+              <p v-else-if="!frameComponents(components).length" class="px-3 py-2 text-xs text-slate-500">{{ t("site.frame.noComponents") }}</p>
               <div class="mt-1 border-t border-slate-100 pt-1">
                 <router-link v-if="selected[part] !== FRAME_NONE" :to="editPath(part)" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                   <Icon icon="mdi:pencil-outline" class="h-4 w-4" aria-hidden="true" />{{ t("site.frame.editComponent", { name: partLabel(part) }) }}
@@ -378,7 +378,7 @@ function options(part) {
   return [
     { value: FRAME_DEFAULT, label: t(`site.frame.default.${part}`), icon: PART_ICONS[part] },
     { value: FRAME_NONE, label: t(`site.frame.none.${part}`), icon: "mdi:cancel" },
-    ...frameComponents(components.value, selectedType.value).map((component) => ({ value: component.id, label: component.name, icon: componentIcon(component) })),
+    ...frameComponents(components.value).map((component) => ({ value: component.id, label: component.name, icon: componentIcon(component) })),
   ];
 }
 

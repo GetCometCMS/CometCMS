@@ -90,7 +90,7 @@ describe('templates', () => {
     expect(reasonLabel((key, params) => (params?.conditions !== undefined ? `${key}:${params.conditions}` : key), 'conditions', tips, type)).toBe('site.templates.reason.conditions:site.templates.op.equals')
     expect(frameLabel(t, 'promo', 'footer', [{ id: 'promo', name: 'Promo' }])).toBe('Promo')
     expect(frameLabel(t, FRAME_NONE, 'header', [])).toBe('site.frame.none.header')
-    expect(frameComponents([{ id: 'a', root: 'section', type: '' }, { id: 'b', root: 'column', type: '' }, { id: 'c', root: 'section', type: 'about' }], 'blog').map((component) => component.id)).toEqual(['a'])
+    expect(frameComponents([{ id: 'a', root: 'section', type: '' }, { id: 'b', root: 'column', type: '' }, { id: 'c', root: 'section', type: 'about' }]).map((component) => component.id)).toEqual(['a', 'c'])
   })
 })
 

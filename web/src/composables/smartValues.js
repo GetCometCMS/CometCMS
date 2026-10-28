@@ -155,3 +155,21 @@ export function hasInvalidValues(value) {
   if (!value || typeof value !== 'object') return false
   return value.type === 'invalid' || Object.values(value).some(hasInvalidValues)
 }
+
+/**
+ * Fields of a type that combines several (see combinedType in useSiteBuilder),
+ * grouped for pickers: those every type has first, then each type's own.
+ * A plain type gives one group without a label.
+ */
+export function fieldGroups(fields, schema, sharedLabel) {
+  if (!schema?.field_types || !schema.type_labels) return [{ key: 'all', label: '', items: fields }]
+  const everywhere = (field) => (schema.field_types[field.key]?.length ?? schema.type_count) === schema.type_count
+  return [
+    { key: 'shared', label: sharedLabel, items: fields.filter(everywhere) },
+    ...schema.type_labels.map((label) => ({
+      key: `type:${label}`,
+      label,
+      items: fields.filter((field) => !everywhere(field) && schema.field_types[field.key]?.includes(label)),
+    })),
+  ]
+}

@@ -595,17 +595,33 @@ final class SiteController extends BaseController
     {
         $this->requirePermission('site.manage', ['resource' => 'site:*']);
         $component = $this->requireComponent($id);
-        $type = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
         $context = $this->context();
+        // Components fit every type, so they preview with entries of any of them: the requested one, else the component's own type first.
+        $names = array_values(array_filter(array_keys($this->site->types()), $context->isPublicType(...)));
+        usort($names, static fn(string $a, string $b): int => ($b === $component['type']) <=> ($a === $component['type']));
+        $sample = '';
+        $type = null;
+        foreach ($names as $name) {
+            $sample = $this->requestedSample($name);
+            if ($sample !== '') {
+                $type = $name;
+                break;
+            }
+        }
+        $samples = [];
+        foreach ($names as $name) {
+            foreach ($this->samples($name, $name === $type ? LayoutSchema::key($_GET['entry'] ?? '') : '', 20) as $item) $samples[] = $item + ['type' => $name];
+        }
+        $type ??= $component['type'] !== '' && in_array($component['type'], $names, true) ? $component['type'] : ($samples[0]['type'] ?? null);
 
         $this->json(['data' => [
             'component' => $component,
             'nodes' => $component['nodes'], 'revision' => \CometCMS\Localization\LocalizedValue::hash($component['nodes']),
             'customized' => true,
             'usages' => $this->site->componentUsages($id),
-            'type' => $type,
-            'samples' => $type !== null ? $this->samples((string) $type['name'], LayoutSchema::key($_GET['entry'] ?? '')) : [],
-            'sample' => $type !== null ? $this->requestedSample((string) $type['name']) : '',
+            'type' => $type !== null ? $this->site->types()[$type] : null,
+            'samples' => $samples,
+            'sample' => $sample,
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
             ...$this->builderContext(),
         ]]);
@@ -834,7 +850,9 @@ final class SiteController extends BaseController
             }
             // Instances inside other components show the unsaved edit, too.
             $context->override('component:' . $component['id'], $component);
-            $schema = $component['type'] !== '' ? ($this->site->types()[$component['type']] ?? null) : null;
+            // The previewed entry may be of any type; the component's own type is the fallback.
+            $typeName = LayoutSchema::key($body['entry_type'] ?? '') ?: $component['type'];
+            $schema = $typeName !== '' && $context->isPublicType($typeName) ? ($this->site->types()[$typeName] ?? null) : null;
             $context->locale = in_array($locale, $context->locales(), true) ? $locale : $context->defaultLocale();
             $entry = null;
             if ($schema !== null) {
@@ -1015,7 +1033,8 @@ final class SiteController extends BaseController
         if ($target === 'layout' && $schema !== null) return $renderer->indexPage($schema);
         if ($target === 'component') {
             $component = $context->component((string) $body['component']);
-            $schema = $context->type((string) ($component['type'] ?? ''));
+            $typeName = LayoutSchema::key($body['entry_type'] ?? '') ?: (string) ($component['type'] ?? '');
+            $schema = $context->isPublicType($typeName) ? $context->type($typeName) : null;
             $entry = $schema !== null ? $context->findEntry($schema['name'], (string) ($body['entry'] ?? $schema['name']), true) : null;
             return $renderer->componentPreview($component, $schema, $entry);
         }
@@ -1173,10 +1192,10 @@ final class SiteController extends BaseController
      * list. They are named by stable ID: slugs differ between languages and
      * may equal another entry's file name.
      */
-    private function samples(string $type, string $ensure = ''): array
+    private function samples(string $type, string $ensure = '', int $limit = 50): array
     {
         $content = ContentRepository::make($this->site->workspace());
-        $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => 50], true)['data'];
+        $entries = $content->query($type, ['sort' => '-updated_at', 'limit' => $limit], true)['data'];
 
         if ($ensure !== '') {
             $requested = $content->findByIdentifier($type, $ensure);

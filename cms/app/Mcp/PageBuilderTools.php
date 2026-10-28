@@ -268,7 +268,7 @@ final class PageBuilderTools
     /** A page kind's templates in order and the components that can be a header or footer. */
     private function templates(SiteRepository $site, string $collection, string $variant): array
     {
-        $options = array_values(array_filter($site->components(), static fn(array $component): bool => SiteRepository::fitsFrame($component, $collection)));
+        $options = array_values(array_filter($site->components(), static fn(array $component): bool => SiteRepository::fitsFrame($component)));
 
         return [
             'collection' => $collection,

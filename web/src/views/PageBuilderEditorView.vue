@@ -61,6 +61,7 @@
               :label="samples.find((entry) => entry.id === sampleId)?.title || sampleId"
               :model-value="sampleId"
               :entries="samples"
+              :type-labels="sampleTypeLabels"
               :navigable="false"
               :disabled="saving || loading"
               @update:model-value="selectEntry"
@@ -660,6 +661,8 @@ const converting = ref(false);
 /** The layout has changes that can be saved. */
 const layoutSavable = computed(() => (builder.isDirty.value || upgradeRequired.value) && !builder.hasSyntaxErrors.value);
 
+/** Type names of a component's samples, which come from every type. */
+const sampleTypeLabels = computed(() => Object.fromEntries(builder.types.value.map((type) => [type.name, resolveLocalized(type.label, locale.value, builder.settings.value?.default_locale || "en") || type.name])));
 /** The entry the preview shows: the chosen sample. */
 const previewEntry = computed(() => sampleId.value);
 /** Layouts of single entries and components of a content type preview an entry. */
@@ -1037,7 +1040,7 @@ const previewBody = computed(() => {
     entries: entryFields.previewEntries(),
   };
   if (target.value === "component") {
-    return { target: "component", component: name.value, nodes: builder.nodes.value, entry: sampleId.value, locale: locale.value, ...theme };
+    return { target: "component", component: name.value, nodes: builder.nodes.value, entry: sampleId.value, entry_type: builder.type.value?.name ?? "", locale: locale.value, ...theme };
   }
   if (target.value === "page") {
     return { target: "entry_page", type: name.value, entry: pageEntry.value, field: pageField.value, nodes: builder.nodes.value, locale: locale.value, ...theme };
@@ -1131,7 +1134,7 @@ const selectedFrame = computed(() => {
   if (!layout || !template || !FRAME_REGIONS.includes(selectedTemplatePart.value)) return null;
   return {
     value: template[selectedTemplatePart.value],
-    components: frameComponents(builder.components.value, layout.type),
+    components: frameComponents(builder.components.value),
     scope: templateName(t, template),
   };
 });
@@ -1221,7 +1224,8 @@ async function load(next = requested) {
       builder.rootKind.value = data.component.root;
       // A component's tree is its one root node.
       builder.spec.value = { ...data.spec, root: [data.component.root] };
-      builder.currentAvailable.value = !!data.type;
+      // Components fit every type, so the entry's fields are always on offer.
+      builder.currentAvailable.value = true;
     } else {
       builder.spec.value = data.spec;
       builder.currentAvailable.value = ["layout", "page"].includes(target) && variant !== "index";
@@ -1467,6 +1471,9 @@ function selectEntry(entry) {
   if (target.value !== "page") {
     if (entry === sampleId.value) return;
     if (showsTemplates.value && target.value === "layout") followEntry = entry;
+    // A component previews entries of every type; the entry's own type comes with it.
+    const sampleType = samples.value.find((sample) => sample.id === entry)?.type;
+    if (target.value === "component" && sampleType) builder.type.value = builder.types.value.find((type) => type.name === sampleType) ?? builder.type.value;
     sampleId.value = entry;
     // The link names the entry shown, so later builder links and reloads keep it.
     router.replace({ query: { ...route.query, entry } });

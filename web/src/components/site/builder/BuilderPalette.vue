@@ -57,19 +57,20 @@
       :title="templateOwner ? t('site.builder.itemFields', { field: templateOwnerLabel }) : context.collection ? t('site.builder.cardFields', { type: context.type?.label ?? context.type?.name ?? '' }) : t('site.builder.fields')"
       content-class="mt-2 space-y-1"
     >
-      <PaletteItem
-        v-for="field in fields"
-        :key="field.key"
-        wide
-        :icon="fieldTypeIcon(field.type)"
-        :label="field.label"
-        :meta="field.system ? t('site.builder.system') : field.types && !field.shared ? field.types.join(', ') : field.type"
-        :badge="field.types && field.shared ? t('site.builder.sharedField') : ''"
-        :hint="field.types && field.shared ? t('site.builder.sharedFieldHint') : ''"
-        @add="builder.insert(fieldNode(field))"
-        @drag="start($event, () => fieldNode(field))"
-        @dragend="end"
-      />
+      <!-- Below the sticky search box. -->
+      <GroupedList :groups="fieldGroups(fields, context.type, t('site.builder.sharedField'))" heading-class="top-12 -mx-1 bg-white" list-class="space-y-1">
+        <template #default="{ item: field }">
+          <PaletteItem
+            wide
+            :icon="fieldTypeIcon(field.type)"
+            :label="field.label"
+            :meta="field.system ? t('site.builder.system') : field.type"
+            @add="builder.insert(fieldNode(field))"
+            @drag="start($event, () => fieldNode(field))"
+            @dragend="end"
+          />
+        </template>
+      </GroupedList>
       <p v-if="fields.length === 0" class="px-1 text-xs text-slate-400">{{ t("site.builder.noFields") }}</p>
     </BuilderGroup>
     <BuilderGroup v-if="components.length || !searchTerms.length" v-model:open="expanded.components" :title="t('site.component.group')" content-class="mt-2 space-y-1.5">
@@ -79,7 +80,7 @@
         wide
         :icon="componentIcon(component)"
         :label="component.name"
-        :meta="component.type ? typeLabel(component.type) : builder.kindLabel(component.root)"
+        :meta="builder.kindLabel(component.root)"
         :disabled="!builder.canInsertComponent(component)"
         :hint="builder.canInsertComponent(component) ? component.name : t('site.component.unavailable')"
         @add="addComponent(component)"
@@ -99,8 +100,9 @@
 import { computed, ref, useId, watch } from "vue";
 import BuilderGroup from "./BuilderGroup.vue";
 import PaletteItem from "./PaletteItem.vue";
+import GroupedList from "./GroupedList.vue";
 import { componentIcon, KIND_ICONS } from "./kindIcons.js";
-import { fieldShortcut } from "../../../composables/smartValues.js";
+import { fieldGroups, fieldShortcut } from "../../../composables/smartValues.js";
 import { MODAL, ancestors, instanceNode, sectionPreset } from "../../../composables/layoutTree.js";
 import { useFieldTypeMeta } from "../../../composables/useFieldTypeMeta.js";
 import { useSiteBuilder } from "../../../composables/useSiteBuilder.js";
@@ -149,12 +151,8 @@ const elementKinds = computed(() =>
   (builder.spec.value?.elements ?? []).filter((kind) => !["field", "component"].includes(kind) && matches(builder.kindLabel(kind), kind, kindHint(kind))),
 );
 
-function typeLabel(name) {
-  return builder.types.value.find((type) => type.name === name)?.label ?? name;
-}
-
 const components = computed(() => [...builder.components.value]
-  .filter((component) => matches(t('site.component.group'), component.name, builder.kindLabel(component.root), typeLabel(component.type)))
+  .filter((component) => matches(t('site.component.group'), component.name, builder.kindLabel(component.root)))
   .sort((a, b) => a.name.localeCompare(b.name)));
 
 function addComponent(component) {

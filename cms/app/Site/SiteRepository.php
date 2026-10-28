@@ -646,7 +646,7 @@ final class SiteRepository
             foreach (LayoutSchema::REGIONS as $region) {
                 $value = is_string($template[$region] ?? null) && $template[$region] !== '' ? $template[$region] : LayoutSchema::FRAME_DEFAULT;
                 if (!in_array($value, [LayoutSchema::FRAME_DEFAULT, LayoutSchema::FRAME_NONE], true)
-                    && (LayoutSchema::key($value) !== $value || ($strict && !self::fitsFrame($components[$value] ?? null, $type)))) {
+                    && (LayoutSchema::key($value) !== $value || ($strict && !self::fitsFrame($components[$value] ?? null)))) {
                     $fail('Choose a section component for the ' . $region . ' of “' . $name . '”.');
                     $value = LayoutSchema::FRAME_DEFAULT;
                 }
@@ -728,10 +728,10 @@ final class SiteRepository
         return in_array($fieldType, ['', 'page', 'json', 'repeater'], true) ? [] : $ops;
     }
 
-    /** A component can stand in for a header or footer: a section, shared or of this type. */
-    public static function fitsFrame(?array $component, string $type): bool
+    /** A component can stand in for any layout's header or footer when it is a section. */
+    public static function fitsFrame(?array $component): bool
     {
-        return $component !== null && $component['root'] === 'section' && in_array($component['type'], ['', $type], true);
+        return $component !== null && $component['root'] === 'section';
     }
 
     /**
@@ -914,9 +914,10 @@ final class SiteRepository
     /**
      * Reusable blocks: one section, column set or column with everything in
      * it. Layouts, regions and other components place them by id, so editing
-     * a component changes every page it appears on. A component that shows
-     * fields of the page's entry ("current" references) belongs to one
-     * content type and is only offered in that type's layouts.
+     * a component changes every page it appears on. Fields of the page's
+     * entry ("current" references) resolve for whichever entry is shown, so
+     * a component fits every content type; its type only picks the entries
+     * the builder previews it with first.
      *
      * @return list<array{id: string, name: string, icon: string, root: string, type: string, created_at: string, updated_at: string}>
      */
@@ -1291,9 +1292,10 @@ final class SiteRepository
     }
 
     /**
-     * Check a component's tree: one node of its root kind, a content type
-     * when it shows the page entry's fields, and no component inside that
-     * contains this one again or belongs to another type.
+     * Check a component's tree: one node of its root kind, and no component
+     * inside that contains this one again. Components fit every content type:
+     * a field the shown entry lacks stays empty. $type only names the type
+     * the builder previews the component with first.
      */
     private function validateComponent(array $component, mixed $nodes, mixed $type): array
     {
@@ -1306,17 +1308,10 @@ final class SiteRepository
         if ($type !== '' && !isset($this->types()[$type])) {
             $type = '';
         }
-        if ($type === '' && LayoutSchema::usesSource($nodes, 'current')) {
-            throw new ValidationException(['type' => 'This component shows fields of the page\'s entry, so it needs the content type it belongs to.']);
-        }
 
         foreach (LayoutSchema::componentRefs($nodes) as $ref) {
             if ($ref === $component['id'] || $this->componentReaches($ref, $component['id'])) {
                 throw new ValidationException(['nodes' => 'A component cannot contain itself.']);
-            }
-            $inner = $this->component($ref);
-            if ($inner !== null && $inner['type'] !== '' && $inner['type'] !== $type) {
-                throw new ValidationException(['nodes' => 'The component "' . $inner['name'] . '" belongs to another content type.']);
             }
         }
 

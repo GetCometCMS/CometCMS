@@ -71,8 +71,9 @@ export function withoutTemplate(templates, type, variant, id) {
 }
 
 /** Components that can stand in for a header or footer: sections, shared or of this type. */
-export function frameComponents(components, type) {
-  return (components ?? []).filter((component) => component.root === 'section' && (!component.type || component.type === type))
+/** Section components can be any layout's header or footer. */
+export function frameComponents(components) {
+  return (components ?? []).filter((component) => component.root === 'section')
 }
 
 export function templateName(t, template) {

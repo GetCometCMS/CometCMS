@@ -54,26 +54,29 @@
         />
       </div>
       <div ref="menuRef" role="menu" tabindex="-1" :aria-label="t('site.builder.switchEntry')" class="max-h-[60vh] overflow-y-auto py-1">
-        <button
-          v-for="entry in filteredEntries"
-          :key="entry.id"
-          type="button"
-          role="menuitemradio"
-          tabindex="-1"
-          :aria-checked="entry.id === modelValue"
-          class="entry-menu-item flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
-          :class="[
-            entry.id === modelValue ? 'font-medium text-theme-700' : 'text-slate-700',
-            { 'uses-template': templateId && entry.template === templateId },
-          ]"
-          :title="templateId && entry.template === templateId ? t('site.builder.entryUsesTemplate') : undefined"
-          @click="select(entry)"
-        >
-          <span class="min-w-0 flex-1 truncate">{{ entry.title || entry.id }}</span>
-          <span v-if="templateId && entry.template === templateId" class="sr-only">{{ t('site.builder.entryUsesTemplate') }}</span>
-          <span v-if="entry.status !== 'published'" class="shrink-0 text-[11px] text-slate-500">{{ t(`status.${entry.status}`) }}</span>
-          <Icon v-if="entry.id === modelValue" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
-        </button>
+        <!-- Entries of several types (a component's samples) sit under their type. -->
+        <GroupedList :groups="groups" :item-key="(entry) => `${entry.type ?? ''}:${entry.id}`" list-class="">
+          <template #default="{ item: entry }">
+            <button
+              type="button"
+              role="menuitemradio"
+              tabindex="-1"
+              :aria-checked="entry.id === modelValue"
+              class="entry-menu-item flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+              :class="[
+                entry.id === modelValue ? 'font-medium text-theme-700' : 'text-slate-700',
+                { 'uses-template': templateId && entry.template === templateId },
+              ]"
+              :title="templateId && entry.template === templateId ? t('site.builder.entryUsesTemplate') : undefined"
+              @click="select(entry)"
+            >
+              <span class="min-w-0 flex-1 truncate">{{ entry.title || entry.id }}</span>
+              <span v-if="templateId && entry.template === templateId" class="sr-only">{{ t('site.builder.entryUsesTemplate') }}</span>
+              <span v-if="entry.status !== 'published'" class="shrink-0 text-[11px] text-slate-500">{{ t(`status.${entry.status}`) }}</span>
+              <Icon v-if="entry.id === modelValue" icon="mdi:check" class="h-4 w-4 shrink-0 text-theme-600" aria-hidden="true" />
+            </button>
+          </template>
+        </GroupedList>
         <p v-if="!filteredEntries.length" role="status" class="px-3 py-2 text-xs text-slate-500">{{ t("site.builder.noEntries") }}</p>
       </div>
     </div>
@@ -83,6 +86,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import GroupedList from "./GroupedList.vue";
 import { useI18n } from "../../../i18n/index.js";
 
 const props = defineProps({
@@ -91,6 +95,8 @@ const props = defineProps({
   icon: { type: String, default: "mdi:file-document-edit-outline" },
   modelValue: { type: String, default: "" },
   entries: { type: Array, default: () => [] },
+  /** Labels of the entries' types, by name, for entries of several types. */
+  typeLabels: { type: Object, default: () => ({}) },
   templateId: { type: String, default: "" },
   active: { type: Boolean, default: false },
   navigable: { type: Boolean, default: true },
@@ -113,7 +119,16 @@ const menuId = `entry-switcher-${useId()}`;
 const showFilter = computed(() => props.entries.length > 8);
 const filteredEntries = computed(() => {
   const term = filter.value.trim().toLowerCase();
-  return props.entries.filter((entry) => !term || `${entry.title} ${entry.id}`.toLowerCase().includes(term));
+  return props.entries.filter((entry) => !term || `${entry.title} ${entry.id} ${props.typeLabels[entry.type] ?? ""}`.toLowerCase().includes(term));
+});
+const groups = computed(() => {
+  const byType = new Map();
+  for (const entry of filteredEntries.value) {
+    const type = entry.type ?? "";
+    if (!byType.has(type)) byType.set(type, { key: type || "entries", label: props.typeLabels[type] ?? type, items: [] });
+    byType.get(type).items.push(entry);
+  }
+  return [...byType.values()];
 });
 
 function menuItems() {

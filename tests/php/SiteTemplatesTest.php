@@ -98,7 +98,6 @@ test('saving templates rejects unknown parts and conditions that do not fit', fu
         ['blog' => ['detail' => ['not a list' => $default]]],
         ['blog' => ['detail' => [comet_template_test('a', ['header' => 'missing-component'])]]],
         ['blog' => ['detail' => [comet_template_test('a', ['header' => $column['id']])]]],
-        ['blog' => ['detail' => [comet_template_test('a', ['footer' => $about['id']])]]],
         ['blog' => ['detail' => [comet_template_test('a'), comet_template_test('a')]]],
         ['blog' => ['detail' => [['id' => 'a', 'name' => '  '] + comet_template_test('a')]]],
         ['blog' => ['detail' => [comet_template_test('a', [], [['field' => 'steps', 'op' => 'empty']])]]],
@@ -113,6 +112,9 @@ test('saving templates rejects unknown parts and conditions that do not fit', fu
     // Unknown keys are dropped and the default template moves last.
     $saved = $site->saveTemplates(['blog' => ['index' => [$default, comet_template_test('a', ['header' => $blog['id'], 'content' => 'default', 'sidebar' => 'none'])]]]);
     assert_same([comet_template_test('a', ['header' => $blog['id']]), $default], $saved['blog']['index']);
+    // Components fit every type, so another type's section works as a footer.
+    $saved = $site->saveTemplates(['blog' => ['detail' => [comet_template_test('a', ['footer' => $about['id']]), $default]]]);
+    assert_same($about['id'], $saved['blog']['detail'][0]['footer']);
 });
 
 test('entry template conditions select any stable UID and survive title and slug changes', function (): void {

@@ -257,8 +257,12 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function entryContext(id) {
     const collection = id ? templateCollection(nodes.value, id) : null
     if (collection) return { type: ['search', 'types'].includes(collection.props?.list_source) ? mixedCardType(collection) : types.value.find((item) => item.name === collection.props?.type) ?? null, currentAvailable: true, collection }
+    // A component fits every type, so it offers the fields of all of them.
+    if (componentId.value) return { type: componentType.value, currentAvailable: true, collection: null }
     return { type: type.value, currentAvailable: currentAvailable.value, collection: null }
   }
+
+  const componentType = computed(() => combinedType(pageTypes.value.length ? pageTypes.value : types.value.filter((item) => item.visibility !== 'private'), t('site.builder.anyType')) ?? type.value)
 
   /**
    * What the card of a list of several types can show: one type as it is,
@@ -270,17 +274,27 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const chosen = collection.props?.collections ?? []
     const search = collection.props?.list_source === 'search'
     const searched = search && !chosen.length ? pageTypes.value : (search ? pageTypes.value : types.value).filter((item) => chosen.includes(item.name))
-    if (!searched.length) return null
-    if (searched.length === 1) return searched[0]
+    return combinedType(searched, t(search ? 'site.builder.searchResultsType' : 'site.builder.mixedType'))
+  }
+
+  /**
+   * Several types as one: all their fields, with field_types naming the types
+   * that have each field and type_labels the types in order. One type stays
+   * as it is; none gives null.
+   */
+  function combinedType(list, label) {
+    if (!list.length) return null
+    if (list.length === 1) return list[0]
     const fields = {}
     const fieldTypes = {}
-    for (const item of searched) {
+    const typeLabels = list.map((item) => resolveLocalized(item.label, locale.value || defaultLocale.value, defaultLocale.value) || item.name)
+    list.forEach((item, index) => {
       for (const [key, config] of Object.entries(item.fields ?? {})) {
         fields[key] ??= config
-        ;(fieldTypes[key] ??= []).push(resolveLocalized(item.label, locale.value || defaultLocale.value, defaultLocale.value) || item.name)
+        ;(fieldTypes[key] ??= []).push(typeLabels[index])
       }
-    }
-    return { name: '', label: t(search ? 'site.builder.searchResultsType' : 'site.builder.mixedType'), fields, field_types: fieldTypes, type_count: searched.length }
+    })
+    return { name: '', label, fields, field_types: fieldTypes, type_labels: typeLabels, type_count: list.length }
   }
 
   /** Whether every type a card of several types shows has the field `key` (always, for one type). */
@@ -856,9 +870,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function canInsertComponent(component) {
-    const context = entryContext(selectedId.value)
+    // Components fit every type; a field the shown entry lacks just stays empty.
     return component.id !== componentId.value
-      && (!component.type || (context.currentAvailable && component.type === context.type?.name))
   }
 
   async function renameComponent(id, name) {
