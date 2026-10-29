@@ -292,3 +292,16 @@ describe('builder bound controls', () => {
     expect(link).not.toContain('id="builder-h1-props-link"')
   })
 })
+
+
+describe('builder text wrapping', () => {
+  it('labels every wrapping mode and keeps an inherited default available', async () => {
+    const html = await renderControl('text_wrap', {
+      type: 'enum', options: ['', 'normal', 'nowrap', 'break-word', 'break-all', 'balance', 'pretty'], default: '',
+    }, 'break-word', { group: 'style' })
+    expect(html).toContain('Text wrapping')
+    expect(html).toContain('id="builder-icon1-style-text_wrap"')
+    for (const label of ['Default', 'Normal wrapping', 'No wrapping', 'Break long words', 'Break anywhere', 'Balance lines', 'Improve line breaks']) expect(html).toContain(label)
+    expect(html).toContain('<select id="builder-icon1-style-text_wrap" value="break-word"')
+  })
+})

@@ -358,7 +358,7 @@ const STYLE_GROUPS = [
   { key: "background", keys: ["background", "background_gradient", "background_image", "background_size", "background_position", "background_repeat", "background_blur", "background_effect", "overlay"] },
   { key: "dividerTop", part: "props", keys: dividerKeys("top") },
   { key: "dividerBottom", part: "props", keys: dividerKeys("bottom") },
-  { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "font_size", "font_weight", "font_family", "text_shadow"] },
+  { key: "text", keys: ["text_color", "link_color", "text_gradient", "align", "text_wrap", "font_size", "font_weight", "font_family", "text_shadow"] },
   { key: "shape", keys: ["radius", "shadow", "opacity", "border", "border_width", "border_style", "border_color", "max_width"] },
   { key: "position", keys: ["position", "pin", "offset_x", "offset_y", "z_index"] },
   { key: "animation", keys: ["animation", "animation_trigger", "animation_duration", "animation_delay"] },

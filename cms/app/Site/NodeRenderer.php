@@ -57,6 +57,7 @@ final class NodeRenderer
         'text_color' => 'fg-',
         'link_color' => 'lc-',
         'align' => 'ta-',
+        'text_wrap' => 'tw-',
         'font_size' => 'fs-',
         'font_weight' => 'fw-',
         'font_family' => 'ff-',
