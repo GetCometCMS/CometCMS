@@ -76,14 +76,14 @@
           <label class="form-label" for="type-route-description">{{ t("site.pages.descriptionField") }}</label>
           <select id="type-route-description" :value="route.seo_description_field" class="form-select w-full rounded-lg border-slate-300 text-sm" @change="update({ seo_description_field: $event.target.value })">
             <option value="">{{ t("site.pages.automatic") }}</option>
-            <option v-for="field in fieldsOf(['text', 'textarea', 'markdown', 'html'])" :key="field.key" :value="field.key">{{ field.label || field.key }}</option>
+            <option v-for="field in fieldsOf(['text', 'textarea', 'markdown', 'html'])" :key="field.key" :value="field.key">{{ localizedText(field.label) || field.key }}</option>
           </select>
         </div>
         <div>
           <label class="form-label" for="type-route-image">{{ t("site.pages.imageField") }}</label>
           <select id="type-route-image" :value="route.seo_image_field" class="form-select w-full rounded-lg border-slate-300 text-sm" @change="update({ seo_image_field: $event.target.value })">
             <option value="">{{ t("site.pages.automatic") }}</option>
-            <option v-for="field in fieldsOf(['media'])" :key="field.key" :value="field.key">{{ field.label || field.key }}</option>
+            <option v-for="field in fieldsOf(['media'])" :key="field.key" :value="field.key">{{ localizedText(field.label) || field.key }}</option>
           </select>
         </div>
         <label class="flex items-center gap-3">
@@ -126,9 +126,9 @@ const editable = computed(() => !!props.modelValue && !!props.status?.can_manage
 
 // Follow the current route, including changes not yet saved.
 const languages = useLanguages();
-const pathText = (value) => resolveLocalized(value, languages.activeLocale.value, languages.defaultLocale.value);
+const localizedText = (value) => resolveLocalized(value, languages.activeLocale.value, languages.defaultLocale.value);
 function fullUrl(value) {
-  const path = pathText(value);
+  const path = localizedText(value);
   if (!path) return "";
   const base = (props.status?.site_url ?? "").replace(/\/+$/, "");
   const locale = languages.activeLocale.value;
@@ -151,7 +151,7 @@ function update(patch) {
 
 /** Turning the list page on suggests a URL when none is set yet. */
 function setListPage(enabled) {
-  update({ index_enabled: enabled, ...(enabled && !pathText(route.value.index_path) && props.name ? { index_path: `/${props.name}` } : {}) });
+  update({ index_enabled: enabled, ...(enabled && !localizedText(route.value.index_path) && props.name ? { index_path: `/${props.name}` } : {}) });
 }
 
 function fieldsOf(types) {
