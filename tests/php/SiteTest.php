@@ -554,6 +554,43 @@ test('website sitemap and robots list only public pages', function (): void {
     assert_true(str_contains(comet_site_test_get('/robots.txt')['body'], 'Sitemap: https://example.test/sitemap.xml'));
 });
 
+test('hidden websites stay crawlable so search engines read their noindex', function (): void {
+    comet_site_test_setup(settings: ['noindex' => true]);
+    $robots = comet_site_test_get('/robots.txt')['body'];
+
+    assert_false(str_contains($robots, "Disallow: /\n"));
+    assert_true(str_contains($robots, 'Disallow: /admin'));
+    assert_false(str_contains($robots, 'Sitemap:'), 'A hidden site does not advertise its pages.');
+    assert_true(str_contains(comet_site_test_get('/blog/hello')['body'], '<meta name="robots" content="noindex,nofollow">'));
+});
+
+test('paginated lists keep their page in canonical URLs and end with a 404', function (): void {
+    $site = comet_site_test_setup();
+    $content = ContentRepository::make();
+    foreach (['second', 'third'] as $slug) {
+        $content->save('blog', ['title' => ucfirst($slug), 'slug' => $slug, 'status' => 'published'], comet_site_test_user());
+    }
+    $list = static fn(): array => [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('collection', ['type' => 'blog', 'paginate' => true, 'limit' => 1]),
+    ])])])];
+    $site->saveLayout('blog', 'index', $list());
+    $site->saveLayout('about', 'detail', $list());
+
+    foreach (['/blog', '/about'] as $path) {
+        $last = comet_site_test_get($path, ['page' => 3]);
+        assert_same(200, $last['status']);
+        assert_true(str_contains($last['body'], '<link rel="canonical" href="https://example.test' . $path . '?page=3">'), $path);
+
+        $beyond = comet_site_test_get($path, ['page' => 4]);
+        assert_same(404, $beyond['status'], $path . ' has no fourth page.');
+        assert_true(str_contains($beyond['body'], 'noindex'));
+    }
+
+    $plain = comet_site_test_get('/blog/hello', ['page' => 2]);
+    assert_same(200, $plain['status'], 'A page without a paginated list ignores the page number.');
+    assert_true(str_contains($plain['body'], '<link rel="canonical" href="https://example.test/blog/hello">'));
+});
+
 test('website answers for its domains or as the default workspace', function (): void {
     assert_null(SiteService::workspaceForHost('example.test'), 'No website until it has something to show.');
 

@@ -16,6 +16,8 @@ final class PageRenderer
     private NodeRenderer $nodes;
     private ?\Closure $savedRender = null;
     private ?array $template = null;
+    /** HTTP status of the last page: 404 once a page turned out not to exist, e.g. past the last list page. */
+    public int $status = 200;
 
     public function __construct(private readonly SiteContext $ctx)
     {
@@ -38,13 +40,18 @@ final class PageRenderer
         $state = $this->state($entry, $type, $url, $page, $this->entryAlternates($type, $entry));
         $state['template'] = $this->pageTemplate($name, 'detail', $entry);
         $main = $this->nodes->render($this->ctx->layout($name, 'detail', $state['template']['template']['id']), $state);
+        if ($this->pastLastPage($page)) {
+            return $this->notFound($url);
+        }
+        $page = $this->listPage($page);
         $title = (string) ($entry['title'] ?? '');
 
         return $this->document([
             'title' => $isHome ? $this->homeTitle() : $this->pageTitle($title),
             'description' => $this->entryDescription($type, $entry),
             'image' => $this->entryImage($type, $entry),
-            'canonical' => $url,
+            'canonical' => self::paged($url, $page),
+            'alternates' => array_map(static fn(string $alternate): string => self::paged($alternate, $page), $state['alternates']),
             'og_type' => $isHome ? 'website' : 'article',
             'body_class' => 'c-type-' . $name . ' c-view-detail' . ($isHome ? ' c-view-home' : ''),
             'published_at' => (string) ($entry['published_at'] ?? ''),
@@ -65,13 +72,18 @@ final class PageRenderer
         $state = $this->state(null, $type, $url, $page, $alternates);
         $state['template'] = $this->pageTemplate($name, 'index', null);
         $main = $this->nodes->render($this->ctx->layout($name, 'index', $state['template']['template']['id']), $state);
+        if ($this->pastLastPage($page)) {
+            return $this->notFound($url);
+        }
+        $page = $this->listPage($page);
         $route = $this->ctx->route($name);
         $title = (string) (($route['index_title'] ?? '') ?: $type['label']);
 
         return $this->document([
             'title' => $isHome ? $this->homeTitle() : $this->pageTitle($title . ($page > 1 ? ' – ' . $page : '')),
             'description' => (string) ($this->ctx->settings()['description'] ?? ''),
-            'canonical' => $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : ''),
+            'canonical' => self::paged($url, $page),
+            'alternates' => array_map(static fn(string $alternate): string => self::paged($alternate, $page), $alternates),
             'og_type' => 'website',
             'body_class' => 'c-type-' . $name . ' c-view-index' . ($isHome ? ' c-view-home' : ''),
         ], $main, $state);
@@ -103,6 +115,7 @@ final class PageRenderer
     public function notFound(string $path): string
     {
         $this->savedRender = fn(SiteContext $saved): string => (new self($saved))->notFound($path);
+        $this->status = 404;
         $title = Messages::get('not_found_title', $this->ctx->htmlLang());
         $state = $this->state(null, null, $path, 1, []);
         $meta = [
@@ -430,7 +443,9 @@ final class PageRenderer
             $head .= '<meta property="article:published_time" content="' . Security::e((string) $meta['published_at']) . '">';
         }
 
-        $alternates = is_array($state['alternates'] ?? null) ? $state['alternates'] : [];
+        // Pages of a list link to the same page in other languages; the language switcher keeps the first page.
+        $alternates = $meta['alternates'] ?? $state['alternates'] ?? [];
+        $alternates = is_array($alternates) ? $alternates : [];
         if (count($alternates) > 1 && !$this->ctx->preview) {
             foreach ($alternates as $locale => $url) {
                 $head .= '<link rel="alternate" hreflang="' . Security::e((string) $locale) . '" href="' . Security::e($this->ctx->absolute($url)) . '">';
@@ -507,6 +522,23 @@ final class PageRenderer
             'alternates' => $alternates,
             'depth' => 0,
         ];
+    }
+
+    /** Whether $page lies beyond the last page of the page's paginated lists. */
+    private function pastLastPage(int $page): bool
+    {
+        return $page > 1 && $this->nodes->listPages > 0 && $page > $this->nodes->listPages;
+    }
+
+    /** $page when the page's lists have it, else 1: without a paginated list, ?page= only duplicates the page. */
+    private function listPage(int $page): int
+    {
+        return $page <= $this->nodes->listPages ? $page : 1;
+    }
+
+    private static function paged(string $url, int $page): string
+    {
+        return $url . ($page > 1 ? (str_contains($url, '?') ? '&' : '?') . 'page=' . $page : '');
     }
 
     private function entryAlternates(array $type, array $entry): array

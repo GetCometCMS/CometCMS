@@ -101,6 +101,9 @@ final class NodeRenderer
 
     private int $searchSequence = 0;
 
+    /** Most pages of any paginated list rendered so far; 0 without one. */
+    public int $listPages = 0;
+
     private SmartValue $smart;
 
     public function __construct(private readonly SiteContext $ctx)
@@ -1352,6 +1355,9 @@ final class NodeRenderer
 
         $result = $this->ctx->query($type, $params);
         $bar = $filters->html((string) ($state['path'] ?? ''));
+        if ($props['paginate']) {
+            $this->listPages = max($this->listPages, 1, (int) ceil($result['total'] / $props['limit']));
+        }
 
         if ($result['data'] === []) {
             $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';
@@ -1428,6 +1434,9 @@ final class NodeRenderer
         });
         $items = array_slice($items, $offset, $props['limit']);
         $bar = $filters->html((string) ($state['path'] ?? ''));
+        if ($props['paginate']) {
+            $this->listPages = max($this->listPages, 1, (int) ceil($total / $props['limit']));
+        }
 
         if ($items === []) {
             $empty = $props['empty_text'] !== '' ? '<p class="c-empty">' . Security::e($props['empty_text']) . '</p>' : '';

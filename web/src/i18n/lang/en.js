@@ -1525,7 +1525,7 @@ const messages = {
     'site.overview.noindex': 'Hide from search engines',
     'site.overview.noindexHint': 'Asks search engines not to index the site, e.g. while it is under construction.',
     'site.overview.domains': 'Domains',
-    'site.overview.domainsHint': 'Only needed if this workspace should answer for its own domains. Leave empty to serve the website on this server\'s address. One domain per line.',
+    'site.overview.domainsHint': 'Only needed if this workspace should answer for its own domains. Leave empty to serve the website on this server\'s address. One domain per line; the first is the primary domain, and the others redirect to it.',
     'site.overview.maintenance': 'Maintenance mode',
     'site.overview.maintenanceHint': 'Take the website offline for a while, for example during larger changes.',
     'site.overview.maintenanceToggle': 'Show the maintenance page instead of the website',

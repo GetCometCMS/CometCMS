@@ -1530,7 +1530,7 @@ const messages = {
   'site.overview.noindex': 'Vor Suchmaschinen verbergen',
   'site.overview.noindexHint': 'Bittet Suchmaschinen, die Website nicht zu indexieren, z. B. während sie noch im Aufbau ist.',
   'site.overview.domains': 'Domains',
-  'site.overview.domainsHint': 'Nur nötig, wenn dieser Workspace unter eigenen Domains erreichbar sein soll. Leer lassen, um die Website unter der Adresse dieses Servers auszuliefern. Eine Domain pro Zeile.',
+  'site.overview.domainsHint': 'Nur nötig, wenn dieser Workspace unter eigenen Domains erreichbar sein soll. Leer lassen, um die Website unter der Adresse dieses Servers auszuliefern. Eine Domain pro Zeile; die erste ist die Hauptdomain, die anderen leiten auf sie weiter.',
   'site.overview.maintenance': 'Wartungsmodus',
   'site.overview.maintenanceHint': 'Nimm die Website vorübergehend offline, zum Beispiel bei größeren Änderungen.',
   'site.overview.maintenanceToggle': 'Wartungsseite statt der Website anzeigen',

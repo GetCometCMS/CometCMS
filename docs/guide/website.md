@@ -428,7 +428,9 @@ The **Languages** element links each page to its published translations and omit
 
 ## Search engines
 
-Pages get a title (template in **Website settings → SEO & sharing**, e.g. `{title} · {site}`), a description and a share image taken from the entry (or chosen per content type), a canonical URL, `/sitemap.xml` and `/robots.txt`. **Hide from search engines** adds `noindex` while a site is being built.
+Pages get a title (template in **Website settings → SEO & sharing**, e.g. `{title} · {site}`), a description and a share image taken from the entry (or chosen per content type), a canonical URL, `/sitemap.xml` and `/robots.txt`. **Hide from search engines** adds `noindex` while a site is being built; robots.txt still allows crawling, so search engines can read the `noindex` and drop pages they already know, but it no longer points them to the sitemap.
+
+Pages with a paginated list keep the page number in their canonical URL and language alternates (`/blog?page=2`). A page number past the last page answers 404; on a page without a paginated list, the canonical URL leaves the number out.
 
 ## Previewing drafts
 
@@ -436,7 +438,7 @@ For entries with a Page content field, **Design in page builder** opens that ent
 
 ## Domains and workspaces
 
-The default workspace's website answers on the server's own address. To serve another workspace's website, add its domains in **Website settings → General → Domains** and point those domains at the same installation.
+The default workspace's website answers on the server's own address. To serve another workspace's website, add its domains in **Website settings → General → Domains** and point those domains at the same installation. The first domain is the primary one: requests to the others are redirected to it permanently (301), so every page has a single canonical address. List the domain visitors should see first, e.g. `example.com` before `www.example.com`.
 
 ## Performance and security
 

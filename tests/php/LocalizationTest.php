@@ -211,6 +211,23 @@ test('workspace languages support translated pages without per-resource language
     assert_true(str_contains($service->previewEntry('pages', $entry['uid'], 'de'), 'Hallo'));
 });
 
+test('language alternates of a list page keep its page number', function (): void {
+    (new LanguageSettings())->save(['locales' => ['en', 'de'], 'default_locale' => 'en']);
+    (new ContentTypeRepository())->save(['name' => 'pages']);
+    $site = new SiteRepository();
+    $site->saveSettings(['routes' => ['pages' => ['enabled' => true, 'index_enabled' => true, 'index_path' => '/pages']]]);
+    $site->saveLayout('pages', 'index', [LayoutSchema::node('section', [], [], [LayoutSchema::node('row', [], [], [LayoutSchema::node('column', [], [], [
+        LayoutSchema::node('collection', ['type' => 'pages', 'paginate' => true, 'limit' => 1]),
+    ])])])]);
+    foreach (['One', 'Two'] as $title) {
+        ContentRepository::make()->save('pages', ['title' => $title, 'status' => 'published'], comet_localization_user());
+    }
+
+    $body = (new SiteService(SiteContext::make(new SiteRepository(), '', 'https://example.test')))->respond('/pages', ['page' => 2])['body'];
+    assert_true(str_contains($body, 'hreflang="de" href="https://example.test/de/pages?page=2"'));
+    assert_true(str_contains($body, 'hreflang="x-default" href="https://example.test/pages?page=2"'));
+});
+
 test('localized values distinguish absence from intentionally empty values and track source review', function (): void {
     assert_same('shared', LocalizedValue::state('Source', 'en', 'en'));
     assert_same('inherited', LocalizedValue::state('Source', 'de', 'en'));
