@@ -79,6 +79,9 @@ final class PageBuilderTools
         return ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false];
     }
 
+    /** Content areas of the components placed so far: id => [{id, name}], null when the component is missing. */
+    private array $componentAreas = [];
+
     public function __construct(private readonly WorkspaceContext $workspace, private readonly array $principal, private readonly PermissionService $permissions = new PermissionService()) {}
 
     public function call(string $tool, array $args): array
@@ -327,7 +330,7 @@ final class PageBuilderTools
         return [];
     }
 
-    /** Kinds a layout or an entry's content can hold: those reachable from the top level, and component instances. */
+    /** Kinds a layout or an entry's content can hold: those reachable from the top level, and component instances with their area content. */
     private function usableKinds(): array
     {
         $kinds = ['root' => true];
@@ -339,7 +342,7 @@ final class PageBuilderTools
             }
         }
         unset($kinds['root']);
-        return [...array_keys($kinds), LayoutSchema::COMPONENT];
+        return [...array_keys($kinds), LayoutSchema::COMPONENT, LayoutSchema::AREA_CONTENT];
     }
 
     /** $map with keys of equal values joined into one "a, b" key. */
@@ -415,7 +418,20 @@ final class PageBuilderTools
     {
         $result = $this->compact(['children' => []] + $node);
         $result['children'] = array_map($this->summary(...), $node['children'] ?? []);
+        if ($node['kind'] === LayoutSchema::COMPONENT && ($areas = $this->areasOf((string) ($node['props']['component'] ?? ''))) !== null) {
+            $filled = array_column(array_map(static fn(array $child): array => ['area' => $child['props']['area'] ?? '', 'id' => $child['id']], $node['children'] ?? []), 'id', 'area');
+            $result['content_areas'] = array_map(static fn(array $area): array => $area + ['content_id' => $filled[$area['id']] ?? null], $areas);
+        }
         return $result;
+    }
+
+    /** The content areas of component $id, or null when there is no such component. */
+    private function areasOf(string $id): ?array
+    {
+        if (!array_key_exists($id, $this->componentAreas)) {
+            $this->componentAreas[$id] = $id !== '' ? (new SiteRepository($this->workspace))->component($id)['areas'] ?? null : null;
+        }
+        return $this->componentAreas[$id];
     }
 
     private function sectionIndex(array $nodes, string $id): int
@@ -430,7 +446,7 @@ final class PageBuilderTools
             $node = $this->find([$section], $id);
             if ($node !== null) return [$node, $section['id']];
         }
-        throw new McpError('Element ID not found in this layout.', 404, ['code' => 'element_not_found', 'element_id' => $id], [], ['Read get_layout and get_section to find current node IDs. Component definition children are not part of the layout.']);
+        throw new McpError('Element ID not found in this layout.', 404, ['code' => 'element_not_found', 'element_id' => $id], [], ['Read get_layout and get_section to find current node IDs. A component\'s own elements are not part of the layout; an instance\'s children are what it shows in the component\'s content areas.']);
     }
 
     private function find(array $nodes, string $id): ?array
@@ -481,7 +497,7 @@ final class PageBuilderTools
             if (++$count > LayoutSchema::MAX_NODES) $this->invalid($nodePath, 'Layout exceeds the ' . LayoutSchema::MAX_NODES . ' node limit.');
             $this->map($node, $nodePath);
             $this->keys($node, ['id', 'kind', 'name', 'props', 'style', 'responsive', 'states', 'children'], $nodePath);
-            if (!is_string($node['kind'] ?? null) || !in_array($node['kind'], [...LayoutSchema::STRUCTURE, ...LayoutSchema::ELEMENTS, 'tab', LayoutSchema::COMPONENT, LayoutSchema::PAGE_CONTENT], true)) $this->invalid($nodePath . '.kind', 'Unknown or missing kind.');
+            if (!is_string($node['kind'] ?? null) || !in_array($node['kind'], [...LayoutSchema::STRUCTURE, ...LayoutSchema::ELEMENTS, 'tab', LayoutSchema::COMPONENT, LayoutSchema::PAGE_CONTENT, LayoutSchema::AREA_CONTENT], true)) $this->invalid($nodePath . '.kind', 'Unknown or missing kind.');
             $this->placement($node, $nodePath, $at, $areas);
             if (!array_key_exists('id', $node)) $node['id'] = LayoutSchema::newId();
             $id = $this->identifier($node['id'], $nodePath . '.id');
@@ -511,16 +527,46 @@ final class PageBuilderTools
                 }
             }
             $kind = $node['kind'];
+            if ($kind === LayoutSchema::COMPONENT) $node['children'] = $this->areaContents($node, $nodePath);
             $node['children'] = $this->prepare($node['children'] ?? [], $nodePath . '.children', $seen, $count, [
                 // A repeater's item template may not contain another one.
                 'parent' => $kind === 'field' ? ($at['item'] ? '' : 'field') : $kind,
-                // Cards, item templates and an area's default content hold no Entry content area.
-                'page_content' => $at['page_content'] && !in_array($kind, ['field', 'collection', LayoutSchema::PAGE_CONTENT], true),
-                'rows' => $kind === LayoutSchema::PAGE_CONTENT ? 0 : $at['rows'] + ($kind === 'row' ? 1 : 0),
+                // Cards, item templates, an area's default content and an instance's content areas hold no Entry content area.
+                'page_content' => $at['page_content'] && !in_array($kind, ['field', 'collection', LayoutSchema::PAGE_CONTENT, LayoutSchema::COMPONENT], true),
+                'rows' => match ($kind) {
+                    LayoutSchema::PAGE_CONTENT => 0,
+                    LayoutSchema::COMPONENT => $at['rows'] + (($node['props']['root'] ?? '') === 'column' ? 0 : 1),
+                    default => $at['rows'] + ($kind === 'row' ? 1 : 0),
+                },
                 'item' => $at['item'] || $kind === 'field',
             ], $areas, $depth + 1);
         }
         return $nodes;
+    }
+
+    /**
+     * An instance's children: one area_content node per content area of its
+     * component, holding what this placement shows there. Areas left out
+     * start empty.
+     */
+    private function areaContents(array $node, string $path): array
+    {
+        $children = $node['children'] ?? [];
+        $areas = $this->areasOf(is_string($node['props']['component'] ?? null) ? $node['props']['component'] : '');
+        if ($areas === null || !is_array($children) || !array_is_list($children)) return $children;
+        $ids = array_column($areas, 'id');
+        $list = $ids === [] ? 'The component has no content areas, so its instances have no children.' : 'Its content areas: ' . implode(', ', array_map(static fn(array $area): string => $area['id'] . ($area['name'] !== '' ? ' (' . $area['name'] . ')' : ''), $areas)) . '.';
+        $filled = [];
+        foreach ($children as $index => $child) {
+            $area = is_array($child) && ($child['kind'] ?? null) === LayoutSchema::AREA_CONTENT ? $child['props']['area'] ?? null : null;
+            if (!is_string($area) || !in_array($area, $ids, true)) $this->invalid($path . '.children.' . $index, 'An instance\'s children are area_content nodes with props.area naming one of its component\'s content areas. ' . $list);
+            if (isset($filled[$area])) $this->invalid($path . '.children.' . $index . '.props.area', 'Each content area has one area_content node per instance.');
+            $filled[$area] = true;
+        }
+        foreach ($ids as $id) {
+            if (!isset($filled[$id])) $children[] = ['kind' => LayoutSchema::AREA_CONTENT, 'props' => ['area' => $id], 'children' => []];
+        }
+        return $children;
     }
 
     /** Name the node the normalizer would drop for its placement, and how to place it instead. */
@@ -534,7 +580,11 @@ final class PageBuilderTools
             $where = $at['parent'] === 'root' ? 'at the top level' : ($at['parent'] === '' ? 'in an item template inside another item template' : 'inside a ' . $at['parent']);
             $holds = $allowed === [] ? 'It holds no children.' : 'Allowed there: ' . implode(', ', $allowed) . '.';
             $wrap = $this->wrapping($at['parent'], $placed);
-            $areaHint = $kind === LayoutSchema::PAGE_CONTENT ? ' Entry content areas exist only in detail templates, outside cards, item templates and other areas, never in an entry\'s own content.' : '';
+            $areaHint = match ($kind) {
+                LayoutSchema::PAGE_CONTENT => ' Entry content areas exist only in detail templates, outside cards, item templates and other areas, never in an entry\'s own content.',
+                LayoutSchema::AREA_CONTENT => ' area_content nodes are the children of a component instance, one per content area of its component.',
+                default => '',
+            };
             $this->invalid($path, 'A ' . $placed . ' cannot be placed ' . $where . '. ' . $holds . ($wrap !== [] ? ' Wrap it in ' . implode(' > ', $wrap) . '.' : '') . $areaHint);
         }
         if ($placed === 'row' && $at['rows'] > LayoutSchema::MAX_ROW_DEPTH) {

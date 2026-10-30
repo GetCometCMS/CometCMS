@@ -8,8 +8,10 @@
 // mutating helpers change the tree in place; the builder snapshots the tree
 // for undo/redo.
 //
-// A reusable component is placed as a leaf node { kind: 'component', props:
+// A reusable component is placed as a node { kind: 'component', props:
 // { component, root, span } } that goes wherever a node of its root kind goes.
+// Its children are what it shows in the component's content areas: one
+// { kind: 'area_content', props: { area } } per area, holding elements.
 
 export const ROOT = 'root'
 
@@ -56,6 +58,10 @@ export const COMPONENT = 'component'
 /** Where an entry's own page content goes in a detail layout (see LayoutSchema::PAGE_CONTENT). */
 export const PAGE_CONTENT = 'page_content'
 
+/** Where each placement of a component adds its own elements, and what one placement put there (see LayoutSchema::COMPONENT_AREA). */
+export const COMPONENT_AREA = 'component_area'
+export const AREA_CONTENT = 'area_content'
+
 /** The modal template's panel, and where the page a modal link opens appears in it (see LayoutSchema::MODAL). */
 export const MODAL = 'modal'
 export const SITE_CONTENT = 'site_content'
@@ -71,9 +77,59 @@ export function isColumnLike(node) {
   return placementKind(node) === 'column'
 }
 
-/** A new instance of a component ({ id, root }). */
+/** A new instance of a component ({ id, root, areas }), with its content areas still empty. */
 export function instanceNode(spec, component, props = {}) {
-  return createNode(spec, COMPONENT, { ...props, component: component.id, root: component.root })
+  const instance = createNode(spec, COMPONENT, { ...props, component: component.id, root: component.root })
+  fillAreas(spec, instance, component)
+  return instance
+}
+
+/**
+ * Give an instance empty content for the areas of `component` ({ areas })
+ * it has none for yet. The ids follow from the instance and the area, so
+ * filling the same tree again gives the same ids. Returns whether it added any.
+ */
+export function fillAreas(spec, instance, component) {
+  const filled = new Set((instance.children ?? []).map((child) => child.props?.area))
+  const missing = (component?.areas ?? []).filter((area) => !filled.has(area.id))
+  if (!missing.length) return false
+  instance.children = [
+    ...(instance.children ?? []),
+    ...missing.map((area) => ({ ...createNode(spec, AREA_CONTENT, { area: area.id }), id: `${instance.id}-${area.id}`.slice(0, 80) })),
+  ]
+  return true
+}
+
+/** Fill the content areas of every instance in a tree (see fillAreas()). */
+export function fillAllAreas(spec, nodes, components) {
+  let changed = false
+  walk(nodes, (node) => {
+    if (node.kind === COMPONENT) changed = fillAreas(spec, node, components.find((item) => item.id === node.props?.component)) || changed
+  })
+  return changed
+}
+
+/**
+ * An instance as an ordinary copy of its component's tree `root`: with the
+ * instance's own values, and what it put into each content area in place of
+ * the area. The component's nodes get new ids; the area content keeps its own.
+ * The copy keeps the instance's id, name and column width (see LayoutSchema::detachInstance).
+ */
+export function detachedCopy(instance, root) {
+  const fills = new Map()
+  for (const child of instance.children ?? []) {
+    if (child.kind === AREA_CONTENT && !fills.has(child.props?.area)) fills.set(child.props?.area, clone(child.children ?? []))
+  }
+  const copyNodes = (nodes) => nodes.flatMap((node) => {
+    if (node.kind === COMPONENT_AREA) return fills.get(node.id) ?? []
+    const { editable: _editable, ...copy } = node
+    return [{ ...copy, id: newId(), children: copyNodes(node.children ?? []) }]
+  })
+  const [copy] = copyNodes([withOverrides(root, instance.overrides)])
+  copy.id = instance.id
+  if (instance.name) copy.name = instance.name
+  if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(instance.props?.span ?? copy.props.span) }
+  return copy
 }
 
 /**
@@ -139,7 +195,9 @@ export function rowDepth(nodes, parentId) {
   const parent = findNode(nodes, parentId)
   const chain = [...ancestors(nodes, parentId), parent]
   // Page content starts its own sections, so rows around it don't count.
-  return chain.slice(chain.findLastIndex((node) => node?.kind === PAGE_CONTENT) + 1).filter((node) => placementKind(node) === 'row').length
+  // An instance's area content sits in at least one of its section's rows.
+  return chain.slice(chain.findLastIndex((node) => node?.kind === PAGE_CONTENT) + 1)
+    .filter((node, index, list) => placementKind(node) === 'row' || (node?.kind === AREA_CONTENT && list[index - 1]?.props?.root === 'section')).length
 }
 
 /** The collection whose card contains `id`, if any. */

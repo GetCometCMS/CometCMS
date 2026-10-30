@@ -49,7 +49,7 @@ test('repeated navigation components give every menu its own matching toggle and
     }
 });
 
-test('component instances are placed like their root kind and never keep children', function (): void {
+test('component instances are placed like their root kind and keep only area content as children', function (): void {
     $nodes = LayoutSchema::normalize([
         comet_component_test_instance('i1', 'cabc', 'section'),
         comet_component_test_instance('i2', 'cabc', 'column'),

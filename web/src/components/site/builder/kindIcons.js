@@ -25,7 +25,10 @@ export const KIND_ICONS = {
   language_switcher: 'mdi:translate',
   theme_toggle: 'mdi:theme-light-dark',
   component: 'mdi:puzzle-outline',
-  page_content: 'mdi:file-document-edit-outline',
+  // Content areas share one icon, whoever fills them.
+  page_content: 'mdi:tray-arrow-down',
+  component_area: 'mdi:tray-arrow-down',
+  area_content: 'mdi:tray-arrow-down',
   modal: 'mdi:dock-window',
   site_content: 'mdi:application-import',
   modal_title: 'mdi:format-title',

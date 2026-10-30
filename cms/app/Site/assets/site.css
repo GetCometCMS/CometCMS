@@ -73,6 +73,11 @@ code, pre { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospa
 /* An entry's page content takes no room of its own, so sticky sections stay sticky; the builder needs its box. */
 .c-page-content { display: contents; }
 .c-builder .c-page-content { display: block; }
+/* Builder only: a component's content area. Websites show its elements straight in the column around it. */
+.c-area { display: block; }
+.c-flow-row > .c-area { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: var(--flow); justify-content: inherit; align-items: inherit; }
+.c-flow-row > .c-area > :where(.c-el) { margin-bottom: 0; }
+.c-flow-row > .c-area > .c-placeholder { flex: 1; }
 /* Page content in a column: its sections fill the column instead of the page. */
 .c-page-content-embedded > .c-section > .c-container { max-width: none; padding-left: 0; padding-right: 0; }
 /*

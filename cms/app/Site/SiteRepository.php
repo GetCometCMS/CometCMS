@@ -919,7 +919,7 @@ final class SiteRepository
      * a component fits every content type; its type only picks the entries
      * the builder previews it with first.
      *
-     * @return list<array{id: string, name: string, icon: string, root: string, type: string, created_at: string, updated_at: string}>
+     * @return list<array{id: string, name: string, icon: string, root: string, type: string, areas: list<array{id: string, name: string}>, created_at: string, updated_at: string}>
      */
     public function components(): array
     {
@@ -1220,15 +1220,10 @@ final class SiteRepository
     private function detachComponentInstances(array $nodes, array $component): array
     {
         return array_map(function (array $node) use ($component): array {
-            if (($node['kind'] ?? '') === 'component' && ($node['props']['component'] ?? '') === $component['id']) {
-                $copy = LayoutSchema::withNewIds($component['nodes'])[0];
-                $copy['id'] = $node['id'];
-                if (isset($node['name'])) {
-                    $copy['name'] = $node['name'];
-                }
-                if ($copy['kind'] === 'column') {
-                    $copy['props']['span'] = $node['props']['span'] ?? $copy['props']['span'];
-                }
+            if (($node['kind'] ?? '') === LayoutSchema::COMPONENT && ($node['props']['component'] ?? '') === $component['id']) {
+                // What the instance put into its areas may hold more instances of the component.
+                $copy = LayoutSchema::detachInstance($node, $component['nodes'][0]);
+                $copy['children'] = $this->detachComponentInstances($copy['children'], $component);
 
                 return $copy;
             }
@@ -1285,7 +1280,9 @@ final class SiteRepository
             'icon' => is_string($stored['icon'] ?? null) ? $stored['icon'] : '',
             'root' => $root,
             'type' => LayoutSchema::key($stored['type'] ?? ''),
-            'nodes' => LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
+            'nodes' => $nodes = LayoutSchema::normalizeComponent($stored['nodes'] ?? [], $root),
+            // Where each placement adds its own elements: [{id, name}].
+            'areas' => LayoutSchema::componentAreas($nodes),
             'created_at' => (string) ($stored['created_at'] ?? ''),
             'updated_at' => self::modifiedAt($this->themeStore->path('components', $id) . '.json'),
         ];
@@ -1363,7 +1360,7 @@ final class SiteRepository
         ], 'components', $component['id']);
         $this->clearCache();
 
-        return [...$component, 'updated_at' => self::modifiedAt($this->themeStore->path('components', $component['id']) . '.json')];
+        return [...$component, 'areas' => LayoutSchema::componentAreas($component['nodes']), 'updated_at' => self::modifiedAt($this->themeStore->path('components', $component['id']) . '.json')];
     }
 
     private function componentSnapshot(array $component): array

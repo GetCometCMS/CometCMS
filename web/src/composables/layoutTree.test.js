@@ -8,6 +8,8 @@ import {
   cloneWithNewIds,
   countNodes,
   createNode,
+  detachedCopy,
+  fillAllAreas,
   duplicateNode,
   effectiveSpan,
   findNode,
@@ -266,4 +268,38 @@ it('applies accordion item overrides without mutating the component', () => {
   expect(node.props.items[0].title).toBe('Base question')
   const current = withOverrides(node, { accordion: { items: [] } })
   expect(current.props.items).toEqual([])
+})
+
+it('fills content areas of instances and counts the rows they sit in', () => {
+  const instance = (id, root, children = []) => ({ id, kind: 'component', props: { component: 'card', root }, style: {}, children })
+  const nodes = [
+    { id: 's1', kind: 'section', props: {}, style: {}, children: [instance('section', 'section'), instance('row', 'row')] },
+    instance('kept', 'section', [{ id: 'own', kind: 'area_content', props: { area: 'body' }, style: {}, children: [] }]),
+  ]
+  const card = { id: 'card', areas: [{ id: 'body', name: 'Body' }, { id: 'aside', name: '' }] }
+  expect(fillAllAreas(spec, nodes, [card])).toBe(true)
+  expect(nodes[0].children[0].children.map((child) => [child.id, child.props.area])).toEqual([['section-body', 'body'], ['section-aside', 'aside']])
+  expect(nodes[1].children.map((child) => child.id)).toEqual(['own', 'kept-aside'])
+  expect(fillAllAreas(spec, nodes, [card])).toBe(false)
+
+  // Area content sits in the component's own row; a row component is that row.
+  expect(rowDepth(nodes, 'section-body')).toBe(1)
+  expect(rowDepth(nodes, 'row-body')).toBe(1)
+})
+
+it('detaches an instance with its area content in place of each area', () => {
+  const root = { id: 'col', kind: 'column', props: { span: { mobile: 12, tablet: 0, desktop: 0 } }, style: {}, children: [
+    { id: 'before', kind: 'heading', props: { text: 'Shared' }, style: {}, editable: ['text'], children: [] },
+    { id: 'body', kind: 'component_area', props: {}, style: {}, children: [] },
+    { id: 'empty', kind: 'component_area', props: {}, style: {}, children: [] },
+  ] }
+  const instance = { id: 'i1', kind: 'component', name: 'Promo', props: { component: 'card', root: 'column', span: { mobile: 12, tablet: 6, desktop: 0 } }, overrides: { before: { text: 'Own' } }, children: [
+    { id: 'fill', kind: 'area_content', props: { area: 'body' }, style: {}, children: [{ id: 'mine', kind: 'text', props: {}, style: {}, children: [] }] },
+  ] }
+  const copy = detachedCopy(instance, root)
+  expect(copy).toMatchObject({ id: 'i1', kind: 'column', name: 'Promo', props: { span: { mobile: 12, tablet: 6, desktop: 0 } } })
+  expect(copy.children.map((node) => node.id === 'mine' ? 'mine' : node.kind)).toEqual(['heading', 'mine'])
+  expect(copy.children[0]).toMatchObject({ props: { text: 'Own' } })
+  expect(copy.children[0].id).not.toBe('before')
+  expect(copy.children[0].editable).toBeUndefined()
 })

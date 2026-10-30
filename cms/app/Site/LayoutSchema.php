@@ -24,7 +24,8 @@ use CometCMS\Localization\LanguageSettings;
  * builder reads the same schema (see spec()) to draw its inspector.
  *
  * Reusable components are stored separately (see SiteRepository); a layout
- * only holds {kind: "component", props: {component, root, span}} instances.
+ * only holds {kind: "component", props: {component, root, span}} instances,
+ * whose children are what the instance put into the component's content areas.
  */
 final class LayoutSchema
 {
@@ -60,6 +61,22 @@ final class LayoutSchema
      * in a collection's card, and each page field has one place.
      */
     public const PAGE_CONTENT = 'page_content';
+
+    /**
+     * A content area of a component: where each placement adds elements of
+     * its own. It sits in one of the component's columns or tabs, outside
+     * cards, item templates and the areas of components inside it, and has
+     * no content of its own. Its name labels it for editors.
+     */
+    public const COMPONENT_AREA = 'component_area';
+
+    /**
+     * What one instance put into one content area of its component
+     * (props.area: the area's node id). An instance's children are these,
+     * one per area; content for an area the component no longer has is
+     * kept but not shown.
+     */
+    public const AREA_CONTENT = 'area_content';
 
     /**
      * The dialog of links that open in a modal, and the region document of
@@ -266,7 +283,7 @@ final class LayoutSchema
         return match ($kind) {
             'section' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on', 'visible_if'],
             'row' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'anchor', 'hide_on', 'visible_if'],
-            self::COMPONENT, self::PAGE_CONTENT => [],
+            self::COMPONENT, self::PAGE_CONTENT, self::COMPONENT_AREA, self::AREA_CONTENT => [],
             self::MODAL => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
             self::SITE_CONTENT => [...self::SPACING_KEYS, 'background', ...self::BORDER_KEYS, 'radius', 'shadow', 'class'],
             'column' => [...self::SPACING_KEYS, 'background', 'background_gradient', ...self::BACKGROUND_IMAGE_KEYS, 'text_color', 'link_color', 'align', 'radius', 'shadow', ...self::BORDER_KEYS, ...self::POSITION_KEYS, ...self::ANIMATION_KEYS, 'z_index', 'opacity', 'class', 'hide_on', 'visible_if'],
@@ -324,6 +341,9 @@ final class LayoutSchema
             ],
             self::PAGE_CONTENT => [
                 'field' => ['type' => 'page_field', 'default' => ''],
+            ],
+            self::AREA_CONTENT => [
+                'area' => ['type' => 'key', 'default' => ''],
             ],
             self::MODAL => [
                 'size' => ['type' => 'enum', 'options' => ['sm', 'md', 'lg', 'xl', 'full'], 'default' => 'lg'],
@@ -566,6 +586,9 @@ final class LayoutSchema
             'collection' => ['column'],
             self::PAGE_CONTENT => ['section'],
             self::MODAL => [...self::ELEMENTS, 'row'],
+            // An instance holds what it put into each content area, which holds what a column does.
+            self::COMPONENT => [self::AREA_CONTENT],
+            self::AREA_CONTENT => [...self::ELEMENTS, 'row'],
             // The top of a component's own tree holds just its root kind; the modal template's is its panel.
             'region:' . self::MODAL => [self::MODAL],
             'component:section' => ['section'],
@@ -578,13 +601,14 @@ final class LayoutSchema
     /**
      * Everything the admin builder needs to draw palettes and inspectors.
      * With $pageContent (detail layouts) the page content place is offered;
-     * $modal describes the modal template, a single panel with its own elements.
+     * $modal describes the modal template, a single panel with its own elements;
+     * $component a component's tree, which offers content areas.
      */
-    public static function spec(bool $pageContent = false, bool $modal = false): array
+    public static function spec(bool $pageContent = false, bool $modal = false, bool $component = false): array
     {
         $kinds = [];
 
-        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT, self::MODAL, ...self::MODAL_ELEMENTS] as $kind) {
+        foreach ([...self::STRUCTURE, ...self::ELEMENTS, 'tab', self::COMPONENT, self::PAGE_CONTENT, self::COMPONENT_AREA, self::AREA_CONTENT, self::MODAL, ...self::MODAL_ELEMENTS] as $kind) {
             $props = self::propSpec($kind);
             foreach (self::LOCALIZED_PROPS[$kind] ?? [] as $key) $props[$key]['localized'] = true;
             foreach (SmartValue::PROPERTIES[$kind] ?? [] as $key => $binding) {
@@ -593,7 +617,7 @@ final class LayoutSchema
             $kinds[$kind] = [
                 'props' => $props,
                 'style' => self::styleKeys($kind),
-                'children' => self::childrenFor($kind, $pageContent, $modal),
+                'children' => self::childrenFor($kind, $pageContent, $modal, $component),
                 'responsive' => ['props' => self::RESPONSIVE_PROPS[$kind] ?? [], 'style' => array_values(array_intersect(self::RESPONSIVE_STYLE, self::styleKeys($kind)))],
                 'states' => [
                     'props' => self::STATE_PROPS[$kind] ?? [],
@@ -614,7 +638,7 @@ final class LayoutSchema
             'kinds' => $kinds,
             'root' => $modal ? self::allowedChildren('region:' . self::MODAL) : self::childrenFor('root', $pageContent, false),
             'style' => $style,
-            'elements' => [...self::ELEMENTS, ...($pageContent ? [self::PAGE_CONTENT] : []), ...($modal ? self::MODAL_ELEMENTS : [])],
+            'elements' => [...self::ELEMENTS, ...($pageContent ? [self::PAGE_CONTENT] : []), ...($component ? [self::COMPONENT_AREA] : []), ...($modal ? self::MODAL_ELEMENTS : [])],
             'item_elements' => self::ITEM_ELEMENTS,
             'field_displays' => self::FIELD_DISPLAYS,
             'system_fields' => self::SYSTEM_FIELDS,
@@ -676,13 +700,15 @@ final class LayoutSchema
         return $count;
     }
 
-    /** Kinds a node may contain, with the page content place and modal elements where the document offers them. */
-    /** The kinds $parent may hold; $pageContent allows Entry content areas, $inModal the modal elements. */
-    public static function childrenFor(string $parent, bool $pageContent, bool $inModal): array
+    /** Kinds a node may contain, with the page content place, content areas and modal elements where the document offers them. */
+    public static function childrenFor(string $parent, bool $pageContent, bool $inModal, bool $areas = false): array
     {
         $children = self::allowedChildren($parent);
         if ($pageContent && in_array($parent, ['root', 'column', 'tab'], true)) {
             $children[] = self::PAGE_CONTENT;
+        }
+        if ($areas && in_array($parent, ['column', 'tab'], true)) {
+            $children[] = self::COMPONENT_AREA;
         }
         if ($inModal && in_array($parent, [self::MODAL, 'column', 'tab'], true)) {
             array_push($children, ...self::MODAL_ELEMENTS);
@@ -828,7 +854,65 @@ final class LayoutSchema
         $seen = [];
         $first = array_values(array_filter(is_array($nodes) ? $nodes : [], static fn(mixed $node): bool => is_array($node) && ($node['kind'] ?? '') === $root));
 
-        return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false);
+        $places = null;
+
+        return self::normalizeNodes(array_slice($first, 0, 1), 'component:' . $root, $count, $seen, false, 0, $places, areas: true);
+    }
+
+    /** The content areas of a component's tree in order: [{id, name}], name '' when it has none. */
+    public static function componentAreas(array $nodes): array
+    {
+        $areas = [];
+        foreach ($nodes as $node) {
+            if (($node['kind'] ?? '') === self::COMPONENT_AREA) {
+                $areas[] = ['id' => (string) $node['id'], 'name' => (string) ($node['name'] ?? '')];
+                continue;
+            }
+            array_push($areas, ...self::componentAreas($node['children'] ?? []));
+        }
+
+        return $areas;
+    }
+
+    /**
+     * An instance as an ordinary copy of its component's $tree: with the
+     * instance's own values, and what it put into each content area in place
+     * of the area. The copy keeps the instance's id, name and column width;
+     * the area content keeps its ids, the component's nodes get new ones.
+     */
+    public static function detachInstance(array $instance, array $tree): array
+    {
+        $fills = [];
+        foreach ($instance['children'] ?? [] as $child) {
+            if (($child['kind'] ?? '') === self::AREA_CONTENT) $fills[(string) ($child['props']['area'] ?? '')] ??= $child['children'] ?? [];
+        }
+        $copy = self::detachedNodes(self::applyOverrides([$tree], $instance['overrides'] ?? []), $fills)[0];
+        $copy['id'] = $instance['id'];
+        if (isset($instance['name'])) {
+            $copy['name'] = $instance['name'];
+        }
+        if ($copy['kind'] === 'column') {
+            $copy['props']['span'] = $instance['props']['span'] ?? $copy['props']['span'];
+        }
+
+        return $copy;
+    }
+
+    private static function detachedNodes(array $nodes, array $fills): array
+    {
+        $copies = [];
+        foreach ($nodes as $node) {
+            if (($node['kind'] ?? '') === self::COMPONENT_AREA) {
+                array_push($copies, ...($fills[$node['id']] ?? []));
+                continue;
+            }
+            $node['id'] = self::newId();
+            unset($node['editable']);
+            $node['children'] = self::detachedNodes($node['children'] ?? [], $fills);
+            $copies[] = $node;
+        }
+
+        return $copies;
     }
 
     /**
@@ -1233,12 +1317,14 @@ final class LayoutSchema
     /**
      * $rows counts the rows around $nodes, to bound how deep rows nest in
      * columns. $places collects the page fields that already have a place
-     * (null where no page content place may go).
+     * (null where no page content place may go); $areas allows a component's
+     * content areas.
      */
-    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $inModal = false, string $path = 'root'): array
+    private static function normalizeNodes(array $nodes, string $parent, int &$count, array &$seen, bool $insideItem, int $rows = 0, ?array &$places = null, bool $inModal = false, string $path = 'root', bool $areas = false): array
     {
-        $allowed = self::childrenFor($parent, $places !== null, $inModal);
+        $allowed = self::childrenFor($parent, $places !== null, $inModal, $areas);
         $normalized = [];
+        $filled = [];
 
         foreach (array_values($nodes) as $index => $node) {
             if (!is_array($node) || $count >= self::MAX_NODES) {
@@ -1261,6 +1347,14 @@ final class LayoutSchema
                     $places[$field] = true;
                 }
             }
+            // An instance has one content per area of its component.
+            if ($kind === self::AREA_CONTENT) {
+                $area = self::key($node['props']['area'] ?? '');
+                if ($area === '' || isset($filled[$area])) {
+                    continue;
+                }
+                $filled[$area] = true;
+            }
 
             $count++;
             $id = self::key($node['id'] ?? '');
@@ -1276,11 +1370,17 @@ final class LayoutSchema
 
             // A repeater's item template may not contain another template.
             $childParent = $kind === 'field' ? ($insideItem ? '' : 'field') : $kind;
-            // Cards, item templates and the default content hold neither content place nor modal elements.
-            $repeated = in_array($kind, ['field', 'collection', self::PAGE_CONTENT], true);
+            // Cards, item templates, the default content and instances' area content hold neither content place, content area nor modal elements.
+            $repeated = in_array($kind, ['field', 'collection', self::PAGE_CONTENT, self::COMPONENT], true);
             $childPlaces = $repeated ? null : $places;
-            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT, self::MODAL], true) && is_array($node['children'] ?? null)
-                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $kind === self::PAGE_CONTENT ? 0 : $rows + ($kind === 'row' ? 1 : 0), $childPlaces, ($inModal || $kind === self::MODAL) && !$repeated, $path . ':' . $index)
+            // An instance's area content sits in the component's rows, at least one unless the component is a column.
+            $childRows = match ($kind) {
+                self::PAGE_CONTENT => 0,
+                self::COMPONENT => $rows + (($node['props']['root'] ?? '') === 'column' ? 0 : 1),
+                default => $rows + ($kind === 'row' ? 1 : 0),
+            };
+            $children = in_array($kind, [...self::STRUCTURE, 'field', 'collection', 'tabs', 'tab', self::PAGE_CONTENT, self::MODAL, self::COMPONENT, self::AREA_CONTENT], true) && is_array($node['children'] ?? null)
+                ? self::normalizeNodes($node['children'], $childParent, $count, $seen, $insideItem || $kind === 'field', $childRows, $childPlaces, ($inModal || $kind === self::MODAL) && !$repeated, $path . ':' . $index, $areas && !$repeated && $kind !== self::AREA_CONTENT)
                 : [];
             if ($childPlaces !== null) {
                 $places = $childPlaces;
@@ -1314,7 +1414,7 @@ final class LayoutSchema
             }
             // Inside a component: props each placement may set (see applyOverrides()).
             $editableKeys = self::keyList($node['editable'] ?? null);
-            $editable = $kind === self::COMPONENT ? [] : array_values(array_intersect($editableKeys, array_keys(self::propSpec($kind))));
+            $editable = in_array($kind, [self::COMPONENT, self::AREA_CONTENT], true) ? [] : array_values(array_intersect($editableKeys, array_keys(self::propSpec($kind))));
             if ($editable !== []) {
                 $entry['editable'] = $editable;
             }

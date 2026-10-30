@@ -26,6 +26,8 @@ use CometCMS\Localization\Messages;
  *   embedded   sections of page content placed in a column: they fill the column
  *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
+ *   areas      inside a component: what its instance put into each content
+ *              area, and how the page around the instance renders
  *   page       current page number for paginated collections
  *   path       current URL path, for pagination and active menu items
  *   alternates locale => URL of the current page, for language switchers
@@ -185,6 +187,9 @@ final class NodeRenderer
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
             LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
+            LayoutSchema::COMPONENT_AREA => $this->componentArea($node, $state),
+            // Area content shows where its component's area is.
+            LayoutSchema::AREA_CONTENT => '',
             LayoutSchema::MODAL => $this->modal($node, $state),
             LayoutSchema::SITE_CONTENT => $this->siteContent($node, $state),
             'modal_title' => $this->modalTitle($node, $state),
@@ -465,7 +470,9 @@ final class NodeRenderer
     /**
      * A placed component renders its own tree. Inside the builder the whole
      * component is one node: its inner nodes carry no annotations, so two
-     * instances never repeat ids and clicks select the instance.
+     * instances never repeat ids and clicks select the instance. What the
+     * instance put into the component's content areas belongs to the page
+     * around it, and is annotated like it (see componentArea()).
      */
     private function component(array $node, array $state, ?int $order = null): string
     {
@@ -483,6 +490,11 @@ final class NodeRenderer
         if ($root === 'column') {
             $tree['props']['span'] = $node['props']['span'];
         }
+        $fills = [];
+        foreach ($node['children'] ?? [] as $child) {
+            if ($child['kind'] === LayoutSchema::AREA_CONTENT) $fills[$child['props']['area']] = $child;
+        }
+        $state['areas'] = ['fills' => $fills, 'components' => $stack, 'suspended' => $this->annotationsSuspended];
         $state['components'] = [...$stack, $id];
         $annotate = $this->annotating();
 
@@ -501,6 +513,46 @@ final class NodeRenderer
         }
 
         return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
+    }
+
+    /**
+     * A component's content area: what the instance being rendered put
+     * there, in place of the area and laid out by the column around it. The
+     * content belongs to the instance's page, so it renders as part of it:
+     * annotated where the instance is, and free to hold this component again.
+     * The component's own builder shows where each instance adds its content.
+     */
+    private function componentArea(array $node, array $state): string
+    {
+        $areas = $state['areas'] ?? null;
+        unset($state['areas']);
+        if ($areas === null) {
+            return $this->annotating()
+                ? '<div' . $this->attributes($node, ['c-area']) . '><div class="c-placeholder c-placeholder-drop"' . $this->placeholder('componentArea') . '>Content area: each placement of the component adds its own elements here.</div></div>'
+                : '';
+        }
+
+        $fill = $areas['fills'][$node['id']] ?? null;
+        $state['components'] = $areas['components'];
+        $suspended = $this->annotationsSuspended;
+        $this->annotationsSuspended = $areas['suspended'];
+        try {
+            $inner = $fill !== null ? $this->render($fill['children'], $state) : '';
+            if (!$this->annotating()) {
+                return $inner;
+            }
+            if ($fill === null) {
+                // Added to the component after this instance was saved: the builder fills it on its next load.
+                return '<div class="c-area"><div class="c-placeholder"' . $this->placeholder('areaNotLoaded') . '>New content area: reload the builder to add elements here.</div></div>';
+            }
+            if ($inner === '') {
+                $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('areaContent') . '>Content area: drop elements here.</div>';
+            }
+
+            return '<div' . $this->attributes($fill, ['c-area']) . '>' . $inner . '</div>';
+        } finally {
+            $this->annotationsSuspended = $suspended;
+        }
     }
 
     /**

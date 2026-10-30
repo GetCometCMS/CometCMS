@@ -623,7 +623,7 @@ final class SiteController extends BaseController
             'samples' => $samples,
             'sample' => $sample,
             'home_url' => $this->liveUrl($context->homeUrl(), $context),
-            ...$this->builderContext(),
+            ...$this->builderContext(component: true),
         ]]);
     }
 
@@ -1159,8 +1159,8 @@ final class SiteController extends BaseController
         return SiteContext::make($this->site, rtrim($this->http->url('/'), '/'), $this->requestOrigin());
     }
 
-    /** What every builder page needs; $pageContent offers the page content place (detail layouts), $modal the modal template's elements. */
-    private function builderContext(bool $pageContent = false, bool $modal = false): array
+    /** What every builder page needs; $pageContent offers the page content place (detail layouts), $modal the modal template's elements, $component content areas. */
+    private function builderContext(bool $pageContent = false, bool $modal = false, bool $component = false): array
     {
         return [
             'settings' => $this->site->settings(),
@@ -1170,7 +1170,7 @@ final class SiteController extends BaseController
             'default_locale' => $this->site->settings()['default_locale'],
             // The website's address serves another workspace (or none), so live links would mislead.
             'live_conflict' => $this->site->settings()['enabled'] && $this->liveUrlConflict($this->siteUrl() . '/'),
-            'spec' => LayoutSchema::spec($pageContent, $modal),
+            'spec' => LayoutSchema::spec($pageContent, $modal, $component),
             'components' => $this->site->components(),
             'forms' => array_map(fn(array $form): array => ['id' => $form['id'], 'name' => $form['name'], 'type' => $form['type'], 'fields' => count($this->forms->inputs($form))], $this->forms->all()),
         ];
