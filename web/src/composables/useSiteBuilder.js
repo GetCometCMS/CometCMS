@@ -4,7 +4,9 @@ import { normalizeKey, uniqueKey } from './fieldBuilderUtils.js'
 import { useBuilderClipboard } from './builderClipboard.js'
 import { computed, inject, provide, ref, shallowRef } from 'vue'
 import {
+  AREA_CONTENT,
   COMPONENT,
+  COMPONENT_AREA,
   MODAL,
   PAGE_CONTENT,
   SITE_CONTENT,
@@ -17,8 +19,10 @@ import {
   columnLayoutOf,
   contains,
   createNode,
+  detachedCopy,
   duplicateNode,
   effectiveSpan,
+  fillAllAreas,
   findNode,
   insertNode,
   instanceNode,
@@ -88,7 +92,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const pageTypes = computed(() => types.value.filter((item) => item.visibility !== 'private'
     && (settings.value?.routes?.[item.name]?.enabled || settings.value?.homepage?.type === item.name)))
   const currentAvailable = ref(true)
-  /** Reusable components ({ id, name, root, type }) available in the Add panel. */
+  /** Reusable components ({ id, name, root, type, areas }) available in the Add panel. */
   const components = ref([])
   /** Editing a component (its id and root kind) or the modal template: the tree holds just that one root node. */
   const componentId = ref(null)
@@ -135,7 +139,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   const canRedo = computed(() => future.value.length > 0)
 
   function load(tree) {
-    nodes.value = clone(tree ?? [])
+    nodes.value = withAreas(tree)
     savedSnapshot.value = serializedNodes.value
     past.value = []
     future.value = []
@@ -144,8 +148,15 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function loadRevision(tree) {
-    mutate(() => { nodes.value = clone(tree ?? []) })
+    mutate(() => { nodes.value = withAreas(tree) })
     keepSelection()
+  }
+
+  /** A copy of `tree` whose instances have content for each area of their component, also areas added since it was saved. */
+  function withAreas(tree) {
+    const copy = clone(tree ?? [])
+    fillAllAreas(spec.value, copy, components.value)
+    return copy
   }
 
   function markSaved(tree) {
@@ -362,34 +373,68 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   const dropOptions = { isTemplateField }
 
-  /** Drop containers: structure, tabs, item templates, page content, the modal panel and lists without a card yet. */
+  /** Drop containers: structure, tabs, item templates, content areas, the modal panel and lists without a card yet. */
   function isDropContainer(node) {
-    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length)
+    return !!node && (isStructure(node.kind) || ['tabs', 'tab', PAGE_CONTENT, AREA_CONTENT, MODAL].includes(node.kind) || isTemplateField(node) || (node.kind === 'collection' && !node.children?.length)
       || !!spec.value?.kinds?.[node.kind]?.slot)
   }
 
-  /** The single root of a component's or the modal template's tree stays where it is. */
+  /**
+   * The single root of a component's or the modal template's tree stays
+   * where it is, and so does an instance's content for an area of its component.
+   */
   function isLockedRoot(id) {
-    return !!rootKind.value && nodes.value[0]?.id === id
+    if (rootKind.value && nodes.value[0]?.id === id) return true
+    const node = id ? findNode(nodes.value, id) : null
+    return node?.kind === AREA_CONTENT && !isRemovedArea(node)
+  }
+
+  /** The component an instance's area content belongs to. */
+  function areaComponent(node) {
+    return node?.kind === AREA_CONTENT ? componentOf(locate(nodes.value, node.id)?.parent) : null
+  }
+
+  /** The area of the component that area content fills: { id, name }, or null when the component no longer has it. */
+  function areaOf(node) {
+    return areaComponent(node)?.areas?.find((area) => area.id === node.props?.area) ?? null
+  }
+
+  /** Content for an area its component no longer has: kept, not shown, and free to delete. */
+  function isRemovedArea(node) {
+    return !!areaComponent(node) && !areaOf(node)
+  }
+
+  /** What an instance shows in each area of its component, in order, then content of removed areas: [{ area, content, removed }]. */
+  function instanceAreas(instance) {
+    if (instance?.kind !== COMPONENT) return []
+    const contents = (instance.children ?? []).filter((child) => child.kind === AREA_CONTENT)
+    const areas = componentOf(instance)?.areas ?? []
+    return [
+      ...areas.map((area) => ({ area, content: contents.find((child) => child.props?.area === area.id) ?? null, removed: false })),
+      ...contents.filter((child) => !areas.some((area) => area.id === child.props?.area)).map((content) => ({ area: null, content, removed: true })),
+    ]
   }
 
   /**
-   * Whether a resolved drop may happen: nothing joins a locked root. Page
-   * content and the modal's site content go neither into page content,
+   * Whether a resolved drop may happen: nothing joins a locked root, and
+   * area content stays with its instance. Page content, content areas and
+   * the modal's site content go neither into page content, area content,
    * cards or item templates nor twice into one tree (page content: per field).
    */
   function placeable(result) {
-    if (!result || (rootKind.value && result.parentId === null)) return false
+    if (!result || (rootKind.value && result.parentId === null) || result.node.kind === AREA_CONTENT) return false
     const places = []
     const slots = []
+    let areas = false
     walk([result.node], (node) => {
       if (node.kind === PAGE_CONTENT) places.push(node)
       if (node.kind === SITE_CONTENT) slots.push(node)
+      if (node.kind === COMPONENT_AREA) areas = true
     })
-    if (!places.length && !slots.length) return true
+    if (!places.length && !slots.length && !areas) return true
     const parent = result.parentId ? findNode(nodes.value, result.parentId) : null
     const around = parent ? [...ancestors(nodes.value, parent.id), parent] : []
-    if (around.some((node) => [PAGE_CONTENT, 'collection', 'field'].includes(node.kind))) return false
+    if (around.some((node) => [PAGE_CONTENT, AREA_CONTENT, 'collection', 'field'].includes(node.kind))) return false
     if (slots.length > 1 || (slots.length && findKind(SITE_CONTENT, slots[0].id))) return false
     return places.every((place) => !place.props?.field || !findPlace(place.props.field, place.id))
   }
@@ -626,7 +671,8 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   function renameNode(id, value) {
     if (translating.value) return false
     const node = findNode(nodes.value, id)
-    if (!node || typeof value !== 'string') return
+    // Area content is named after its component's area.
+    if (!node || node.kind === AREA_CONTENT || typeof value !== 'string') return
     const name = Array.from(value.replace(/[\r\n]/g, ' ')).slice(0, spec.value?.max_node_name_length ?? 120).join('').trim()
     if ((node.name ?? '') === name) return
     mutate(() => {
@@ -722,7 +768,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
 
   function duplicate(id = selectedId.value) {
     if (translating.value) return false
-    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id)) || holdsPageContent(findNode(nodes.value, id))) return
+    if (!id || isLockedRoot(id) || isCard(findNode(nodes.value, id)) || holdsPageContent(findNode(nodes.value, id)) || findNode(nodes.value, id)?.kind === AREA_CONTENT) return
     let copy = null
     mutate((tree) => {
       copy = duplicateNode(tree, id)
@@ -731,7 +777,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
   }
 
   function shift(id, delta) {
-    if (translating.value) return false
+    if (translating.value || isLockedRoot(id)) return false
     mutate((tree) => shiftNode(tree, id, delta))
   }
 
@@ -891,13 +937,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     function detachInstances(tree) {
       return tree.map((node) => {
         if (node.kind === COMPONENT && node.props?.component === id) {
-          const key = `${node.id}:${JSON.stringify(node.overrides ?? {})}`
-          if (!copies.has(key)) copies.set(key, cloneWithNewIds(withOverrides(component.nodes[0], node.overrides)))
+          const key = JSON.stringify(node)
+          if (!copies.has(key)) copies.set(key, detachedCopy(node, component.nodes[0]))
+          // What the instance put into its areas may hold more instances of the component.
           const copy = clone(copies.get(key))
-          copy.id = node.id
-          if (node.name) copy.name = node.name
-          if (copy.kind === 'column') copy.props.span = clone(node.props.span ?? copy.props.span)
-          return copy
+          return { ...copy, children: detachInstances(copy.children ?? []) }
         }
         return { ...node, children: detachInstances(node.children ?? []) }
       })
@@ -914,9 +958,11 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     return component
   }
 
-  /** Content slots stay in their own document rather than becoming reusable components. */
+  /** Content slots and a component's content areas stay in their own document rather than becoming reusable components. */
   function canConvert(node) {
-    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !holdsPageContent(node) && !!componentApi.create
+    let area = false
+    if (node) walk([node], (item) => !(area = item.kind === COMPONENT_AREA))
+    return !translating.value && !!node && isStructure(node.kind) && !isLockedRoot(node.id) && !holdsPageContent(node) && !area && !!componentApi.create
   }
 
   /** Whether `node` is or contains a page content place or the modal's site content slot. */
@@ -1120,7 +1166,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     componentApi.edit?.(id)
   }
 
-  /** Replace an instance with an editable copy of its component. */
+  /** Replace an instance with an editable copy of its component, with what it shows in each content area in place. */
   async function detach(id) {
     if (translating.value) return false
     const node = findNode(nodes.value, id)
@@ -1128,9 +1174,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     const component = await componentApi.load(node.props.component)
     const root = component?.nodes?.[0]
     if (!root) return false
-    const copy = cloneWithNewIds(withOverrides(root, node.overrides))
-    if (node.name) copy.name = node.name
-    if (copy.kind === 'column') copy.props = { ...copy.props, span: clone(node.props.span ?? copy.props.span) }
+    const copy = detachedCopy(node, root)
     let replaced = false
     mutate((tree) => {
       const where = locate(tree, id)
@@ -1168,6 +1212,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     if (node.name) return node.name
     if (node.kind === 'tab') return valueFor(node, 'props', 'title') || kindLabel('tab')
     if (node.kind === COMPONENT) return componentOf(node)?.name ?? t('site.component.missing')
+    if (node.kind === AREA_CONTENT) return areaOf(node)?.name || kindLabel(COMPONENT_AREA)
     if (isCard(node)) return t('site.kind.card')
     if (isStacked(node)) return t(`site.kind.${node.kind}Stacked`)
     return kindLabel(node.kind)
@@ -1225,6 +1270,10 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
         return t('site.component.instanceOf', { kind: kindLabel(props.root) })
       case PAGE_CONTENT:
         return pageFields().find((field) => field.key === props.field)?.label ?? t('site.page.noField')
+      case COMPONENT_AREA:
+        return t('site.area.filledByPlacement')
+      case AREA_CONTENT:
+        return isRemovedArea(node) ? t('site.area.removed') : t('site.area.filledHere')
       default:
         return ''
     }
@@ -1242,7 +1291,7 @@ export function createSiteBuilder({ t, componentApi = {}, templateApi = {}, fiel
     kindLabel, nodeLabel, isStacked, nodeSummary,
     clipboard, styleClipboard, contextMenu, copy, paste, pasteStyle,
     addColumn, addSectionAfter, openContextMenu, closeContextMenu,
-    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, canConvert, canInsertComponent, deleteComponent, renameComponent,
+    components, componentId, rootKind, componentDialog, isLockedRoot, componentOf, areaOf, isRemovedArea, instanceAreas, canConvert, canInsertComponent, deleteComponent, renameComponent,
     replaceWithInstance, convertToComponent, detach, editComponent,
     componentTrees, loadComponentTree, isEditable, toggleEditable, instanceFields, hasInstanceValue, setInstanceValue, resetInstanceValue,
     fieldDialog, canMakeField, convertToField,

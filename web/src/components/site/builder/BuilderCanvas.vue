@@ -121,8 +121,8 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
   --builder-color:#b7653e;
 }
 
-/* Each entry replaces this area with its own content, so it stays marked. */
-[data-kind="page_content"], [data-kind="site_content"]{
+/* Content areas: whoever uses the design (each entry, each placement of a component) fills them, so they stay marked. */
+[data-kind="page_content"], [data-kind="site_content"], [data-kind="component_area"], [data-kind="area_content"]{
   --builder-color:#217f98;
   background-image:repeating-linear-gradient(-45deg,transparent 0 8px,color-mix(in srgb,var(--builder-color) 4%,transparent) 8px 16px);
   outline:2px dashed color-mix(in srgb,var(--builder-color) 75%,transparent);
@@ -151,12 +151,14 @@ html.cometcms-css-picking .cometcms-resize{display:none!important;}
 /* Positioned sections can paint over their content area's inset outline.
    Repeat it above the content without adding space or intercepting clicks.
    Inherit the outline so hover and selection keep their normal appearance. */
-:where([data-kind="page_content"], [data-kind="site_content"], .c-view-page-edit .c-page-content[data-drop-root]){
+:where([data-kind="page_content"], [data-kind="site_content"], [data-kind="component_area"], [data-kind="area_content"], .c-view-page-edit .c-page-content[data-drop-root]){
   position:relative;
 }
 
 [data-kind="page_content"]::after,
 [data-kind="site_content"]::after,
+[data-kind="component_area"]::after,
+[data-kind="area_content"]::after,
 .c-view-page-edit .c-page-content[data-drop-root]::after,
 .c-view-page-edit [data-page-area]::before{
   content:"";

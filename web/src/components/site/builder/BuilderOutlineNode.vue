@@ -9,7 +9,7 @@
         accent && !isSelected ? `outline-accent outline-accent-${accent}` : '',
       ]"
       :style="{ paddingLeft: `${depth * 14 + 4}px` }"
-      :draggable="!renaming"
+      :draggable="!renaming && !isAreaContent"
       @click="builder.select(node.id)"
       @mouseenter="builder.hoverId.value = node.id"
       @mouseleave="builder.hoverId.value = null"
@@ -67,20 +67,22 @@
         @dragstart.prevent.stop
       />
       <template v-else>
-        <span class="min-w-0 truncate font-medium" :title="builder.nodeLabel(node)" @dblclick.stop="startRename">{{ builder.nodeLabel(node) }}</span>
+        <span class="min-w-0 truncate font-medium" :title="builder.nodeLabel(node)" @dblclick.stop="!isAreaContent && startRename()">{{ builder.nodeLabel(node) }}</span>
         <span class="min-w-0 flex-1 truncate" :class="isSelected ? 'text-white/70' : 'text-slate-400'">{{ builder.nodeSummary(node) }}</span>
       </template>
 
       <span v-if="!renaming" class="hidden shrink-0 items-center group-hover:flex group-focus-within:flex" :class="{ '!flex': isSelected }">
-        <button type="button" class="outline-action" :title="t('site.builder.rename')" :aria-label="t('site.builder.rename')" @click.stop="startRename">
-          <Icon icon="mdi:pencil-outline" class="h-3.5 w-3.5" />
-        </button>
-        <button type="button" class="outline-action" :disabled="first" :title="t('site.builder.moveUp')" @click.stop="builder.shift(node.id, -1)">
-          <Icon icon="mdi:arrow-up" class="h-3.5 w-3.5" />
-        </button>
-        <button type="button" class="outline-action" :disabled="last" :title="t('site.builder.moveDown')" @click.stop="builder.shift(node.id, 1)">
-          <Icon icon="mdi:arrow-down" class="h-3.5 w-3.5" />
-        </button>
+        <template v-if="!isAreaContent">
+          <button type="button" class="outline-action" :title="t('site.builder.rename')" :aria-label="t('site.builder.rename')" @click.stop="startRename">
+            <Icon icon="mdi:pencil-outline" class="h-3.5 w-3.5" />
+          </button>
+          <button type="button" class="outline-action" :disabled="first" :title="t('site.builder.moveUp')" @click.stop="builder.shift(node.id, -1)">
+            <Icon icon="mdi:arrow-up" class="h-3.5 w-3.5" />
+          </button>
+          <button type="button" class="outline-action" :disabled="last" :title="t('site.builder.moveDown')" @click.stop="builder.shift(node.id, 1)">
+            <Icon icon="mdi:arrow-down" class="h-3.5 w-3.5" />
+          </button>
+        </template>
         <button type="button" class="outline-action" :title="t('site.menu.more')" @click.stop="openMenu">
           <Icon icon="mdi:dots-horizontal" class="h-3.5 w-3.5" />
         </button>
@@ -133,9 +135,11 @@ const hasChildren = computed(() => (props.node.children?.length ?? 0) > 0);
 const isSelected = computed(() => builder.selectedId.value === props.node.id);
 const isHovered = computed(() => builder.hoverId.value === props.node.id);
 const isContainer = computed(() => builder.isDropContainer(props.node));
-// Entry content areas and component instances stand out, in the same colors the canvas marks them with.
+/** An instance's content for one area: named by its component and kept in place. */
+const isAreaContent = computed(() => props.node.kind === "area_content");
+// Content areas and component instances stand out, in the same colors the canvas marks them with.
 const accent = computed(() => {
-  if (props.node.kind === "page_content" || props.node.kind === "site_content") return "entry";
+  if (["page_content", "site_content", "component_area", "area_content"].includes(props.node.kind)) return "entry";
   return props.node.kind === "component" ? "component" : "";
 });
 const icon = computed(() => {

@@ -8,7 +8,7 @@ use CometCMS\Core\HtmlSanitizer;
 use CometCMS\Core\Security;
 use CometCMS\Localization\LocalizedValue;
 use CometCMS\Localization\Messages;
-use CometCMS\Site\Blocks\BlockRegistry;
+use CometCMS\Extensions\ExtensionRegistry;
 use CometCMS\Site\Blocks\BlockTemplate;
 
 /**
@@ -28,6 +28,8 @@ use CometCMS\Site\Blocks\BlockTemplate;
  *   embedded   sections of page content placed in a column: they fill the column
  *   nested_cols the columns of such a nested row
  *   components ids of the components being rendered, to stop cycles
+ *   areas      inside a component: what its instance put into each content
+ *              area, and how the page around the instance renders
  *   page       current page number for paginated collections
  *   path       current URL path, for pagination and active menu items
  *   alternates locale => URL of the current page, for language switchers
@@ -191,6 +193,9 @@ final class NodeRenderer
             'column' => $this->column($node, $state, $order),
             LayoutSchema::COMPONENT => $this->component($node, $state, $order),
             LayoutSchema::PAGE_CONTENT => $this->pageContent($node, $state),
+            LayoutSchema::COMPONENT_AREA => $this->componentArea($node, $state),
+            // Area content shows where its component's area is.
+            LayoutSchema::AREA_CONTENT => '',
             LayoutSchema::MODAL => $this->modal($node, $state),
             LayoutSchema::SITE_CONTENT => $this->siteContent($node, $state),
             'modal_title' => $this->modalTitle($node, $state),
@@ -216,7 +221,7 @@ final class NodeRenderer
             'site_title' => $this->siteTitle($node, $state),
             'language_switcher' => $this->languageSwitcher($node, $state),
             'theme_toggle' => $this->themeToggle($node),
-            default => BlockRegistry::isKind((string) ($node['kind'] ?? '')) ? $this->block($node, $state) : '',
+            default => ExtensionRegistry::isKind((string) ($node['kind'] ?? '')) ? $this->block($node, $state) : '',
         };
         if ($warnings && $this->annotating()) {
             $warning = '<div class="c-placeholder c-placeholder-warning" role="status"' . $this->placeholder('unresolvedFallback') . '>Unresolved content reference (using fallback if configured)</div>';
@@ -236,14 +241,14 @@ final class NodeRenderer
         return array_keys($this->blockScripts);
     }
 
-    /** CSS of the packages and blocks rendered so far: each package's shared CSS, then its blocks'. */
+    /** CSS of the extensions and blocks rendered so far: each extension's shared CSS, then its blocks'. */
     public function blockStylesheet(): string
     {
         $blocks = $this->ctx->site->blocks();
         $assetUrl = $this->ctx->blockAssetUrl(...);
         $css = [];
         foreach ($this->blockStyles as $name => $kinds) {
-            $parts = $blocks->package($name)['css'] ?? [];
+            $parts = $blocks->extension($name)['css'] ?? [];
             foreach (array_keys($kinds) as $kind) {
                 array_push($parts, "\n", ...($blocks->get($kind)['css'] ?? []));
             }
@@ -270,7 +275,7 @@ final class NodeRenderer
         $values = $this->blockValues($block['props'], $node['props'] ?? [], $state);
         // Compiled templates are well-formed allow-listed HTML; render only escapes values.
         $html = BlockTemplate::render($block['template'], $values, $this->ctx->blockAssetUrl(...), $slot);
-        $this->blockStyles[$block['package']][$node['kind']] = true;
+        $this->blockStyles[$block['extension']][$node['kind']] = true;
         // Installed block scripts also mount in previews, using the same resolved props.
         $attributes = '';
         if ($block['script'] !== '') {
@@ -279,7 +284,7 @@ final class NodeRenderer
                 . Security::e(json_encode($values, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)) . '"';
         }
 
-        return $this->element($node, $html, [BlockRegistry::cssClass($block['name'])], '', $attributes);
+        return $this->element($node, $html, [ExtensionRegistry::cssClass($block['name'])], '', $attributes);
     }
 
     /**
@@ -555,7 +560,9 @@ final class NodeRenderer
     /**
      * A placed component renders its own tree. Inside the builder the whole
      * component is one node: its inner nodes carry no annotations, so two
-     * instances never repeat ids and clicks select the instance.
+     * instances never repeat ids and clicks select the instance. What the
+     * instance put into the component's content areas belongs to the page
+     * around it, and is annotated like it (see componentArea()).
      */
     private function component(array $node, array $state, ?int $order = null): string
     {
@@ -573,6 +580,11 @@ final class NodeRenderer
         if ($root === 'column') {
             $tree['props']['span'] = $node['props']['span'];
         }
+        $fills = [];
+        foreach ($node['children'] ?? [] as $child) {
+            if ($child['kind'] === LayoutSchema::AREA_CONTENT) $fills[$child['props']['area']] = $child;
+        }
+        $state['areas'] = ['fills' => $fills, 'components' => $stack, 'suspended' => $this->annotationsSuspended];
         $state['components'] = [...$stack, $id];
         $annotate = $this->annotating();
 
@@ -591,6 +603,46 @@ final class NodeRenderer
         }
 
         return (string) preg_replace('/^<([a-z][a-z0-9]*)/', '<$1' . $this->componentAttributes($node), $html, 1);
+    }
+
+    /**
+     * A component's content area: what the instance being rendered put
+     * there, in place of the area and laid out by the column around it. The
+     * content belongs to the instance's page, so it renders as part of it:
+     * annotated where the instance is, and free to hold this component again.
+     * The component's own builder shows where each instance adds its content.
+     */
+    private function componentArea(array $node, array $state): string
+    {
+        $areas = $state['areas'] ?? null;
+        unset($state['areas']);
+        if ($areas === null) {
+            return $this->annotating()
+                ? '<div' . $this->attributes($node, ['c-area']) . '><div class="c-placeholder c-placeholder-drop"' . $this->placeholder('componentArea') . '>Content area: each placement of the component adds its own elements here.</div></div>'
+                : '';
+        }
+
+        $fill = $areas['fills'][$node['id']] ?? null;
+        $state['components'] = $areas['components'];
+        $suspended = $this->annotationsSuspended;
+        $this->annotationsSuspended = $areas['suspended'];
+        try {
+            $inner = $fill !== null ? $this->render($fill['children'], $state) : '';
+            if (!$this->annotating()) {
+                return $inner;
+            }
+            if ($fill === null) {
+                // Added to the component after this instance was saved: the builder fills it on its next load.
+                return '<div class="c-area"><div class="c-placeholder"' . $this->placeholder('areaNotLoaded') . '>New content area: reload the builder to add elements here.</div></div>';
+            }
+            if ($inner === '') {
+                $inner = '<div class="c-placeholder c-placeholder-drop"' . $this->placeholder('areaContent') . '>Content area: drop elements here.</div>';
+            }
+
+            return '<div' . $this->attributes($fill, ['c-area']) . '>' . $inner . '</div>';
+        } finally {
+            $this->annotationsSuspended = $suspended;
+        }
     }
 
     /**
