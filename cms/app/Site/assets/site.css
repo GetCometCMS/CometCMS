@@ -678,6 +678,8 @@ html:has(.c-lightbox[open], .c-modal:modal) { overflow: hidden; }
 /* A row is an item's label; an item with a submenu adds its toggle at the row's end. */
 .c-menu-label { display: flex; align-items: center; border-radius: calc(var(--radius) * 0.75); }
 .c-menu a, .c-menu-label > span:not(.c-menu-chevron) { display: block; flex: 1 1 auto; min-width: 0; padding: 0.4em 0.75em; color: inherit; text-decoration: none; border-radius: inherit; overflow-wrap: anywhere; }
+/* An item's optional icon leads its label in the label's color. */
+.c-menu-icon { width: 1.15em; height: 1.15em; margin-inline-end: 0.45em; vertical-align: -0.2em; }
 /* The current and hovered links take the menu's text color, else the section's highlight color (see .c-bg-*). */
 /* A hover color of the menu's own comes first; "li" outranks an element's link color (.c-lc-*). */
 .c-menu li a:hover, .c-menu summary.c-menu-label:hover, .c-menu li a[aria-current="page"] { color: var(--c-menu-hover, var(--c-menu-color, var(--c-menu-accent, var(--c-primary)))); }

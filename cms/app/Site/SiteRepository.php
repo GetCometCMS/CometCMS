@@ -1847,6 +1847,8 @@ final class SiteRepository
                 'id' => LayoutSchema::key($item['id'] ?? '') ?: LayoutSchema::newId(),
                 'label' => $this->localized($item['label'] ?? '', static fn(mixed $v): string => self::line($v, 120)),
                 'link' => $this->localized($item['link'] ?? [], LayoutSchema::normalizeLink(...)),
+                // Optional and shared by every language; unknown names are dropped.
+                'icon' => is_string($item['icon'] ?? null) && isset(Icons::catalog()[$item['icon']]) ? $item['icon'] : '',
                 'children' => $depth + 1 < self::MENU_LIMITS['max_depth'] ? $this->normalizeMenuItems($item['children'] ?? [], $depth + 1) : [],
             ];
         }

@@ -1219,6 +1219,11 @@ final class NodeRenderer
             }
 
             $text = Security::e($label);
+            // The icon sits inside the link, so it is clickable and the label still names it.
+            $icon = Icons::catalog()[$item['icon'] ?? ''] ?? null;
+            if ($icon !== null) {
+                $text = '<svg class="c-menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" focusable="false" aria-hidden="true">' . $icon['body'] . '</svg>' . $text;
+            }
             $active = $link !== null && $currentPath !== '' && explode('#', $link['href'], 2)[0] === $currentPath;
             $inner = $link !== null
                 ? '<a href="' . Security::e($link['href']) . '"' . ($link['new_tab'] ? ' target="_blank" rel="noopener noreferrer"' : '') . ($active ? ' aria-current="page"' : '') . '>' . $text . '</a>'

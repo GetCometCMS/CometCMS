@@ -107,6 +107,8 @@ const messages = {
     "site.menus.createMenu": "Create menu…",
     "site.menus.settings": "Menu settings",
     "site.menus.displayText": "Display text",
+    "site.menus.icon": "Icon",
+    "site.menus.iconHelp": "Optional. Shown before the text in every language.",
     "site.menus.destination": "Destination",
     "site.menus.changeDestination": "Choose another destination",
     "site.menus.useDestination": "Use destination",
